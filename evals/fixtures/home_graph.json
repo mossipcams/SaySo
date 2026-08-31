@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "sequence": 42,
+  "home_id": "eval-home",
+  "floors": [
+    {
+      "id": "floor_ground",
+      "name": "Ground Floor",
+      "aliases": ["downstairs", "first floor"]
+    },
+    {
+      "id": "floor_upper",
+      "name": "Upper Floor",
+      "aliases": ["upstairs", "second floor"]
+    }
+  ],
+  "areas": [
+    {
+      "id": "area_living_room",
+      "name": "Living Room",
+      "floor_id": "floor_ground",
+      "aliases": ["lounge", "family room"]
+    },
+    {
+      "id": "area_kitchen",
+      "name": "Kitchen",
+      "floor_id": "floor_ground",
+      "aliases": []
+    },
+    {
+      "id": "area_bedroom",
+      "name": "Primary Bedroom",
+      "floor_id": "floor_upper",
+      "aliases": ["master bedroom"]
+    }
+  ],
+  "devices": [
+    {
+      "id": "device_ceiling_lights",
+      "name": "Living Room Ceiling Lights",
+      "manufacturer": "Example Lighting",
+      "model": "Dimmer Hub",
+      "area_id": "area_living_room"
+    },
+    {
+      "id": "device_floor_lamp",
+      "name": "Floor Lamp",
+      "manufacturer": "Example Lighting",
+      "model": "Smart Bulb",
+      "area_id": "area_living_room"
+    },
+    {
+      "id": "device_thermostat",
+      "name": "Downstairs Thermostat",
+      "manufacturer": "Example Climate",
+      "model": "T6",
+      "area_id": "area_living_room"
+    }
+  ],
+  "entities": [
+    {
+      "entity_id": "light.living_room_ceiling",
+      "domain": "light",
+      "name": "Living Room Ceiling",
+      "aliases": ["ceiling lights", "overhead lights"],
+      "area_id": "area_living_room",
+      "device_id": "device_ceiling_lights",
+      "capabilities": [
+        {"kind": "power"},
+        {"kind": "brightness", "min_value": 1, "max_value": 100}
+      ],
+      "state": {
+        "value": "on",
+        "attributes": {"brightness": 180, "color_mode": "brightness"},
+        "last_changed": "2026-08-31T20:15:00+00:00",
+        "last_updated": "2026-08-31T20:15:00+00:00"
+      }
+    },
+    {
+      "entity_id": "light.floor_lamp",
+      "domain": "light",
+      "name": "Floor Lamp",
+      "aliases": ["lamp", "reading lamp"],
+      "area_id": "area_living_room",
+      "device_id": "device_floor_lamp",
+      "capabilities": [
+        {"kind": "power"},
+        {"kind": "brightness", "min_value": 1, "max_value": 100}
+      ],
+      "state": {
+        "value": "off",
+        "attributes": {"brightness": 0}
+      }
+    },
+    {
+      "entity_id": "climate.downstairs",
+      "domain": "climate",
+      "name": "Downstairs Thermostat",
+      "aliases": ["thermostat", "hvac"],
+      "area_id": "area_living_room",
+      "device_id": "device_thermostat",
+      "capabilities": [
+        {"kind": "power"},
+        {"kind": "temperature", "min_value": 50, "max_value": 90},
+        {"kind": "query", "attributes": ["current_temperature", "hvac_mode", "temperature"]}
+      ],
+      "state": {
+        "value": "heat",
+        "attributes": {
+          "current_temperature": 70,
+          "temperature": 72,
+          "hvac_mode": "heat"
+        }
+      }
+    },
+    {
+      "entity_id": "binary_sensor.front_door",
+      "domain": "binary_sensor",
+      "name": "Front Door",
+      "aliases": ["door"],
+      "area_id": "area_living_room",
+      "capabilities": [
+        {"kind": "query", "attributes": ["state"]}
+      ],
+      "state": {
+        "value": "off",
+        "attributes": {"device_class": "door"}
+      }
+    }
+  ],
+  "scenes": [
+    {
+      "entity_id": "scene.movie_time",
+      "name": "Movie Time",
+      "aliases": ["movie mode", "cinema"],
+      "area_id": "area_living_room",
+      "capabilities": [{"kind": "scene"}]
+    }
+  ],
+  "scripts": [
+    {
+      "entity_id": "script.good_night",
+      "name": "Good Night",
+      "aliases": ["bedtime"],
+      "area_id": "area_bedroom",
+      "capabilities": [{"kind": "script"}]
+    }
+  ]
+}

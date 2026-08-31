@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "protocol": "sayso-api",
+  "message_types": [
+    "hello",
+    "hello_ack",
+    "ping",
+    "pong",
+    "error"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "type": "hello_ack",
+  "correlation_id": "550e8400-e29b-41d4-a716-446655440000",
+  "payload": {
+    "integration_version": "0.1.0",
+    "home_assistant_version": "2026.2.0"
+  }
+}

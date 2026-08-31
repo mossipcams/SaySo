@@ -1,0 +1,45 @@
+{
+  "$defs": {
+    "MessageType": {
+      "enum": [
+        "hello",
+        "hello_ack",
+        "ping",
+        "pong",
+        "error",
+        "graph_snapshot",
+        "state_delta",
+        "registry_delta"
+      ],
+      "title": "MessageType",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "version": {
+      "const": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "type": {
+      "$ref": "#/$defs/MessageType"
+    },
+    "correlation_id": {
+      "minLength": 1,
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    }
+  },
+  "required": [
+    "version",
+    "type",
+    "correlation_id"
+  ],
+  "title": "SaySoEnvelope",
+  "type": "object"
+}

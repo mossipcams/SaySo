@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "sequence": 7,
+  "home_id": "registry-test-home",
+  "floors": [
+    {
+      "id": "ground_floor",
+      "name": "Ground Floor",
+      "aliases": ["downstairs", "first floor"]
+    }
+  ],
+  "areas": [
+    {
+      "id": "garage",
+      "name": "Garage",
+      "floor_id": "ground_floor",
+      "aliases": []
+    },
+    {
+      "id": "living_room",
+      "name": "Living Room",
+      "floor_id": "ground_floor",
+      "aliases": ["family room", "lounge"]
+    }
+  ],
+  "devices": [],
+  "entities": [
+    {
+      "entity_id": "light.kitchen",
+      "domain": "light",
+      "name": "Kitchen Light",
+      "aliases": ["kitchen lamp", "overhead"],
+      "capabilities": [
+        {"kind": "power"}
+      ],
+      "area_id": "living_room",
+      "state": {
+        "value": "on",
+        "attributes": {
+          "brightness": 200
+        }
+      }
+    },
+    {
+      "entity_id": "sensor.garage_temp",
+      "domain": "sensor",
+      "name": "Garage Temperature",
+      "aliases": [],
+      "capabilities": [
+        {"kind": "query", "attributes": ["unit_of_measurement"]}
+      ],
+      "area_id": "garage",
+      "state": {
+        "value": "72",
+        "attributes": {
+          "unit_of_measurement": "°F"
+        }
+      }
+    },
+    {
+      "entity_id": "switch.disabled_outlet",
+      "domain": "switch",
+      "name": "Disabled Outlet",
+      "aliases": [],
+      "capabilities": [
+        {"kind": "power"}
+      ],
+      "area_id": "living_room",
+      "state": {
+        "value": "off",
+        "attributes": {}
+      }
+    }
+  ],
+  "scenes": [
+    {
+      "entity_id": "scene.evening",
+      "name": "Evening",
+      "aliases": [],
+      "capabilities": [
+        {"kind": "scene"}
+      ],
+      "area_id": "living_room"
+    }
+  ],
+  "scripts": [
+    {
+      "entity_id": "script.bedtime",
+      "name": "Bedtime",
+      "aliases": [],
+      "capabilities": [
+        {"kind": "script"}
+      ],
+      "area_id": "living_room"
+    }
+  ]
+}

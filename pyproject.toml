@@ -1,0 +1,34 @@
+[project]
+name = "sayso"
+version = "0.1.0"
+description = "Local smart-home voice assistant"
+readme = "README.md"
+requires-python = ">=3.14.2"
+
+[tool.uv.workspace]
+members = ["sayso-server", "sayso-satellite"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-homeassistant-custom-component==0.13.357",
+    "sayso-server",
+    "sayso-satellite",
+]
+
+[tool.uv.sources]
+sayso-server = { workspace = true }
+sayso-satellite = { workspace = true }
+
+[tool.uv]
+override-dependencies = [
+    "pydantic>=2.13.5",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+    "custom_components",
+    "sayso-server/src/sayso_server",
+    "sayso-satellite/src/sayso_satellite",
+]

@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up SaySo",
+        "description": "Connect Home Assistant to your SaySo voice assistant server.",
+        "data": {
+          "url": "Server URL",
+          "token": "Access token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach the SaySo server. Check the URL and try again.",
+      "invalid_auth": "Authentication failed. Check the access token and try again.",
+      "invalid_url": "Enter a valid HTTP or HTTPS URL.",
+      "required": "This field is required."
+    },
+    "abort": {
+      "already_configured": "This SaySo server is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SaySo permissions and exposure",
+        "description": "Control which domains and actions SaySo may use, and which entities are visible.",
+        "data": {
+          "domain_allowlist": "Allowed domains",
+          "action_allowlist": "Allowed actions",
+          "exposure_mode": "Entity exposure",
+          "area_ids": "Included areas",
+          "entity_ids": "Included entities"
+        },
+        "data_description": {
+          "domain_allowlist": "Leave empty to allow all domains.",
+          "action_allowlist": "Leave empty to allow all actions.",
+          "exposure_mode": "Choose whether SaySo sees all entities, only selected areas, or only selected entities.",
+          "area_ids": "Used when exposure mode is set to selected areas.",
+          "entity_ids": "Used when exposure mode is set to selected entities."
+        }
+      }
+    }
+  }
+}

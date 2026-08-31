@@ -1,0 +1,21 @@
+[
+  {
+    "version": 2,
+    "type": "hello",
+    "correlation_id": "req-unknown-version"
+  },
+  {
+    "version": 1,
+    "type": "action_request",
+    "correlation_id": "req-unknown-type"
+  },
+  {
+    "version": 1,
+    "type": "ping"
+  },
+  {
+    "version": 1,
+    "type": "pong",
+    "correlation_id": ""
+  }
+]

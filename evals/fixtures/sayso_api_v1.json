@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "protocol": "sayso-api",
+  "message_types": [
+    "hello",
+    "hello_ack",
+    "ping",
+    "pong",
+    "error",
+    "graph_snapshot",
+    "state_delta",
+    "registry_delta"
+  ],
+  "envelope": {
+    "version": 1,
+    "type": "hello",
+    "correlation_id": "session-open-001",
+    "payload": {
+      "server_id": "sayso-local"
+    }
+  }
+}
