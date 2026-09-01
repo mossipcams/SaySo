@@ -13,7 +13,7 @@ from sayso_server.auth import bearer_token_valid
 from sayso_server.const import READINESS_PATH, TEXT_PATH, TOKEN_ENV_VAR, WS_PATH
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.messages import MessageType
-from sayso_server.satellites import SatelliteRegistry
+from sayso_server.satellites import SatelliteRegistry, register_default_satellites
 from sayso_server.text_api import TextController, create_live_text_controller, create_text_handler
 from sayso_server.gateway import handle_ha_connection
 from sayso_server.health import HEALTH_PATH
@@ -154,6 +154,8 @@ def create_aiohttp_app(
 
     app = web.Application()
     registry = satellite_registry or SatelliteRegistry()
+    if satellite_registry is None:
+        register_default_satellites(registry)
     store = graph_store or HomeGraphStore()
     readiness_state = readiness or ReadinessState()
     binding = ha_gateway_binding if ha_gateway_binding is not None else HaGatewayBinding()

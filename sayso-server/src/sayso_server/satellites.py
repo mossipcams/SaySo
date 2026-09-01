@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sayso_server.const import DEFAULT_SATELLITE_AREA_ID, DEFAULT_SATELLITE_ID
 from sayso_server.home_graph import HomeGraphSnapshot
 
 
@@ -44,3 +45,9 @@ class SatelliteRegistry:
         if not any(area.id == registration.area_id for area in snapshot.areas):
             return None, "unknown_area"
         return registration.area_id, None
+
+
+def register_default_satellites(registry: SatelliteRegistry) -> None:
+    """Register the MVP Mac living-room satellite."""
+
+    registry.register(DEFAULT_SATELLITE_ID, DEFAULT_SATELLITE_AREA_ID)

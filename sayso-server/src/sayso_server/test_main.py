@@ -6,7 +6,13 @@ from unittest.mock import patch
 
 import pytest
 
-from sayso_server.const import DEFAULT_HOST, DEFAULT_PORT, TOKEN_ENV_VAR
+from sayso_server.const import (
+    DEFAULT_HOST,
+    DEFAULT_PORT,
+    DEFAULT_SATELLITE_AREA_ID,
+    DEFAULT_SATELLITE_ID,
+    TOKEN_ENV_VAR,
+)
 
 
 def test_main_exits_when_token_missing(
@@ -42,3 +48,6 @@ def test_main_starts_default_live_app(
     assert app["text_controller"] is not None
     assert run_app.call_args.kwargs["host"] == DEFAULT_HOST
     assert run_app.call_args.kwargs["port"] == DEFAULT_PORT
+    registration = app["satellite_registry"].get(DEFAULT_SATELLITE_ID)
+    assert registration is not None
+    assert registration.area_id == DEFAULT_SATELLITE_AREA_ID

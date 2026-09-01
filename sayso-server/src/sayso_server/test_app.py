@@ -5,7 +5,14 @@ from __future__ import annotations
 import pytest
 
 from sayso_server.app import MissingServerTokenError, create_aiohttp_app, load_server_token
-from sayso_server.const import READINESS_PATH, TEXT_PATH, TOKEN_ENV_VAR, WS_PATH
+from sayso_server.const import (
+    DEFAULT_SATELLITE_AREA_ID,
+    DEFAULT_SATELLITE_ID,
+    READINESS_PATH,
+    TEXT_PATH,
+    TOKEN_ENV_VAR,
+    WS_PATH,
+)
 from sayso_server.health import HEALTH_PATH
 from sayso_server.text_api import OrchestratorTextController
 
@@ -35,3 +42,6 @@ def test_create_aiohttp_app_uses_default_live_wiring() -> None:
     assert app["graph_store"] is not None
     assert app["readiness"] is not None
     assert app["ha_gateway_binding"] is not None
+    registration = app["satellite_registry"].get(DEFAULT_SATELLITE_ID)
+    assert registration is not None
+    assert registration.area_id == DEFAULT_SATELLITE_AREA_ID
