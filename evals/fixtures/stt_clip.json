@@ -1,0 +1,13 @@
+{
+  "clip_id": "english-living-room-lights",
+  "pcm_file": "audio_pcm16_mono_16k.bin",
+  "sample_rate_hz": 16000,
+  "channels": 1,
+  "encoding": "pcm_s16le",
+  "duration_ms": 160,
+  "language": "en",
+  "expected_transcript": "turn off the living room lights",
+  "tolerance": {
+    "mode": "normalized"
+  }
+}
