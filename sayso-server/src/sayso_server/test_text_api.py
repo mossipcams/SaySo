@@ -118,15 +118,129 @@ def test_create_aiohttp_app_registers_text_route() -> None:
     from sayso_server.app import create_aiohttp_app
     from sayso_server.health import HEALTH_PATH
     from sayso_server.session import HaGatewayBinding
+    from sayso_server.text_api import OrchestratorTextController
 
     app = create_aiohttp_app("secret-token")
     paths = {route.resource.canonical for route in app.router.routes()}
     assert TEXT_PATH in paths
     assert HEALTH_PATH in paths
+    assert isinstance(app["text_controller"], OrchestratorTextController)
+    assert app["graph_store"] is app["text_controller"]._graph_store
 
     shared_binding = HaGatewayBinding()
     wired_app = create_aiohttp_app("secret-token", ha_gateway_binding=shared_binding)
     assert wired_app["ha_gateway_binding"] is shared_binding
+
+
+def _text_route_handler(app):
+    for route in app.router.routes():
+        if route.resource.canonical == TEXT_PATH:
+            return route.handler
+    raise AssertionError(f"missing route {TEXT_PATH}")
+
+
+@pytest.mark.asyncio
+async def test_default_text_endpoint_not_503_not_configured() -> None:
+    from sayso_server.app import create_aiohttp_app
+
+    app = create_aiohttp_app("secret-token")
+    registry = app["satellite_registry"]
+    registry.register("macbook", "area_living_room")
+    app["graph_store"].replace_snapshot(_load_graph())
+
+    handler = _text_route_handler(app)
+    status, body = await _post_text(handler, _text_request())
+    assert status == 200
+    assert body is not None
+    assert body["type"] == "text_response"
+    assert body.get("payload", {}).get("code") != "not_configured"
+
+
+@pytest.mark.asyncio
+async def test_explicit_text_controller_overrides_default() -> None:
+    from sayso_server.app import create_aiohttp_app
+
+    controller = RecordingTextController()
+    app = create_aiohttp_app("secret-token", text_controller=controller)
+    registry = app["satellite_registry"]
+    registry.register("macbook", "area_living_room")
+    app["graph_store"].replace_snapshot(_load_graph())
+
+    handler = _text_route_handler(app)
+    status, body = await _post_text(handler, _text_request(correlation_id="override-1"))
+    assert status == 200
+    assert body is not None
+    assert body["correlation_id"] == "override-1"
+    assert controller.calls == [
+        {
+            "satellite_id": "macbook",
+            "area_id": "area_living_room",
+            "text": "turn off the floor lamp",
+            "correlation_id": "override-1",
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_default_text_controller_shares_graph_store_with_gateway() -> None:
+    from sayso_server.app import create_aiohttp_app
+    from sayso_server.gateway import handle_ha_connection
+    from sayso_server.messages import MessageType
+
+    class GatewayWebSocket:
+        def __init__(self) -> None:
+            self.closed = False
+            self._messages = [
+                json.dumps(
+                    {
+                        "version": API_VERSION,
+                        "type": MessageType.HELLO.value,
+                        "correlation_id": "default-graph-1",
+                        "payload": {},
+                    },
+                ),
+                json.dumps(
+                    {
+                        "version": API_VERSION,
+                        "type": MessageType.GRAPH_SNAPSHOT.value,
+                        "correlation_id": "default-graph-2",
+                        "payload": _load_graph().model_dump(mode="json"),
+                    },
+                ),
+                None,
+            ]
+            self._index = 0
+
+        async def send_str(self, data: str) -> None:
+            return None
+
+        async def close(self) -> None:
+            self.closed = True
+
+        async def receive_str(self) -> str | None:
+            message = self._messages[self._index]
+            self._index += 1
+            return message
+
+    app = create_aiohttp_app("secret-token")
+    registry = app["satellite_registry"]
+    registry.register("macbook", "area_living_room")
+
+    await handle_ha_connection(
+        GatewayWebSocket(),
+        authorization="Bearer secret-token",
+        server_token="secret-token",
+        graph_store=app["graph_store"],
+    )
+
+    assert app["graph_store"].snapshot is not None
+    assert app["text_controller"]._graph_store is app["graph_store"]
+
+    handler = _text_route_handler(app)
+    status, body = await _post_text(handler, _text_request())
+    assert status == 200
+    assert body is not None
+    assert body["type"] == "text_response"
 
 
 @pytest.mark.asyncio

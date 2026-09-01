@@ -13,7 +13,7 @@ from sayso_server.const import READINESS_PATH, TEXT_PATH, WS_PATH
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.messages import MessageType
 from sayso_server.satellites import SatelliteRegistry
-from sayso_server.text_api import TextController, create_text_handler
+from sayso_server.text_api import TextController, create_live_text_controller, create_text_handler
 from sayso_server.gateway import handle_ha_connection
 from sayso_server.health import HEALTH_PATH
 from sayso_server.readiness import ReadinessSnapshot, ReadinessState, liveness_response, readiness_response
@@ -138,9 +138,12 @@ def create_aiohttp_app(
     store = graph_store or HomeGraphStore()
     readiness_state = readiness or ReadinessState()
     binding = ha_gateway_binding if ha_gateway_binding is not None else HaGatewayBinding()
+    controller = text_controller
+    if controller is None:
+        controller = create_live_text_controller(binding, graph_store=store)
     app["satellite_registry"] = registry
     app["graph_store"] = store
-    app["text_controller"] = text_controller
+    app["text_controller"] = controller
     app["readiness"] = readiness_state
     app["ha_gateway_binding"] = binding
 
@@ -199,7 +202,7 @@ def create_aiohttp_app(
             token=token,
             satellite_registry=registry,
             graph_store=store,
-            text_controller=text_controller,
+            text_controller=controller,
         ),
     )
     app.router.add_get(WS_PATH, websocket)
