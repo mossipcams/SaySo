@@ -13,11 +13,14 @@ from sayso_server.api import API_VERSION
 from sayso_server.auth import bearer_token_valid
 from sayso_server.const import TEXT_PATH
 from sayso_server.conversation import ConversationStore
+from sayso_server.control_plan import NoActionPlan
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.ha_client import ActionRequestClient
 from sayso_server.orchestrator import execute_control_plan, execute_control_plan_async
+from sayso_server.readiness import text_execution_refusal
 from sayso_server.runtime import FakeModelRuntime, ModelRuntime, compose_plan_generation
 from sayso_server.satellites import SatelliteRegistry
+from sayso_server.session import HaGatewayBinding
 from sayso_server.telemetry import InteractionTelemetry, TelemetrySink
 
 
@@ -76,12 +79,33 @@ class OrchestratorTextController:
         graph_store: HomeGraphStore,
         conversation_store: ConversationStore | None = None,
         telemetry_sink: TelemetrySink | None = None,
+        ha_gateway_binding: HaGatewayBinding | None = None,
     ) -> None:
         self._runtime = runtime
         self._ha_client = ha_client
         self._graph_store = graph_store
         self._conversation_store = conversation_store
         self._telemetry_sink = telemetry_sink
+        self._ha_gateway_binding = ha_gateway_binding
+
+    def _refusal_payload(self, *, text: str, message: str) -> dict[str, Any]:
+        plan = NoActionPlan(intent=text, reason=message)
+        return {
+            "category": "no_action",
+            "reason": message,
+            "plan": plan.model_dump(mode="json"),
+            "request_id": None,
+        }
+
+    def _execution_refusal(self, *, text: str) -> dict[str, Any] | None:
+        refusal = text_execution_refusal(
+            graph_snapshot=self._graph_store.snapshot,
+            ha_gateway_binding=self._ha_gateway_binding,
+        )
+        if refusal is None:
+            return None
+        _code, message = refusal
+        return self._refusal_payload(text=text, message=message)
 
     def handle(
         self,
@@ -91,10 +115,12 @@ class OrchestratorTextController:
         text: str,
         correlation_id: str,
     ) -> dict[str, Any]:
+        refusal = self._execution_refusal(text=text)
+        if refusal is not None:
+            return refusal
+
         snapshot = self._graph_store.snapshot
-        if snapshot is None:
-            msg = "home graph snapshot is required"
-            raise RuntimeError(msg)
+        assert snapshot is not None
 
         request_id = correlation_id or str(uuid.uuid4())
         telemetry = InteractionTelemetry(
@@ -155,10 +181,12 @@ class OrchestratorTextController:
         text: str,
         correlation_id: str,
     ) -> dict[str, Any]:
+        refusal = self._execution_refusal(text=text)
+        if refusal is not None:
+            return refusal
+
         snapshot = self._graph_store.snapshot
-        if snapshot is None:
-            msg = "home graph snapshot is required"
-            raise RuntimeError(msg)
+        assert snapshot is not None
 
         request_id = correlation_id or str(uuid.uuid4())
         telemetry = InteractionTelemetry(
@@ -235,6 +263,8 @@ def create_text_handler(
     satellite_registry: SatelliteRegistry,
     graph_store: HomeGraphStore,
     text_controller: TextController | None = None,
+    ha_gateway_binding: HaGatewayBinding | None = None,
+    require_live_ha: bool = False,
 ) -> web.RequestHandler:
     """Create the aiohttp handler for POST /api/v1/text."""
 
@@ -274,6 +304,22 @@ def create_text_handler(
                 },
             )
             return web.json_response(error.model_dump(mode="json"), status=400)
+
+        if require_live_ha and ha_gateway_binding is not None:
+            refusal = text_execution_refusal(
+                graph_snapshot=graph_store.snapshot,
+                ha_gateway_binding=ha_gateway_binding,
+            )
+            if refusal is not None:
+                code, message = refusal
+                status = 503 if code == "ha_disconnected" else 400
+                error = ErrorResponseEnvelope(
+                    version=API_VERSION,
+                    type="error",
+                    correlation_id=envelope.correlation_id,
+                    payload={"code": code, "message": message},
+                )
+                return web.json_response(error.model_dump(mode="json"), status=status)
 
         if text_controller is None:
             error = ErrorResponseEnvelope(
@@ -343,6 +389,7 @@ def create_live_text_controller(
         graph_store=graph_store or HomeGraphStore(),
         conversation_store=conversation_store,
         telemetry_sink=telemetry_sink,
+        ha_gateway_binding=ha_gateway_binding,  # type: ignore[arg-type]
     )
 
 

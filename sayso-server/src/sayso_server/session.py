@@ -29,6 +29,10 @@ class HaGatewayBinding:
         self.session = None
         self.ws = None
 
+    @property
+    def is_attached(self) -> bool:
+        return self.session is not None and self.ws is not None
+
     def action_client(self) -> HaWsActionClient | None:
         if self.session is None or self.ws is None:
             return None

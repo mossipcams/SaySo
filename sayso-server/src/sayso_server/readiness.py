@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from sayso_server.const import READINESS_PATH
 from sayso_server.health import health_status
+
+if TYPE_CHECKING:
+    from sayso_server.home_graph import HomeGraphSnapshot
+    from sayso_server.session import HaGatewayBinding
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,3 +99,17 @@ def readiness_response(
         return status, None
     readiness_status = readiness_http_status(snapshot)
     return readiness_status, readiness_body(snapshot)
+
+
+def text_execution_refusal(
+    *,
+    graph_snapshot: HomeGraphSnapshot | None,
+    ha_gateway_binding: HaGatewayBinding | None = None,
+) -> tuple[str, str] | None:
+    """Return ``(code, message)`` when live text execution must be refused."""
+
+    if graph_snapshot is None:
+        return ("no_graph", "home graph snapshot is required")
+    if ha_gateway_binding is not None and not ha_gateway_binding.is_attached:
+        return ("ha_disconnected", "home assistant websocket is not connected")
+    return None

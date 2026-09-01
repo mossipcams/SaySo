@@ -463,3 +463,180 @@ def test_orchestrator_text_controller_composes_candidates_prompt_and_parse() -> 
     assert "Floor Lamp" in prompt
     assert "category" in result
     assert "plan" in result
+
+
+class _ActionPlanRuntime:
+    """Runtime stub that emits a resolvable light action plan."""
+
+    def __init__(self) -> None:
+        self._loaded = False
+
+    def load(self) -> None:
+        self._loaded = True
+
+    def generate(self, prompt: str) -> object:
+        from sayso_server.runtime import ModelMetadata, RawGenerationResult
+
+        if not self._loaded:
+            msg = "model runtime must be loaded before generate"
+            raise RuntimeError(msg)
+
+        payload = json.loads(prompt)
+        user_text = payload["user_text"]
+        return RawGenerationResult(
+            text=json.dumps(
+                {
+                    "outcome": "action",
+                    "intent": user_text,
+                    "domain": "light",
+                    "targets": ["floor lamp"],
+                    "state": "off",
+                }
+            ),
+            prompt_tokens=1,
+            completion_tokens=1,
+            latency_ms=0.0,
+            metadata=ModelMetadata(model_id="action-stub", runtime="fake"),
+        )
+
+
+def _live_text_setup(*, attach: bool):
+    from sayso_server.session import HaGatewayBinding, HaSession
+    from sayso_server.test_gateway import FakeGatewayWebSocket
+    from sayso_server.text_api import create_live_text_controller
+
+    binding = HaGatewayBinding()
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    ws = FakeGatewayWebSocket()
+    session = HaSession(correlation_id="corr-live", graph=graph_store)
+    if attach:
+        binding.attach(session, ws)
+    runtime = _ActionPlanRuntime()
+    runtime.load()
+    controller = create_live_text_controller(
+        binding,
+        runtime=runtime,
+        graph_store=graph_store,
+    )
+    registry = SatelliteRegistry()
+    registry.register("macbook", "area_living_room")
+    return binding, session, ws, controller, registry, graph_store
+
+
+@pytest.mark.asyncio
+async def test_detached_ha_refuses_text_execution_without_action_request() -> None:
+    binding, session, _ws, controller, registry, graph_store = _live_text_setup(attach=False)
+    handler = create_text_handler(
+        token="secret-token",
+        satellite_registry=registry,
+        graph_store=graph_store,
+        text_controller=controller,
+    )
+
+    status, body = await _post_text(handler, _text_request(correlation_id="detached-1"))
+
+    assert status == 200
+    assert body is not None
+    assert body["type"] == "text_response"
+    assert body["payload"]["category"] == "no_action"
+    assert body["payload"]["reason"] == "home assistant websocket is not connected"
+    assert session.drain_outbound() == []
+
+
+@pytest.mark.asyncio
+async def test_detached_ha_handler_guard_returns_503_when_require_live_ha() -> None:
+    binding, _session, _ws, controller, registry, graph_store = _live_text_setup(attach=False)
+    handler = create_text_handler(
+        token="secret-token",
+        satellite_registry=registry,
+        graph_store=graph_store,
+        text_controller=controller,
+        ha_gateway_binding=binding,
+        require_live_ha=True,
+    )
+
+    status, body = await _post_text(handler, _text_request(correlation_id="detached-2"))
+
+    assert status == 503
+    assert body is not None
+    assert body["type"] == "error"
+    assert body["payload"]["code"] == "ha_disconnected"
+
+
+@pytest.mark.asyncio
+async def test_connected_ha_with_snapshot_executes_unique_name_command() -> None:
+    import asyncio
+
+    from sayso_server.gateway import _process_graph_messages
+    from sayso_server.messages import MessageType
+    from sayso_server.test_ha_ws_client import _action_result_envelope
+
+    binding, session, ws, controller, registry, graph_store = _live_text_setup(attach=True)
+    processor = asyncio.create_task(_process_graph_messages(ws, session))
+    request_id = "corr-connected-1"
+
+    async def respond() -> None:
+        for _ in range(200):
+            if ws.sent:
+                break
+            await asyncio.sleep(0)
+        ws.push(
+            _action_result_envelope(
+                request_id=request_id,
+                status="accepted",
+                correlation_id="corr-live",
+            ),
+        )
+        ws.push(
+            _action_result_envelope(
+                request_id=request_id,
+                status="completed",
+                reason="state_changed",
+                correlation_id="corr-live",
+            ),
+        )
+
+    responder = asyncio.create_task(respond())
+    handler = create_text_handler(
+        token="secret-token",
+        satellite_registry=registry,
+        graph_store=graph_store,
+        text_controller=controller,
+    )
+
+    status, body = await _post_text(
+        handler,
+        _text_request(correlation_id=request_id),
+    )
+
+    assert status == 200
+    assert body is not None
+    assert body["payload"]["category"] == "completed"
+    assert len(ws.sent) == 1
+    sent = json.loads(ws.sent[0])
+    assert sent["type"] == MessageType.ACTION_REQUEST.value
+    assert sent["payload"]["entity_id"] == "light.floor_lamp"
+    assert sent["payload"]["action"] == "off"
+
+    ws.push(None)
+    await responder
+    await processor
+
+
+@pytest.mark.asyncio
+async def test_default_live_app_refuses_when_ha_gateway_detached() -> None:
+    from sayso_server.app import create_aiohttp_app
+
+    app = create_aiohttp_app("secret-token")
+    app["satellite_registry"].register("macbook", "area_living_room")
+    app["graph_store"].replace_snapshot(_load_graph())
+    assert app["ha_gateway_binding"].is_attached is False
+
+    handler = _text_route_handler(app)
+    status, body = await _post_text(handler, _text_request(correlation_id="app-detached"))
+
+    assert status == 200
+    assert body is not None
+    assert body["payload"]["category"] == "no_action"
+    assert body["payload"]["reason"] == "home assistant websocket is not connected"
