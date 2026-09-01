@@ -18,6 +18,8 @@ from sayso_server.graph_store import HomeGraphStore
 from sayso_server.ha_client import ActionRequestClient
 from sayso_server.orchestrator import execute_control_plan, execute_control_plan_async
 from sayso_server.readiness import text_execution_refusal
+from sayso_server.response_policy import resolve_response_policy
+from sayso_server.results import ExecutionCategory, ExecutionOutcome
 from sayso_server.runtime import FakeModelRuntime, ModelRuntime, compose_plan_generation
 from sayso_server.satellites import SatelliteRegistry
 from sayso_server.session import HaGatewayBinding
@@ -41,6 +43,8 @@ class TextResponsePayload(BaseModel):
     reason: str | None = None
     plan: dict[str, Any] = Field(default_factory=dict)
     request_id: str | None = None
+    response_mode: str | None = None
+    response_content: str | None = None
 
 
 class TextResponseEnvelope(BaseModel):
@@ -88,14 +92,32 @@ class OrchestratorTextController:
         self._telemetry_sink = telemetry_sink
         self._ha_gateway_binding = ha_gateway_binding
 
+    @staticmethod
+    def _execution_payload(outcome: ExecutionOutcome) -> dict[str, Any]:
+        plan_payload = (
+            outcome.plan.model_dump(mode="json")
+            if hasattr(outcome.plan, "model_dump")
+            else dict(outcome.plan) if isinstance(outcome.plan, dict) else {}
+        )
+        policy = resolve_response_policy(outcome)
+        return {
+            "category": outcome.category.value,
+            "reason": outcome.reason,
+            "plan": plan_payload,
+            "request_id": outcome.request_id,
+            "response_mode": policy.mode.value,
+            "response_content": policy.content,
+        }
+
     def _refusal_payload(self, *, text: str, message: str) -> dict[str, Any]:
         plan = NoActionPlan(intent=text, reason=message)
-        return {
-            "category": "no_action",
-            "reason": message,
-            "plan": plan.model_dump(mode="json"),
-            "request_id": None,
-        }
+        return self._execution_payload(
+            ExecutionOutcome(
+                category=ExecutionCategory.NO_ACTION,
+                plan=plan,
+                reason=message,
+            ),
+        )
 
     def _execution_refusal(self, *, text: str) -> dict[str, Any] | None:
         refusal = text_execution_refusal(
@@ -161,17 +183,7 @@ class OrchestratorTextController:
                     request_id=outcome.request_id,
                 ),
             )
-        plan_payload = (
-            outcome.plan.model_dump(mode="json")
-            if hasattr(outcome.plan, "model_dump")
-            else dict(outcome.plan) if isinstance(outcome.plan, dict) else {}
-        )
-        return {
-            "category": outcome.category.value,
-            "reason": outcome.reason,
-            "plan": plan_payload,
-            "request_id": outcome.request_id,
-        }
+        return self._execution_payload(outcome)
 
     async def handle_async(
         self,
@@ -244,17 +256,7 @@ class OrchestratorTextController:
                     request_id=outcome.request_id,
                 ),
             )
-        plan_payload = (
-            outcome.plan.model_dump(mode="json")
-            if hasattr(outcome.plan, "model_dump")
-            else dict(outcome.plan) if isinstance(outcome.plan, dict) else {}
-        )
-        return {
-            "category": outcome.category.value,
-            "reason": outcome.reason,
-            "plan": plan_payload,
-            "request_id": outcome.request_id,
-        }
+        return self._execution_payload(outcome)
 
 
 def create_text_handler(
