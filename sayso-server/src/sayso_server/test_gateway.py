@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -13,7 +14,11 @@ from sayso_server.api import API_VERSION
 from sayso_server.auth import bearer_token_valid
 from sayso_server.const import WS_PATH
 from sayso_server.gateway import handle_ha_connection
+from sayso_server.graph_store import HomeGraphStore
+from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.messages import MessageType
+
+FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
 
 
 class FakeGatewayWebSocket:
@@ -192,7 +197,114 @@ async def test_aiohttp_ws_handler_passes_server_token_to_gateway() -> None:
     _, kwargs = mock_handle.call_args
     assert kwargs["authorization"] == "Bearer secret-token"
     assert kwargs["server_token"] == "secret-token"
+    assert kwargs["graph_store"] is app["graph_store"]
     assert "token" not in kwargs
+
+
+def _load_graph_fixture() -> HomeGraphSnapshot:
+    data = json.loads((FIXTURES / "home_graph.json").read_text())
+    return HomeGraphSnapshot.model_validate(data)
+
+
+def _graph_envelope(*, msg_type: str, payload: dict, correlation_id: str = "corr-1") -> str:
+    return json.dumps(
+        {
+            "version": API_VERSION,
+            "type": msg_type,
+            "correlation_id": correlation_id,
+            "payload": payload,
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_gateway_updates_shared_graph_store_not_session_orphan() -> None:
+    shared = HomeGraphStore()
+    ws = FakeGatewayWebSocket()
+    ws.push(_hello_envelope(correlation_id="shared-graph-1"))
+    snapshot = _load_graph_fixture()
+    ws.push(
+        _graph_envelope(
+            msg_type=MessageType.GRAPH_SNAPSHOT.value,
+            payload=snapshot.model_dump(mode="json"),
+        ),
+    )
+    ws.push(
+        _graph_envelope(
+            msg_type=MessageType.STATE_DELTA.value,
+            payload={
+                "version": 1,
+                "home_id": "eval-home",
+                "sequence": 43,
+                "entity_id": "light.floor_lamp",
+                "state": {"value": "on", "attributes": {"brightness": 90}},
+            },
+        ),
+    )
+    ws.push(None)
+
+    session = await handle_ha_connection(
+        ws,
+        authorization="Bearer secret-token",
+        server_token="secret-token",
+        graph_store=shared,
+    )
+
+    assert session is not None
+    assert session.graph is shared
+    assert shared.sequence == 43
+    assert shared.snapshot is not None
+    lamp = next(
+        entity for entity in shared.snapshot.entities if entity.entity_id == "light.floor_lamp"
+    )
+    assert lamp.state.value == "on"
+
+
+@pytest.mark.asyncio
+async def test_gateway_rejects_stale_delta_on_shared_graph_store() -> None:
+    shared = HomeGraphStore()
+    shared.replace_snapshot(_load_graph_fixture())
+    before_sequence = shared.sequence
+    ws = FakeGatewayWebSocket()
+    ws.push(_hello_envelope(correlation_id="stale-delta-1"))
+    ws.push(
+        _graph_envelope(
+            msg_type=MessageType.STATE_DELTA.value,
+            payload={
+                "version": 1,
+                "home_id": "eval-home",
+                "sequence": before_sequence,
+                "entity_id": "light.floor_lamp",
+                "state": {"value": "on", "attributes": {}},
+            },
+        ),
+    )
+    ws.push(
+        _graph_envelope(
+            msg_type=MessageType.STATE_DELTA.value,
+            payload={
+                "version": 1,
+                "home_id": "wrong-home",
+                "sequence": before_sequence + 1,
+                "entity_id": "light.floor_lamp",
+                "state": {"value": "on", "attributes": {}},
+            },
+        ),
+    )
+    ws.push(None)
+
+    await handle_ha_connection(
+        ws,
+        authorization="Bearer secret-token",
+        server_token="secret-token",
+        graph_store=shared,
+    )
+
+    assert shared.sequence == before_sequence
+    lamp = next(
+        entity for entity in shared.snapshot.entities if entity.entity_id == "light.floor_lamp"
+    )
+    assert lamp.state.value == "off"
 
 
 def _ws_handler(app: object) -> object:

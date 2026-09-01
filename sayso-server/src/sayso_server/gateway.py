@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from sayso_server.api import API_VERSION
 from sayso_server.auth import bearer_token_valid
 from sayso_server.envelope import SaySoEnvelope
+from sayso_server.graph_store import HomeGraphStore
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.messages import MessageType
 from sayso_server.session import HaSession
@@ -33,6 +34,7 @@ async def handle_ha_connection(
     *,
     authorization: str | None,
     server_token: str,
+    graph_store: HomeGraphStore | None = None,
 ) -> HaSession | None:
     """Authenticate, complete the v1 hello handshake, and process graph updates."""
 
@@ -62,7 +64,8 @@ async def handle_ha_connection(
         payload={},
     )
     await ws.send_str(ack.model_dump_json())
-    session = HaSession(correlation_id=envelope.correlation_id)
+    store = graph_store if graph_store is not None else HomeGraphStore()
+    session = HaSession(correlation_id=envelope.correlation_id, graph=store)
     # ponytail: test fakes expose _recv_queue; an empty queue means handshake-only.
     recv_queue = getattr(ws, "_recv_queue", None)
     if isinstance(recv_queue, asyncio.Queue) and recv_queue.empty():

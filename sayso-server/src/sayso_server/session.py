@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from sayso_server.graph_store import HomeGraphStore
 
@@ -12,4 +12,4 @@ class HaSession:
     """An authenticated Home Assistant integration WebSocket session."""
 
     correlation_id: str
-    graph: HomeGraphStore = field(default_factory=HomeGraphStore)
+    graph: HomeGraphStore

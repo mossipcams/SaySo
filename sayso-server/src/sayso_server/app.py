@@ -175,6 +175,7 @@ def create_aiohttp_app(
                 gateway_ws,
                 authorization=request.headers.get("Authorization"),
                 server_token=token,
+                graph_store=store,
             )
         finally:
             gateway_ws._clear_connected()

@@ -195,6 +195,79 @@ async def test_missing_graph_never_reaches_controller() -> None:
 
 
 @pytest.mark.asyncio
+async def test_text_api_reads_graph_after_gateway_ingest() -> None:
+    from sayso_server.gateway import handle_ha_connection
+    from sayso_server.messages import MessageType
+
+    class GatewayWebSocket:
+        def __init__(self) -> None:
+            self.closed = False
+            self._messages = [
+                json.dumps(
+                    {
+                        "version": API_VERSION,
+                        "type": MessageType.HELLO.value,
+                        "correlation_id": "text-graph-1",
+                        "payload": {},
+                    },
+                ),
+                json.dumps(
+                    {
+                        "version": API_VERSION,
+                        "type": MessageType.GRAPH_SNAPSHOT.value,
+                        "correlation_id": "text-graph-2",
+                        "payload": _load_graph().model_dump(mode="json"),
+                    },
+                ),
+                None,
+            ]
+            self._index = 0
+
+        async def send_str(self, data: str) -> None:
+            return None
+
+        async def close(self) -> None:
+            self.closed = True
+
+        async def receive_str(self) -> str | None:
+            message = self._messages[self._index]
+            self._index += 1
+            return message
+
+    from sayso_server.app import create_aiohttp_app
+
+    controller = RecordingTextController()
+    graph_store = HomeGraphStore()
+    app = create_aiohttp_app(
+        "secret-token",
+        text_controller=controller,
+        graph_store=graph_store,
+    )
+    registry = SatelliteRegistry()
+    registry.register("macbook", "area_living_room")
+    app["satellite_registry"] = registry
+
+    await handle_ha_connection(
+        GatewayWebSocket(),
+        authorization="Bearer secret-token",
+        server_token="secret-token",
+        graph_store=app["graph_store"],
+    )
+
+    handler = create_text_handler(
+        token="secret-token",
+        satellite_registry=registry,
+        graph_store=app["graph_store"],
+        text_controller=controller,
+    )
+    status, body = await _post_text(handler, _text_request())
+    assert status == 200
+    assert body is not None
+    assert body["type"] == "text_response"
+    assert controller.calls
+
+
+@pytest.mark.asyncio
 async def test_valid_request_returns_text_response_envelope() -> None:
     controller = RecordingTextController()
     handler = _build_handler(controller)
