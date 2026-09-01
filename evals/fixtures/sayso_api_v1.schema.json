@@ -9,7 +9,9 @@
         "error",
         "graph_snapshot",
         "state_delta",
-        "registry_delta"
+        "registry_delta",
+        "action_request",
+        "action_result"
       ],
       "title": "MessageType",
       "type": "string"

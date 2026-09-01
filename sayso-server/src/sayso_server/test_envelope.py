@@ -84,8 +84,5 @@ def test_envelope_invalid_fixture_cases_are_rejected() -> None:
     cases = json.loads((FIXTURES / "envelope.invalid.json").read_text())
     assert isinstance(cases, list)
     for case in cases:
-        # action_request was listed as invalid before v1 action types shipped.
-        if case.get("type") in {"action_request", "action_result"}:
-            continue
         with pytest.raises(ValidationError):
             SaySoEnvelope.model_validate(case)

@@ -6,11 +6,6 @@
   },
   {
     "version": 1,
-    "type": "action_request",
-    "correlation_id": "req-unknown-type"
-  },
-  {
-    "version": 1,
     "type": "ping"
   },
   {
