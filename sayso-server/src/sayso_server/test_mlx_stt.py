@@ -88,3 +88,40 @@ def test_mlx_whisper_stt_transcribe_requires_load() -> None:
         assert "load" in str(exc).lower()
     else:
         raise AssertionError("expected RuntimeError when transcribe called before load")
+
+
+def test_mlx_whisper_default_loader_uses_float16_for_fp16_transcribe() -> None:
+    from unittest.mock import patch
+
+    import mlx.core as mx
+
+    from sayso_server.mlx_stt import _default_loader
+
+    captured: dict[str, object] = {}
+
+    def fake_load_model(model_id: str, *, dtype: mx.Dtype) -> object:
+        captured["model_id"] = model_id
+        captured["dtype"] = dtype
+        return object()
+
+    with patch("mlx_whisper.load_models.load_model", fake_load_model):
+        loaded = _default_loader(DEFAULT_MLX_WHISPER_MODEL_ID)
+
+    assert captured == {
+        "model_id": DEFAULT_MLX_WHISPER_MODEL_ID,
+        "dtype": mx.float16,
+    }
+    assert loaded.model_id == DEFAULT_MLX_WHISPER_MODEL_ID
+
+
+def test_pcm16_mono_to_mlx_audio_matches_mlx_whisper_load_audio_shape() -> None:
+    import mlx.core as mx
+
+    from sayso_server.mlx_stt import _pcm16_mono_to_mlx_audio
+
+    pcm = b"\x00\x01" * 800
+    audio = _pcm16_mono_to_mlx_audio(pcm)
+
+    assert isinstance(audio, mx.array)
+    assert audio.dtype == mx.float32
+    assert audio.shape == (800,)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import time
 from typing import Any, Literal, Protocol
 
 from aiohttp import web
@@ -13,7 +14,10 @@ from pydantic import BaseModel, Field, ValidationError
 from sayso_server.api import API_VERSION
 from sayso_server.auth import bearer_token_valid
 from sayso_server.const import AUDIO_PATH
+from sayso_server.control_plan import NoActionPlan
 from sayso_server.graph_store import HomeGraphStore
+from sayso_server.response_policy import resolve_response_policy
+from sayso_server.results import ExecutionCategory, ExecutionOutcome
 from sayso_server.satellites import SatelliteRegistry
 from sayso_server.stt import SpeechToTextRuntime
 from sayso_server.text_api import (
@@ -113,9 +117,88 @@ class VoicePipelineController:
         self._stt_runtime = stt_runtime
         self._text_controller = text_controller
 
-    def _transcript_for(self, pcm: bytes) -> str:
+    def _transcript_for(self, pcm: bytes) -> tuple[str, float]:
+        started = time.monotonic()
         self._stt_runtime.load()
-        return self._stt_runtime.transcribe(pcm).text
+        text = self._stt_runtime.transcribe(pcm).text
+        stt_ms = max(0.0, (time.monotonic() - started) * 1000.0)
+        return text, stt_ms
+
+    @staticmethod
+    def _stt_unavailable_payload(*, reason: str) -> dict[str, Any]:
+        message = reason or "speech-to-text unavailable"
+        plan = NoActionPlan(intent="audio input", reason=message)
+        outcome = ExecutionOutcome(
+            category=ExecutionCategory.NO_ACTION,
+            plan=plan,
+            reason=message,
+        )
+        policy = resolve_response_policy(outcome)
+        return {
+            "category": outcome.category.value,
+            "reason": message,
+            "plan": plan.model_dump(mode="json"),
+            "request_id": None,
+            "response_mode": policy.mode.value,
+            "response_content": policy.content,
+        }
+
+    def _transcript_or_failure(
+        self,
+        pcm: bytes,
+    ) -> tuple[str, float] | dict[str, Any]:
+        try:
+            text, stt_ms = self._transcript_for(pcm)
+        except Exception as exc:
+            return self._stt_unavailable_payload(reason=str(exc))
+        if not text.strip():
+            return self._stt_unavailable_payload(reason="empty transcript")
+        return text, stt_ms
+
+    def _dispatch_text(
+        self,
+        *,
+        satellite_id: str,
+        area_id: str,
+        text: str,
+        correlation_id: str,
+        stt_ms: float,
+    ) -> dict[str, Any]:
+        return self._text_controller.handle(
+            satellite_id=satellite_id,
+            area_id=area_id,
+            text=text,
+            correlation_id=correlation_id,
+            input_type="audio",
+            stt_ms=stt_ms,
+        )
+
+    async def _dispatch_text_async(
+        self,
+        *,
+        satellite_id: str,
+        area_id: str,
+        text: str,
+        correlation_id: str,
+        stt_ms: float,
+    ) -> dict[str, Any]:
+        handle_async = getattr(self._text_controller, "handle_async", None)
+        if handle_async is not None:
+            return await handle_async(
+                satellite_id=satellite_id,
+                area_id=area_id,
+                text=text,
+                correlation_id=correlation_id,
+                input_type="audio",
+                stt_ms=stt_ms,
+            )
+        return self._dispatch_text(
+            satellite_id=satellite_id,
+            area_id=area_id,
+            text=text,
+            correlation_id=correlation_id,
+            stt_ms=stt_ms,
+        )
 
     def handle(
         self,
@@ -128,12 +211,16 @@ class VoicePipelineController:
         correlation_id: str,
     ) -> dict[str, Any]:
         del sequence, duration_ms
-        text = self._transcript_for(pcm)
-        return self._text_controller.handle(
+        transcript = self._transcript_or_failure(pcm)
+        if isinstance(transcript, dict):
+            return transcript
+        text, stt_ms = transcript
+        return self._dispatch_text(
             satellite_id=satellite_id,
             area_id=area_id,
             text=text,
             correlation_id=correlation_id,
+            stt_ms=stt_ms,
         )
 
     async def handle_async(
@@ -147,20 +234,16 @@ class VoicePipelineController:
         correlation_id: str,
     ) -> dict[str, Any]:
         del sequence, duration_ms
-        text = self._transcript_for(pcm)
-        handle_async = getattr(self._text_controller, "handle_async", None)
-        if handle_async is not None:
-            return await handle_async(
-                satellite_id=satellite_id,
-                area_id=area_id,
-                text=text,
-                correlation_id=correlation_id,
-            )
-        return self._text_controller.handle(
+        transcript = self._transcript_or_failure(pcm)
+        if isinstance(transcript, dict):
+            return transcript
+        text, stt_ms = transcript
+        return await self._dispatch_text_async(
             satellite_id=satellite_id,
             area_id=area_id,
             text=text,
             correlation_id=correlation_id,
+            stt_ms=stt_ms,
         )
 
 

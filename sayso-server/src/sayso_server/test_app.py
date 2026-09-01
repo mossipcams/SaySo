@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from sayso_server.app import MissingServerTokenError, create_aiohttp_app, load_server_token
+from sayso_server.conversation import ConversationStore
 from sayso_server.const import (
     AUDIO_PATH,
     DEFAULT_SATELLITE_AREA_ID,
@@ -35,6 +37,77 @@ def test_load_server_token_missing_raises() -> None:
 def test_load_server_token_blank_raises() -> None:
     with pytest.raises(MissingServerTokenError, match=TOKEN_ENV_VAR):
         load_server_token(environ={TOKEN_ENV_VAR: "   "})
+
+
+def test_create_aiohttp_app_default_controller_has_conversation_store() -> None:
+    app = create_aiohttp_app("secret-token")
+    controller = app["text_controller"]
+    assert isinstance(controller, OrchestratorTextController)
+    assert isinstance(controller._conversation_store, ConversationStore)
+
+
+def test_create_aiohttp_app_default_controller_has_no_telemetry_sink(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SAYSO_TELEMETRY_PATH", raising=False)
+    app = create_aiohttp_app("secret-token")
+    controller = app["text_controller"]
+    assert isinstance(controller, OrchestratorTextController)
+    assert controller._telemetry_sink is None
+
+
+def test_create_aiohttp_app_wires_jsonl_telemetry_sink_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sayso_server.telemetry import JsonlTelemetrySink, TELEMETRY_PATH_ENV_VAR
+
+    telemetry_path = tmp_path / "telemetry.jsonl"
+    monkeypatch.setenv(TELEMETRY_PATH_ENV_VAR, str(telemetry_path))
+    app = create_aiohttp_app("secret-token")
+    controller = app["text_controller"]
+    assert isinstance(controller, OrchestratorTextController)
+    assert isinstance(controller._telemetry_sink, JsonlTelemetrySink)
+
+
+@pytest.mark.asyncio
+async def test_create_aiohttp_app_cleanup_closes_env_telemetry_sink(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from aiohttp import web
+
+    from sayso_server.telemetry import JsonlTelemetrySink, TELEMETRY_PATH_ENV_VAR
+
+    telemetry_path = tmp_path / "telemetry.jsonl"
+    monkeypatch.setenv(TELEMETRY_PATH_ENV_VAR, str(telemetry_path))
+    app = create_aiohttp_app("secret-token")
+    controller = app["text_controller"]
+    assert isinstance(controller, OrchestratorTextController)
+    sink = controller._telemetry_sink
+    assert isinstance(sink, JsonlTelemetrySink)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await runner.cleanup()
+
+    assert sink._stream.closed
+
+
+def test_create_aiohttp_app_injected_text_controller_has_no_forced_store() -> None:
+    from sayso_server.graph_store import HomeGraphStore
+    from sayso_server.ha_client import FakeHaClient
+
+    runtime = FakeModelRuntime()
+    runtime.load()
+    controller = OrchestratorTextController(
+        runtime=runtime,
+        ha_client=FakeHaClient(),
+        graph_store=HomeGraphStore(),
+    )
+    app = create_aiohttp_app("secret-token", text_controller=controller)
+    assert app["text_controller"] is controller
+    assert controller._conversation_store is None
 
 
 def test_create_aiohttp_app_uses_default_live_wiring() -> None:

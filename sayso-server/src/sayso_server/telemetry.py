@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import Literal, Protocol, TextIO
 
@@ -12,10 +12,13 @@ from pydantic import BaseModel, Field
 
 from sayso_server.runtime import PlanGenerationResult
 
-STAGE_NAMES: tuple[str, ...] = ("plan", "resolve", "validate", "request", "verify")
+STAGE_NAMES: tuple[str, ...] = ("stt", "plan", "resolve", "validate", "request", "verify")
+
+TELEMETRY_PATH_ENV_VAR = "SAYSO_TELEMETRY_PATH"
 
 
 class StageTimings(BaseModel):
+    stt_ms: float = Field(ge=0)
     plan_ms: float = Field(ge=0)
     resolve_ms: float = Field(ge=0)
     validate_ms: float = Field(ge=0)
@@ -38,7 +41,7 @@ class InteractionTelemetryRecord(BaseModel):
     correlation_id: str = Field(min_length=1)
     satellite_id: str = Field(min_length=1)
     area_id: str = Field(min_length=1)
-    input_type: Literal["text"] = "text"
+    input_type: Literal["text", "audio"] = "text"
     category: str = Field(min_length=1)
     reason: str | None = None
     request_id: str | None = None
@@ -77,6 +80,27 @@ class JsonlTelemetrySink:
     def write(self, record: InteractionTelemetryRecord) -> None:
         line = json.dumps(record.model_dump(mode="json"), separators=(",", ":"))
         self._stream.write(f"{line}\n")
+        self._stream.flush()
+
+    def close(self) -> None:
+        self._stream.flush()
+        self._stream.close()
+
+
+def open_jsonl_telemetry_sink_from_env(
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> JsonlTelemetrySink | None:
+    """Open a JSONL telemetry sink when ``SAYSO_TELEMETRY_PATH`` is set."""
+
+    import os
+
+    source = os.environ if environ is None else environ
+    path = source.get(TELEMETRY_PATH_ENV_VAR, "").strip()
+    if not path:
+        return None
+    stream = open(path, "a", encoding="utf-8")
+    return JsonlTelemetrySink(stream)
 
 
 class InteractionTelemetry:
@@ -88,15 +112,23 @@ class InteractionTelemetry:
         correlation_id: str,
         satellite_id: str,
         area_id: str,
+        input_type: Literal["text", "audio"] = "text",
         clock: Callable[[], float] | None = None,
     ) -> None:
         self._clock = clock or time.monotonic
         self.correlation_id = correlation_id
         self.satellite_id = satellite_id
         self.area_id = area_id
+        self.input_type = input_type
         self.monotonic_started_at = self._clock()
         self._stage_ms: dict[str, float] = dict.fromkeys(STAGE_NAMES, 0.0)
         self._model: ModelTelemetry | None = None
+
+    def record_stage_ms(self, stage: str, ms: float) -> None:
+        if stage not in STAGE_NAMES:
+            msg = f"unknown telemetry stage: {stage}"
+            raise ValueError(msg)
+        self._stage_ms[stage] = max(0.0, ms)
 
     @contextmanager
     def time_stage(self, stage: str) -> Iterator[None]:
@@ -132,11 +164,13 @@ class InteractionTelemetry:
             correlation_id=self.correlation_id,
             satellite_id=self.satellite_id,
             area_id=self.area_id,
+            input_type=self.input_type,
             category=category,
             reason=reason,
             request_id=request_id,
             monotonic_started_at=self.monotonic_started_at,
             stages=StageTimings(
+                stt_ms=self._stage_ms["stt"],
                 plan_ms=self._stage_ms["plan"],
                 resolve_ms=self._stage_ms["resolve"],
                 validate_ms=self._stage_ms["validate"],
@@ -160,6 +194,8 @@ __all__ = [
     "ModelTelemetry",
     "STAGE_NAMES",
     "StageTimings",
+    "TELEMETRY_PATH_ENV_VAR",
     "TelemetrySink",
     "mandatory_field_names",
+    "open_jsonl_telemetry_sink_from_env",
 ]

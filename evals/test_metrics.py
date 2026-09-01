@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from evals.metrics import EvalRecord, MetricScore, canonicalize_control_plan, score_records
 from evals.schema import EvalCase
 
@@ -76,6 +79,37 @@ def test_hand_calculated_fixture_matches_exactly() -> None:
     score = score_records(cases, records, expected_query_answers=expected_query_answers)
     assert score.missing_records == []
     assert _metric_fields(score) == expected_metrics
+
+
+def test_eval_record_failure_fields_default_to_none() -> None:
+    record = EvalRecord(case_id="x-001")
+    assert record.failure_stage is None
+    assert record.failure_reason is None
+
+
+@pytest.mark.parametrize(
+    "stage",
+    ["stt", "retrieve", "plan", "parse", "resolve", "safety", "request", "verify", "schema"],
+)
+def test_eval_record_accepts_valid_failure_stage(stage: str) -> None:
+    record = EvalRecord(case_id="x-001", failure_stage=stage, failure_reason="example reason")
+    assert record.failure_stage == stage
+    assert record.failure_reason == "example reason"
+
+
+def test_eval_record_rejects_invalid_failure_stage() -> None:
+    with pytest.raises(ValidationError):
+        EvalRecord(case_id="x-001", failure_stage="unknown")
+
+
+def test_eval_record_without_failure_fields_serializes_for_fixture_compat() -> None:
+    record = EvalRecord(case_id="x-001", ha_executed=False)
+    payload = record.model_dump(mode="json")
+    assert "failure_stage" not in payload or payload["failure_stage"] is None
+    assert "failure_reason" not in payload or payload["failure_reason"] is None
+    round_trip = EvalRecord.model_validate(payload)
+    assert round_trip.failure_stage is None
+    assert round_trip.failure_reason is None
 
 
 def test_schema_failure_is_counted_separately_from_semantic_wrong_plan() -> None:

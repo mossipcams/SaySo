@@ -15,7 +15,7 @@ from sayso_server.stt import (
     validate_pcm16_mono,
 )
 
-DEFAULT_MLX_WHISPER_MODEL_ID = "mlx-community/whisper-small"
+DEFAULT_MLX_WHISPER_MODEL_ID = "mlx-community/whisper-small-mlx"
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,24 +28,27 @@ MlxWhisperLoader = Callable[[str], MlxWhisperLoadedModel]
 MlxWhisperTranscribeFn = Callable[[MlxWhisperLoadedModel, bytes], str]
 
 
-def _pcm16_mono_to_float32(pcm: bytes) -> object:
+def _pcm16_mono_to_mlx_audio(pcm: bytes) -> object:
     try:
+        import mlx.core as mx
         import numpy as np
     except ImportError as exc:
         msg = "numpy is required for MLX Whisper STT but is not installed"
         raise RuntimeError(msg) from exc
 
-    return np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
+    return mx.array(np.frombuffer(pcm, dtype=np.int16)).astype(mx.float32) / 32768.0
 
 
 def _default_loader(model_id: str) -> MlxWhisperLoadedModel:
     try:
+        import mlx.core as mx
         from mlx_whisper.load_models import load_model
     except ImportError as exc:
         msg = "mlx-whisper is required for MLX STT but is not installed"
         raise RuntimeError(msg) from exc
 
-    model = load_model(model_id)
+    # mlx_whisper.transcribe defaults to fp16=True; loader dtype must match.
+    model = load_model(model_id, dtype=mx.float16)
     return MlxWhisperLoadedModel(model=model, model_id=model_id)
 
 
@@ -62,12 +65,13 @@ def _default_transcribe(loaded: MlxWhisperLoadedModel, pcm: bytes) -> str:
     try:
         ModelHolder.model = loaded.model
         ModelHolder.model_path = loaded.model_id
-        audio = _pcm16_mono_to_float32(pcm)
+        audio = _pcm16_mono_to_mlx_audio(pcm)
         result = transcribe(
             audio,
             path_or_hf_repo=loaded.model_id,
             verbose=False,
             language="en",
+            fp16=True,
         )
     finally:
         ModelHolder.model = previous_model

@@ -58,6 +58,8 @@ class RecordingTextController:
         area_id: str,
         text: str,
         correlation_id: str,
+        input_type: str = "text",
+        stt_ms: float = 0.0,
     ) -> dict[str, object]:
         self.calls.append(
             {
@@ -65,6 +67,8 @@ class RecordingTextController:
                 "area_id": area_id,
                 "text": text,
                 "correlation_id": correlation_id,
+                "input_type": input_type,
+                "stt_ms": stt_ms,
             },
         )
         return self.response
@@ -177,6 +181,8 @@ async def test_explicit_text_controller_overrides_default() -> None:
             "area_id": "area_living_room",
             "text": "turn off the floor lamp",
             "correlation_id": "override-1",
+            "input_type": "text",
+            "stt_ms": 0.0,
         },
     ]
 
@@ -429,6 +435,8 @@ async def test_valid_request_returns_text_response_envelope() -> None:
             "area_id": "area_living_room",
             "text": "turn off the floor lamp",
             "correlation_id": "corr-ok",
+            "input_type": "text",
+            "stt_ms": 0.0,
         },
     ]
 
@@ -675,3 +683,41 @@ async def test_default_live_app_refuses_when_ha_gateway_detached() -> None:
     assert body is not None
     assert body["payload"]["category"] == "no_action"
     assert body["payload"]["reason"] == "home assistant websocket is not connected"
+
+
+@pytest.mark.asyncio
+async def test_text_handler_emits_zero_stt_ms_telemetry() -> None:
+    from io import StringIO
+
+    from sayso_server.conversation import ConversationStore
+    from sayso_server.ha_client import FakeHaClient
+    from sayso_server.runtime import FakeModelRuntime
+    from sayso_server.telemetry import InteractionTelemetryRecord, JsonlTelemetrySink
+    from sayso_server.text_api import OrchestratorTextController
+
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    runtime = FakeModelRuntime()
+    runtime.load()
+    sink_buffer = StringIO()
+    sink = JsonlTelemetrySink(sink_buffer)
+    controller = OrchestratorTextController(
+        runtime=runtime,
+        ha_client=FakeHaClient(),
+        graph_store=graph_store,
+        conversation_store=ConversationStore(ttl_seconds=300.0),
+        telemetry_sink=sink,
+    )
+    handler = _build_handler(controller)
+
+    status, body = await _post_text(
+        handler,
+        _text_request(correlation_id="corr-text-stt-zero"),
+    )
+
+    assert status == 200
+    assert body is not None
+    parsed = json.loads(sink_buffer.getvalue().strip())
+    record = InteractionTelemetryRecord.model_validate(parsed)
+    assert record.input_type == "text"
+    assert record.stages.stt_ms == 0.0

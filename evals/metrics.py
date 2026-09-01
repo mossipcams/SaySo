@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -21,6 +21,17 @@ _FALSE_EXECUTION_OUTCOMES = frozenset(
 )
 _UNORDERED_PLAN_LIST_FIELDS = frozenset({"targets", "include", "exclude"})
 _FOLLOW_UP_CATEGORIES = frozenset({"active_followup", "followup", "follow_up"})
+FailureStage = Literal[
+    "stt",
+    "retrieve",
+    "plan",
+    "parse",
+    "resolve",
+    "safety",
+    "request",
+    "verify",
+    "schema",
+]
 
 
 class EvalRecord(BaseModel):
@@ -34,6 +45,8 @@ class EvalRecord(BaseModel):
     recorded_query_answer: str | None = None
     recorded_follow_up_plan: dict[str, Any] | None = None
     recorded_follow_up_resolved_entities: list[str] | None = None
+    failure_stage: FailureStage | None = None
+    failure_reason: str | None = None
 
 
 @dataclass(frozen=True)

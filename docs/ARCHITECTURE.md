@@ -1,624 +1,435 @@
-# SaySo architecture (as implemented)
+# SaySo architecture
 
-This document describes the system **as it exists in this worktree**, not the
-architecture implied by `docs/MVP_PLAN.md`. File paths are the source of truth.
+Status: current codebase architecture in this worktree, including the
+reliability and evaluation changes that are still uncommitted.
 
-**Snapshot.** Last committed product work is at `8ad86ca` on branch
-`ajax/planning`. That commit closes the first supervised Mac → SaySo server →
-Home Assistant → physical-device toggle: ChatML few-shot wrapping in
-`mlx_runtime.py` (`2f2f2d8`), switch entities treated as lights for lamp
-plug loads, and resolver/orchestrator fallback that retries a named target
-across the whole home graph when the current-area candidate set misses.
-Eval corpora through task 43 (follow-up, 70 cases) and tasks 44–45
-(metric scorer, benchmark runner) are committed under `evals/`.
+This document describes structure and runtime behavior. It is not an
+implementation plan or roadmap.
 
-There is **no Dockerfile** and no single packaged launcher that starts Home
-Assistant, the server, and the satellite together. Three separate processes
-can be run manually: `python -m sayso_server`, the HA integration (when
-installed), and `python -m sayso_satellite`.
+SaySo is a local smart-home voice path. A Mac satellite sends text or recorded
+audio to a SaySo server. The server uses a local model only to produce a
+typed `ControlPlan`; deterministic code resolves and validates that plan. The
+Home Assistant integration remains the only component allowed to call Home
+Assistant services and verify physical state.
 
-**First physical-device demo status:** **succeeded** on `ajax/planning` at
-`8ad86ca`. A supervised text command from the Mac satellite reached Home
-Assistant and toggled a real plug-lamp load. The resident
-`mlx-community/LFM2.5-230M-OptiQ-4bit` checkpoint produced a valid ControlPlan
-after ChatML few-shot prompting; switch-as-light retrieval and whole-graph
-name retry resolved the lamp outside the living-room area.
-
----
-
-## Component boundaries and responsibilities
-
-Three packages plus an eval tree. They run in separate processes unless a test
-fixtures them together.
-
-| Component | Path | Responsibility today |
-|---|---|---|
-| Workspace | `pyproject.toml` | uv workspace named `sayso`; pytest paths; HA custom-component plugin |
-| SaySo Server | `sayso-server/src/sayso_server/` | ControlPlan types, Home Graph store, retrieval/resolution/safety/orchestrator, HTTP/WS/audio surfaces, fake and MLX runtimes, STT contract |
-| SaySo Satellite | `sayso-satellite/src/sayso_satellite/` | HTTP client for `/api/v1/text` and `/api/v1/audio`, push-to-talk capture helpers, response rendering |
-| HA integration | `custom_components/sayso/` | Config entry, outbound WS to the server, Home Graph snapshot/deltas, inbound action execution, state verification, diagnostics |
-| Evals | `evals/` | Fixture graph, JSONL corpora, `EvalCase` schema, corpus generators, metric scorer, benchmark runner |
-
-`sayso-server` declares `aiohttp` and `pydantic` (`sayso-server/pyproject.toml`).
-`mlx-lm`, `mlx-whisper`, and `numpy` are imported at runtime by MLX adapters
-but are not package dependencies; the process entrypoint fails fast when
-`mlx-lm` is missing.
-
----
-
-## Runtime topology
-
-Intended topology from `docs/MVP_PLAN.md`:
+The MVP is successful when one Mac can control a real Home Assistant device
+through this path without Home Assistant Assist:
 
 ```text
-Mac satellite ── text/audio ──▶ SaySo Server
-                                    │
-                         authenticated WebSocket
-                                    │
-                                    ▼
-                         SaySo HA Integration
-                                    │
-                                    ▼
-                              Home Assistant
+Mac satellite ── HTTP text/audio ──▶ SaySo server
+                                        │
+                           authenticated WebSocket
+                                        │
+                                        ▼
+                              SaySo HA integration
+                                        │
+                                        ▼
+                                  Home Assistant
+                                        │
+                                        ▼
+                                physical devices
 ```
 
-**Implemented topology** when all three run:
+## Architectural invariants
+
+- Home Assistant owns physical state and service execution.
+- The server may act only through a validated `ControlPlan` and the typed HA
+  WebSocket action contract.
+- Invalid, ambiguous, unsupported, unresolved, hidden, or incapable targets
+  become no-action or clarification outcomes before execution.
+- The integration enforces exposure, permissions, capability, and state
+  verification again at the execution boundary.
+- Text and audio use the same controller after transcription.
+- The server keeps only an in-memory Home Graph replica; no database is
+  required for the MVP.
+- There is no generic agent loop and no arbitrary model-generated service call.
+
+## Components and process boundaries
+
+| Component | Location | Boundary and responsibility |
+|---|---|---|
+| Workspace | `pyproject.toml` | uv workspace, shared test configuration, HA test plugin |
+| SaySo server | `sayso-server/src/sayso_server/` | API ingress, graph replica, model/STT adapters, deterministic controller, HA client, telemetry |
+| SaySo satellite | `sayso-satellite/src/sayso_satellite/` | Mac-side text/audio client, PCM helpers, response rendering |
+| HA integration | `custom_components/sayso/` | Outbound connection, graph serialization, exposure and permissions, HA execution, verification |
+| Evaluation harness | `evals/` | Authored JSONL cases, dry-run execution, metrics, failure ledger, latency and gate reports |
+
+These are separate processes at runtime. The default commands are:
 
 ```text
-python -m sayso_satellite "turn on the lamp"
-        │  POST /api/v1/text  (Bearer + satellite_id)
-        ▼
-create_aiohttp_app  (python -m sayso_server)
-        ├── GET  /api/v1/health, /api/v1/ready
-        ├── POST /api/v1/text   → OrchestratorTextController (default live wiring)
-        ├── POST /api/v1/audio  → VoicePipelineController (STT → same text path)
-        └── GET  /api/v1/ws     → handle_ha_connection on shared HomeGraphStore
-
-SaySoConnectionCoordinator  (HA integration)
-        │  outbound WS + Bearer token
-        ▼
-handle_ha_connection  →  graph_snapshot / state_delta / registry_delta
-        │  action_request  ◀── HaWsActionClient (queued on session, flushed on receive loop)
-        └── action_result  ──▶  session.record_action_result
+python -m sayso_server
+python -m sayso_satellite "turn off the corner lamp"
 ```
 
-`create_aiohttp_app` (`sayso-server/src/sayso_server/app.py`) is the primary
-HTTP/WebSocket assembly. It registers default satellites (`macbook →
-area_living_room`), attaches a shared `HomeGraphStore`, wires
-`create_live_text_controller` with `BoundHaWsActionClient`, and binds the HA
-WebSocket session through `HaGatewayBinding`.
+Home Assistant loads `custom_components/sayso` as an integration. There is no
+Dockerfile or single-process launcher.
 
-`create_server()` in the same module is a legacy stdlib `ThreadingHTTPServer`
-that only serves health and readiness. Config flow probes `GET /api/v1/health`
-(`custom_components/sayso/config_flow.py`).
+## Ownership and sources of truth
 
-Process entrypoints:
-
-- **Server:** `python -m sayso_server` (`sayso-server/src/sayso_server/__main__.py`)
-  — loads `SAYSO_TOKEN`, builds resident MLX runtime via
-  `build_mlx_runtime_for_server`, runs aiohttp on `SAYSO_HOST`/`SAYSO_PORT`
-  (default `127.0.0.1:8765`).
-- **Satellite:** `python -m sayso_satellite` — sends text or `--audio-file`
-  PCM to the server using `SAYSO_SERVER_URL` and `SAYSO_TOKEN`.
-
----
-
-## End-to-end command and response flow
-
-### Live path (text → plan → HA WebSocket → device)
-
-1. Satellite or curl POSTs a versioned text envelope to `/api/v1/text`
-   (`sayso-server/src/sayso_server/text_api.py`).
-2. `SatelliteRegistry.resolve_area_id` maps `satellite_id` to an area in the
-   shared graph; refuses when graph missing or HA socket detached
-   (`text_execution_refusal`).
-3. `OrchestratorTextController.handle` / `handle_async` calls
-   `compose_plan_generation` (`runtime.py`): retrieve candidates →
-   `build_lfm_prompt` → `ModelRuntime.generate(prompt)` →
-   `parse_model_output`.
-4. `execute_control_plan` / `execute_control_plan_async` resolves entities
-   (including ambiguity via `resolve_action_entities`), validates safety,
-   sends one `action_request` through `BoundHaWsActionClient`, waits for
-   correlated `action_result` payloads, classifies outcome
-   (`orchestrator.py`).
-5. Gateway receive loop records `action_result` on the session; outbound
-   `action_request` envelopes drain on the next loop iteration
-   (`gateway.py`, `ha_ws_client.py`).
-6. HA integration executes the service call, verifies state, returns
-   `completed` / `failed` (`custom_components/sayso/coordinator.py`).
-7. Response includes `response_mode` / `response_content` from
-   `resolve_response_policy` (earcon for completed actions).
-
-### Audio path
-
-`POST /api/v1/audio` validates 16 kHz mono PCM16, runs
-`VoicePipelineController` (default: `MlxWhisperSttRuntime` → same text
-controller), returns a `text_response` envelope (`audio_api.py`).
-
-### Test-only shortcuts
-
-- `FakeHaClient` records requests without a WebSocket (`ha_client.py`).
-- `FakeModelRuntime.generate` parses the built LFM prompt JSON and returns a
-  deterministic query-shaped JSON string for tests (`runtime.py`).
-- HA integration tests inject `action_request` onto a fake WebSocket.
-
-### What still fails in practice
-
-Mac utterance → reliable ControlPlan → physical device change is blocked by
-model output quality on the 230M checkpoint, not by missing glue between
-server modules. Invalid JSON or schema drift becomes
-`NoActionPlan(reason="model_output_invalid")` and never reaches HA.
-
----
-
-## SaySo Server responsibilities
-
-Implemented as library modules under `sayso-server/src/sayso_server/`:
-
-- **Contracts:** `control_plan.py`, `models.py`, `envelope.py`, `messages.py`,
-  `protocol.py`, `api.py`, `schema.py`
-- **HTTP/WS assembly:** `app.py`, `const.py`, `auth.py`, `health.py`,
-  `readiness.py`, `text_api.py`, `audio_api.py`, `gateway.py`, `session.py`
-- **Home Graph:** `home_graph.py`, `graph_store.py`, `graph.py`, `deltas.py`
-- **Language → plan:** `runtime.py`, `mlx_runtime.py`, `parser.py`, `prompt.py`
-- **Deterministic control:** `candidates.py`, `scoring.py`, `normalize.py`,
-  `ambiguity.py`, `scope.py`, `exclusions.py`, `resolver.py`, `capability.py`,
-  `safety.py`, `queries.py`, `followups.py`, `orchestrator.py`, `results.py`
-- **Live HA client:** `ha_client.py`, `ha_ws_client.py`
-- **Voice:** `stt.py`, `mlx_stt.py`
-- **Session helpers:** `conversation.py`, `satellites.py`, `telemetry.py`,
-  `response_policy.py`
-
-The server does **not** currently: persist state across restart, load config
-from disk beyond environment variables, run STT/TTS playback on the server
-host, or expose wake word / continuous listening.
-
----
-
-## Satellite responsibilities
-
-| Module | Role |
-|---|---|
-| `client.py` | Build/send text and audio envelopes; env: `SAYSO_TOKEN`, `SAYSO_SERVER_URL` |
-| `__main__.py` | CLI: positional text or `--audio-file` PCM path |
-| `capture.py` | Push-to-talk buffer, pre-roll, fixture mic source (no live CoreAudio mic driver) |
-| `response.py` | Render earcon (`\a`) or short text from `text_response` policy fields |
-
-Default `satellite_id` is `macbook` (matches server `DEFAULT_SATELLITE_ID`).
-The satellite does not register itself over the network; server
-`register_default_satellites` pre-seeds the registry at app construction.
-
----
-
-## Home Assistant integration responsibilities
-
-`custom_components/sayso/` is a `service` integration (`manifest.json`,
-`iot_class: local_push`).
-
-| Piece | File | What it does |
+| State | Authoritative owner | Server/integration copy |
 |---|---|---|
-| Setup / teardown | `__init__.py` | Creates coordinator, forwards `binary_sensor`, registers `sayso.sync_home_graph` |
-| Config | `config_flow.py` | URL + token; probes `/api/v1/health`; unique_id is the **URL** |
-| Options | `config_flow.py` | Domain/action allowlists; exposure mode all / area / entity |
-| Outbound WS | `coordinator.py` | Connect, hello, snapshot, deltas, heartbeat ping, action handling, bounded reconnect |
-| Snapshot | `snapshot.py` | Floors, areas, devices, entities, scenes, scripts from HA registries |
-| Deltas | `deltas.py` | One entity state or registry change per message |
-| Exposure | `exposure.py` | Filter before snapshot/delta |
-| Permissions | `permissions.py` | Exposure, domain match, allowlists, capability kind |
-| Action map | `action_mapping.py` | Semantic action → HA domain/service/data |
-| Results | `results.py` | `accepted` / `rejected` / `failed` / `completed` payloads |
-| Verify | `state_verification.py` | Wait for `state_changed` or timeout |
-| Device | `binary_sensor.py` | `SaySo Voice Assistant` device + connection entity |
-| Diagnostics | `diagnostics.py` | Health, exposure counts, protocol; redacts `token` |
-| Strings | `strings.json`, `translations/en.json`, `services.yaml` | UI copy and `sync_home_graph` |
+| Entity registry and live device state | Home Assistant | `HomeGraphStore` on the server |
+| Entity exposure and action allowlists | HA config-entry options | Applied before snapshots, deltas, and actions |
+| Physical action | Home Assistant service layer | Typed `action_request` from the server |
+| Action result | HA integration after execution and verification | Correlated `action_result` on the server |
+| ControlPlan | Parsed model output | Input to the deterministic orchestrator |
+| Conversation referents | In-memory `ConversationStore` | Per-satellite state with TTL |
+| Satellite-to-area mapping | Server `SatelliteRegistry` | Default `macbook → area_living_room` |
+| Readiness | Server `ReadinessState` | `/api/v1/health` and `/api/v1/ready` |
+| Evaluation records | JSONL files under `evals/` | Reports and failure ledger |
 
-The integration does **not** run a language model or Home Assistant Assist
-conversation agent. It dials the SaySo server outbound.
+The server graph is usable only after a valid HA snapshot. When the HA socket
+disconnects, the server clears the graph and refuses live text execution until
+the integration reconnects and sends a fresh snapshot.
 
----
+## Server assembly and startup
 
-## Direction and lifecycle of the Server ↔ Home Assistant connection
+`create_aiohttp_app` in `sayso-server/src/sayso_server/app.py` is the primary
+assembly point. It creates or accepts:
 
-**Direction:** Home Assistant is the WebSocket **client**. SaySo Server listens
-on `GET /api/v1/ws` (`WS_PATH` in `sayso-server/src/sayso_server/const.py` and
-`custom_components/sayso/const.py`).
+- a `HomeGraphStore` shared by the WebSocket gateway and text/audio handlers;
+- a `HaGatewayBinding` holding the current HA session and action client;
+- the default satellite registry;
+- a live `OrchestratorTextController` with `ConversationStore`, optional JSONL
+  telemetry, the resident model runtime, and the bound HA action client;
+- an MLX Whisper runtime for the audio endpoint;
+- a `ReadinessState`.
 
-**Lifecycle (integration),** `SaySoConnectionCoordinator`:
+`python -m sayso_server` loads `SAYSO_TOKEN`, builds the resident
+`MlxModelRuntime`, creates the app, marks the model ready after a successful
+load, best-effort preloads Whisper, marks `stt_ready` only when that preload
+succeeds, and starts aiohttp on `SAYSO_HOST`/`SAYSO_PORT` (defaults
+`127.0.0.1:8765`). Whisper readiness is informational and does not gate
+`/api/v1/ready`; aggregate readiness is `model_ready and ha_connected`.
 
-1. `async_start` launches `_run` with reconnect (1s initial, factor 2, max 30s).
-2. Convert configured HTTP(S) URL → `ws(s)://…/api/v1/ws`.
-3. Connect with `Authorization: Bearer <token>`.
-4. Send `hello`; wait for `hello_ack`; else close and raise.
-5. Set `connected = True`; send `graph_snapshot`; start ping every 30s.
-6. Receive loop: on `action_request`, dispatch; on socket close, exit.
-7. `async_stop` cancels the runner, unsubscribes HA bus listeners, clears
-   `connected`.
-8. `sayso.sync_home_graph` pushes a fresh snapshot if the socket is up.
+The legacy `create_server()` remains a stdlib health/readiness server used by
+older tests and config-flow probing. It is not the live text/audio assembly.
 
-**Lifecycle (server),** `handle_ha_connection` (`gateway.py`):
+## Public contracts
 
-1. Constant-time Bearer check; close on failure.
-2. First message must be a valid `SaySoEnvelope` of type `hello`; else close.
-3. Send `hello_ack` with the same `correlation_id`.
-4. Attach `HaSession` to the **shared** `HomeGraphStore` passed from
-   `create_aiohttp_app`; call `on_session_started` so `HaGatewayBinding` holds
-   the live session and WebSocket.
-5. Loop: accept `graph_snapshot` (replace), `state_delta`, `registry_delta`
-   (sequence +1, same `home_id`); respond to `ping` with `pong`; record
-   `action_result` on the session. Invalid JSON is skipped, not closed.
-6. On exit: `HaGatewayBinding.detach`, `graph_store.clear()`,
-   `readiness.set_ha_connected(False)`.
+All envelopes use API version 1 and a non-empty `correlation_id`.
+`API_VERSION = 1` and `PROTOCOL_NAME = "sayso-api"` are defined in
+`sayso-server/src/sayso_server/api.py`.
 
-Readiness sets `ha_connected=True` only after a valid `graph_snapshot` is
-applied (not merely after `hello_ack`). `model_ready` flips true in
-`create_aiohttp_app` when a loaded resident runtime is passed (production:
-`python -m sayso_server` via `build_mlx_runtime_for_server`). Whisper/STT
-loads lazily on first `/api/v1/audio` and does not gate `model_ready`.
+### HTTP API
 
----
-
-## Authentication and permission model
-
-### Shared secret
-
-A single Bearer token:
-
-- Config entry data: `url`, `token` (`custom_components/sayso/const.py`).
-- Server: `SAYSO_TOKEN` env var via `load_server_token`.
-- Unique id of the HA entry is the **URL**, not the token.
-
-`bearer_token_valid` uses `hmac.compare_digest` for WS and POST `/api/v1/text`
-and `/api/v1/audio`. `GET /api/v1/health` and `/api/v1/ready` use
-`health_status`, which compares with `!=` (not constant-time).
-
-Empty allowlists mean **allow all** listed option domains/actions.
-
-### Two permission layers
-
-1. **Server (deterministic controller):** ControlPlan validation, resolver
-   empty-set / hidden-entity / pronoun / capability barriers. Blocks sending
-   via safety outcome before `send_action_request`.
-2. **Integration (authoritative execution):** exposure, domain match,
-   allowlists, capability kind, then HA service call. Blocks calling Home
-   Assistant even when the server sends a request.
-
-There is no per-user identity, no satellite token distinct from the HA token,
-and no mTLS.
-
----
-
-## Home Graph ownership and synchronization
-
-**Owner of physical truth:** Home Assistant registries and `hass.states`.
-
-**Owner of the server’s working copy:** one shared `HomeGraphStore` inside the
-aiohttp app. HA WebSocket ingest and `/api/v1/text` resolution read the same
-object. Replace is atomic; deltas must be `sequence == current + 1` and the
-same `home_id`.
-
-**Producer:** `build_home_graph_snapshot` (`custom_components/sayso/snapshot.py`).
-`home_id` is the HA config entry id. Sequence is a coordinator counter
-starting at 0. Exposure filtering happens before serialize.
-
-**Consumer:** `OrchestratorTextController` and `SatelliteRegistry.resolve_area_id`
-read `app["graph_store"].snapshot`. When the HA socket drops, the gateway clears
-the store and `text_execution_refusal` returns `ha_disconnected` or `no_graph`.
-
-Area matching for the default Mac satellite accepts HA area ids or normalized
-area names/aliases (`satellites.py`).
-
----
-
-## ControlPlan schema and lifecycle
-
-Discriminated union on `outcome` (`sayso-server/src/sayso_server/control_plan.py`):
-
-| Outcome | Type | Role |
+| Method and path | Auth | Contract |
 |---|---|---|
-| `action` | `ActionPlan` | domain, optional scope, semantic `targets` / `include` / `exclude`, `state` / `value` / `mode` |
-| `query` | `QueryPlan` | same targeting + optional `attribute` |
-| `clarification` | `ClarificationPlan` | `reason` |
-| `unsupported` | `UnsupportedPlan` | `reason` |
-| `no-action` | `NoActionPlan` | `reason` |
+| `GET /api/v1/health` | Bearer | Liveness plus model, HA, and STT status |
+| `GET /api/v1/ready` | Bearer | 200 only when model and HA are ready; otherwise 503 |
+| `POST /api/v1/text` | Bearer | `text` envelope to `text_response` or `error` |
+| `POST /api/v1/audio` | Bearer | 16 kHz mono PCM16 to `text_response` or `error` |
+| `GET /api/v1/ws` | Bearer | HA integration session |
 
-`SemanticName` rejects Home Assistant `domain.object_id` strings (`models.py`).
+Text input:
 
-**Lifecycle on the live text path:**
+```json
+{
+  "version": 1,
+  "type": "text",
+  "correlation_id": "...",
+  "payload": {"satellite_id": "macbook", "text": "turn on the lamp"}
+}
+```
 
-1. `compose_plan_generation` builds an LFM prompt via `build_lfm_prompt`
-   (origin, conversation names/aliases, retrieved candidates — not raw entity
-   IDs, not the full graph).
-2. `ModelRuntime.generate(prompt)` returns raw text. `MlxModelRuntime` wraps
-   the prompt in a chat template with a fixed few-shot example
-   (`mlx_runtime.py`; uncommitted refinements add `GENERATION_INSTRUCTION`).
-3. `parse_model_output` (`parser.py`): JSON or fenced JSON; invalid payloads
-   become `NoActionPlan(reason="model_output_invalid")`. No speculative repair.
-4. Orchestrator consumes the plan. Non-action outcomes become `NO_ACTION`
-   after barriers. Queries go to `evaluate_query` and never call HA.
-5. Successful actions may record last-target / last-intent on
-   `ConversationStore` when one is wired.
+Audio input carries `satellite_id`, a sequence, duration, format metadata, and
+base64 PCM. The satellite defaults to a 180-second request timeout because a
+cold STT/model path can exceed a short HTTP timeout; `timeout=` and
+`SAYSO_TIMEOUT_SECONDS` override it.
 
----
+### HA WebSocket messages
 
-## Entity retrieval, resolution, validation, execution, and verification
+The v1 message types are:
 
 ```text
-utterance
-  └─ compose_plan_generation
-        retrieve_candidates → build_lfm_prompt → runtime.generate → parse_model_output
-  └─ execute_control_plan[_async](plan, snapshot, …)
-        resolve_follow_up          (when ConversationStore provided)
-        resolve_action_entities    (scope + include/exclude + ambiguity margin)
-        evaluate_safety_barrier
-        send_action_request        (ONE entity: sorted(ids)[0])
-        collect/take_action_results
-        classify_action_results
+hello, hello_ack, ping, pong, error,
+graph_snapshot, state_delta, registry_delta,
+action_request, action_result
 ```
 
-| Stage | Module | Notes |
-|---|---|---|
-| Retrieval | `candidates.py`, `scoring.py` | O(n) scan; token/domain/area/floor/alias/capability/referent scores |
-| Ambiguity | `ambiguity.py`, `resolver.py` | Score-margin rule inside `resolve_action_entities` on the orchestrator path |
-| Scope | `scope.py` | `current_area`, `named_area`, `floor`, `all` |
-| Include/exclude | `exclusions.py` | Name match inside scope; subtract exclusions |
-| Capability | `capability.py` | Atomic reject of mixed invalid sets |
-| Safety | `safety.py` | Barriers before send |
-| Query | `queries.py` | Door open/closed; any/all lights on → yes/no |
-| Execute | `orchestrator.py` | **First sorted entity only** (documented ceiling) |
-| Verify (server) | `classify_action_results` | Expects `accepted` then `completed` |
-| Verify (HA) | `state_verification.py` | `changed` / `unchanged` complete; timeout → `failed` |
+Graph and action payloads use the same versioned envelope. Action requests and
+results carry a request identifier so concurrent protocol messages cannot be
+cross-matched.
 
-Climate `set_temperature` / `mode` is mapped in HA (`action_mapping.py`) but
-not emitted by the orchestrator’s `_semantic_action` today.
+### ControlPlan
 
----
+`control_plan.py` defines a discriminated union on `outcome`:
 
-## Conversation-state ownership
-
-`ConversationStore` (`conversation.py`) is in-memory, per `satellite_id`, with
-TTL. Default live wiring in `create_live_text_controller` does **not** attach
-one; follow-up pronoun resolution only runs when callers inject a store.
-
-There is no persistence across process restart.
-
----
-
-## Voice pipeline ownership
-
-| Piece | Status |
+| Outcome | Meaning |
 |---|---|
-| PCM transport (`/api/v1/audio`) | Implemented |
-| Resident MLX Whisper STT adapter | Implemented (`mlx_stt.py`); optional install |
-| VoicePipelineController → text path | Implemented |
-| Push-to-talk capture helpers | Implemented in satellite (`capture.py`); no live mic CLI |
-| Wake word, VAD, continuous loop | Not implemented |
-| Server-side TTS / `say` / `afplay` | Not implemented (satellite renders earcon/text only) |
+| `action` | Semantic domain, target names, scope, include/exclude, state/value/mode |
+| `query` | Read-only state request |
+| `clarification` | The user must disambiguate or provide missing context |
+| `unsupported` | The request is outside the supported action vocabulary |
+| `no-action` | Invalid, unsafe, unresolved, or otherwise blocked request |
 
-Telemetry `input_type` remains literal `"text"` in records even when the
-request arrived via audio (`telemetry.py`).
+Targets remain semantic names. `models.py` rejects Home Assistant entity IDs in
+model-facing target fields. Only the resolver may produce entity IDs.
 
----
+## End-to-end command paths
 
-## Public interfaces and versioned contracts
+### Text command
 
-`API_VERSION = 1`, `PROTOCOL_NAME = "sayso-api"` (`api.py`).
+```text
+POST /api/v1/text
+  → authenticate and validate envelope
+  → map satellite_id to origin area
+  → refuse if graph/HA session is unavailable
+  → retrieve bounded candidates
+  → build model prompt
+  → resident model generates JSON
+  → strict parser validates ControlPlan
+  → resolve follow-up, scope, names, and exclusions
+  → apply ambiguity, capability, and safety barriers
+  → send one typed action request through HA WebSocket
+  → receive accepted/completed or failure result
+  → return response policy and telemetry
+```
 
-### HTTP (aiohttp app)
+The HTTP handler is in `text_api.py`. Model generation is in `runtime.py`,
+`prompt.py`, `parser.py`, and `mlx_runtime.py`. The deterministic control path
+is in `orchestrator.py` and its resolver/validation modules.
 
-| Method | Path | Auth | Behavior |
-|---|---|---|---|
-| GET | `/api/v1/health` | Bearer | Liveness 200 + `{status, liveness, model_ready, ha_connected}` |
-| GET | `/api/v1/ready` | Bearer | 200 iff `model_ready and ha_connected`, else 503 |
-| POST | `/api/v1/text` | Bearer | `TextRequestEnvelope` → `text_response` or `error` |
-| POST | `/api/v1/audio` | Bearer | PCM envelope → `text_response` (voice pipeline) or `error` |
-| GET | `/api/v1/ws` | Bearer | HA session |
+### Recorded audio command
 
-Text request: `{version: 1, type: "text", correlation_id, payload: {satellite_id, text}}`.
-Text response adds `response_mode`, `response_content`. Error codes include
-`invalid_request`, `unknown_satellite`, `unknown_area`, `no_graph`,
-`ha_disconnected`, `not_configured`.
+```text
+POST /api/v1/audio
+  → validate 16 kHz, mono, PCM16 framing and duration
+  → load/reuse resident Whisper runtime
+  → transcribe PCM and record STT timing
+  → call the same text controller with input_type="audio"
+  → follow the text command path above
+```
 
-### WebSocket envelope
+The audio path does not have a separate language or execution stack. It is a
+transport and STT front end to the text controller.
 
-Server `MessageType` (`messages.py`): `hello`, `hello_ack`, `ping`, `pong`,
-`error`, `graph_snapshot`, `state_delta`, `registry_delta`, `action_request`,
-`action_result`. All are in `MESSAGE_TYPES_V1`.
+### Query, clarification, and follow-up
 
-HA and server use the same envelope shape for graph and action messages.
+- Query plans use `queries.py` and never send an action request.
+- Clarification, unsupported, invalid, and blocked plans are returned through
+  `response_policy.py`; control actions normally produce an earcon and queries
+  or errors produce short text.
+- `ConversationStore` keeps last-target and last-intent references per
+  satellite with a TTL. Follow-up resolution happens before normal target
+  resolution. Expired or missing references clarify instead of guessing.
 
-JSON Schema fixtures: `evals/fixtures/sayso_api_v1.schema.json`,
-`envelope.valid.json`, `home_graph.json`.
+## Deterministic control path
 
----
+The model supplies intent and semantic names. It does not select or execute a
+raw entity ID. The server performs the following bounded stages:
 
-## State ownership and sources of truth
+1. `candidates.py` and `scoring.py` scan the in-memory graph using normalized
+   names, aliases, inferred domain, area/floor, capability, state, and
+   conversation referents. This is an O(n) MVP scan.
+2. `scope.py` expands current-area, named-area, floor, or all-home scope.
+3. `exclusions.py` resolves included and excluded names inside the scope and
+   subtracts exclusions.
+4. `ambiguity.py` applies the score-margin rule. Equal plausible matches
+   clarify; they do not choose arbitrarily.
+5. `capability.py` rejects targets that cannot perform the requested action
+   or value/range operation. Mixed invalid sets are rejected atomically.
+6. `safety.py` rejects empty, hidden, unresolved-pronoun, unsupported, or
+   unknown-entity plans before the HA client is called.
+7. `orchestrator.py` sends a typed request and classifies correlated results.
 
-| State | Source of truth | Replica |
-|---|---|---|
-| Device/entity registry and HA state | Home Assistant | Shared `HomeGraphStore` on the server |
-| Exposure / allowlists | Config entry options | Read at snapshot/delta/action time |
-| WS connected | Coordinator `connected` | Binary sensor `SaySo Voice Assistant` / Connection |
-| Server token | `SAYSO_TOKEN` env / caller | HA entry `data["token"]` |
-| ControlPlan | Model output after parser | Orchestrator input |
-| Conversation referents | `ConversationStore` (optional) | Prompt serialization of names/aliases only |
-| Satellite → area | `SatelliteRegistry` + env override | Pre-registered at app start |
-| Readiness | `ReadinessState` | Health/ready JSON |
-| Eval cases | JSONL under `evals/datasets/` | Loaded by `evals/schema.py`, `evals/corpus.py`, `evals/runner.py` |
+The current execution ceiling is one entity: the first sorted resolved ID is
+requested. Multi-entity fan-out is deliberately not part of the live path.
+Climate service mappings exist in the integration, but orchestrator emission
+of climate temperature/mode remains incomplete.
 
-There is no database.
+Invalid model output is strict: parse or schema failure becomes
+`NoActionPlan(reason="model_output_invalid")`. There is no speculative JSON
+repair, unique-name bypass, or generic tool loop. The live LFM prompt is kept
+small, with at most one retrieved candidate for the 230M checkpoint.
 
----
+## Home Graph synchronization
 
-## Failure handling and restart behavior
+The HA integration is the WebSocket client; the server listens on
+`/api/v1/ws`.
 
-| Event | What happens |
+### Integration lifecycle
+
+`SaySoConnectionCoordinator`:
+
+1. Connects to the configured server URL with `ws`/`wss` and Bearer auth.
+2. Sends `hello` and waits for `hello_ack`.
+3. Sends a filtered, serialized `graph_snapshot` and starts heartbeat pings.
+4. Listens for `action_request` messages and dispatches approved actions.
+5. Streams one `state_delta` or `registry_delta` per change.
+6. Returns accepted, rejected, failed, or completed action results.
+7. Reconnects with bounded exponential backoff after disconnect.
+
+The integration serializes floors, areas, devices, entities, scenes, and
+scripts. Entity area is `entry.area_id` or, when absent, the linked device
+area. Exposure filtering occurs before snapshot and delta transmission.
+
+### Server lifecycle
+
+`gateway.py` authenticates the socket, requires a valid first `hello`, and
+returns `hello_ack`. It then:
+
+- replaces the shared graph on a valid snapshot;
+- accepts only next-sequence state and registry deltas for the same `home_id`;
+- responds to pings and records action results;
+- marks HA ready only after a snapshot is applied;
+- detaches and clears the graph on socket exit.
+
+`HomeGraphStore` performs atomic snapshot replacement and rejects stale,
+out-of-order, or wrong-home deltas without mutating the current graph.
+
+## Execution boundary inside Home Assistant
+
+The integration is authoritative even when the server is correct:
+
+```text
+action_request
+  → request shape and entity validation
+  → exposure/domain/action/capability permission checks
+  → accepted result
+  → fixed semantic action → HA domain/service/data mapping
+  → service call
+  → state_changed observation or timeout
+  → completed / failed action_result
+```
+
+The integration never imports Home Assistant Assist conversation handling and
+does not run a language model. Its `state_verification.py` distinguishes a
+changed state, unchanged state, and timeout. Service exceptions become failed
+results.
+
+## Security and failure barriers
+
+The current deployment uses one shared Bearer secret. It is configured as
+`SAYSO_TOKEN` for the server and stored in the HA config entry and satellite
+environment. WebSocket, text, and audio action surfaces use constant-time
+Bearer comparison. Health/readiness use the existing health helper.
+
+There is no user identity, per-satellite secret, mTLS, or cloud dependency.
+The security model is therefore appropriate to a trusted local network, not a
+publicly exposed server.
+
+| Failure | Result |
 |---|---|
-| Bad HA token / non-hello first message | Server closes WS; integration reconnects with backoff |
-| HA disconnect | Integration `connected=False`; server clears graph, detaches binding, `ha_connected=False`; text path refuses with `ha_disconnected` / `no_graph` |
-| Stale delta | `HomeGraphStore.apply_*` returns False; graph unchanged |
-| Invalid ControlPlan JSON | `no-action` / `model_output_invalid` |
-| Safety barrier | `ExecutionCategory.NO_ACTION`; no `send_action_request` |
-| HA permission reject | `action_result` `rejected` before service call |
-| Service exception | `failed` / `execution_failed` |
-| State verification timeout | `failed` / `state_verification_timeout` (5s live) |
-| Missing `accepted`+`completed` order | `incomplete_results` or `misordered_results` |
-| Server process restart | Graph, satellites registry defaults, and readiness flags reset |
-| HA restart | Coordinator reconnects; new snapshot after hello |
-| Integration unload | Stop coordinator, remove service, unload platform |
+| Missing/invalid request | HTTP error; no controller execution |
+| Unknown satellite or area | Refusal; no action |
+| No graph or disconnected HA socket | Refusal; no action |
+| Invalid model JSON/schema | `no-action` / `model_output_invalid` |
+| Ambiguous or incapable target | Clarification or no-action; no request |
+| Hidden/disallowed entity | Server barrier or integration rejection |
+| HA service exception | `failed` / `execution_failed` |
+| Verification timeout | `failed` / `state_verification_timeout` |
+| Server restart | Model/graph/session/readiness reset; HA reconnects and resyncs |
+| HA restart/disconnect | Server clears graph and refuses until fresh snapshot |
 
-`sayso.sync_home_graph` is the operator resync. Explicit “graph stale after
-long disconnect” semantics beyond store clear + refusal are minimal.
+Telemetry is JSONL when `SAYSO_TELEMETRY_PATH` is set. It records stage timing,
+model metadata, input type, outcome, and identifiers without raw audio. The
+failure-ledger stage vocabulary is:
 
----
+```text
+stt → retrieve → plan → parse → resolve → safety → request → verify
+```
 
-## Current test boundaries
+Evaluation executor/schema failures use the additional `schema` stage.
 
-Colocated `test_*.py` only. Root `conftest.py` loads
-`pytest_homeassistant_custom_component`. `pyproject.toml` `testpaths`:
-`custom_components`, `sayso-server/src/sayso_server`,
-`sayso-satellite/src/sayso_satellite`. There is no `tests/` directory.
-`evals/` tests are run by path.
+## Satellite and voice scope
 
-| Area | Tests | Bound |
-|---|---|---|
-| Satellite | `test_import.py`, `test_client.py`, `test_capture.py`, `test_main.py`, `test_response.py` | HTTP client, capture, CLI |
-| ControlPlan / envelope | `test_control_plan.py`, `test_models.py`, `test_schema.py`, `test_envelope.py`, `test_messages.py`, … | Validation |
-| Runtime / prompt | `test_runtime.py`, `test_mlx_runtime.py`, `test_parser.py`, `test_prompt.py` | `compose_plan_generation`, MLX chat template |
-| Gateway / app | `test_gateway.py`, `test_app.py` | Shared graph, ping/pong, live wiring |
-| Orchestrator / safety | `test_orchestrator.py`, `test_ambiguity.py`, … | Fake HA client and fixture graphs |
-| Text / audio / telemetry | `test_text_api.py`, `test_audio_api.py`, `test_telemetry.py`, … | aiohttp test client |
-| HA integration | `test_coordinator.py`, `test_snapshot.py`, … | pytest-homeassistant fakes |
-| Evals | `test_schema.py`, corpus tests, `test_metrics.py`, `test_runner.py` | JSONL shape, scorer, dry-run runner — not live model or HA |
+The satellite is intentionally thin:
 
-No integration test opens a real Mac mic, real MLX checkpoint, or real
-Z-Wave/Zigbee device by default.
-
----
-
-## Status taxonomy
-
-### 1. Implemented now
-
-- ControlPlan and SaySo v1 envelope types; JSON Schema helpers; full
-  `MessageType` including `action_request` / `action_result`
-- Shared `HomeGraphStore` wired from HA WebSocket into the text/audio path
-- HA config flow, options, outbound WS, hello, snapshot, deltas, ping/pong,
-  reconnect, `sync_home_graph`, action execution, state verification
-- Live `HaWsActionClient` / `BoundHaWsActionClient` and async result collection
-- `compose_plan_generation` + `build_lfm_prompt` on the default text controller
-- Candidate retrieval, scope, include/exclude, ambiguity in resolver,
-  capability validator, safety barriers, query evaluator, orchestrator
-- Process entrypoints: `python -m sayso_server`, `python -m sayso_satellite`
-- Default satellite registration; Mac text/audio HTTP client; response policy
-- POST `/api/v1/audio` voice pipeline (STT → text controller)
-- Strict parser → `model_output_invalid`
-- Eval schema; core (120), safety (100), language-noise (150), follow-up (70)
-  corpora; metric scorer; benchmark runner (dry-run executor)
-- `MlxModelRuntime` and `MlxWhisperSttRuntime` load-once adapters
-- `aiohttp` declared as a server dependency
-- `AGENTS.md` voice-path priority
-
-### 2. Partially implemented
-
-- **Readiness:** `ha_connected` tracks the HA WebSocket session;
-  `model_ready` tracks resident MLX load when passed into `create_aiohttp_app`
-- **Conversation store:** not attached in default `create_live_text_controller`
-- **Orchestrator:** one entity per action; climate temperature/mode not mapped
-- **Satellite voice:** capture helpers and PCM file upload; no live microphone
-  driver or wake word
-- **MLX deps:** runtime imports optional packages not listed in `pyproject.toml`
-- **Auth:** constant-time on WS/text/audio; not on health/ready
-- **Legacy HTTP server:** `create_server()` ThreadingHTTPServer still exists
-- **Telemetry:** audio path not distinguished in `input_type`
-- **Graph lifecycle:** store cleared on HA disconnect; no long-lived stale-graph
-  flag beyond refusal codes
-
-### 3. Planned but not implemented
-
-From `docs/MVP_PLAN.md` / `docs/EVALUATION_PLAN.md`, absent or incomplete:
-
-- Live model bake-offs (46–47), baseline imports (49–50), statistical report (51)
-- Live dry-run allowlist gate wired to a real home (48) as default operator policy
-- Wake word, VAD, endpoint state machine, continuous loop (58–64)
-- macOS `say` / `afplay` playback on satellite (57) beyond earcon `\a`
-- Per-satellite serialization (67), install docs (69), frozen benchmark (70)
-- `training/` directory (listed in plan; not in tree)
-- Home-FunctionGemma adapter, Home-LLM, Alexa+ importer
-- Dockerfile / single-command stack launcher
-
-### 4. Original requirements that conflict with the current implementation
-
-- **Phase 3 gate “text commands operate real devices”:** first supervised demo
-  succeeded at `8ad86ca`; broader utterance coverage and voice wake remain open.
-- **Constant-time token check everywhere (task 25):** health/ready still use `!=`.
-- **Satellite as hands-free smart speaker:** client + capture helpers only;
-  no wake/VAD/playback stack.
-- **Package deps match runtime:** MLX stack installed ad hoc by the environment.
-
-### 5. Architectural decisions that remain unresolved
-
-- Whether default live wiring should attach `ConversationStore`
-- Multi-entity execution (orchestrator currently one ID)
-- Climate `set_temperature` / `mode` in orchestrator vs HA mapping only
-- Satellite auth vs shared HA Bearer token
-- Live benchmark executor against real HA with task 48 guardrails
-- Whether first demo standardizes on text-only or push-to-talk audio file
-
----
-
-## Remaining plan: first physical-device demo vs deferrable
-
-`AGENTS.md` asks to finish Mac → SaySo → Home Assistant → physical device
-without cutting ControlPlan validation, ambiguity handling, integration
-execution, verification, metrics, or basic evals.
-
-A **first demonstration** means one Mac-originated command changes one real HA
-entity through SaySo, with safety barriers still able to no-op. Voice wake and
-model bake-offs are not required for that definition.
-
-**The first text demo is done** at `8ad86ca`: ChatML few-shot prompting,
-switch-as-light retrieval, and whole-graph name retry when the current-area
-candidate set misses were enough for a supervised lamp toggle on real hardware.
-Next increments are operator ergonomics, broader utterance coverage, and the
-voice path — not re-proving the same supervised text toggle.
-
-### Required next (post-demo)
-
-1. **Operator runbook** for three processes (server env, HA integration config,
-   satellite curl/CLI) — not packaged as one launcher.
-2. **Optional but valuable for follow-ups:** wire `ConversationStore` into
-   default live controller.
-3. **Package-level safety that already exists** must stay: ControlPlan
-   validation, capability/safety barriers, HA permission + state verification.
-   Do not bypass them for follow-on work.
-
-Optional for a *voice* demonstration of the same path: live mic capture on the
-satellite, resident Whisper quality checks, and playback beyond earcon (tasks
-53–57 family).
-
-Task **48** (dry-run default + execute allowlist) is required before pointing
-evals at a live home; it is not required for repeating the supervised text demo
-on a dedicated HA.
-
-### Can be deferred without compromising safety or the core architecture
-
-| Tasks | Why deferrable |
+| Module | Responsibility |
 |---|---|
-| **46–47, 49–51** | Extensive model benchmarking and baseline imports (`AGENTS.md` defer) |
-| **58–64** | Wake/VAD/continuous loop — after push-to-talk or text demo |
-| **67** | Per-satellite serialization — one Mac, one command |
-| **68–70** | Security audit extras, install docs, frozen comparison report |
-| Expanding corpora past committed sets | Large eval datasets |
-| Generalized multi-satellite, fine-tuning, streaming, polished diagnostics | Explicitly deferred in `AGENTS.md` |
-| Orchestrator multi-entity fan-out | Ceiling: first sorted id |
-| Climate mode mapping | Not on the “turn on the lamp” path |
+| `client.py` | Build/send versioned text and PCM audio requests |
+| `capture.py` | PCM framing, duration, push-to-talk/pre-roll helpers, fixtures |
+| `response.py` | Earcon or short response rendering |
+| `__main__.py` | Text CLI and `--audio-file` CLI |
 
-### Do not defer (even if “already coded”)
+Recorded-file voice is implemented. Live microphone capture, wake word, VAD,
+continuous listening, TTS playback, echo cancellation, and barge-in are not.
+The server does not play audio; the satellite renders the response policy.
 
-These must remain on the live path:
+## Evaluation architecture
 
-- ControlPlan validation and `model_output_invalid`
-- Safety + capability barriers
-- HA exposure/permissions and state verification
-- Ambiguity rule when multiple equally scored devices match a single name
-- Basic eval schema, corpora, scorer, and dry-run runner as regression fixtures
+`evals/` uses authored JSONL cases against a fixed synthetic graph. The
+controller dry-run executor runs `FakeModelRuntime`, the same resolver and
+validators, and `FakeHaClient`; it records no live HA execution. The default
+runner is resumable, seeded, writes timing/config metadata, and is protected by
+an `--execute` plus explicit entity-allowlist gate for any live executor.
+
+The committed corpus currently includes core, safety, language-noise, and
+follow-up cases. The scorer reports exact ControlPlan accuracy, candidate
+recall, exact target resolution, wrong-device rate, false execution,
+clarification, query/follow-up accuracy, and stage latency. The ledger assigns
+each failure to one pipeline stage and preserves case IDs. The expansion gate
+fails closed on false execution, wrong-device actions, missing timing samples,
+or unclassified schema crashes.
+
+The LFM configuration is reproducible and live MLX execution is optional.
+Comparative model adapters and external baseline integrations are evaluation
+components, not production dependencies.
+
+## Current implementation boundaries
+
+The supported runtime topology is one Mac satellite, one SaySo server, and one
+Home Assistant integration session. Conversation state and the server graph
+are in memory and reset on process restart. The orchestrator currently sends
+one resolved entity per action, and climate temperature/mode plan emission is
+incomplete.
+
+The server and satellite do not provide live microphone capture, wake word,
+VAD, continuous listening, server TTS, audio playback, a database, persistent
+graph storage, a public-network identity model, or a packaged multi-process
+launcher. These are boundaries of the current codebase, not alternate runtime
+paths.
+
+The supervised text path has exercised the full chain:
+
+```text
+Mac satellite → SaySo server → ControlPlan → HA integration → Home Assistant
+→ physical plug-lamp state change
+```
+
+The working path includes ChatML few-shot wrapping for
+`mlx-community/LFM2.5-230M-OptiQ-4bit`, switch-as-light retrieval, whole-home
+retry for a named target missed in the origin area, HA permissions, and state
+verification. MLX and Whisper packages are optional runtime imports rather than
+fully pinned server package dependencies.
+
+## Remaining plan and deferred work
+
+This document describes structure and runtime behavior only. For what to build
+next, use the companion plans below rather than treating gaps in this file as an
+unordered backlog.
+
+| Document | Scope |
+|---|---|
+| [MVP reliability and evaluation plan](MVP_RELIABILITY_AND_EVALUATION_PLAN.md) | Voice-path eval and reliability baseline: honest telemetry, failure ledger, latency reporting, expansion gate, and recorded-audio controller parity |
+| [Architecture implementation plan](ARCHITECTURE_IMPLEMENTATION_PLAN.md) | Numbered-unit execution pointer for architecture-aligned MVP assembly and integration work |
+
+Voice-path eval and reliability work lives in
+`MVP_RELIABILITY_AND_EVALUATION_PLAN.md`. Numbered-unit execution order lives
+in `ARCHITECTURE_IMPLEMENTATION_PLAN.md`.
+
+The following items are explicitly deferred until the supervised text path,
+recorded-file voice, and reliability baseline are trustworthy. They are not
+current remaining work:
+
+| Deferred item | Notes |
+|---|---|
+| Home-FunctionGemma bake-off | Comparative model evaluation; not a production dependency |
+| Home-LLM bake-off | Comparative model evaluation; not a production dependency |
+| Alexa+ bake-off | Comparative model evaluation; not a production dependency |
+| Wake word, VAD, hands-free listening | Live microphone capture and continuous listening; recorded-file PCM voice is in scope today |
+
+## Source map
+
+| Concern | Primary files |
+|---|---|
+| App and readiness | `sayso-server/src/sayso_server/app.py`, `__main__.py`, `readiness.py` |
+| HTTP text/audio | `text_api.py`, `audio_api.py`, `stt.py`, `mlx_stt.py` |
+| Model and parsing | `runtime.py`, `mlx_runtime.py`, `prompt.py`, `parser.py` |
+| Plan and safety | `control_plan.py`, `orchestrator.py`, `resolver.py`, `ambiguity.py`, `capability.py`, `safety.py`, `queries.py`, `followups.py` |
+| Graph and gateway | `home_graph.py`, `graph_store.py`, `graph.py`, `gateway.py`, `session.py` |
+| HA transport | `ha_ws_client.py`, `ha_client.py`, `custom_components/sayso/coordinator.py` |
+| HA serialization/execution | `snapshot.py`, `deltas.py`, `exposure.py`, `permissions.py`, `action_mapping.py`, `state_verification.py` |
+| Satellite | `sayso-satellite/src/sayso_satellite/` |
+| Evaluation | `evals/schema.py`, `executor.py`, `runner.py`, `metrics.py`, `ledger.py`, `latency.py`, `report.py`, `gate.py` |

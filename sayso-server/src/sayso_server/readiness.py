@@ -19,6 +19,7 @@ class ReadinessSnapshot:
 
     model_ready: bool
     ha_connected: bool
+    stt_ready: bool = False
 
     @property
     def ready(self) -> bool:
@@ -31,6 +32,7 @@ class ReadinessState:
     def __init__(self) -> None:
         self._model_ready = False
         self._ha_connected = False
+        self._stt_ready = False
 
     def set_model_ready(self, ready: bool) -> None:
         self._model_ready = ready
@@ -38,10 +40,14 @@ class ReadinessState:
     def set_ha_connected(self, connected: bool) -> None:
         self._ha_connected = connected
 
+    def set_stt_ready(self, ready: bool) -> None:
+        self._stt_ready = ready
+
     def snapshot(self) -> ReadinessSnapshot:
         return ReadinessSnapshot(
             model_ready=self._model_ready,
             ha_connected=self._ha_connected,
+            stt_ready=self._stt_ready,
         )
 
 
@@ -58,6 +64,7 @@ def readiness_body(snapshot: ReadinessSnapshot) -> dict[str, bool]:
         "ready": snapshot.ready,
         "model_ready": snapshot.model_ready,
         "ha_connected": snapshot.ha_connected,
+        "stt_ready": snapshot.stt_ready,
     }
 
 
@@ -69,6 +76,7 @@ def liveness_body(snapshot: ReadinessSnapshot) -> dict[str, object]:
         "liveness": "ok",
         "model_ready": snapshot.model_ready,
         "ha_connected": snapshot.ha_connected,
+        "stt_ready": snapshot.stt_ready,
     }
 
 

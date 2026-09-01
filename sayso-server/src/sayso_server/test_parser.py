@@ -98,3 +98,12 @@ def test_invalid_control_plan_schema_becomes_no_action() -> None:
 
     assert isinstance(plan, NoActionPlan)
     assert plan.reason == "model_output_invalid"
+
+
+def test_malformed_json_with_empty_intent_becomes_no_action() -> None:
+    plan = parse_model_output('{"outcome": "action",', intent="")
+
+    assert isinstance(plan, NoActionPlan)
+    assert plan.outcome == "no-action"
+    assert plan.reason == "model_output_invalid"
+    assert plan.intent == "unknown"

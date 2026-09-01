@@ -105,6 +105,7 @@ def test_main_preloads_stt_without_affecting_model_ready(
 
     assert stt.load_calls == 1
     assert app["readiness"].snapshot().model_ready is True
+    assert app["readiness"].snapshot().stt_ready is True
 
 
 def test_main_stt_preload_failure_does_not_clear_model_ready(
@@ -128,6 +129,7 @@ def test_main_stt_preload_failure_does_not_clear_model_ready(
 
     assert stt.load_calls == 1
     assert app["readiness"].snapshot().model_ready is True
+    assert app["readiness"].snapshot().stt_ready is False
 
 
 class _RecordingSttRuntime:

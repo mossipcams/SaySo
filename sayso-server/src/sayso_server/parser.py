@@ -56,8 +56,9 @@ def _is_tool_call_wrapper(payload: object) -> bool:
 
 
 def _invalid_plan(intent: str) -> NoActionPlan:
+    resolved_intent = intent.strip() or "unknown"
     return NoActionPlan(
         outcome="no-action",
-        intent=intent,
+        intent=resolved_intent,
         reason="model_output_invalid",
     )

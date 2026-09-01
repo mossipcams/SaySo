@@ -69,6 +69,8 @@ class TextController(Protocol):
         area_id: str,
         text: str,
         correlation_id: str,
+        input_type: Literal["text", "audio"] = "text",
+        stt_ms: float = 0.0,
     ) -> dict[str, Any]: ...
 
 
@@ -136,6 +138,8 @@ class OrchestratorTextController:
         area_id: str,
         text: str,
         correlation_id: str,
+        input_type: Literal["text", "audio"] = "text",
+        stt_ms: float = 0.0,
     ) -> dict[str, Any]:
         refusal = self._execution_refusal(text=text)
         if refusal is not None:
@@ -149,7 +153,10 @@ class OrchestratorTextController:
             correlation_id=correlation_id,
             satellite_id=satellite_id,
             area_id=area_id,
+            input_type=input_type,
         )
+        if stt_ms > 0.0:
+            telemetry.record_stage_ms("stt", stt_ms)
         conversation = (
             self._conversation_store.get_state(satellite_id)
             if self._conversation_store is not None
@@ -192,6 +199,8 @@ class OrchestratorTextController:
         area_id: str,
         text: str,
         correlation_id: str,
+        input_type: Literal["text", "audio"] = "text",
+        stt_ms: float = 0.0,
     ) -> dict[str, Any]:
         refusal = self._execution_refusal(text=text)
         if refusal is not None:
@@ -205,7 +214,10 @@ class OrchestratorTextController:
             correlation_id=correlation_id,
             satellite_id=satellite_id,
             area_id=area_id,
+            input_type=input_type,
         )
+        if stt_ms > 0.0:
+            telemetry.record_stage_ms("stt", stt_ms)
         conversation = (
             self._conversation_store.get_state(satellite_id)
             if self._conversation_store is not None

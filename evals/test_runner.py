@@ -7,15 +7,19 @@ from pathlib import Path
 
 import pytest
 
+from evals.config import is_benchmark_config_line
+from evals.executor import controller_dry_run_executor
 from evals.metrics import EvalRecord
 from evals.runner import (
     BenchmarkRunResult,
     CaseExecutionResult,
     CaseExecutor,
     CaseTiming,
+    _record_to_jsonl,
     dry_run_executor,
     gate_executor_for_live_safety,
     load_output_case_ids,
+    mark_non_live_executor,
     run_benchmark,
 )
 from evals.schema import EvalCase, load_eval_cases_jsonl
@@ -86,7 +90,15 @@ def _cases_jsonl(*case_ids: str) -> str:
 
 
 def _read_output_lines(path: Path) -> list[dict[str, object]]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if is_benchmark_config_line(payload):
+            continue
+        lines.append(payload)
+    return lines
 
 
 def test_dry_run_executor_never_actuates() -> None:
@@ -95,6 +107,137 @@ def test_dry_run_executor_never_actuates() -> None:
     assert result.record.ha_executed is False
     assert result.record.case_id == "dry-001"
     assert result.timing.total_ms >= 0.0
+
+
+def test_record_to_jsonl_includes_present_optional_timing_fields() -> None:
+    record = EvalRecord(case_id="timing-001", ha_executed=False)
+    timing = CaseTiming(
+        total_ms=100.0,
+        plan_ms=25.0,
+        prompt_tokens=42,
+        completion_tokens=3,
+        model_id="fake",
+    )
+    line = _record_to_jsonl(record, timing)
+    assert line["total_ms"] == 100.0
+    assert line["plan_ms"] == 25.0
+    assert line["prompt_tokens"] == 42
+    assert line["completion_tokens"] == 3
+    assert line["model_id"] == "fake"
+    assert "retrieve_ms" not in line
+
+
+def test_record_to_jsonl_includes_cold_start_when_true() -> None:
+    record = EvalRecord(case_id="cold-001", ha_executed=False)
+    timing = CaseTiming(total_ms=1.0)
+    line = _record_to_jsonl(record, timing, cold_start=True)
+    assert line["cold_start"] is True
+
+
+def test_record_to_jsonl_omits_cold_start_when_not_true() -> None:
+    record = EvalRecord(case_id="warm-001", ha_executed=False)
+    timing = CaseTiming(total_ms=1.0)
+    assert "cold_start" not in _record_to_jsonl(record, timing)
+    assert "cold_start" not in _record_to_jsonl(record, timing, cold_start=False)
+    assert "cold_start" not in _record_to_jsonl(record, timing, cold_start=None)
+
+
+def test_run_benchmark_tags_first_scored_row_cold_start_by_default(
+    tmp_path: Path,
+) -> None:
+    cases = [_action_case("cold-001"), _action_case("cold-002")]
+    output = tmp_path / "records.jsonl"
+
+    run_benchmark(cases, output)
+    lines = _read_output_lines(output)
+
+    assert lines[0]["cold_start"] is True
+    assert "cold_start" not in lines[1]
+
+
+def test_run_benchmark_warmup_count_suppresses_cold_start_tag(tmp_path: Path) -> None:
+    warmup = _action_case("warmup-only")
+    scored = [_action_case("scored-001"), _action_case("scored-002")]
+    output = tmp_path / "records.jsonl"
+
+    run_benchmark(
+        scored,
+        output,
+        warmup_count=1,
+        warmup_case=warmup,
+    )
+    lines = _read_output_lines(output)
+
+    assert all("cold_start" not in line for line in lines)
+
+
+def test_run_benchmark_resume_tags_only_first_new_row_cold_start(
+    tmp_path: Path,
+) -> None:
+    cases = [
+        _action_case("resume-cold-001"),
+        _action_case("resume-cold-002"),
+        _action_case("resume-cold-003"),
+    ]
+    output = tmp_path / "records.jsonl"
+
+    run_benchmark(cases[:1], output)
+    run_benchmark(cases, output)
+    lines = _read_output_lines(output)
+
+    assert [line["case_id"] for line in lines] == [
+        "resume-cold-001",
+        "resume-cold-002",
+        "resume-cold-003",
+    ]
+    assert lines[0]["cold_start"] is True
+    assert lines[1]["cold_start"] is True
+    assert "cold_start" not in lines[2]
+
+
+def test_run_benchmark_cold_start_false_in_config_tags_no_rows(
+    tmp_path: Path,
+) -> None:
+    from evals.config import BenchmarkConfig
+
+    cases = [_action_case("no-cold-001"), _action_case("no-cold-002")]
+    output = tmp_path / "records.jsonl"
+    config = BenchmarkConfig(cold_start=False)
+
+    run_benchmark(cases, output, config=config)
+    lines = _read_output_lines(output)
+
+    assert all("cold_start" not in line for line in lines)
+
+
+def test_run_benchmark_jsonl_includes_optional_timing_when_present(
+    tmp_path: Path,
+) -> None:
+    case = _action_case("timing-jsonl-001")
+    output = tmp_path / "records.jsonl"
+
+    def timing_executor(eval_case: EvalCase) -> CaseExecutionResult:
+        return CaseExecutionResult(
+            record=EvalRecord(case_id=eval_case.case_id, ha_executed=False),
+            timing=CaseTiming(
+                total_ms=9.0,
+                retrieve_ms=1.5,
+                plan_ms=2.0,
+                prompt_tokens=10,
+                completion_tokens=1,
+                model_id="test-model",
+            ),
+        )
+
+    mark_non_live_executor(timing_executor)
+    run_benchmark([case], output, timing_executor)
+    line = _read_output_lines(output)[0]
+    assert line["total_ms"] == 9.0
+    assert line["retrieve_ms"] == 1.5
+    assert line["plan_ms"] == 2.0
+    assert line["prompt_tokens"] == 10
+    assert line["completion_tokens"] == 1
+    assert line["model_id"] == "test-model"
 
 
 def test_run_benchmark_writes_eval_record_lines_with_timing(tmp_path: Path) -> None:
@@ -367,3 +510,45 @@ def test_gate_executor_for_live_safety_directly() -> None:
 
     blocked = gate_executor_for_live_safety(_actuating_executor(), execute=True)
     assert blocked(case).record.ha_executed is False
+
+
+def test_run_benchmark_runs_controller_dry_run_when_execute_false(
+    tmp_path: Path,
+) -> None:
+    case = _action_case("controller-default-001")
+    output = tmp_path / "records.jsonl"
+
+    summary = run_benchmark(
+        [case],
+        output,
+        controller_dry_run_executor,
+        execute=False,
+    )
+    lines = _read_output_lines(output)
+
+    assert summary == BenchmarkRunResult(scored=1, skipped=0, warmup_runs=0, errors=0)
+    assert lines[0]["ha_executed"] is False
+    assert lines[0]["recorded_control_plan"] is not None
+
+
+def test_gate_executor_passes_through_non_live_executor_when_execute_false() -> None:
+    case = _action_case("gate-non-live")
+    call_count = 0
+
+    def counting_wrapper(eval_case: EvalCase) -> CaseExecutionResult:
+        nonlocal call_count
+        call_count += 1
+        return controller_dry_run_executor(eval_case)
+
+    mark_non_live_executor(counting_wrapper)
+    gated = gate_executor_for_live_safety(
+        counting_wrapper,
+        execute=False,
+        entity_allowlist=["light.living_room_ceiling"],
+    )
+
+    result = gated(case)
+
+    assert call_count == 1
+    assert result.record.ha_executed is False
+    assert result.record.recorded_control_plan is not None

@@ -288,6 +288,203 @@ async def test_odd_pcm_byte_length_is_rejected() -> None:
 
 
 @pytest.mark.asyncio
+async def test_voice_pipeline_emits_audio_input_type_telemetry() -> None:
+    from io import StringIO
+
+    from sayso_server.conversation import ConversationStore
+    from sayso_server.ha_client import FakeHaClient
+    from sayso_server.runtime import FakeModelRuntime
+    from sayso_server.telemetry import InteractionTelemetryRecord, JsonlTelemetrySink
+    from sayso_server.text_api import OrchestratorTextController
+
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    runtime = FakeModelRuntime()
+    runtime.load()
+    sink_buffer = StringIO()
+    sink = JsonlTelemetrySink(sink_buffer)
+    text_controller = OrchestratorTextController(
+        runtime=runtime,
+        ha_client=FakeHaClient(),
+        graph_store=graph_store,
+        conversation_store=ConversationStore(ttl_seconds=300.0),
+        telemetry_sink=sink,
+    )
+    transcript = "turn off the floor lamp"
+    stt = FakeSpeechToTextRuntime(transcript=transcript)
+    stt.load()
+    handler = _build_handler(stt_runtime=stt, text_controller=text_controller)
+
+    status, body = await _post_audio(
+        handler,
+        _audio_request(correlation_id="corr-audio-telemetry"),
+    )
+    assert status == 200
+    assert body is not None
+
+    lines = [line for line in sink_buffer.getvalue().splitlines() if line.strip()]
+    assert len(lines) == 1
+    parsed = json.loads(lines[0])
+    record = InteractionTelemetryRecord.model_validate(parsed)
+    assert record.correlation_id == "corr-audio-telemetry"
+    assert record.input_type == "audio"
+    assert record.stages.stt_ms >= 0.0
+
+
+@pytest.mark.asyncio
+async def test_voice_pipeline_records_stt_stage_timing() -> None:
+    from io import StringIO
+    from unittest.mock import patch
+
+    from sayso_server import audio_api
+    from sayso_server.conversation import ConversationStore
+    from sayso_server.ha_client import FakeHaClient
+    from sayso_server.runtime import FakeModelRuntime
+    from sayso_server.telemetry import InteractionTelemetryRecord, JsonlTelemetrySink
+    from sayso_server.text_api import OrchestratorTextController
+
+    class SlowLoadFakeSpeechToTextRuntime(FakeSpeechToTextRuntime):
+        def load(self) -> None:
+            audio_api.time.monotonic()
+            super().load()
+
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    runtime = FakeModelRuntime()
+    runtime.load()
+    sink_buffer = StringIO()
+    sink = JsonlTelemetrySink(sink_buffer)
+    text_controller = OrchestratorTextController(
+        runtime=runtime,
+        ha_client=FakeHaClient(),
+        graph_store=graph_store,
+        conversation_store=ConversationStore(ttl_seconds=300.0),
+        telemetry_sink=sink,
+    )
+    transcript = "turn off the floor lamp"
+    stt = SlowLoadFakeSpeechToTextRuntime(transcript=transcript)
+    stt.load()
+    handler = _build_handler(stt_runtime=stt, text_controller=text_controller)
+    monotonic_values = iter([100.0, 100.05, 100.1, 100.2, 100.3, 100.4, 100.5, 100.6])
+
+    with patch(
+        "sayso_server.audio_api.time.monotonic",
+        side_effect=lambda: next(monotonic_values),
+    ):
+        status, body = await _post_audio(
+            handler,
+            _audio_request(correlation_id="corr-audio-stt-timing"),
+        )
+
+    assert status == 200
+    assert body is not None
+    parsed = json.loads(sink_buffer.getvalue().strip())
+    record = InteractionTelemetryRecord.model_validate(parsed)
+    assert record.stages.stt_ms == pytest.approx(100.0)
+
+
+class UnavailableSpeechToTextRuntime(FakeSpeechToTextRuntime):
+    """STT stand-in that simulates missing mlx-whisper at load time."""
+
+    def load(self) -> None:
+        msg = "mlx-whisper is required for MLX STT but is not installed"
+        raise RuntimeError(msg)
+
+
+class UnavailableTranscribeSpeechToTextRuntime(FakeSpeechToTextRuntime):
+    """STT stand-in that simulates mlx-whisper failure during transcribe."""
+
+    def transcribe(
+        self,
+        pcm: bytes,
+        *,
+        sample_rate_hz: int = SAMPLE_RATE_HZ,
+    ):
+        del pcm, sample_rate_hz
+        msg = "mlx-whisper is required for MLX STT but is not installed"
+        raise RuntimeError(msg)
+
+
+class DtypeMismatchTranscribeSpeechToTextRuntime(FakeSpeechToTextRuntime):
+    """STT stand-in that simulates mlx-whisper dtype failure during transcribe."""
+
+    def transcribe(
+        self,
+        pcm: bytes,
+        *,
+        sample_rate_hz: int = SAMPLE_RATE_HZ,
+    ):
+        del pcm, sample_rate_hz
+        msg = "audio_features has an incorrect dtype: mlx.core.float32"
+        raise TypeError(msg)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "stt_factory",
+    [
+        UnavailableSpeechToTextRuntime,
+        UnavailableTranscribeSpeechToTextRuntime,
+        DtypeMismatchTranscribeSpeechToTextRuntime,
+    ],
+)
+async def test_stt_unavailable_returns_classified_response_not_500(
+    stt_factory: type[FakeSpeechToTextRuntime],
+) -> None:
+    from sayso_server.test_text_api import RecordingTextController
+
+    stt = stt_factory()
+    text_controller = RecordingTextController()
+    handler = _build_handler(stt_runtime=stt, text_controller=text_controller)
+
+    status, body = await _post_audio(
+        handler,
+        _audio_request(correlation_id="corr-stt-unavailable"),
+    )
+
+    assert status != 500
+    assert body is not None
+    if body["type"] == "text_response":
+        assert body["payload"]["category"] == "no_action"
+        reason = body["payload"].get("reason") or ""
+        assert (
+            "unavailable" in reason.lower()
+            or "mlx-whisper" in reason.lower()
+            or "dtype" in reason.lower()
+        )
+    else:
+        assert body["type"] == "error"
+        assert body["payload"]["code"] == "stt_unavailable"
+    assert text_controller.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("transcript", ["", "   ", "\n\t"])
+async def test_blank_transcript_returns_classified_no_action_not_500(
+    transcript: str,
+) -> None:
+    from sayso_server.test_text_api import RecordingTextController
+
+    stt = FakeSpeechToTextRuntime(transcript=transcript)
+    stt.load()
+    text_controller = RecordingTextController()
+    handler = _build_handler(stt_runtime=stt, text_controller=text_controller)
+
+    status, body = await _post_audio(
+        handler,
+        _audio_request(correlation_id="corr-empty-transcript"),
+    )
+
+    assert status != 500
+    assert status == 200
+    assert body is not None
+    assert body["type"] == "text_response"
+    assert body["payload"]["category"] == "no_action"
+    assert "empty transcript" in (body["payload"].get("reason") or "").lower()
+    assert text_controller.calls == []
+
+
+@pytest.mark.asyncio
 async def test_recorded_fixture_transcribes_then_runs_text_controller() -> None:
     from sayso_server.test_text_api import RecordingTextController
 
@@ -308,14 +505,17 @@ async def test_recorded_fixture_transcribes_then_runs_text_controller() -> None:
     assert body["correlation_id"] == "voice-pipeline-1"
     assert body["payload"]["category"] == "completed"
     assert stt.transcribe_calls == [original_pcm]
-    assert text_controller.calls == [
-        {
-            "satellite_id": "macbook",
-            "area_id": "area_living_room",
-            "text": transcript,
-            "correlation_id": "voice-pipeline-1",
-        },
-    ]
+    assert len(text_controller.calls) == 1
+    call = text_controller.calls[0]
+    assert call == {
+        "satellite_id": "macbook",
+        "area_id": "area_living_room",
+        "text": transcript,
+        "correlation_id": "voice-pipeline-1",
+        "input_type": "audio",
+        "stt_ms": call["stt_ms"],
+    }
+    assert call["stt_ms"] >= 0.0
 
 
 @pytest.mark.asyncio

@@ -19,11 +19,13 @@ from sayso_server.const import (
     TOKEN_ENV_VAR,
     WS_PATH,
 )
+from sayso_server.conversation import ConversationStore
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.mlx_stt import MlxWhisperSttRuntime
 from sayso_server.satellites import SatelliteRegistry, register_default_satellites
 from sayso_server.stt import SpeechToTextRuntime
 from sayso_server.runtime import ModelRuntime
+from sayso_server.telemetry import open_jsonl_telemetry_sink_from_env
 from sayso_server.text_api import TextController, create_live_text_controller, create_text_handler
 from sayso_server.gateway import handle_ha_connection
 from sayso_server.health import HEALTH_PATH
@@ -166,11 +168,15 @@ def create_aiohttp_app(
         readiness_state.set_model_ready(True)
     binding = ha_gateway_binding if ha_gateway_binding is not None else HaGatewayBinding()
     controller = text_controller
+    env_telemetry_sink = None
     if controller is None:
+        env_telemetry_sink = open_jsonl_telemetry_sink_from_env()
         controller = create_live_text_controller(
             binding,
             graph_store=store,
             runtime=model_runtime,
+            conversation_store=ConversationStore(ttl_seconds=300.0),
+            telemetry_sink=env_telemetry_sink,
         )
     stt = stt_runtime or MlxWhisperSttRuntime()
     app["satellite_registry"] = registry
@@ -249,4 +255,10 @@ def create_aiohttp_app(
         ),
     )
     app.router.add_get(WS_PATH, websocket)
+    if env_telemetry_sink is not None:
+
+        async def _close_env_telemetry_sink(_app: web.Application) -> None:
+            env_telemetry_sink.close()
+
+        app.on_cleanup.append(_close_env_telemetry_sink)
     return app

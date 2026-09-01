@@ -18,10 +18,14 @@ def _preload_stt_runtime(app: web.Application) -> None:
     stt_runtime = app.get("stt_runtime")
     if stt_runtime is None:
         return
+    readiness = app.get("readiness")
     try:
         stt_runtime.load()
     except Exception as exc:  # noqa: BLE001 — preload is best-effort
         print(f"Warning: STT preload failed: {exc}", file=sys.stderr)
+        return
+    if readiness is not None:
+        readiness.set_stt_ready(True)
 
 
 def main() -> None:

@@ -1,0 +1,209 @@
+{
+  "description": "Frozen FakeModelRuntime baseline for controller_dry_run_executor wiring checks.",
+  "runtime": "FakeModelRuntime",
+  "cases": [
+    {
+      "case_id": "simple_control-001",
+      "category": "simple_control",
+      "home": "eval-home",
+      "origin": "area_living_room",
+      "turns": [
+        "Turn off the ceiling lights"
+      ],
+      "expected_control_plan": {
+        "outcome": "action",
+        "intent": "turn off the ceiling lights",
+        "domain": "light",
+        "targets": [
+          "ceiling lights"
+        ],
+        "state": "off"
+      },
+      "expected_candidate_entities": [
+        "light.living_room_ceiling",
+        "light.floor_lamp"
+      ],
+      "expected_resolved_entities": [
+        "light.living_room_ceiling"
+      ],
+      "expected_outcome": "valid_action",
+      "execution_allowed": true
+    },
+    {
+      "case_id": "simple_control-002",
+      "category": "simple_control",
+      "home": "eval-home",
+      "origin": "area_living_room",
+      "turns": [
+        "Turn on the floor lamp"
+      ],
+      "expected_control_plan": {
+        "outcome": "action",
+        "intent": "turn on the floor lamp",
+        "domain": "light",
+        "targets": [
+          "floor lamp"
+        ],
+        "state": "on"
+      },
+      "expected_candidate_entities": [
+        "light.living_room_ceiling",
+        "light.floor_lamp"
+      ],
+      "expected_resolved_entities": [
+        "light.floor_lamp"
+      ],
+      "expected_outcome": "valid_action",
+      "execution_allowed": true
+    },
+    {
+      "case_id": "simple_control-003",
+      "category": "simple_control",
+      "home": "eval-home",
+      "origin": "area_living_room",
+      "turns": [
+        "Switch off the lamp"
+      ],
+      "expected_control_plan": {
+        "outcome": "action",
+        "intent": "switch off the lamp",
+        "domain": "light",
+        "targets": [
+          "lamp"
+        ],
+        "state": "off"
+      },
+      "expected_candidate_entities": [
+        "light.living_room_ceiling",
+        "light.floor_lamp"
+      ],
+      "expected_resolved_entities": [
+        "light.floor_lamp"
+      ],
+      "expected_outcome": "valid_action",
+      "execution_allowed": true
+    },
+    {
+      "case_id": "query-001",
+      "category": "query",
+      "home": "eval-home",
+      "origin": "area_living_room",
+      "turns": [
+        "Is the door closed"
+      ],
+      "expected_control_plan": {
+        "outcome": "query",
+        "intent": "is the door closed",
+        "domain": "binary_sensor",
+        "targets": [
+          "door"
+        ]
+      },
+      "expected_candidate_entities": [
+        "light.living_room_ceiling",
+        "light.floor_lamp",
+        "climate.downstairs",
+        "binary_sensor.front_door",
+        "scene.movie_time"
+      ],
+      "expected_resolved_entities": [
+        "binary_sensor.front_door"
+      ],
+      "expected_outcome": "valid_query",
+      "execution_allowed": false
+    },
+    {
+      "case_id": "query-002",
+      "category": "query",
+      "home": "eval-home",
+      "origin": "area_living_room",
+      "turns": [
+        "Are any lights on in here"
+      ],
+      "expected_control_plan": {
+        "outcome": "query",
+        "intent": "are any lights on in here",
+        "domain": "light",
+        "scope": {
+          "kind": "current_area"
+        }
+      },
+      "expected_candidate_entities": [
+        "light.living_room_ceiling",
+        "light.floor_lamp",
+        "climate.downstairs",
+        "binary_sensor.front_door",
+        "scene.movie_time"
+      ],
+      "expected_resolved_entities": [
+        "light.living_room_ceiling",
+        "light.floor_lamp"
+      ],
+      "expected_outcome": "valid_query",
+      "execution_allowed": false
+    },
+    {
+      "case_id": "room_relative-001",
+      "category": "room_relative",
+      "home": "eval-home",
+      "origin": "area_living_room",
+      "turns": [
+        "Turn off the lights in here"
+      ],
+      "expected_control_plan": {
+        "outcome": "action",
+        "intent": "turn off the lights in here",
+        "domain": "light",
+        "scope": {
+          "kind": "current_area"
+        },
+        "state": "off"
+      },
+      "expected_candidate_entities": [
+        "light.living_room_ceiling",
+        "light.floor_lamp",
+        "climate.downstairs",
+        "binary_sensor.front_door",
+        "scene.movie_time"
+      ],
+      "expected_resolved_entities": [
+        "light.living_room_ceiling",
+        "light.floor_lamp"
+      ],
+      "expected_outcome": "valid_action",
+      "execution_allowed": true
+    }
+  ],
+  "expected_metrics": {
+    "total_cases": 6,
+    "control_plan_exact_match": 0,
+    "control_plan_semantic_wrong": 6,
+    "control_plan_schema_failure": 0,
+    "control_plan_accuracy": 0.0,
+    "candidate_retrieval_recall": 1.0,
+    "candidate_retrieval_numerator": 6,
+    "candidate_retrieval_denominator": 6,
+    "mean_candidate_set_size": 1.8333333333333333,
+    "exact_target_resolution": 0.0,
+    "exact_target_numerator": 0,
+    "exact_target_denominator": 6,
+    "wrong_device_rate": 0.0,
+    "wrong_device_numerator": 0,
+    "wrong_device_denominator": 0,
+    "unintended_entity_count": 0,
+    "false_execution_rate": 0.0,
+    "false_execution_numerator": 0,
+    "false_execution_denominator": 0,
+    "clarification_precision": 0.0,
+    "clarification_recall": 0.0,
+    "clarification_true_positive": 0,
+    "clarification_false_positive": 0,
+    "clarification_false_negative": 0,
+    "query_accuracy": 0.0,
+    "query_numerator": 0,
+    "query_denominator": 2,
+    "follow_up_accuracy": 0.0,
+    "follow_up_numerator": 0,
+    "follow_up_denominator": 0
+  }
+}
