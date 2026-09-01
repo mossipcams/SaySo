@@ -15,7 +15,7 @@ from sayso_server.const import TEXT_PATH
 from sayso_server.conversation import ConversationStore
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.ha_client import ActionRequestClient
-from sayso_server.orchestrator import execute_control_plan
+from sayso_server.orchestrator import execute_control_plan, execute_control_plan_async
 from sayso_server.runtime import FakeModelRuntime, ModelRuntime
 from sayso_server.satellites import SatelliteRegistry
 from sayso_server.telemetry import InteractionTelemetry, TelemetrySink
@@ -135,6 +135,75 @@ class OrchestratorTextController:
             "request_id": outcome.request_id,
         }
 
+    async def handle_async(
+        self,
+        *,
+        satellite_id: str,
+        area_id: str,
+        text: str,
+        correlation_id: str,
+    ) -> dict[str, Any]:
+        snapshot = self._graph_store.snapshot
+        if snapshot is None:
+            msg = "home graph snapshot is required"
+            raise RuntimeError(msg)
+
+        request_id = correlation_id or str(uuid.uuid4())
+        telemetry = InteractionTelemetry(
+            correlation_id=correlation_id,
+            satellite_id=satellite_id,
+            area_id=area_id,
+        )
+        with telemetry.time_stage("plan"):
+            generation = self._runtime.generate_plan(text)
+        telemetry.set_model_from_generation(generation)
+        execute = (
+            execute_control_plan_async
+            if hasattr(self._ha_client, "collect_action_results")
+            else execute_control_plan
+        )
+        if execute is execute_control_plan_async:
+            outcome = await execute(
+                generation.plan,
+                snapshot,
+                origin_area_id=area_id,
+                ha_client=self._ha_client,
+                request_id=request_id,
+                conversation_store=self._conversation_store,
+                satellite_id=satellite_id,
+                telemetry=telemetry,
+            )
+        else:
+            outcome = execute(
+                generation.plan,
+                snapshot,
+                origin_area_id=area_id,
+                ha_client=self._ha_client,
+                request_id=request_id,
+                conversation_store=self._conversation_store,
+                satellite_id=satellite_id,
+                telemetry=telemetry,
+            )
+        if self._telemetry_sink is not None:
+            self._telemetry_sink.write(
+                telemetry.finish(
+                    category=outcome.category.value,
+                    reason=outcome.reason,
+                    request_id=outcome.request_id,
+                ),
+            )
+        plan_payload = (
+            outcome.plan.model_dump(mode="json")
+            if hasattr(outcome.plan, "model_dump")
+            else dict(outcome.plan) if isinstance(outcome.plan, dict) else {}
+        )
+        return {
+            "category": outcome.category.value,
+            "reason": outcome.reason,
+            "plan": plan_payload,
+            "request_id": outcome.request_id,
+        }
+
 
 def create_text_handler(
     *,
@@ -191,12 +260,21 @@ def create_text_handler(
             )
             return web.json_response(error.model_dump(mode="json"), status=503)
 
-        payload = text_controller.handle(
-            satellite_id=envelope.payload.satellite_id,
-            area_id=area_id,
-            text=envelope.payload.text,
-            correlation_id=envelope.correlation_id,
-        )
+        handle_async = getattr(text_controller, "handle_async", None)
+        if handle_async is not None:
+            payload = await handle_async(
+                satellite_id=envelope.payload.satellite_id,
+                area_id=area_id,
+                text=envelope.payload.text,
+                correlation_id=envelope.correlation_id,
+            )
+        else:
+            payload = text_controller.handle(
+                satellite_id=envelope.payload.satellite_id,
+                area_id=area_id,
+                text=envelope.payload.text,
+                correlation_id=envelope.correlation_id,
+            )
         response = TextResponseEnvelope(
             version=API_VERSION,
             type="text_response",
@@ -217,6 +295,31 @@ def _extract_correlation_id(raw: str) -> str:
     if isinstance(correlation_id, str) and correlation_id:
         return correlation_id
     return "invalid"
+
+
+def create_live_text_controller(
+    ha_gateway_binding: object,
+    *,
+    runtime: ModelRuntime | None = None,
+    graph_store: HomeGraphStore | None = None,
+    conversation_store: ConversationStore | None = None,
+    telemetry_sink: TelemetrySink | None = None,
+) -> OrchestratorTextController:
+    """Build a text controller that sends action_request on the live HA WebSocket."""
+
+    from sayso_server.ha_ws_client import BoundHaWsActionClient
+
+    model_runtime = runtime
+    if model_runtime is None:
+        model_runtime = FakeModelRuntime()
+        model_runtime.load()
+    return OrchestratorTextController(
+        runtime=model_runtime,
+        ha_client=BoundHaWsActionClient(ha_gateway_binding),  # type: ignore[arg-type]
+        graph_store=graph_store or HomeGraphStore(),
+        conversation_store=conversation_store,
+        telemetry_sink=telemetry_sink,
+    )
 
 
 def default_text_dependencies() -> tuple[SatelliteRegistry, HomeGraphStore, TextController]:
@@ -242,6 +345,7 @@ __all__ = [
     "TextController",
     "TextRequestEnvelope",
     "TextResponseEnvelope",
+    "create_live_text_controller",
     "create_text_handler",
     "default_text_dependencies",
 ]

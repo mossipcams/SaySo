@@ -17,6 +17,7 @@ from sayso_server.text_api import TextController, create_text_handler
 from sayso_server.gateway import handle_ha_connection
 from sayso_server.health import HEALTH_PATH
 from sayso_server.readiness import ReadinessSnapshot, ReadinessState, liveness_response, readiness_response
+from sayso_server.session import HaGatewayBinding, HaSession
 
 
 class SaySoHTTPRequestHandler(BaseHTTPRequestHandler):
@@ -128,6 +129,7 @@ def create_aiohttp_app(
     satellite_registry: SatelliteRegistry | None = None,
     graph_store: HomeGraphStore | None = None,
     readiness: ReadinessState | None = None,
+    ha_gateway_binding: HaGatewayBinding | None = None,
 ) -> web.Application:
     """Create an aiohttp app exposing health, text, and HA WebSocket endpoints."""
 
@@ -135,10 +137,12 @@ def create_aiohttp_app(
     registry = satellite_registry or SatelliteRegistry()
     store = graph_store or HomeGraphStore()
     readiness_state = readiness or ReadinessState()
+    binding = ha_gateway_binding if ha_gateway_binding is not None else HaGatewayBinding()
     app["satellite_registry"] = registry
     app["graph_store"] = store
     app["text_controller"] = text_controller
     app["readiness"] = readiness_state
+    app["ha_gateway_binding"] = binding
 
     async def health(request: web.Request) -> web.Response:
         status, body = liveness_response(
@@ -170,14 +174,20 @@ def create_aiohttp_app(
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         gateway_ws = _ReadinessTrackingGatewayWebSocket(ws, readiness_state)
+
+        def on_session_started(session: HaSession, bound_ws: object) -> None:
+            binding.attach(session, bound_ws)  # type: ignore[arg-type]
+
         try:
             await handle_ha_connection(
                 gateway_ws,
                 authorization=request.headers.get("Authorization"),
                 server_token=token,
                 graph_store=store,
+                on_session_started=on_session_started,
             )
         finally:
+            binding.detach()
             gateway_ws._clear_connected()
         return ws
 

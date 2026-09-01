@@ -117,11 +117,16 @@ def test_text_path_constant() -> None:
 def test_create_aiohttp_app_registers_text_route() -> None:
     from sayso_server.app import create_aiohttp_app
     from sayso_server.health import HEALTH_PATH
+    from sayso_server.session import HaGatewayBinding
 
     app = create_aiohttp_app("secret-token")
     paths = {route.resource.canonical for route in app.router.routes()}
     assert TEXT_PATH in paths
     assert HEALTH_PATH in paths
+
+    shared_binding = HaGatewayBinding()
+    wired_app = create_aiohttp_app("secret-token", ha_gateway_binding=shared_binding)
+    assert wired_app["ha_gateway_binding"] is shared_binding
 
 
 @pytest.mark.asyncio

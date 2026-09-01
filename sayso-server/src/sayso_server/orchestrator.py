@@ -158,6 +158,145 @@ def execute_control_plan(
     )
 
 
+async def execute_control_plan_async(
+    plan: BaseModel,
+    snapshot: HomeGraphSnapshot,
+    *,
+    origin_area_id: str,
+    ha_client: ActionRequestClient,
+    request_id: str,
+    conversation_store: ConversationStore | None = None,
+    satellite_id: str | None = None,
+    telemetry: InteractionTelemetry | None = None,
+) -> ExecutionOutcome:
+    """Async execution path that awaits live WebSocket action_result collection."""
+
+    collect = getattr(ha_client, "collect_action_results", None)
+    if collect is None:
+        return execute_control_plan(
+            plan,
+            snapshot,
+            origin_area_id=origin_area_id,
+            ha_client=ha_client,
+            request_id=request_id,
+            conversation_store=conversation_store,
+            satellite_id=satellite_id,
+            telemetry=telemetry,
+        )
+
+    if isinstance(plan, QueryPlan):
+        with _telemetry_stage(telemetry, "resolve"):
+            query_result = evaluate_query(
+                plan,
+                snapshot,
+                origin_area_id=origin_area_id,
+            )
+        if isinstance(query_result, NoActionPlan):
+            return ExecutionOutcome(
+                category=ExecutionCategory.NO_ACTION,
+                plan=query_result,
+                reason=query_result.reason,
+            )
+        return ExecutionOutcome(
+            category=ExecutionCategory.COMPLETED,
+            plan=query_result,
+            reason=query_result.answer,
+        )
+
+    if not isinstance(plan, ActionPlan):
+        with _telemetry_stage(telemetry, "validate"):
+            barrier = evaluate_safety_barrier(plan, snapshot, frozenset())
+        if barrier is None:
+            msg = "non-action plans must produce a safety barrier"
+            raise RuntimeError(msg)
+        return ExecutionOutcome(
+            category=ExecutionCategory.NO_ACTION,
+            plan=barrier,
+            reason=barrier.reason,
+        )
+
+    scope = plan.scope
+    if scope is None and (plan.targets or plan.include or plan.exclude):
+        scope = Scope(kind=ScopeKind.CURRENT_AREA)
+
+    follow_up_entity_ids: list[str] | None = None
+    with _telemetry_stage(telemetry, "resolve"):
+        if conversation_store is not None and satellite_id is not None:
+            follow_up = resolve_follow_up(plan, conversation_store, satellite_id=satellite_id)
+            if follow_up.outcome == "clarification" and follow_up.clarification is not None:
+                with _telemetry_stage(telemetry, "validate"):
+                    barrier = evaluate_safety_barrier(
+                        follow_up.clarification,
+                        snapshot,
+                        frozenset(),
+                    )
+                if barrier is None:
+                    msg = "follow-up clarification must produce a safety barrier"
+                    raise RuntimeError(msg)
+                return ExecutionOutcome(
+                    category=ExecutionCategory.NO_ACTION,
+                    plan=barrier,
+                    reason=barrier.reason,
+                )
+            if follow_up.outcome == "resolved":
+                follow_up_entity_ids = sorted(follow_up.entity_ids)
+
+        resolved_entity_ids = resolve_entity_ids(
+            snapshot,
+            origin_area_id=origin_area_id,
+            scope=scope,
+            entity_ids=follow_up_entity_ids,
+            domain=plan.domain,
+            targets=plan.targets,
+            include=plan.include,
+            exclude=plan.exclude,
+        )
+
+    with _telemetry_stage(telemetry, "validate"):
+        barrier = evaluate_safety_barrier(plan, snapshot, resolved_entity_ids)
+    if barrier is not None:
+        return ExecutionOutcome(
+            category=ExecutionCategory.NO_ACTION,
+            plan=barrier,
+            reason=barrier.reason,
+        )
+
+    entity_id = sorted(resolved_entity_ids)[0]
+    action, payload = _semantic_action(plan)
+
+    with _telemetry_stage(telemetry, "request"):
+        ha_client.send_action_request(
+            request_id=request_id,
+            entity_id=entity_id,
+            domain=plan.domain,
+            action=action,
+            data=payload,
+        )
+    with _telemetry_stage(telemetry, "verify"):
+        results = tuple(await collect(request_id))
+        category, reason = classify_action_results(request_id, results)
+
+    if (
+        category is ExecutionCategory.COMPLETED
+        and conversation_store is not None
+        and satellite_id is not None
+    ):
+        _record_conversation_referents(
+            conversation_store,
+            satellite_id=satellite_id,
+            plan=plan,
+            resolved_entity_ids=resolved_entity_ids,
+        )
+
+    return ExecutionOutcome(
+        category=category,
+        plan=plan,
+        request_id=request_id,
+        results=results,
+        reason=reason,
+    )
+
+
 def _telemetry_stage(
     telemetry: InteractionTelemetry | None,
     stage: str,

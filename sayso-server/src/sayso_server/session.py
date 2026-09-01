@@ -4,9 +4,37 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.results import ActionResult, ActionResultStatus
+
+if TYPE_CHECKING:
+    from sayso_server.gateway import GatewayWebSocket
+    from sayso_server.ha_ws_client import HaWsActionClient
+
+
+@dataclass(slots=True)
+class HaGatewayBinding:
+    """Live HA WebSocket session handle exposed to the text execution path."""
+
+    session: HaSession | None = field(default=None, repr=False)
+    ws: GatewayWebSocket | None = field(default=None, repr=False)
+
+    def attach(self, session: HaSession, ws: GatewayWebSocket) -> None:
+        self.session = session
+        self.ws = ws
+
+    def detach(self) -> None:
+        self.session = None
+        self.ws = None
+
+    def action_client(self) -> HaWsActionClient | None:
+        if self.session is None or self.ws is None:
+            return None
+        from sayso_server.ha_ws_client import HaWsActionClient
+
+        return HaWsActionClient(self.ws, self.session)
 
 
 @dataclass(slots=True)
@@ -38,6 +66,9 @@ class HaSession:
         self._action_results.setdefault(request_id, []).append(
             ActionResult(request_id=request_id, status=status, reason=reason),
         )
+
+    def peek_action_results(self, request_id: str) -> list[ActionResult]:
+        return list(self._action_results.get(request_id, []))
 
     def take_action_results(self, request_id: str) -> list[ActionResult]:
         return list(self._action_results.pop(request_id, []))

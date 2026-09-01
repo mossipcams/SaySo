@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from typing import Protocol
 
 from pydantic import ValidationError
@@ -36,6 +37,7 @@ async def handle_ha_connection(
     authorization: str | None,
     server_token: str,
     graph_store: HomeGraphStore | None = None,
+    on_session_started: Callable[[HaSession, GatewayWebSocket], None] | None = None,
 ) -> HaSession | None:
     """Authenticate, complete the v1 hello handshake, and process graph updates."""
 
@@ -67,6 +69,8 @@ async def handle_ha_connection(
     await ws.send_str(ack.model_dump_json())
     store = graph_store if graph_store is not None else HomeGraphStore()
     session = HaSession(correlation_id=envelope.correlation_id, graph=store)
+    if on_session_started is not None:
+        on_session_started(session, ws)
     # ponytail: test fakes expose _recv_queue; an empty queue means handshake-only.
     recv_queue = getattr(ws, "_recv_queue", None)
     if isinstance(recv_queue, asyncio.Queue) and recv_queue.empty():
