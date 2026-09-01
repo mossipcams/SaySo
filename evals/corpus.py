@@ -18,6 +18,7 @@ from evals.schema import EvalCase, ExpectedOutcome, load_eval_cases_jsonl
 EVALS_DIR = Path(__file__).resolve().parent
 CORE_DATASET_PATH = EVALS_DIR / "datasets" / "core.jsonl"
 SAFETY_DATASET_PATH = EVALS_DIR / "datasets" / "safety.jsonl"
+LANGUAGE_NOISE_DATASET_PATH = EVALS_DIR / "datasets" / "language_noise.jsonl"
 HOME_GRAPH_PATH = EVALS_DIR / "fixtures" / "home_graph.json"
 
 CORE_CATEGORY_COUNTS: dict[str, int] = {
@@ -40,6 +41,16 @@ SAFETY_CATEGORY_COUNTS: dict[str, int] = {
     "no_action": 16,
 }
 SAFETY_CASE_COUNT = sum(SAFETY_CATEGORY_COUNTS.values())
+
+LANGUAGE_NOISE_CATEGORY_COUNTS: dict[str, int] = {
+    "casual": 50,
+    "alias": 50,
+    "asr": 50,
+}
+LANGUAGE_NOISE_CASE_COUNT = sum(LANGUAGE_NOISE_CATEGORY_COUNTS.values())
+
+REVIEWED_CORPUS_MIN = 320
+REVIEWED_CORPUS_MAX = 420
 
 _SAFETY_NEGATIVE_OUTCOMES = frozenset({
     ExpectedOutcome.CLARIFICATION,
@@ -91,6 +102,14 @@ def load_core_corpus() -> list[EvalCase]:
 
 def load_safety_corpus() -> list[EvalCase]:
     return load_eval_cases_jsonl(SAFETY_DATASET_PATH.read_text())
+
+
+def load_language_noise_corpus() -> list[EvalCase]:
+    return load_eval_cases_jsonl(LANGUAGE_NOISE_DATASET_PATH.read_text())
+
+
+def reviewed_corpus_case_count() -> int:
+    return CORE_CASE_COUNT + SAFETY_CASE_COUNT + LANGUAGE_NOISE_CASE_COUNT
 
 
 def validate_core_corpus(cases: Iterable[EvalCase]) -> None:
@@ -191,6 +210,54 @@ def validate_safety_corpus(cases: Iterable[EvalCase]) -> None:
         if not negatives:
             msg = f"category {category!r} missing negative cases"
             raise ValueError(msg)
+
+
+def validate_language_noise_corpus(cases: Iterable[EvalCase]) -> None:
+    case_list = list(cases)
+    if len(case_list) != LANGUAGE_NOISE_CASE_COUNT:
+        msg = f"case count must be {LANGUAGE_NOISE_CASE_COUNT}, got {len(case_list)}"
+        raise ValueError(msg)
+
+    counts = Counter(case.category for case in case_list)
+    for category, expected in LANGUAGE_NOISE_CATEGORY_COUNTS.items():
+        if counts[category] != expected:
+            msg = f"category {category!r} expected {expected} cases, got {counts[category]}"
+            raise ValueError(msg)
+
+    unknown = set(counts) - set(LANGUAGE_NOISE_CATEGORY_COUNTS)
+    if unknown:
+        msg = f"unknown categories: {sorted(unknown)}"
+        raise ValueError(msg)
+
+    case_ids = [case.case_id for case in case_list]
+    if len(case_ids) != len(set(case_ids)):
+        msg = "case_id values must be unique"
+        raise ValueError(msg)
+
+    valid_origins = load_home_graph_origin_areas()
+    valid_entities = load_home_graph_entity_ids()
+    for case in case_list:
+        if case.home != _HOME:
+            msg = f"{case.case_id}: home must be {_HOME!r}, got {case.home!r}"
+            raise ValueError(msg)
+        if case.origin not in valid_origins:
+            msg = f"{case.case_id}: unknown origin {case.origin!r}"
+            raise ValueError(msg)
+        for entity_id in (
+            *case.expected_candidate_entities,
+            *case.expected_resolved_entities,
+        ):
+            if entity_id not in valid_entities:
+                msg = f"{case.case_id}: unknown entity {entity_id!r}"
+                raise ValueError(msg)
+
+    total = reviewed_corpus_case_count()
+    if not REVIEWED_CORPUS_MIN <= total <= REVIEWED_CORPUS_MAX:
+        msg = (
+            f"reviewed corpus total {total} outside "
+            f"[{REVIEWED_CORPUS_MIN}, {REVIEWED_CORPUS_MAX}]"
+        )
+        raise ValueError(msg)
 
 
 def verify_expected_resolutions(cases: Iterable[EvalCase]) -> None:
@@ -3227,8 +3294,2214 @@ def write_safety_dataset(path: Path | None = None) -> Path:
     return target
 
 
+_NoiseSpec = tuple[list[str], dict[str, Any], list[str], list[str], str, bool]
+
+
+def _cases_from_noise_specs(category: str, specs: list[_NoiseSpec]) -> list[dict[str, Any]]:
+    return [
+        _case(
+            case_id=f"{category}-{index:03d}",
+            category=category,
+            turns=turns,
+            plan=plan,
+            candidates=candidates,
+            resolved=resolved,
+            outcome=outcome,
+            execution_allowed=execution_allowed,
+        )
+        for index, (
+            turns,
+            plan,
+            candidates,
+            resolved,
+            outcome,
+            execution_allowed,
+        ) in enumerate(specs, start=1)
+    ]
+
+
+def _author_casual_cases() -> list[dict[str, Any]]:
+    living = list(_LIVING_ROOM_ENTITIES)
+    lights = list(_LIVING_ROOM_LIGHTS)
+    all_candidates = list(_ALL_ENTITIES)
+    specs: list[_NoiseSpec] = [
+        (
+            ["hey can you turn off the ceiling lights"],
+            {
+                "outcome": "action",
+                "intent": "turn off the ceiling lights",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "state": "off",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["uh please turn on the floor lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn on the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "on",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["yo switch off the lamp"],
+            {
+                "outcome": "action",
+                "intent": "switch off the lamp",
+                "domain": "light",
+                "targets": ["lamp"],
+                "state": "off",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["could you turn on the reading lamp for me"],
+            {
+                "outcome": "action",
+                "intent": "turn on the reading lamp",
+                "domain": "light",
+                "targets": ["reading lamp"],
+                "state": "on",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["like dim the ceiling lights to fifty percent"],
+            {
+                "outcome": "action",
+                "intent": "dim the ceiling lights to fifty percent",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "value": 50,
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["um set the floor lamp brightness to seventy five please"],
+            {
+                "outcome": "action",
+                "intent": "set the floor lamp brightness to seventy five",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "value": 75,
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["go ahead and toggle the floor lamp"],
+            {
+                "outcome": "action",
+                "intent": "toggle the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "toggle",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["can you turn off the overhead lights"],
+            {
+                "outcome": "action",
+                "intent": "turn off the overhead lights",
+                "domain": "light",
+                "targets": ["overhead lights"],
+                "state": "off",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["hey turn on living room ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn on living room ceiling",
+                "domain": "light",
+                "targets": ["living room ceiling"],
+                "state": "on",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["switch off ceiling lights please"],
+            {
+                "outcome": "action",
+                "intent": "switch off ceiling lights",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "state": "off",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["hey turn off the lights in here"],
+            {
+                "outcome": "action",
+                "intent": "turn off the lights in here",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "state": "off",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["uh can you turn on the lights in the living room"],
+            {
+                "outcome": "action",
+                "intent": "turn on the lights in the living room",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "Living Room"},
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["please turn off lounge lights"],
+            {
+                "outcome": "action",
+                "intent": "turn off lounge lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "state": "off",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["yo turn on family room lights"],
+            {
+                "outcome": "action",
+                "intent": "turn on family room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "family room"},
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn off lights downstairs please"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights downstairs",
+                "domain": "light",
+                "scope": {"kind": "floor", "name": "downstairs"},
+                "state": "off",
+            },
+            all_candidates,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["could you dim the lights in this room to thirty"],
+            {
+                "outcome": "action",
+                "intent": "dim the lights in this room to thirty",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "value": 30,
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["hey activate movie time in the living room"],
+            {
+                "outcome": "action",
+                "intent": "activate movie time in the living room",
+                "domain": "scene",
+                "scope": {"kind": "named_area", "name": "Living Room"},
+                "targets": ["movie time"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["run bedtime in the primary bedroom please"],
+            {
+                "outcome": "action",
+                "intent": "run bedtime in the primary bedroom",
+                "domain": "script",
+                "scope": {"kind": "named_area", "name": "Primary Bedroom"},
+                "targets": ["bedtime"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["uh turn off all the lights in here"],
+            {
+                "outcome": "action",
+                "intent": "turn off all the lights in here",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "state": "off",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["hey turn on both living room lights"],
+            {
+                "outcome": "action",
+                "intent": "turn on both living room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "Living Room"},
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["please turn off lights in here except the floor lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights in here except the floor lamp",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "exclude": ["floor lamp"],
+                "state": "off",
+            },
+            living,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["yo turn on the ceiling lights and the floor lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn on the ceiling lights and the floor lamp",
+                "domain": "light",
+                "targets": ["ceiling lights", "floor lamp"],
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["can you turn off all lights but leave the lamp on"],
+            {
+                "outcome": "action",
+                "intent": "turn off all lights but leave the lamp on",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "exclude": ["lamp"],
+                "state": "off",
+            },
+            living,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn on all the lights in the lounge"],
+            {
+                "outcome": "action",
+                "intent": "turn on all the lights in the lounge",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["hey shut off all lights in here except reading lamp"],
+            {
+                "outcome": "action",
+                "intent": "shut off all lights in here except reading lamp",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "exclude": ["reading lamp"],
+                "state": "off",
+            },
+            living,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["uh start movie time"],
+            {
+                "outcome": "action",
+                "intent": "start movie time",
+                "domain": "scene",
+                "targets": ["movie time"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["hey activate movie mode"],
+            {
+                "outcome": "action",
+                "intent": "activate movie mode",
+                "domain": "scene",
+                "targets": ["movie mode"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["please run cinema scene"],
+            {
+                "outcome": "action",
+                "intent": "run cinema scene",
+                "domain": "scene",
+                "targets": ["cinema"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["yo turn on movie time in here"],
+            {
+                "outcome": "action",
+                "intent": "turn on movie time in here",
+                "domain": "scene",
+                "scope": {"kind": "current_area"},
+                "targets": ["movie time"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["could you activate movie time please"],
+            {
+                "outcome": "action",
+                "intent": "activate movie time",
+                "domain": "scene",
+                "targets": ["movie time"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["hey run good night"],
+            {
+                "outcome": "action",
+                "intent": "run good night",
+                "domain": "script",
+                "targets": ["good night"],
+                "state": "activate",
+                "scope": {"kind": "all"},
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["uh trigger bedtime"],
+            {
+                "outcome": "action",
+                "intent": "trigger bedtime",
+                "domain": "script",
+                "targets": ["bedtime"],
+                "state": "activate",
+                "scope": {"kind": "all"},
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["please run good night upstairs"],
+            {
+                "outcome": "action",
+                "intent": "run good night upstairs",
+                "domain": "script",
+                "scope": {"kind": "floor", "name": "upstairs"},
+                "targets": ["good night"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["yo start the bedtime routine"],
+            {
+                "outcome": "action",
+                "intent": "start the bedtime routine",
+                "domain": "script",
+                "targets": ["bedtime"],
+                "state": "activate",
+                "scope": {"kind": "all"},
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["can you run bedtime in the master bedroom"],
+            {
+                "outcome": "action",
+                "intent": "run bedtime in the master bedroom",
+                "domain": "script",
+                "scope": {"kind": "named_area", "name": "master bedroom"},
+                "targets": ["bedtime"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["uh set the thermostat to seventy two"],
+            {
+                "outcome": "action",
+                "intent": "set the thermostat to seventy two",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "value": 72,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["hey turn on heat"],
+            {
+                "outcome": "action",
+                "intent": "turn on heat",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "mode": "heat",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["please set thermostat to sixty eight"],
+            {
+                "outcome": "action",
+                "intent": "set thermostat to sixty eight",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "value": 68,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["yo set the hvac to cool"],
+            {
+                "outcome": "action",
+                "intent": "set the hvac to cool",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "mode": "cool",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["can you turn off the thermostat"],
+            {
+                "outcome": "action",
+                "intent": "turn off the thermostat",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "mode": "off",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["hey set heat to seventy four"],
+            {
+                "outcome": "action",
+                "intent": "set heat to seventy four",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "mode": "heat",
+                "value": 74,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["um switch thermostat to auto"],
+            {
+                "outcome": "action",
+                "intent": "switch thermostat to auto",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "mode": "auto",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["please set the temperature to seventy one"],
+            {
+                "outcome": "action",
+                "intent": "set the temperature to seventy one",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "value": 71,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["hey is the door closed"],
+            {
+                "outcome": "query",
+                "intent": "is the door closed",
+                "domain": "binary_sensor",
+                "targets": ["door"],
+            },
+            living,
+            ["binary_sensor.front_door"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["uh are any lights on in here"],
+            {
+                "outcome": "query",
+                "intent": "are any lights on in here",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+            },
+            living,
+            lights,
+            "valid_query",
+            False,
+        ),
+        (
+            ["what is the thermostat set to please"],
+            {
+                "outcome": "query",
+                "intent": "what is the thermostat set to",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "attribute": "temperature",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["yo is the front door open"],
+            {
+                "outcome": "query",
+                "intent": "is the front door open",
+                "domain": "binary_sensor",
+                "targets": ["front door"],
+            },
+            living,
+            ["binary_sensor.front_door"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["can you check if any lights are on"],
+            {
+                "outcome": "query",
+                "intent": "check if any lights are on",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+            },
+            living,
+            lights,
+            "valid_query",
+            False,
+        ),
+        (
+            ["hey is the floor lamp on"],
+            {
+                "outcome": "query",
+                "intent": "is the floor lamp on",
+                "domain": "light",
+                "targets": ["floor lamp"],
+            },
+            living,
+            ["light.floor_lamp"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["uh what is the hvac mode"],
+            {
+                "outcome": "query",
+                "intent": "what is the hvac mode",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "attribute": "hvac_mode",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_query",
+            False,
+        ),
+    ]
+    return _cases_from_noise_specs("casual", specs)
+
+
+def _author_alias_cases() -> list[dict[str, Any]]:
+    living = list(_LIVING_ROOM_ENTITIES)
+    lights = list(_LIVING_ROOM_LIGHTS)
+    all_candidates = list(_ALL_ENTITIES)
+    specs: list[_NoiseSpec] = [
+        (
+            ["Turn off overhead lights"],
+            {
+                "outcome": "action",
+                "intent": "turn off overhead lights",
+                "domain": "light",
+                "targets": ["overhead lights"],
+                "state": "off",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn on reading lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn on reading lamp",
+                "domain": "light",
+                "targets": ["reading lamp"],
+                "state": "on",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Switch off lamp"],
+            {
+                "outcome": "action",
+                "intent": "switch off lamp",
+                "domain": "light",
+                "targets": ["lamp"],
+                "state": "off",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Dim ceiling lights to forty"],
+            {
+                "outcome": "action",
+                "intent": "dim ceiling lights to forty",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "value": 40,
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Set hvac to cool"],
+            {
+                "outcome": "action",
+                "intent": "set hvac to cool",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "mode": "cool",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn off thermostat"],
+            {
+                "outcome": "action",
+                "intent": "turn off thermostat",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "mode": "off",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Set thermostat to seventy"],
+            {
+                "outcome": "action",
+                "intent": "set thermostat to seventy",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "value": 70,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Is door closed"],
+            {
+                "outcome": "query",
+                "intent": "is door closed",
+                "domain": "binary_sensor",
+                "targets": ["door"],
+            },
+            living,
+            ["binary_sensor.front_door"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["Activate movie mode"],
+            {
+                "outcome": "action",
+                "intent": "activate movie mode",
+                "domain": "scene",
+                "targets": ["movie mode"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Run cinema"],
+            {
+                "outcome": "action",
+                "intent": "run cinema",
+                "domain": "scene",
+                "targets": ["cinema"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Trigger bedtime"],
+            {
+                "outcome": "action",
+                "intent": "trigger bedtime",
+                "domain": "script",
+                "targets": ["bedtime"],
+                "state": "activate",
+                "scope": {"kind": "all"},
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn off lounge lights"],
+            {
+                "outcome": "action",
+                "intent": "turn off lounge lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "state": "off",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn on family room lights"],
+            {
+                "outcome": "action",
+                "intent": "turn on family room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "family room"},
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn off lights downstairs"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights downstairs",
+                "domain": "light",
+                "scope": {"kind": "floor", "name": "downstairs"},
+                "state": "off",
+            },
+            all_candidates,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Run good night upstairs"],
+            {
+                "outcome": "action",
+                "intent": "run good night upstairs",
+                "domain": "script",
+                "scope": {"kind": "floor", "name": "upstairs"},
+                "targets": ["good night"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Run bedtime on the upper floor"],
+            {
+                "outcome": "action",
+                "intent": "run bedtime on the upper floor",
+                "domain": "script",
+                "scope": {"kind": "floor", "name": "upper floor"},
+                "targets": ["bedtime"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Run good night in master bedroom"],
+            {
+                "outcome": "action",
+                "intent": "run good night in master bedroom",
+                "domain": "script",
+                "scope": {"kind": "named_area", "name": "master bedroom"},
+                "targets": ["good night"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn on lights on first floor"],
+            {
+                "outcome": "action",
+                "intent": "turn on lights on first floor",
+                "domain": "light",
+                "scope": {"kind": "floor", "name": "first floor"},
+                "state": "on",
+            },
+            all_candidates,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Run bedtime on second floor"],
+            {
+                "outcome": "action",
+                "intent": "run bedtime on second floor",
+                "domain": "script",
+                "scope": {"kind": "floor", "name": "second floor"},
+                "targets": ["bedtime"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Brighten reading lamp to sixty"],
+            {
+                "outcome": "action",
+                "intent": "brighten reading lamp to sixty",
+                "domain": "light",
+                "targets": ["reading lamp"],
+                "value": 60,
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Toggle lamp"],
+            {
+                "outcome": "action",
+                "intent": "toggle lamp",
+                "domain": "light",
+                "targets": ["lamp"],
+                "state": "toggle",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Set downstairs thermostat to sixty nine"],
+            {
+                "outcome": "action",
+                "intent": "set downstairs thermostat to sixty nine",
+                "domain": "climate",
+                "targets": ["downstairs thermostat"],
+                "value": 69,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Switch hvac to auto mode"],
+            {
+                "outcome": "action",
+                "intent": "switch hvac to auto mode",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "mode": "auto",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Set downstairs to sixty seven degrees"],
+            {
+                "outcome": "action",
+                "intent": "set downstairs to sixty seven degrees",
+                "domain": "climate",
+                "targets": ["downstairs"],
+                "value": 67,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Launch cinema scene"],
+            {
+                "outcome": "action",
+                "intent": "launch cinema scene",
+                "domain": "scene",
+                "targets": ["cinema"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Begin movie mode in lounge"],
+            {
+                "outcome": "action",
+                "intent": "begin movie mode in lounge",
+                "domain": "scene",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "targets": ["movie mode"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Execute bedtime script"],
+            {
+                "outcome": "action",
+                "intent": "execute bedtime script",
+                "domain": "script",
+                "targets": ["bedtime"],
+                "state": "activate",
+                "scope": {"kind": "all"},
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Run bedtime upstairs"],
+            {
+                "outcome": "action",
+                "intent": "run bedtime upstairs",
+                "domain": "script",
+                "scope": {"kind": "floor", "name": "upstairs"},
+                "targets": ["bedtime"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Activate good night"],
+            {
+                "outcome": "action",
+                "intent": "activate good night",
+                "domain": "script",
+                "targets": ["good night"],
+                "state": "activate",
+                "scope": {"kind": "all"},
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn on overhead and reading lights"],
+            {
+                "outcome": "action",
+                "intent": "turn on overhead and reading lights",
+                "domain": "light",
+                "targets": ["overhead lights", "reading lamp"],
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn off every light in lounge"],
+            {
+                "outcome": "action",
+                "intent": "turn off every light in lounge",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "state": "off",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Dim all lights in family room to twenty"],
+            {
+                "outcome": "action",
+                "intent": "dim all lights in family room to twenty",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "family room"},
+                "value": 20,
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn on lights in lounge"],
+            {
+                "outcome": "action",
+                "intent": "turn on lights in lounge",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Start movie mode in here"],
+            {
+                "outcome": "action",
+                "intent": "start movie mode in here",
+                "domain": "scene",
+                "scope": {"kind": "current_area"},
+                "targets": ["movie mode"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["What is hvac mode"],
+            {
+                "outcome": "query",
+                "intent": "what is hvac mode",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "attribute": "hvac_mode",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["Is ceiling light on"],
+            {
+                "outcome": "query",
+                "intent": "is ceiling light on",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+            },
+            living,
+            ["light.living_room_ceiling"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["Are any lights on downstairs"],
+            {
+                "outcome": "query",
+                "intent": "are any lights on downstairs",
+                "domain": "light",
+                "scope": {"kind": "floor", "name": "downstairs"},
+            },
+            all_candidates,
+            lights,
+            "valid_query",
+            False,
+        ),
+        (
+            ["What temperature is thermostat reading"],
+            {
+                "outcome": "query",
+                "intent": "what temperature is thermostat reading",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "attribute": "current_temperature",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["Is door open or closed"],
+            {
+                "outcome": "query",
+                "intent": "is door open or closed",
+                "domain": "binary_sensor",
+                "targets": ["door"],
+            },
+            living,
+            ["binary_sensor.front_door"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["Turn off lights on ground floor"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights on ground floor",
+                "domain": "light",
+                "scope": {"kind": "floor", "name": "ground floor"},
+                "state": "off",
+            },
+            all_candidates,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Run good night on floor_upper"],
+            {
+                "outcome": "action",
+                "intent": "run good night on floor_upper",
+                "domain": "script",
+                "scope": {"kind": "floor", "name": "floor_upper"},
+                "targets": ["good night"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Run bedtime in master bedroom"],
+            {
+                "outcome": "action",
+                "intent": "run bedtime in master bedroom",
+                "domain": "script",
+                "scope": {"kind": "named_area", "name": "master bedroom"},
+                "targets": ["bedtime"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Set thermostat in here to sixty nine"],
+            {
+                "outcome": "action",
+                "intent": "set thermostat in here to sixty nine",
+                "domain": "climate",
+                "scope": {"kind": "current_area"},
+                "targets": ["thermostat"],
+                "value": 69,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn off lights in area_living_room"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights in area_living_room",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "area_living_room"},
+                "state": "off",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn off lights on floor_ground"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights on floor_ground",
+                "domain": "light",
+                "scope": {"kind": "floor", "name": "floor_ground"},
+                "state": "off",
+            },
+            all_candidates,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["Run movie time in family room"],
+            {
+                "outcome": "action",
+                "intent": "run movie time in family room",
+                "domain": "scene",
+                "scope": {"kind": "named_area", "name": "family room"},
+                "targets": ["movie time"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Start good night in primary bedroom"],
+            {
+                "outcome": "action",
+                "intent": "start good night in primary bedroom",
+                "domain": "script",
+                "scope": {"kind": "named_area", "name": "Primary Bedroom"},
+                "targets": ["good night"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Turn on cooling via hvac"],
+            {
+                "outcome": "action",
+                "intent": "turn on cooling via hvac",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "mode": "cool",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["Check if door is closed"],
+            {
+                "outcome": "query",
+                "intent": "check if door is closed",
+                "domain": "binary_sensor",
+                "targets": ["door"],
+            },
+            living,
+            ["binary_sensor.front_door"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["Are all lights off in lounge"],
+            {
+                "outcome": "query",
+                "intent": "are all lights off in lounge",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+            },
+            living,
+            lights,
+            "valid_query",
+            False,
+        ),
+    ]
+    return _cases_from_noise_specs("alias", specs)
+
+
+def _author_asr_cases() -> list[dict[str, Any]]:
+    living = list(_LIVING_ROOM_ENTITIES)
+    lights = list(_LIVING_ROOM_LIGHTS)
+    all_candidates = list(_ALL_ENTITIES)
+    specs: list[_NoiseSpec] = [
+        (
+            ["turn off the sealing lights"],
+            {
+                "outcome": "action",
+                "intent": "turn off the ceiling lights",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "state": "off",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn on the floor lam"],
+            {
+                "outcome": "action",
+                "intent": "turn on the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "on",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["switch of the lamp"],
+            {
+                "outcome": "action",
+                "intent": "switch off the lamp",
+                "domain": "light",
+                "targets": ["lamp"],
+                "state": "off",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["dim the ceiling lites to fifty"],
+            {
+                "outcome": "action",
+                "intent": "dim the ceiling lights to fifty",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "value": 50,
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["set floor lamp brightnes to seventy five"],
+            {
+                "outcome": "action",
+                "intent": "set floor lamp brightness to seventy five",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "value": 75,
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["toggl the floor lamp"],
+            {
+                "outcome": "action",
+                "intent": "toggle the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "toggle",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn of the overhead lights"],
+            {
+                "outcome": "action",
+                "intent": "turn off the overhead lights",
+                "domain": "light",
+                "targets": ["overhead lights"],
+                "state": "off",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn on livin room ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn on living room ceiling",
+                "domain": "light",
+                "targets": ["living room ceiling"],
+                "state": "on",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["switch off ceiling lites"],
+            {
+                "outcome": "action",
+                "intent": "switch off ceiling lights",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "state": "off",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn of the lights in hear"],
+            {
+                "outcome": "action",
+                "intent": "turn off the lights in here",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "state": "off",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn on lights in livin room"],
+            {
+                "outcome": "action",
+                "intent": "turn on lights in living room",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "Living Room"},
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn off lounge lites"],
+            {
+                "outcome": "action",
+                "intent": "turn off lounge lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "state": "off",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn on famly room lights"],
+            {
+                "outcome": "action",
+                "intent": "turn on family room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "family room"},
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn off lights down stairs"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights downstairs",
+                "domain": "light",
+                "scope": {"kind": "floor", "name": "downstairs"},
+                "state": "off",
+            },
+            all_candidates,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["dim lights in this room to therty"],
+            {
+                "outcome": "action",
+                "intent": "dim lights in this room to thirty",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "value": 30,
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["activate movie tiem in living room"],
+            {
+                "outcome": "action",
+                "intent": "activate movie time in living room",
+                "domain": "scene",
+                "scope": {"kind": "named_area", "name": "Living Room"},
+                "targets": ["movie time"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["run bed time in primary bedroom"],
+            {
+                "outcome": "action",
+                "intent": "run bedtime in primary bedroom",
+                "domain": "script",
+                "scope": {"kind": "named_area", "name": "Primary Bedroom"},
+                "targets": ["bedtime"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn off all lites in here"],
+            {
+                "outcome": "action",
+                "intent": "turn off all lights in here",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "state": "off",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn on both livin room lights"],
+            {
+                "outcome": "action",
+                "intent": "turn on both living room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "Living Room"},
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn off lights here except floor lam"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights here except floor lamp",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "exclude": ["floor lamp"],
+                "state": "off",
+            },
+            living,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn on ceiling lites and floor lam"],
+            {
+                "outcome": "action",
+                "intent": "turn on ceiling lights and floor lamp",
+                "domain": "light",
+                "targets": ["ceiling lights", "floor lamp"],
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn off all lights but leave lam on"],
+            {
+                "outcome": "action",
+                "intent": "turn off all lights but leave lamp on",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "exclude": ["lamp"],
+                "state": "off",
+            },
+            living,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn on all lites in lounge"],
+            {
+                "outcome": "action",
+                "intent": "turn on all lights in lounge",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "state": "on",
+            },
+            living,
+            lights,
+            "valid_action",
+            True,
+        ),
+        (
+            ["shut off all lights except readin lam"],
+            {
+                "outcome": "action",
+                "intent": "shut off all lights except reading lamp",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "exclude": ["reading lamp"],
+                "state": "off",
+            },
+            living,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["start movie tiem"],
+            {
+                "outcome": "action",
+                "intent": "start movie time",
+                "domain": "scene",
+                "targets": ["movie time"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["activate movie mod"],
+            {
+                "outcome": "action",
+                "intent": "activate movie mode",
+                "domain": "scene",
+                "targets": ["movie mode"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["run sinema scene"],
+            {
+                "outcome": "action",
+                "intent": "run cinema scene",
+                "domain": "scene",
+                "targets": ["cinema"],
+                "state": "activate",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["run good nite"],
+            {
+                "outcome": "action",
+                "intent": "run good night",
+                "domain": "script",
+                "targets": ["good night"],
+                "state": "activate",
+                "scope": {"kind": "all"},
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["trigger bed time"],
+            {
+                "outcome": "action",
+                "intent": "trigger bedtime",
+                "domain": "script",
+                "targets": ["bedtime"],
+                "state": "activate",
+                "scope": {"kind": "all"},
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["run good nite upstairs"],
+            {
+                "outcome": "action",
+                "intent": "run good night upstairs",
+                "domain": "script",
+                "scope": {"kind": "floor", "name": "upstairs"},
+                "targets": ["good night"],
+                "state": "activate",
+            },
+            all_candidates,
+            ["script.good_night"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["set thermo stat to seventy two"],
+            {
+                "outcome": "action",
+                "intent": "set thermostat to seventy two",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "value": 72,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn on heet"],
+            {
+                "outcome": "action",
+                "intent": "turn on heat",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "mode": "heat",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["set thermostate to sixty eight"],
+            {
+                "outcome": "action",
+                "intent": "set thermostat to sixty eight",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "value": 68,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["set the h vac to cool"],
+            {
+                "outcome": "action",
+                "intent": "set hvac to cool",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "mode": "cool",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn of the thermostate"],
+            {
+                "outcome": "action",
+                "intent": "turn off thermostat",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "mode": "off",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["set heet to seventy for"],
+            {
+                "outcome": "action",
+                "intent": "set heat to seventy four",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "mode": "heat",
+                "value": 74,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["switch thermostate to auto"],
+            {
+                "outcome": "action",
+                "intent": "switch thermostat to auto",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "mode": "auto",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["set temprature to seventy one"],
+            {
+                "outcome": "action",
+                "intent": "set temperature to seventy one",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "value": 71,
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["is the dor closed"],
+            {
+                "outcome": "query",
+                "intent": "is the door closed",
+                "domain": "binary_sensor",
+                "targets": ["door"],
+            },
+            living,
+            ["binary_sensor.front_door"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["are any lites on in hear"],
+            {
+                "outcome": "query",
+                "intent": "are any lights on in here",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+            },
+            living,
+            lights,
+            "valid_query",
+            False,
+        ),
+        (
+            ["what is thermostate set to"],
+            {
+                "outcome": "query",
+                "intent": "what is thermostat set to",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "attribute": "temperature",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["is front dor open"],
+            {
+                "outcome": "query",
+                "intent": "is front door open",
+                "domain": "binary_sensor",
+                "targets": ["front door"],
+            },
+            living,
+            ["binary_sensor.front_door"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["check if any lites are on"],
+            {
+                "outcome": "query",
+                "intent": "check if any lights are on",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+            },
+            living,
+            lights,
+            "valid_query",
+            False,
+        ),
+        (
+            ["is floor lam on"],
+            {
+                "outcome": "query",
+                "intent": "is floor lamp on",
+                "domain": "light",
+                "targets": ["floor lamp"],
+            },
+            living,
+            ["light.floor_lamp"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["what is h vac mode"],
+            {
+                "outcome": "query",
+                "intent": "what is hvac mode",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "attribute": "hvac_mode",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_query",
+            False,
+        ),
+        (
+            ["turn on readin lam"],
+            {
+                "outcome": "action",
+                "intent": "turn on reading lamp",
+                "domain": "light",
+                "targets": ["reading lamp"],
+                "state": "on",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["brighten floor lam to forty"],
+            {
+                "outcome": "action",
+                "intent": "brighten floor lamp to forty",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "value": 40,
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["turn the lam on"],
+            {
+                "outcome": "action",
+                "intent": "turn the lamp on",
+                "domain": "light",
+                "targets": ["lamp"],
+                "state": "on",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["shut of floor lam"],
+            {
+                "outcome": "action",
+                "intent": "shut off floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "off",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+        ),
+        (
+            ["set ceiling lites to twenty five percent"],
+            {
+                "outcome": "action",
+                "intent": "set ceiling lights to twenty five percent",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "value": 25,
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+        ),
+    ]
+    return _cases_from_noise_specs("asr", specs)
+
+
+def author_language_noise_cases() -> list[dict[str, Any]]:
+    cases = [
+        *_author_casual_cases(),
+        *_author_alias_cases(),
+        *_author_asr_cases(),
+    ]
+    if len(cases) != LANGUAGE_NOISE_CASE_COUNT:
+        msg = f"authored {len(cases)} cases, expected {LANGUAGE_NOISE_CASE_COUNT}"
+        raise RuntimeError(msg)
+    counts = Counter(case["category"] for case in cases)
+    if dict(counts) != LANGUAGE_NOISE_CATEGORY_COUNTS:
+        msg = (
+            f"authored category counts {dict(counts)} != "
+            f"{LANGUAGE_NOISE_CATEGORY_COUNTS}"
+        )
+        raise RuntimeError(msg)
+    parsed = [EvalCase.model_validate(case) for case in cases]
+    validate_language_noise_corpus(parsed)
+    verify_expected_resolutions(parsed)
+    return cases
+
+
+def write_language_noise_dataset(path: Path | None = None) -> Path:
+    target = path or LANGUAGE_NOISE_DATASET_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    cases = author_language_noise_cases()
+    lines = [json.dumps(case, separators=(",", ":")) for case in cases]
+    target.write_text("\n".join(lines) + "\n")
+    return target
+
+
 if __name__ == "__main__":
     written = write_core_dataset()
     print(f"wrote {CORE_CASE_COUNT} cases to {written}")
     safety_written = write_safety_dataset()
     print(f"wrote {SAFETY_CASE_COUNT} cases to {safety_written}")
+    noise_written = write_language_noise_dataset()
+    print(f"wrote {LANGUAGE_NOISE_CASE_COUNT} cases to {noise_written}")
