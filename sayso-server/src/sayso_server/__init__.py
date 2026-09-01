@@ -55,7 +55,9 @@ from sayso_server.exclusions import (
     resolve_names_in_scope,
 )
 from sayso_server.resolver import resolve_entity_ids
+from sayso_server.ha_client import FakeHaClient, HaClient, ServiceCall
 from sayso_server.runtime import FakeModelRuntime, ModelMetadata, ModelRuntime, PlanGenerationResult
+from sayso_server.safety import evaluate_safety_barrier, execute_if_safe
 from sayso_server.scope import expand_scope
 from sayso_server.schema import control_plan_json_schema, sayso_api_v1_json_schema
 from sayso_server.scoring import DEFAULT_AMBIGUITY_MARGIN, ScoreBreakdown
@@ -77,7 +79,9 @@ __all__ = [
     "ConversationStore",
     "Device",
     "Entity",
+    "FakeHaClient",
     "FakeModelRuntime",
+    "HaClient",
     "HaSession",
     "HomeGraphStore",
     "WS_PATH",
@@ -104,6 +108,7 @@ __all__ = [
     "ScoreBreakdown",
     "ScoredCandidate",
     "Script",
+    "ServiceCall",
     "State",
     "UnsupportedPlan",
     "__version__",
@@ -124,6 +129,8 @@ __all__ = [
     "resolve_names_in_scope",
     "retrieve_candidates",
     "sayso_api_v1_json_schema",
+    "evaluate_safety_barrier",
+    "execute_if_safe",
     "validate_target_capabilities",
 ]
 __version__ = "0.1.0"
