@@ -30,6 +30,12 @@ REJECT_DOMAIN_NOT_ALLOWED = "domain_not_allowed"
 REJECT_ACTION_NOT_ALLOWED = "action_not_allowed"
 REJECT_CAPABILITY_NOT_SUPPORTED = "capability_not_supported"
 
+REASON_STATE_CHANGED = "state_changed"
+REASON_STATE_UNCHANGED = "state_unchanged"
+REASON_STATE_VERIFICATION_TIMEOUT = "state_verification_timeout"
+
+STATE_VERIFICATION_TIMEOUT = 5.0
+
 BRIGHTNESS_MIN = 1
 BRIGHTNESS_MAX = 100
 

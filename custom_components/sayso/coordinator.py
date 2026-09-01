@@ -31,9 +31,13 @@ from .const import (
     MSG_GRAPH_SNAPSHOT,
     MSG_REGISTRY_DELTA,
     MSG_STATE_DELTA,
+    REASON_STATE_CHANGED,
+    REASON_STATE_UNCHANGED,
+    REASON_STATE_VERIFICATION_TIMEOUT,
     RECONNECT_BACKOFF_FACTOR,
     RECONNECT_INITIAL_DELAY,
     RECONNECT_MAX_DELAY,
+    STATE_VERIFICATION_TIMEOUT,
     WS_PATH,
     get_entry_options,
 )
@@ -42,6 +46,11 @@ from .exposure import is_entity_id_exposed
 from .permissions import entity_domain_from_id, validate_action_permission
 from .results import ActionResultStatus, build_action_result_payload
 from .snapshot import build_home_graph_snapshot
+from .state_verification import (
+    StateVerificationOutcome,
+    baseline_state,
+    verify_state_after_action,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -96,10 +105,12 @@ class SaySoConnectionCoordinator:
         *,
         ws_connect: WsConnect | None = None,
         service_caller: ServiceCaller | None = None,
+        state_verification_timeout: float | None = None,
     ) -> None:
         self.hass = hass
         self.entry = entry
         self.connected = False
+        self._uses_injected_service_caller = service_caller is not None
         self._ws_connect = ws_connect or (
             lambda url, token: _default_ws_connect(hass, url, token)
         )
@@ -111,6 +122,13 @@ class SaySoConnectionCoordinator:
                 data,
             )
         )
+        if state_verification_timeout is not None:
+            self._state_verification_timeout = state_verification_timeout
+        elif self._uses_injected_service_caller:
+            # Tests inject service callers that do not mutate entity state.
+            self._state_verification_timeout = 0.0
+        else:
+            self._state_verification_timeout = STATE_VERIFICATION_TIMEOUT
         self._stop_event = asyncio.Event()
         self._runner_task: asyncio.Task[None] | None = None
         self._ws: WebSocketLike | None = None
@@ -387,12 +405,23 @@ class SaySoConnectionCoordinator:
             status=ActionResultStatus.ACCEPTED,
         )
 
-        try:
+        before_state = baseline_state(self.hass, entity_id)
+
+        async def _run_action() -> None:
             await self._dispatch_action(
                 entity_id=entity_id,
                 domain=entity_domain,
                 action=action,
                 request=request,
+            )
+
+        try:
+            verification = await verify_state_after_action(
+                self.hass,
+                entity_id,
+                baseline=before_state,
+                timeout=self._state_verification_timeout,
+                action=_run_action,
             )
         except Exception:  # noqa: BLE001 — report execution failure to server
             _LOGGER.exception(
@@ -409,10 +438,12 @@ class SaySoConnectionCoordinator:
             )
             return
 
+        final_status, final_reason = _verification_to_action_result(verification)
         await self._send_action_result(
             ws,
             request_id=request_id,
-            status=ActionResultStatus.COMPLETED,
+            status=final_status,
+            reason=final_reason,
         )
 
     async def _dispatch_action(
@@ -467,6 +498,16 @@ async def _default_service_caller(
     data: dict[str, Any],
 ) -> None:
     await hass.services.async_call(domain, service, data)
+
+
+def _verification_to_action_result(
+    outcome: StateVerificationOutcome,
+) -> tuple[ActionResultStatus, str]:
+    if outcome is StateVerificationOutcome.CHANGED:
+        return ActionResultStatus.COMPLETED, REASON_STATE_CHANGED
+    if outcome is StateVerificationOutcome.UNCHANGED:
+        return ActionResultStatus.COMPLETED, REASON_STATE_UNCHANGED
+    return ActionResultStatus.FAILED, REASON_STATE_VERIFICATION_TIMEOUT
 
 
 async def _close_ws_session(ws: WebSocketLike) -> None:
