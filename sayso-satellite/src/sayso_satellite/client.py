@@ -1,4 +1,9 @@
-"""Minimal HTTP client for POST /api/v1/text and /api/v1/audio."""
+"""Minimal HTTP client for POST /api/v1/text and /api/v1/audio.
+
+HTTP timeouts default to 180 seconds for both text and audio (Whisper + LFM
+inference can exceed 30s). Override per call with ``timeout=`` or set the
+``SAYSO_TIMEOUT_SECONDS`` environment variable (integer seconds).
+"""
 
 from __future__ import annotations
 
@@ -18,9 +23,13 @@ AUDIO_PATH = "/api/v1/audio"
 PCM_ENCODING = "pcm_s16le"
 TOKEN_ENV_VAR = "SAYSO_TOKEN"
 SERVER_URL_ENV_VAR = "SAYSO_SERVER_URL"
+TIMEOUT_ENV_VAR = "SAYSO_TIMEOUT_SECONDS"
 DEFAULT_SERVER_URL = "http://127.0.0.1:8765"
 DEFAULT_SATELLITE_ID = "macbook"
-DEFAULT_TIMEOUT_SECONDS = 30
+DEFAULT_TEXT_TIMEOUT_SECONDS = 180
+DEFAULT_AUDIO_TIMEOUT_SECONDS = 180
+# Backward-compatible alias used by older imports/tests.
+DEFAULT_TIMEOUT_SECONDS = DEFAULT_TEXT_TIMEOUT_SECONDS
 
 
 def _load_token(*, environ: dict[str, str] | None = None) -> str:
@@ -34,6 +43,21 @@ def _load_token(*, environ: dict[str, str] | None = None) -> str:
 def _server_url(*, environ: dict[str, str] | None = None) -> str:
     source = os.environ if environ is None else environ
     return source.get(SERVER_URL_ENV_VAR, DEFAULT_SERVER_URL).rstrip("/")
+
+
+def _resolve_timeout(
+    timeout: float | None,
+    *,
+    default: float,
+    environ: dict[str, str] | None = None,
+) -> float:
+    if timeout is not None:
+        return timeout
+    source = os.environ if environ is None else environ
+    raw = source.get(TIMEOUT_ENV_VAR, "").strip()
+    if raw:
+        return float(raw)
+    return default
 
 
 def build_text_request(
@@ -85,7 +109,7 @@ def _post_json_envelope(
     body: dict[str, Any],
     *,
     environ: dict[str, str] | None = None,
-    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    timeout: float,
 ) -> tuple[int, dict[str, Any] | None]:
     token = _load_token(environ=environ)
     url = f"{_server_url(environ=environ)}{path}"
@@ -114,9 +138,9 @@ def send_text(
     satellite_id: str = DEFAULT_SATELLITE_ID,
     correlation_id: str | None = None,
     environ: dict[str, str] | None = None,
-    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    timeout: float | None = None,
 ) -> tuple[int, dict[str, Any] | None]:
-    """POST text to the SaySo server and return `(status, json_body)`."""
+    """POST text to the SaySo server and return ``(status, json_body)``."""
 
     body = build_text_request(
         text,
@@ -127,7 +151,11 @@ def send_text(
         TEXT_PATH,
         body,
         environ=environ,
-        timeout=timeout,
+        timeout=_resolve_timeout(
+            timeout,
+            default=DEFAULT_TEXT_TIMEOUT_SECONDS,
+            environ=environ,
+        ),
     )
 
 
@@ -138,9 +166,9 @@ def send_audio(
     sequence: int = 0,
     correlation_id: str | None = None,
     environ: dict[str, str] | None = None,
-    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    timeout: float | None = None,
 ) -> tuple[int, dict[str, Any] | None]:
-    """POST 16 kHz mono PCM16 to the SaySo server and return `(status, json_body)`."""
+    """POST 16 kHz mono PCM16 to the SaySo server and return ``(status, json_body)``."""
 
     body = build_audio_request(
         pcm,
@@ -152,5 +180,9 @@ def send_audio(
         AUDIO_PATH,
         body,
         environ=environ,
-        timeout=timeout,
+        timeout=_resolve_timeout(
+            timeout,
+            default=DEFAULT_AUDIO_TIMEOUT_SECONDS,
+            environ=environ,
+        ),
     )

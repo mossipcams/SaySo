@@ -134,6 +134,15 @@ class _GatewayWebSocketProxy:
             return message.data
 
 
+def _runtime_is_loaded(runtime: ModelRuntime) -> bool:
+    loaded = getattr(runtime, "_loaded", None)
+    if loaded is None:
+        return False
+    if isinstance(loaded, bool):
+        return loaded
+    return True
+
+
 def create_aiohttp_app(
     token: str,
     *,
@@ -153,6 +162,8 @@ def create_aiohttp_app(
         register_default_satellites(registry)
     store = graph_store or HomeGraphStore()
     readiness_state = readiness or ReadinessState()
+    if model_runtime is not None and _runtime_is_loaded(model_runtime):
+        readiness_state.set_model_ready(True)
     binding = ha_gateway_binding if ha_gateway_binding is not None else HaGatewayBinding()
     controller = text_controller
     if controller is None:

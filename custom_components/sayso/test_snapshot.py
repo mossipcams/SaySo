@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import floor_registry as fr
 from homeassistant.helpers.entity_registry import RegistryEntryDisabler
@@ -176,6 +177,155 @@ async def test_snapshot_state_attributes_are_json_serializable(
     assert serialized["attributes"]["updated_at"] == "2026-03-10T12:30:00"
     assert serialized["attributes"]["tags"] == ["alpha", "beta"]
     assert serialized["attributes"]["mode"] == "auto"
+
+
+@pytest.mark.asyncio
+async def test_snapshot_inherits_device_area_when_entity_area_unset(
+    hass: HomeAssistant,
+) -> None:
+    """Entities without area_id must inherit area from their device."""
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret"},
+        options={
+            "domain_allowlist": [],
+            "action_allowlist": [],
+            "exposure_mode": "all",
+            "area_ids": [],
+            "entity_ids": [],
+        },
+    )
+    entry.add_to_hass(hass)
+    options = get_entry_options(entry)
+
+    area_reg = ar.async_get(hass)
+    living_room = area_reg.async_create("Living Room")
+    kitchen = area_reg.async_create("Kitchen")
+
+    device_reg = dr.async_get(hass)
+    lamp_device = device_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("test", "corner_lamp")},
+    )
+    device_reg.async_update_device(lamp_device.id, area_id=living_room.id)
+
+    entity_reg = er.async_get(hass)
+    corner_lamp = entity_reg.async_get_or_create(
+        "light",
+        "test",
+        "corner_lamp",
+        suggested_object_id="corner_lamp",
+        original_name="Corner Lamp",
+    )
+    entity_reg.async_update_entity(
+        corner_lamp.entity_id,
+        device_id=lamp_device.id,
+        area_id=None,
+    )
+
+    evening_scene = entity_reg.async_get_or_create(
+        "scene",
+        "test",
+        "evening",
+        suggested_object_id="evening",
+        original_name="Evening",
+    )
+    entity_reg.async_update_entity(
+        evening_scene.entity_id,
+        device_id=lamp_device.id,
+        area_id=None,
+    )
+
+    bedtime_script = entity_reg.async_get_or_create(
+        "script",
+        "test",
+        "bedtime",
+        suggested_object_id="bedtime",
+        original_name="Bedtime",
+    )
+    entity_reg.async_update_entity(
+        bedtime_script.entity_id,
+        device_id=lamp_device.id,
+        area_id=None,
+    )
+
+    hass.states.async_set(corner_lamp.entity_id, "on")
+    hass.states.async_set(evening_scene.entity_id, "scening")
+    hass.states.async_set(bedtime_script.entity_id, "off")
+
+    snapshot = build_home_graph_snapshot(
+        hass,
+        home_id="device-area-home",
+        sequence=1,
+        options=options,
+    )
+
+    entity = next(
+        item for item in snapshot["entities"] if item["entity_id"] == corner_lamp.entity_id
+    )
+    scene = next(
+        item for item in snapshot["scenes"] if item["entity_id"] == evening_scene.entity_id
+    )
+    script = next(
+        item for item in snapshot["scripts"] if item["entity_id"] == bedtime_script.entity_id
+    )
+    assert entity["area_id"] == living_room.id
+    assert scene["area_id"] == living_room.id
+    assert script["area_id"] == living_room.id
+
+    kitchen_device = device_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("test", "kitchen_light")},
+    )
+    device_reg.async_update_device(kitchen_device.id, area_id=kitchen.id)
+
+    kitchen_light = entity_reg.async_get_or_create(
+        "light",
+        "test",
+        "kitchen_light",
+        suggested_object_id="kitchen_light",
+        original_name="Kitchen Light",
+    )
+    entity_reg.async_update_entity(
+        kitchen_light.entity_id,
+        device_id=kitchen_device.id,
+        area_id=kitchen.id,
+    )
+    hass.states.async_set(kitchen_light.entity_id, "on")
+
+    snapshot = build_home_graph_snapshot(
+        hass,
+        home_id="device-area-home",
+        sequence=2,
+        options=options,
+    )
+    kitchen_entity = next(
+        item
+        for item in snapshot["entities"]
+        if item["entity_id"] == kitchen_light.entity_id
+    )
+    assert kitchen_entity["area_id"] == kitchen.id
+
+    orphan_light = entity_reg.async_get_or_create(
+        "light",
+        "test",
+        "orphan",
+        suggested_object_id="orphan",
+        original_name="Orphan Light",
+    )
+    hass.states.async_set(orphan_light.entity_id, "off")
+
+    snapshot = build_home_graph_snapshot(
+        hass,
+        home_id="device-area-home",
+        sequence=3,
+        options=options,
+    )
+    orphan_entity = next(
+        item for item in snapshot["entities"] if item["entity_id"] == orphan_light.entity_id
+    )
+    assert "area_id" not in orphan_entity
 
 
 @pytest.mark.asyncio

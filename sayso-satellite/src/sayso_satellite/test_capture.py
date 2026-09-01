@@ -21,6 +21,7 @@ from sayso_satellite.capture import (
 
 FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
 RECORDED_PCM = FIXTURES / "audio_pcm16_mono_16k.bin"
+CORNER_LAMP_PCM = FIXTURES / "turn_off_the_corner_lamp.pcm"
 RECORDED_DURATION_MS = 160
 LEADING_SAMPLE = 1000
 MAIN_SAMPLE = 500
@@ -134,3 +135,11 @@ def test_read_pcm16_file_rejects_odd_byte_length(tmp_path: Path) -> None:
     odd.write_bytes(b"\x00\x01\x02")
     with pytest.raises(ValueError, match="even"):
         read_pcm16_file(odd)
+
+
+def test_corner_lamp_fixture_is_valid_pcm16_mono_16k() -> None:
+    pcm = read_pcm16_file(CORNER_LAMP_PCM)
+    assert len(pcm) % BYTES_PER_SAMPLE == 0
+    assert pcm_duration_ms(byte_length=len(pcm)) == 2500
+    assert SAMPLE_RATE_HZ == 16_000
+    assert CHANNELS == 1

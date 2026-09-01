@@ -64,6 +64,26 @@ def test_create_aiohttp_app_accepts_injected_model_runtime() -> None:
     assert controller._runtime is runtime
 
 
+def test_create_aiohttp_app_sets_model_ready_when_loaded_runtime_passed() -> None:
+    runtime = FakeModelRuntime(model_id="loaded")
+    runtime.load()
+    app = create_aiohttp_app("secret-token", model_runtime=runtime)
+    snapshot = app["readiness"].snapshot()
+    assert snapshot.model_ready is True
+    assert snapshot.ha_connected is False
+
+
+def test_create_aiohttp_app_model_ready_false_without_explicit_runtime() -> None:
+    app = create_aiohttp_app("secret-token")
+    assert app["readiness"].snapshot().model_ready is False
+
+
+def test_create_aiohttp_app_model_ready_false_when_runtime_not_loaded() -> None:
+    runtime = FakeModelRuntime(model_id="unloaded")
+    app = create_aiohttp_app("secret-token", model_runtime=runtime)
+    assert app["readiness"].snapshot().model_ready is False
+
+
 def test_ensure_mlx_lm_available_raises_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     import builtins
 

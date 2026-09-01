@@ -3,11 +3,12 @@
 This document describes the system **as it exists in this worktree**, not the
 architecture implied by `docs/MVP_PLAN.md`. File paths are the source of truth.
 
-**Snapshot.** Last committed product work is at `d1f03dc` (LFM JSON-only
-generation instruction). **Uncommitted WIP** in this worktree:
-`sayso-server/src/sayso_server/mlx_runtime.py`, `prompt.py`, `runtime.py`, and
-matching tests — MLX chat-template few-shot wrapping for prompts built by
-`build_lfm_prompt`, plus `GENERATION_INSTRUCTION` / `extract_lfm_prompt_user_json`.
+**Snapshot.** Last committed product work is at `8ad86ca` on branch
+`ajax/planning`. That commit closes the first supervised Mac → SaySo server →
+Home Assistant → physical-device toggle: ChatML few-shot wrapping in
+`mlx_runtime.py` (`2f2f2d8`), switch entities treated as lights for lamp
+plug loads, and resolver/orchestrator fallback that retries a named target
+across the whole home graph when the current-area candidate set misses.
 Eval corpora through task 43 (follow-up, 70 cases) and tasks 44–45
 (metric scorer, benchmark runner) are committed under `evals/`.
 
@@ -16,12 +17,12 @@ Assistant, the server, and the satellite together. Three separate processes
 can be run manually: `python -m sayso_server`, the HA integration (when
 installed), and `python -m sayso_satellite`.
 
-**First physical-device demo status:** composition exists (shared graph,
-live `action_request`, text client, plan pipeline), but a supervised
-Mac → server → HA → device run **does not reliably succeed** today. Live
-HA-connected text with the default `mlx-community/LFM2.5-230M-OptiQ-4bit`
-checkpoint often ends in `model_output_invalid` after parsing, before
-execution reaches Home Assistant.
+**First physical-device demo status:** **succeeded** on `ajax/planning` at
+`8ad86ca`. A supervised text command from the Mac satellite reached Home
+Assistant and toggled a real plug-lamp load. The resident
+`mlx-community/LFM2.5-230M-OptiQ-4bit` checkpoint produced a valid ControlPlan
+after ChatML few-shot prompting; switch-as-light retrieval and whole-graph
+name retry resolved the lamp outside the living-room area.
 
 ---
 
@@ -249,9 +250,10 @@ on `GET /api/v1/ws` (`WS_PATH` in `sayso-server/src/sayso_server/const.py` and
    `readiness.set_ha_connected(False)`.
 
 Readiness sets `ha_connected=True` only after a valid `graph_snapshot` is
-applied (not merely after `hello_ack`). `model_ready` is never set by
-`python -m sayso_server` today; it stays false unless a test or caller invokes
-`ReadinessState.set_model_ready`.
+applied (not merely after `hello_ack`). `model_ready` flips true in
+`create_aiohttp_app` when a loaded resident runtime is passed (production:
+`python -m sayso_server` via `build_mlx_runtime_for_server`). Whisper/STT
+loads lazily on first `/api/v1/audio` and does not gate `model_ready`.
 
 ---
 
@@ -518,10 +520,8 @@ Z-Wave/Zigbee device by default.
 
 ### 2. Partially implemented
 
-- **Readiness:** `model_ready` never flipped on MLX load in `__main__`; `/ready`
-  stays 503 even when the model and HA graph are usable
-- **Model quality:** 230M LFM checkpoint frequently yields
-  `model_output_invalid` on real-home text commands
+- **Readiness:** `ha_connected` tracks the HA WebSocket session;
+  `model_ready` tracks resident MLX load when passed into `create_aiohttp_app`
 - **Conversation store:** not attached in default `create_live_text_controller`
 - **Orchestrator:** one entity per action; climate temperature/mode not mapped
 - **Satellite voice:** capture helpers and PCM file upload; no live microphone
@@ -548,11 +548,8 @@ From `docs/MVP_PLAN.md` / `docs/EVALUATION_PLAN.md`, absent or incomplete:
 
 ### 4. Original requirements that conflict with the current implementation
 
-- **Phase 3 gate “text commands operate real devices”:** wiring exists, but
-  the default 230M model often fails before HA execution; demo success is not
-  guaranteed.
-- **Readiness equals runnable:** `model_ready` unused in startup despite MLX
-  load in `__main__`.
+- **Phase 3 gate “text commands operate real devices”:** first supervised demo
+  succeeded at `8ad86ca`; broader utterance coverage and voice wake remain open.
 - **Constant-time token check everywhere (task 25):** health/ready still use `!=`.
 - **Satellite as hands-free smart speaker:** client + capture helpers only;
   no wake/VAD/playback stack.
@@ -560,9 +557,7 @@ From `docs/MVP_PLAN.md` / `docs/EVALUATION_PLAN.md`, absent or incomplete:
 
 ### 5. Architectural decisions that remain unresolved
 
-- When and how `model_ready` should flip true (load vs first successful generate)
 - Whether default live wiring should attach `ConversationStore`
-- Fake vs MLX vs recorded-plan runtime for demos while 230M quality is poor
 - Multi-entity execution (orchestrator currently one ID)
 - Climate `set_temperature` / `mode` in orchestrator vs HA mapping only
 - Satellite auth vs shared HA Bearer token
@@ -581,32 +576,29 @@ A **first demonstration** means one Mac-originated command changes one real HA
 entity through SaySo, with safety barriers still able to no-op. Voice wake and
 model bake-offs are not required for that definition.
 
-**The demo is not done.** Composition is largely in place; the blocking gap is
-reliable ControlPlan generation from the resident 230M checkpoint on real-home
-utterances.
+**The first text demo is done** at `8ad86ca`: ChatML few-shot prompting,
+switch-as-light retrieval, and whole-graph name retry when the current-area
+candidate set misses were enough for a supervised lamp toggle on real hardware.
+Next increments are operator ergonomics, broader utterance coverage, and the
+voice path — not re-proving the same supervised text toggle.
 
-### Required (still blocking or fragile)
+### Required next (post-demo)
 
-1. **Reliable plan generation** on real commands (prompt/template/checkpoint
-   work, or an interim runtime) so live text does not routinely end in
-   `model_output_invalid`.
-2. **`model_ready` wiring** so health/readiness reflect MLX load (or readiness
-   semantics change to match what operators need).
-3. **Operator runbook** for three processes (server env, HA integration config,
+1. **Operator runbook** for three processes (server env, HA integration config,
    satellite curl/CLI) — not packaged as one launcher.
-4. **Optional but valuable for follow-ups:** wire `ConversationStore` into
+2. **Optional but valuable for follow-ups:** wire `ConversationStore` into
    default live controller.
-5. **Package-level safety that already exists** must stay: ControlPlan
+3. **Package-level safety that already exists** must stay: ControlPlan
    validation, capability/safety barriers, HA permission + state verification.
-   Do not bypass them for the demo.
+   Do not bypass them for follow-on work.
 
 Optional for a *voice* demonstration of the same path: live mic capture on the
 satellite, resident Whisper quality checks, and playback beyond earcon (tasks
 53–57 family).
 
 Task **48** (dry-run default + execute allowlist) is required before pointing
-evals at a live home; it is not required for a supervised first demo on a
-dedicated HA.
+evals at a live home; it is not required for repeating the supervised text demo
+on a dedicated HA.
 
 ### Can be deferred without compromising safety or the core architecture
 

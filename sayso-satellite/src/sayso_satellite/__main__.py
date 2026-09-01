@@ -1,4 +1,9 @@
-"""Process entrypoint for the Mac text satellite client."""
+"""Process entrypoint for the Mac text and recorded-audio satellite client.
+
+Recorded audio uses the same HTTP timeout defaults as text (180s). Override
+with ``--timeout SECONDS`` or the ``SAYSO_TIMEOUT_SECONDS`` environment
+variable (see ``sayso_satellite.client``).
+"""
 
 from __future__ import annotations
 
@@ -21,6 +26,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Send raw 16 kHz mono PCM16 from PATH",
     )
     parser.add_argument(
+        "--timeout",
+        dest="timeout",
+        type=float,
+        metavar="SECONDS",
+        help="HTTP request timeout (default: 180; override via SAYSO_TIMEOUT_SECONDS)",
+    )
+    parser.add_argument(
         "text",
         nargs="*",
         help="Text to send when not using --audio-file",
@@ -35,7 +47,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.audio_file:
         try:
             pcm = read_pcm16_file(args.audio_file)
-            status, body = send_audio(pcm)
+            status, body = send_audio(pcm, timeout=args.timeout)
         except (OSError, ValueError, RuntimeError) as exc:
             print(str(exc), file=sys.stderr)
             raise SystemExit(1) from exc
@@ -45,7 +57,7 @@ def main(argv: list[str] | None = None) -> None:
             raise SystemExit(2)
         text = " ".join(args.text)
         try:
-            status, body = send_text(text)
+            status, body = send_text(text, timeout=args.timeout)
         except RuntimeError as exc:
             print(str(exc), file=sys.stderr)
             raise SystemExit(1) from exc

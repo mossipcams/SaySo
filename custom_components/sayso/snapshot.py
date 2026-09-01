@@ -104,6 +104,19 @@ def build_home_graph_snapshot(
     }
 
 
+def _effective_area_id(hass: HomeAssistant, entry: RegistryEntry) -> str | None:
+    """Return entity area, else inherit from the linked device."""
+
+    if entry.area_id is not None:
+        return entry.area_id
+    if entry.device_id is None:
+        return None
+    device = dr.async_get(hass).async_get(entry.device_id)
+    if device is None or device.area_id is None:
+        return None
+    return device.area_id
+
+
 def _serialize_registry_entity(
     hass: HomeAssistant,
     entry: RegistryEntry,
@@ -120,8 +133,9 @@ def _serialize_registry_entity(
             hass.states.get(entry.entity_id),
         ),
     }
-    if entry.area_id is not None:
-        payload["area_id"] = entry.area_id
+    area_id = _effective_area_id(hass, entry)
+    if area_id is not None:
+        payload["area_id"] = area_id
     if entry.device_id is not None:
         payload["device_id"] = entry.device_id
     return payload
@@ -143,8 +157,9 @@ def _serialize_scene_or_script(
             else script_capabilities()
         ),
     }
-    if entry.area_id is not None:
-        payload["area_id"] = entry.area_id
+    area_id = _effective_area_id(hass, entry)
+    if area_id is not None:
+        payload["area_id"] = area_id
     return payload
 
 

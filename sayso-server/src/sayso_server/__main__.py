@@ -12,6 +12,18 @@ from sayso_server.const import DEFAULT_HOST, DEFAULT_PORT, HOST_ENV_VAR, PORT_EN
 from sayso_server.mlx_runtime import build_mlx_runtime_for_server
 
 
+def _preload_stt_runtime(app: web.Application) -> None:
+    """Warm Whisper after LFM startup; failures must not affect ``model_ready``."""
+
+    stt_runtime = app.get("stt_runtime")
+    if stt_runtime is None:
+        return
+    try:
+        stt_runtime.load()
+    except Exception as exc:  # noqa: BLE001 — preload is best-effort
+        print(f"Warning: STT preload failed: {exc}", file=sys.stderr)
+
+
 def main() -> None:
     try:
         token = load_server_token()
@@ -28,6 +40,7 @@ def main() -> None:
         raise SystemExit(1) from exc
 
     app = create_aiohttp_app(token, model_runtime=runtime)
+    _preload_stt_runtime(app)
     web.run_app(app, host=host, port=port)
 
 

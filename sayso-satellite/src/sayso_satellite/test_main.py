@@ -100,7 +100,7 @@ def test_main_sends_text_from_argv(capsys: pytest.CaptureFixture[str]) -> None:
     ) as mock_send:
         main(["sayso_satellite", "turn", "off", "the", "light"])
 
-    mock_send.assert_called_once_with("turn off the light")
+    mock_send.assert_called_once_with("turn off the light", timeout=None)
     assert capsys.readouterr().out == ""
 
 
@@ -131,7 +131,7 @@ def test_main_sends_audio_from_file(
     ) as mock_send:
         main(["sayso_satellite", "--audio-file", str(audio_path)])
 
-    mock_send.assert_called_once_with(pcm)
+    mock_send.assert_called_once_with(pcm, timeout=None)
     assert capsys.readouterr().out == EARCON_TOKEN
 
 
@@ -154,3 +154,52 @@ def test_main_audio_exits_non_zero_on_http_error(
 
     assert exc.value.code == 1
     assert "unauthorized" in capsys.readouterr().out
+
+
+def test_main_passes_timeout_to_send_audio(
+    tmp_path: Path,
+) -> None:
+    from sayso_satellite.__main__ import main
+
+    pcm = b"\x00\x01" * 100
+    audio_path = tmp_path / "sample.bin"
+    audio_path.write_bytes(pcm)
+
+    with patch(
+        "sayso_satellite.__main__.send_audio",
+        return_value=(200, {"type": "text_response", "payload": {}}),
+    ) as mock_send:
+        main(["sayso_satellite", "--audio-file", str(audio_path), "--timeout", "240"])
+
+    mock_send.assert_called_once_with(pcm, timeout=240.0)
+
+
+def test_main_sends_corner_lamp_fixture_via_cli(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sayso_satellite.__main__ import main
+
+    fixtures = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
+    pcm_path = fixtures / "turn_off_the_corner_lamp.pcm"
+    pcm = pcm_path.read_bytes()
+    response = {
+        "version": 1,
+        "type": "text_response",
+        "correlation_id": "c1",
+        "payload": {
+            "category": "completed",
+            "reason": "state_changed",
+            "response_mode": ResponseMode.EARCON.value,
+            "response_content": EARCON_TOKEN,
+        },
+    }
+
+    with patch(
+        "sayso_satellite.__main__.send_audio",
+        return_value=(200, response),
+    ) as mock_send:
+        main(["sayso_satellite", "--audio-file", str(pcm_path)])
+
+    mock_send.assert_called_once()
+    assert mock_send.call_args.args[0] == pcm
+    assert capsys.readouterr().out == EARCON_TOKEN

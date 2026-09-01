@@ -79,3 +79,63 @@ def test_main_starts_default_live_app(
     registration = app["satellite_registry"].get(DEFAULT_SATELLITE_ID)
     assert registration is not None
     assert registration.area_id == DEFAULT_SATELLITE_AREA_ID
+    snapshot = app["readiness"].snapshot()
+    assert snapshot.model_ready is True
+    assert snapshot.ha_connected is False
+
+
+def test_main_preloads_stt_without_affecting_model_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(TOKEN_ENV_VAR, "secret-token")
+
+    runtime = FakeModelRuntime(model_id="mlx-wired")
+    runtime.load()
+    stt = _RecordingSttRuntime(should_fail=False)
+
+    from sayso_server.__main__ import main
+
+    with patch("sayso_server.__main__.build_mlx_runtime_for_server", return_value=runtime):
+        with patch("sayso_server.__main__.create_aiohttp_app") as create_app:
+            app = {"readiness": __import__("sayso_server.readiness", fromlist=["ReadinessState"]).ReadinessState(), "stt_runtime": stt}
+            app["readiness"].set_model_ready(True)
+            create_app.return_value = app
+            with patch("sayso_server.__main__.web.run_app"):
+                main()
+
+    assert stt.load_calls == 1
+    assert app["readiness"].snapshot().model_ready is True
+
+
+def test_main_stt_preload_failure_does_not_clear_model_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(TOKEN_ENV_VAR, "secret-token")
+
+    runtime = FakeModelRuntime(model_id="mlx-wired")
+    runtime.load()
+    stt = _RecordingSttRuntime(should_fail=True)
+
+    from sayso_server.__main__ import main
+
+    with patch("sayso_server.__main__.build_mlx_runtime_for_server", return_value=runtime):
+        with patch("sayso_server.__main__.create_aiohttp_app") as create_app:
+            app = {"readiness": __import__("sayso_server.readiness", fromlist=["ReadinessState"]).ReadinessState(), "stt_runtime": stt}
+            app["readiness"].set_model_ready(True)
+            create_app.return_value = app
+            with patch("sayso_server.__main__.web.run_app"):
+                main()
+
+    assert stt.load_calls == 1
+    assert app["readiness"].snapshot().model_ready is True
+
+
+class _RecordingSttRuntime:
+    def __init__(self, *, should_fail: bool) -> None:
+        self.should_fail = should_fail
+        self.load_calls = 0
+
+    def load(self) -> None:
+        self.load_calls += 1
+        if self.should_fail:
+            raise RuntimeError("whisper unavailable")
