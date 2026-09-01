@@ -40,7 +40,9 @@ from sayso_server.normalize import normalize_tokens
 from sayso_server.parser import parse_model_output
 from sayso_server.prompt import PromptOrigin, build_lfm_prompt
 from sayso_server.protocol import parse_envelope, parse_envelope_json
+from sayso_server.resolver import resolve_entity_ids
 from sayso_server.runtime import FakeModelRuntime, ModelMetadata, ModelRuntime, PlanGenerationResult
+from sayso_server.scope import expand_scope
 from sayso_server.schema import control_plan_json_schema, sayso_api_v1_json_schema
 from sayso_server.scoring import ScoreBreakdown
 from sayso_server.session import HaSession
@@ -89,10 +91,12 @@ __all__ = [
     "__version__",
     "build_lfm_prompt",
     "control_plan_json_schema",
+    "expand_scope",
     "normalize_tokens",
     "parse_envelope",
     "parse_envelope_json",
     "parse_model_output",
+    "resolve_entity_ids",
     "retrieve_candidates",
     "sayso_api_v1_json_schema",
 ]
