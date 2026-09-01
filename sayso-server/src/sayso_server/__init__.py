@@ -65,6 +65,12 @@ from sayso_server.safety import evaluate_safety_barrier, execute_if_safe
 from sayso_server.scope import expand_scope
 from sayso_server.schema import control_plan_json_schema, sayso_api_v1_json_schema
 from sayso_server.satellites import SatelliteRegistry
+from sayso_server.telemetry import (
+    InteractionTelemetry,
+    InteractionTelemetryRecord,
+    JsonlTelemetrySink,
+    TelemetrySink,
+)
 from sayso_server.text_api import (
     OrchestratorTextController,
     TextController,
@@ -103,6 +109,10 @@ __all__ = [
     "HomeGraphStore",
     "SatelliteRegistry",
     "TEXT_PATH",
+    "InteractionTelemetry",
+    "InteractionTelemetryRecord",
+    "JsonlTelemetrySink",
+    "TelemetrySink",
     "TextController",
     "TextRequestEnvelope",
     "TextResponseEnvelope",

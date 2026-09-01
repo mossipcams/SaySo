@@ -18,6 +18,7 @@ from sayso_server.ha_client import ActionRequestClient
 from sayso_server.orchestrator import execute_control_plan
 from sayso_server.runtime import FakeModelRuntime, ModelRuntime
 from sayso_server.satellites import SatelliteRegistry
+from sayso_server.telemetry import InteractionTelemetry, TelemetrySink
 
 
 class TextRequestPayload(BaseModel):
@@ -74,11 +75,13 @@ class OrchestratorTextController:
         ha_client: ActionRequestClient,
         graph_store: HomeGraphStore,
         conversation_store: ConversationStore | None = None,
+        telemetry_sink: TelemetrySink | None = None,
     ) -> None:
         self._runtime = runtime
         self._ha_client = ha_client
         self._graph_store = graph_store
         self._conversation_store = conversation_store
+        self._telemetry_sink = telemetry_sink
 
     def handle(
         self,
@@ -93,8 +96,15 @@ class OrchestratorTextController:
             msg = "home graph snapshot is required"
             raise RuntimeError(msg)
 
-        generation = self._runtime.generate_plan(text)
         request_id = correlation_id or str(uuid.uuid4())
+        telemetry = InteractionTelemetry(
+            correlation_id=correlation_id,
+            satellite_id=satellite_id,
+            area_id=area_id,
+        )
+        with telemetry.time_stage("plan"):
+            generation = self._runtime.generate_plan(text)
+        telemetry.set_model_from_generation(generation)
         outcome = execute_control_plan(
             generation.plan,
             snapshot,
@@ -103,7 +113,16 @@ class OrchestratorTextController:
             request_id=request_id,
             conversation_store=self._conversation_store,
             satellite_id=satellite_id,
+            telemetry=telemetry,
         )
+        if self._telemetry_sink is not None:
+            self._telemetry_sink.write(
+                telemetry.finish(
+                    category=outcome.category.value,
+                    reason=outcome.reason,
+                    request_id=outcome.request_id,
+                ),
+            )
         plan_payload = (
             outcome.plan.model_dump(mode="json")
             if hasattr(outcome.plan, "model_dump")

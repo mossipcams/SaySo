@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from sayso_server.telemetry import InteractionTelemetry
 
 from sayso_server.control_plan import ActionPlan, NoActionPlan, QueryPlan
 from sayso_server.conversation import ConversationStore, LastIntent, LastTarget
@@ -35,15 +41,17 @@ def execute_control_plan(
     request_id: str,
     conversation_store: ConversationStore | None = None,
     satellite_id: str | None = None,
+    telemetry: InteractionTelemetry | None = None,
 ) -> ExecutionOutcome:
     """Run the control-plan execution pipeline and emit an exact outcome category."""
 
     if isinstance(plan, QueryPlan):
-        query_result = evaluate_query(
-            plan,
-            snapshot,
-            origin_area_id=origin_area_id,
-        )
+        with _telemetry_stage(telemetry, "resolve"):
+            query_result = evaluate_query(
+                plan,
+                snapshot,
+                origin_area_id=origin_area_id,
+            )
         if isinstance(query_result, NoActionPlan):
             return ExecutionOutcome(
                 category=ExecutionCategory.NO_ACTION,
@@ -57,7 +65,8 @@ def execute_control_plan(
         )
 
     if not isinstance(plan, ActionPlan):
-        barrier = evaluate_safety_barrier(plan, snapshot, frozenset())
+        with _telemetry_stage(telemetry, "validate"):
+            barrier = evaluate_safety_barrier(plan, snapshot, frozenset())
         if barrier is None:
             msg = "non-action plans must produce a safety barrier"
             raise RuntimeError(msg)
@@ -72,33 +81,40 @@ def execute_control_plan(
         scope = Scope(kind=ScopeKind.CURRENT_AREA)
 
     follow_up_entity_ids: list[str] | None = None
-    if conversation_store is not None and satellite_id is not None:
-        follow_up = resolve_follow_up(plan, conversation_store, satellite_id=satellite_id)
-        if follow_up.outcome == "clarification" and follow_up.clarification is not None:
-            barrier = evaluate_safety_barrier(follow_up.clarification, snapshot, frozenset())
-            if barrier is None:
-                msg = "follow-up clarification must produce a safety barrier"
-                raise RuntimeError(msg)
-            return ExecutionOutcome(
-                category=ExecutionCategory.NO_ACTION,
-                plan=barrier,
-                reason=barrier.reason,
-            )
-        if follow_up.outcome == "resolved":
-            follow_up_entity_ids = sorted(follow_up.entity_ids)
+    with _telemetry_stage(telemetry, "resolve"):
+        if conversation_store is not None and satellite_id is not None:
+            follow_up = resolve_follow_up(plan, conversation_store, satellite_id=satellite_id)
+            if follow_up.outcome == "clarification" and follow_up.clarification is not None:
+                with _telemetry_stage(telemetry, "validate"):
+                    barrier = evaluate_safety_barrier(
+                        follow_up.clarification,
+                        snapshot,
+                        frozenset(),
+                    )
+                if barrier is None:
+                    msg = "follow-up clarification must produce a safety barrier"
+                    raise RuntimeError(msg)
+                return ExecutionOutcome(
+                    category=ExecutionCategory.NO_ACTION,
+                    plan=barrier,
+                    reason=barrier.reason,
+                )
+            if follow_up.outcome == "resolved":
+                follow_up_entity_ids = sorted(follow_up.entity_ids)
 
-    resolved_entity_ids = resolve_entity_ids(
-        snapshot,
-        origin_area_id=origin_area_id,
-        scope=scope,
-        entity_ids=follow_up_entity_ids,
-        domain=plan.domain,
-        targets=plan.targets,
-        include=plan.include,
-        exclude=plan.exclude,
-    )
+        resolved_entity_ids = resolve_entity_ids(
+            snapshot,
+            origin_area_id=origin_area_id,
+            scope=scope,
+            entity_ids=follow_up_entity_ids,
+            domain=plan.domain,
+            targets=plan.targets,
+            include=plan.include,
+            exclude=plan.exclude,
+        )
 
-    barrier = evaluate_safety_barrier(plan, snapshot, resolved_entity_ids)
+    with _telemetry_stage(telemetry, "validate"):
+        barrier = evaluate_safety_barrier(plan, snapshot, resolved_entity_ids)
     if barrier is not None:
         return ExecutionOutcome(
             category=ExecutionCategory.NO_ACTION,
@@ -109,15 +125,17 @@ def execute_control_plan(
     entity_id = sorted(resolved_entity_ids)[0]
     action, payload = _semantic_action(plan)
 
-    ha_client.send_action_request(
-        request_id=request_id,
-        entity_id=entity_id,
-        domain=plan.domain,
-        action=action,
-        data=payload,
-    )
-    results = tuple(ha_client.take_action_results(request_id))
-    category, reason = classify_action_results(request_id, results)
+    with _telemetry_stage(telemetry, "request"):
+        ha_client.send_action_request(
+            request_id=request_id,
+            entity_id=entity_id,
+            domain=plan.domain,
+            action=action,
+            data=payload,
+        )
+    with _telemetry_stage(telemetry, "verify"):
+        results = tuple(ha_client.take_action_results(request_id))
+        category, reason = classify_action_results(request_id, results)
 
     if (
         category is ExecutionCategory.COMPLETED
@@ -138,6 +156,15 @@ def execute_control_plan(
         results=results,
         reason=reason,
     )
+
+
+def _telemetry_stage(
+    telemetry: InteractionTelemetry | None,
+    stage: str,
+):
+    if telemetry is None:
+        return nullcontext()
+    return telemetry.time_stage(stage)
 
 
 def _record_conversation_referents(
