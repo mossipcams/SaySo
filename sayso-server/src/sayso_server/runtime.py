@@ -91,6 +91,7 @@ def compose_plan_generation(
         origin_area_id=area_id,
         request=text,
         conversation=conv,
+        limit=1,
     )
     area, _ = lookup_origin(snapshot, area_id)
     if area is None:
@@ -109,7 +110,7 @@ def compose_plan_generation(
         areas=snapshot.areas,
     )
     raw = runtime.generate(prompt)
-    _logger.info("raw model sample: %s", raw.text)
+    _logger.warning("raw model sample: %s", raw.text)
     plan = parse_model_output(raw.text, intent=text)
     return PlanGenerationResult(
         plan=plan,

@@ -7,6 +7,12 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
+from sayso_server.prompt import (
+    GENERATION_INSTRUCTION,
+    LFM_FEW_SHOT_ASSISTANT_JSON,
+    LFM_FEW_SHOT_USER_JSON,
+    extract_lfm_prompt_user_json,
+)
 from sayso_server.runtime import ModelMetadata, ModelRuntime, RawGenerationResult
 
 DEFAULT_MLX_MODEL_ID = "mlx-community/LFM2.5-230M-OptiQ-4bit"
@@ -59,6 +65,23 @@ def _default_loader(model_id: str) -> MlxLoadedModel:
     return MlxLoadedModel(model=model, tokenizer=tokenizer)
 
 
+def _prepare_generation_prompt(tokenizer: object, prompt: str) -> str:
+    apply_chat_template = getattr(tokenizer, "apply_chat_template", None)
+    if apply_chat_template is None:
+        return prompt
+    messages = [
+        {"role": "system", "content": GENERATION_INSTRUCTION},
+        {"role": "user", "content": LFM_FEW_SHOT_USER_JSON},
+        {"role": "assistant", "content": LFM_FEW_SHOT_ASSISTANT_JSON},
+        {"role": "user", "content": extract_lfm_prompt_user_json(prompt)},
+    ]
+    return apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+
+
 def _default_generate(loaded: MlxLoadedModel, text: str) -> tuple[str, int, int]:
     try:
         from mlx_lm import generate
@@ -66,14 +89,15 @@ def _default_generate(loaded: MlxLoadedModel, text: str) -> tuple[str, int, int]
         msg = "mlx-lm is required for MLX runtime but is not installed"
         raise RuntimeError(msg) from exc
 
+    formatted_prompt = _prepare_generation_prompt(loaded.tokenizer, text)
     response = generate(
         loaded.model,
         loaded.tokenizer,
-        prompt=text,
+        prompt=formatted_prompt,
         max_tokens=256,
         verbose=False,
     )
-    prompt_tokens = len(text.split())
+    prompt_tokens = len(formatted_prompt.split())
     completion_tokens = max(1, len(response.split()))
     return response, prompt_tokens, completion_tokens
 

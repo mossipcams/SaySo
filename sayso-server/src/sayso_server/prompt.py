@@ -9,14 +9,52 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from sayso_server.conversation import LastTarget, SatelliteConversationState
-from sayso_server.control_plan import ControlPlan
 from sayso_server.home_graph import Area, Entity, Scene, Script
 
 CandidateItem = Entity | Scene | Script
 
 GENERATION_INSTRUCTION = (
-    "Reply with only one ControlPlan JSON object that matches control_plan_schema. "
+    "Reply with only one ControlPlan JSON object. "
     "No prose, explanation, or markdown."
+)
+
+def _compact_json(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+LFM_FEW_SHOT_USER_JSON = _compact_json(
+    {
+        "candidate_entities": [
+            {
+                "aliases": ["lamp", "reading lamp"],
+                "area": "Living Room",
+                "capabilities": [
+                    {"kind": "power"},
+                    {"kind": "brightness", "max_value": 100, "min_value": 1},
+                ],
+                "domain": "light",
+                "name": "Floor Lamp",
+                "state": {"attributes": {"brightness": 0}, "value": "off"},
+            }
+        ],
+        "conversation_state": {},
+        "origin": {
+            "area": "Living Room",
+            "area_aliases": [],
+            "satellite_id": "sat-1",
+        },
+        "user_text": "turn off the floor lamp",
+    },
+)
+
+LFM_FEW_SHOT_ASSISTANT_JSON = _compact_json(
+    {
+        "domain": "light",
+        "intent": "turn off the floor lamp",
+        "outcome": "action",
+        "state": "off",
+        "targets": ["floor lamp"],
+    },
 )
 
 
@@ -33,14 +71,12 @@ def build_lfm_prompt(
     conversation: SatelliteConversationState,
     candidates: Sequence[CandidateItem],
     areas: Sequence[Area],
-    schema: dict[str, object] | None = None,
 ) -> str:
-    """Build an LFM prompt from schema, origin, conversation state, and candidates only."""
+    """Build an LFM prompt from origin, conversation state, and candidates only."""
     area_by_id = {area.id: area for area in areas}
     candidate_by_entity_id = {
         item.entity_id: item for item in candidates if hasattr(item, "entity_id")
     }
-    control_plan_schema = schema if schema is not None else ControlPlan.json_schema()
 
     payload = {
         "origin": {
@@ -55,10 +91,15 @@ def build_lfm_prompt(
         "candidate_entities": [
             _serialize_candidate(item, area_by_id=area_by_id) for item in candidates
         ],
-        "control_plan_schema": control_plan_schema,
         "user_text": user_text,
     }
-    return f"{GENERATION_INSTRUCTION}\n{json.dumps(payload, indent=2, sort_keys=True)}"
+    return f"{GENERATION_INSTRUCTION}\n{_compact_json(payload)}"
+
+
+def extract_lfm_prompt_user_json(prompt: str) -> str:
+    """Return the user JSON body from a built LFM prompt, without the instruction prefix."""
+    json_start = prompt.index("{")
+    return prompt[json_start:]
 
 
 def _serialize_conversation(
@@ -115,7 +156,9 @@ def _serialize_candidate(
     serialized: dict[str, Any] = {
         "name": item.name,
         "aliases": list(item.aliases),
-        "capabilities": [cap.model_dump(mode="json") for cap in item.capabilities],
+        "capabilities": [
+            cap.model_dump(mode="json", exclude_none=True) for cap in item.capabilities
+        ],
     }
     if area_name is not None:
         serialized["area"] = area_name
@@ -124,7 +167,10 @@ def _serialize_candidate(
 
     if isinstance(item, Entity):
         serialized["domain"] = item.domain
-        serialized["state"] = item.state.model_dump(mode="json")
+        serialized["state"] = {
+            "value": item.state.value,
+            "attributes": dict(item.state.attributes),
+        }
     elif isinstance(item, Scene):
         serialized["domain"] = "scene"
     else:

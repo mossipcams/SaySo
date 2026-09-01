@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 
 from sayso_server.conversation import LastIntent, LastTarget, SatelliteConversationState
-from sayso_server.control_plan import ControlPlan
 from sayso_server.home_graph import Area, Entity, HomeGraphSnapshot, Scene, Script
 from sayso_server.models import ENTITY_ID_PATTERN
 from sayso_server.prompt import GENERATION_INSTRUCTION, PromptOrigin, build_lfm_prompt
+from sayso_server.runtime import parse_lfm_prompt_payload
 
 FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
 
@@ -38,7 +38,7 @@ def test_prompt_includes_json_only_generation_instruction() -> None:
     assert "No prose" in GENERATION_INSTRUCTION
 
 
-def test_prompt_includes_schema_origin_state_candidates_and_user_text() -> None:
+def test_prompt_includes_origin_state_candidates_and_user_text_without_schema() -> None:
     graph = _load_graph()
     candidates = [graph.entities[1], graph.entities[0]]
     origin = PromptOrigin(
@@ -66,7 +66,9 @@ def test_prompt_includes_schema_origin_state_candidates_and_user_text() -> None:
     assert "Floor Lamp" in prompt
     assert "Living Room Ceiling" in prompt
     assert "turn on the lamp" in prompt
-    assert ControlPlan.json_schema()["title"] in prompt
+
+    payload = json.loads(prompt[prompt.index("{") :])
+    assert "control_plan_schema" not in payload
 
 
 def test_prompt_excludes_raw_entity_ids() -> None:
@@ -166,3 +168,32 @@ def test_prompt_supports_scene_and_script_candidates() -> None:
     assert "Movie Time" in prompt
     assert "Good Night" in prompt
     assert "bedtime" in prompt
+
+
+def test_prompt_uses_compact_json_without_timestamps_or_null_capability_fields() -> None:
+    graph = _load_graph()
+    ceiling = next(entity for entity in graph.entities if entity.name == "Living Room Ceiling")
+
+    prompt = build_lfm_prompt(
+        user_text="Turn off the ceiling lights",
+        origin=PromptOrigin(satellite_id="sat-1", area_name="Living Room"),
+        conversation=SatelliteConversationState(),
+        candidates=[ceiling],
+        areas=graph.areas,
+    )
+
+    json_body = prompt[prompt.index("{") :]
+    assert "\n" not in json_body
+    assert "last_changed" not in json_body
+    assert "last_updated" not in json_body
+
+    payload = parse_lfm_prompt_payload(prompt)
+    candidate = payload["candidate_entities"][0]
+    assert candidate["capabilities"] == [
+        {"kind": "power"},
+        {"kind": "brightness", "max_value": 100, "min_value": 1},
+    ]
+    assert candidate["state"] == {
+        "attributes": {"brightness": 180, "color_mode": "brightness"},
+        "value": "on",
+    }

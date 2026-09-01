@@ -18,6 +18,7 @@ from sayso_server.runtime import (
     ModelRuntime,
     RawGenerationResult,
     compose_plan_generation,
+    parse_lfm_prompt_payload,
 )
 
 FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
@@ -112,7 +113,7 @@ def test_compose_plan_generation_logs_raw_model_sample(
     runtime = FakeModelRuntime()
     runtime.load()
 
-    with caplog.at_level(logging.INFO, logger="sayso_server.runtime"):
+    with caplog.at_level(logging.WARNING, logger="sayso_server.runtime"):
         result = compose_plan_generation(
             runtime=runtime,
             snapshot=graph,
@@ -163,3 +164,33 @@ def test_compose_plan_generation_invalid_model_output_stays_invalid() -> None:
 
     assert isinstance(result.plan, NoActionPlan)
     assert result.plan.reason == "model_output_invalid"
+
+
+def test_compose_plan_generation_limits_candidates_to_one() -> None:
+    graph = _load_graph()
+
+    class CapturingRuntime(FakeModelRuntime):
+        def __init__(self) -> None:
+            super().__init__()
+            self.last_prompt = ""
+
+        def generate(self, prompt: str) -> RawGenerationResult:
+            self.last_prompt = prompt
+            return super().generate(prompt)
+
+    runtime = CapturingRuntime()
+    runtime.load()
+    compose_plan_generation(
+        runtime=runtime,
+        snapshot=graph,
+        satellite_id="macbook",
+        area_id="area_living_room",
+        text="turn off the floor lamp",
+    )
+
+    payload = parse_lfm_prompt_payload(runtime.last_prompt)
+    candidate_names = [candidate["name"] for candidate in payload["candidate_entities"]]
+    assert candidate_names == ["Floor Lamp"]
+    assert "Living Room Ceiling" not in runtime.last_prompt
+    assert "Front Door" not in runtime.last_prompt
+    assert "Movie Time" not in runtime.last_prompt

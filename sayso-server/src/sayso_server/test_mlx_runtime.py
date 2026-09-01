@@ -4,8 +4,22 @@ from __future__ import annotations
 
 import json
 
-from sayso_server.mlx_runtime import DEFAULT_MLX_MODEL_ID, MlxLoadedModel, MlxModelRuntime
+from sayso_server.conversation import SatelliteConversationState
+from sayso_server.mlx_runtime import (
+    DEFAULT_MLX_MODEL_ID,
+    MlxLoadedModel,
+    MlxModelRuntime,
+    _prepare_generation_prompt,
+)
 from sayso_server.parser import parse_model_output
+from sayso_server.prompt import (
+    GENERATION_INSTRUCTION,
+    LFM_FEW_SHOT_ASSISTANT_JSON,
+    LFM_FEW_SHOT_USER_JSON,
+    PromptOrigin,
+    build_lfm_prompt,
+    extract_lfm_prompt_user_json,
+)
 from sayso_server.runtime import RawGenerationResult
 
 
@@ -81,6 +95,50 @@ def test_mlx_runtime_latency_excludes_load_time() -> None:
     result = runtime.generate("hello")
 
     assert result.latency_ms == 500.0
+
+
+def test_prepare_generation_prompt_applies_chat_template_when_supported() -> None:
+    captured: list[tuple[list[dict[str, str]], dict[str, object]]] = []
+
+    class FakeTokenizer:
+        def apply_chat_template(
+            self,
+            messages: list[dict[str, str]],
+            *,
+            tokenize: bool = False,
+            add_generation_prompt: bool = False,
+        ) -> str:
+            captured.append((messages, {"tokenize": tokenize, "add_generation_prompt": add_generation_prompt}))
+            return "<chat>"
+
+    prompt = build_lfm_prompt(
+        user_text="turn off the living room lights",
+        origin=PromptOrigin(satellite_id="sat-1", area_name="Living Room"),
+        conversation=SatelliteConversationState(),
+        candidates=[],
+        areas=[],
+    )
+    formatted = _prepare_generation_prompt(FakeTokenizer(), prompt)
+
+    assert formatted == "<chat>"
+    assert captured == [
+        (
+            [
+                {"role": "system", "content": GENERATION_INSTRUCTION},
+                {"role": "user", "content": LFM_FEW_SHOT_USER_JSON},
+                {"role": "assistant", "content": LFM_FEW_SHOT_ASSISTANT_JSON},
+                {"role": "user", "content": extract_lfm_prompt_user_json(prompt)},
+            ],
+            {"tokenize": False, "add_generation_prompt": True},
+        )
+    ]
+    assert not captured[0][0][3]["content"].startswith(GENERATION_INSTRUCTION)
+
+
+def test_prepare_generation_prompt_uses_prompt_unchanged_without_chat_template() -> None:
+    prompt = "turn off the living room lights"
+
+    assert _prepare_generation_prompt(object(), prompt) == prompt
 
 
 def test_mlx_runtime_generate_requires_load() -> None:
