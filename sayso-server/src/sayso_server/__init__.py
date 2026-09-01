@@ -1,5 +1,12 @@
 """SaySo server package."""
 
+from sayso_server.ambiguity import (
+    CandidateSelection,
+    candidates_within_score_margin,
+    is_ambiguous,
+    resolve_candidate_selection,
+    resolve_candidates_for_request,
+)
 from sayso_server.api import API_VERSION, PROTOCOL_NAME
 from sayso_server.auth import bearer_token_valid
 from sayso_server.candidates import CandidateRequest, ScoredCandidate, retrieve_candidates
@@ -50,7 +57,7 @@ from sayso_server.resolver import resolve_entity_ids
 from sayso_server.runtime import FakeModelRuntime, ModelMetadata, ModelRuntime, PlanGenerationResult
 from sayso_server.scope import expand_scope
 from sayso_server.schema import control_plan_json_schema, sayso_api_v1_json_schema
-from sayso_server.scoring import ScoreBreakdown
+from sayso_server.scoring import DEFAULT_AMBIGUITY_MARGIN, ScoreBreakdown
 from sayso_server.session import HaSession
 
 __all__ = [
@@ -60,8 +67,10 @@ __all__ = [
     "Capability",
     "CapabilityKind",
     "CandidateRequest",
+    "CandidateSelection",
     "ClarificationPlan",
     "ControlPlan",
+    "DEFAULT_AMBIGUITY_MARGIN",
     "ConversationReferent",
     "ConversationStore",
     "Device",
@@ -72,6 +81,7 @@ __all__ = [
     "WS_PATH",
     "bearer_token_valid",
     "handle_ha_connection",
+    "is_ambiguous",
     "Floor",
     "HomeGraphSnapshot",
     "LastIntent",
@@ -96,6 +106,7 @@ __all__ = [
     "UnsupportedPlan",
     "__version__",
     "build_lfm_prompt",
+    "candidates_within_score_margin",
     "control_plan_json_schema",
     "apply_inclusions_exclusions",
     "expand_scope",
@@ -105,6 +116,8 @@ __all__ = [
     "parse_envelope",
     "parse_envelope_json",
     "parse_model_output",
+    "resolve_candidate_selection",
+    "resolve_candidates_for_request",
     "resolve_entity_ids",
     "resolve_names_in_scope",
     "retrieve_candidates",

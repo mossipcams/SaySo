@@ -27,6 +27,8 @@ _CAPABILITY_KEYWORDS: dict[CapabilityKind, tuple[str, ...]] = {
     CapabilityKind.SCRIPT: ("script", "run"),
 }
 
+DEFAULT_AMBIGUITY_MARGIN = 0.5
+
 _STOP_WORDS = frozenset(
     {
         "a",
