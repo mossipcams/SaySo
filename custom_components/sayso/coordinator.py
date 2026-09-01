@@ -190,6 +190,14 @@ class SaySoConnectionCoordinator:
         self._stop_event.clear()
         self._runner_task = asyncio.create_task(self._run())
 
+    async def async_sync_home_graph(self) -> None:
+        """Push a fresh Home Graph snapshot when connected."""
+
+        ws = self._ws
+        if ws is None or ws.closed:
+            return
+        await self._send_graph_snapshot(ws)
+
     async def async_stop(self) -> None:
         """Stop the connection loop and clear connected state."""
 

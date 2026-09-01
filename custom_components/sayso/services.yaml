@@ -1,0 +1,3 @@
+sync_home_graph:
+  name: Sync home graph
+  description: Push a fresh Home Graph snapshot to the SaySo server.

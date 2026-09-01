@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers.service import async_register_admin_service
 
 from .const import CONF_TOKEN, CONF_URL, DOMAIN, get_entry_options
 from .coordinator import SaySoConnectionCoordinator
@@ -11,6 +12,7 @@ from .coordinator import SaySoConnectionCoordinator
 type SaySoConfigEntry = ConfigEntry
 
 PLATFORMS: list[str] = ["binary_sensor"]
+SERVICE_SYNC_HOME_GRAPH = "sync_home_graph"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bool:
@@ -26,6 +28,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     }
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await coordinator.async_start()
+
+    async def handle_sync_home_graph(_call: ServiceCall) -> None:
+        await coordinator.async_sync_home_graph()
+
+    async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_SYNC_HOME_GRAPH,
+        handle_sync_home_graph,
+    )
+    entry.async_on_unload(
+        lambda: hass.services.async_remove(DOMAIN, SERVICE_SYNC_HOME_GRAPH),
+    )
     return True
 
 
