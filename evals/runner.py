@@ -44,6 +44,41 @@ def dry_run_executor(case: EvalCase) -> CaseExecutionResult:
     return CaseExecutionResult(record=record, timing=CaseTiming(total_ms=elapsed_ms))
 
 
+def _live_actuation_preflight_permitted(
+    *,
+    execute: bool,
+    entity_allowlist: frozenset[str],
+    case: EvalCase,
+) -> bool:
+    if not execute or not entity_allowlist:
+        return False
+    targets = frozenset(case.expected_resolved_entities)
+    if not targets:
+        return False
+    return targets <= entity_allowlist
+
+
+def gate_executor_for_live_safety(
+    executor: CaseExecutor,
+    *,
+    execute: bool = False,
+    entity_allowlist: frozenset[str] | set[str] | list[str] | tuple[str, ...] = (),
+) -> CaseExecutor:
+    """Wrap ``executor`` so live Home Assistant actuation runs only when safeguards pass."""
+    allowlist = frozenset(entity_allowlist)
+
+    def gated(case: EvalCase) -> CaseExecutionResult:
+        if not _live_actuation_preflight_permitted(
+            execute=execute,
+            entity_allowlist=allowlist,
+            case=case,
+        ):
+            return dry_run_executor(case)
+        return executor(case)
+
+    return gated
+
+
 def load_output_case_ids(output_path: Path) -> set[str]:
     if not output_path.exists():
         return set()
@@ -105,10 +140,17 @@ def run_benchmark(
     seed: int = 0,
     warmup_count: int = 0,
     warmup_case: EvalCase | None = None,
+    execute: bool = False,
+    entity_allowlist: frozenset[str] | set[str] | list[str] | tuple[str, ...] = (),
 ) -> BenchmarkRunResult:
     """Run eval cases append-only to ``output_path``, skipping completed case IDs."""
     random.seed(seed)
-    run_executor = executor or dry_run_executor
+    inner_executor = executor or dry_run_executor
+    run_executor = gate_executor_for_live_safety(
+        inner_executor,
+        execute=execute,
+        entity_allowlist=entity_allowlist,
+    )
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
 

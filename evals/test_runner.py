@@ -11,8 +11,10 @@ from evals.metrics import EvalRecord
 from evals.runner import (
     BenchmarkRunResult,
     CaseExecutionResult,
+    CaseExecutor,
     CaseTiming,
     dry_run_executor,
+    gate_executor_for_live_safety,
     load_output_case_ids,
     run_benchmark,
 )
@@ -40,6 +42,21 @@ def _action_case(case_id: str, utterance: str = "Turn off the lights") -> EvalCa
             "execution_allowed": True,
         },
     )
+
+
+def _actuating_executor(*, ha_executed: bool = True) -> CaseExecutor:
+    def executor(case: EvalCase) -> CaseExecutionResult:
+        return CaseExecutionResult(
+            record=EvalRecord(
+                case_id=case.case_id,
+                recorded_resolved_entities=case.expected_resolved_entities,
+                executed_entities=case.expected_resolved_entities,
+                ha_executed=ha_executed,
+            ),
+            timing=CaseTiming(total_ms=1.0),
+        )
+
+    return executor
 
 
 def _cases_jsonl(*case_ids: str) -> str:
@@ -96,7 +113,14 @@ def test_run_benchmark_writes_eval_record_lines_with_timing(tmp_path: Path) -> N
             timing=CaseTiming(total_ms=12.5),
         )
 
-    summary = run_benchmark(cases, output, fake_executor, seed=7)
+    summary = run_benchmark(
+        cases,
+        output,
+        fake_executor,
+        seed=7,
+        execute=True,
+        entity_allowlist=["light.living_room_ceiling"],
+    )
     lines = _read_output_lines(output)
 
     assert summary == BenchmarkRunResult(scored=2, skipped=0, warmup_runs=0, errors=0)
@@ -132,7 +156,15 @@ def test_warmup_runs_first_and_is_not_written_to_output(tmp_path: Path) -> None:
             timing=CaseTiming(total_ms=1.0),
         )
 
-    summary = run_benchmark(scored, output, fake_executor, warmup_count=2, warmup_case=warmup)
+    summary = run_benchmark(
+        scored,
+        output,
+        fake_executor,
+        warmup_count=2,
+        warmup_case=warmup,
+        execute=True,
+        entity_allowlist=["light.living_room_ceiling"],
+    )
 
     assert summary.warmup_runs == 2
     assert call_log[:2] == ["warmup-only", "warmup-only"]
@@ -178,7 +210,13 @@ def test_executor_error_records_failure_and_continues(tmp_path: Path) -> None:
             timing=CaseTiming(total_ms=4.0),
         )
 
-    summary = run_benchmark(cases, output, fake_executor)
+    summary = run_benchmark(
+        cases,
+        output,
+        fake_executor,
+        execute=True,
+        entity_allowlist=["light.living_room_ceiling"],
+    )
     lines = _read_output_lines(output)
 
     assert summary == BenchmarkRunResult(scored=3, skipped=0, warmup_runs=0, errors=1)
@@ -199,3 +237,133 @@ def test_load_eval_cases_jsonl_fixture_still_parses() -> None:
     cases = load_eval_cases_jsonl(text)
     assert len(cases) == 1
     assert cases[0].case_id == "fixture-001"
+
+
+def test_execute_flag_alone_does_not_actuate(tmp_path: Path) -> None:
+    case = _action_case("live-execute-only")
+    output = tmp_path / "records.jsonl"
+
+    run_benchmark(
+        [case],
+        output,
+        _actuating_executor(),
+        execute=True,
+        entity_allowlist=(),
+    )
+
+    assert _read_output_lines(output)[0]["ha_executed"] is False
+
+
+def test_allowlist_alone_does_not_actuate(tmp_path: Path) -> None:
+    case = _action_case("live-allowlist-only")
+    output = tmp_path / "records.jsonl"
+
+    run_benchmark(
+        [case],
+        output,
+        _actuating_executor(),
+        execute=False,
+        entity_allowlist=["light.living_room_ceiling"],
+    )
+
+    assert _read_output_lines(output)[0]["ha_executed"] is False
+
+
+def test_execute_and_allowlist_with_matching_entities_actuates(tmp_path: Path) -> None:
+    case = _action_case("live-both-match")
+    output = tmp_path / "records.jsonl"
+
+    run_benchmark(
+        [case],
+        output,
+        _actuating_executor(),
+        execute=True,
+        entity_allowlist=["light.living_room_ceiling"],
+    )
+
+    assert _read_output_lines(output)[0]["ha_executed"] is True
+
+
+def test_execute_and_allowlist_blocks_out_of_allowlist_entity(tmp_path: Path) -> None:
+    case = EvalCase.model_validate(
+        {
+            **_action_case("live-outside-allowlist").model_dump(),
+            "expected_resolved_entities": ["light.bedroom_lamp"],
+            "expected_candidate_entities": ["light.bedroom_lamp"],
+        },
+    )
+    output = tmp_path / "records.jsonl"
+
+    run_benchmark(
+        [case],
+        output,
+        _actuating_executor(),
+        execute=True,
+        entity_allowlist=["light.living_room_ceiling"],
+    )
+
+    assert _read_output_lines(output)[0]["ha_executed"] is False
+
+
+def test_gate_executor_skips_inner_executor_when_safeguards_fail() -> None:
+    case = _action_case("count-match")
+    outside = EvalCase.model_validate(
+        {
+            **_action_case("count-outside").model_dump(),
+            "expected_resolved_entities": ["light.bedroom_lamp"],
+            "expected_candidate_entities": ["light.bedroom_lamp"],
+        },
+    )
+    allowlist = ["light.living_room_ceiling"]
+    call_count = 0
+
+    def counting_executor(eval_case: EvalCase) -> CaseExecutionResult:
+        nonlocal call_count
+        call_count += 1
+        return _actuating_executor()(eval_case)
+
+    gated_blocked = gate_executor_for_live_safety(
+        counting_executor,
+        execute=False,
+        entity_allowlist=allowlist,
+    )
+    assert gated_blocked(case).record.ha_executed is False
+    assert call_count == 0
+
+    gated_empty_allowlist = gate_executor_for_live_safety(
+        counting_executor,
+        execute=True,
+        entity_allowlist=(),
+    )
+    assert gated_empty_allowlist(case).record.ha_executed is False
+    assert call_count == 0
+
+    gated_outside = gate_executor_for_live_safety(
+        counting_executor,
+        execute=True,
+        entity_allowlist=allowlist,
+    )
+    assert gated_outside(outside).record.ha_executed is False
+    assert call_count == 0
+
+    gated_live = gate_executor_for_live_safety(
+        counting_executor,
+        execute=True,
+        entity_allowlist=allowlist,
+    )
+    assert gated_live(case).record.ha_executed is True
+    assert call_count == 1
+
+
+def test_gate_executor_for_live_safety_directly() -> None:
+    case = _action_case("gate-direct")
+    gated = gate_executor_for_live_safety(
+        _actuating_executor(),
+        execute=True,
+        entity_allowlist=["light.living_room_ceiling"],
+    )
+
+    assert gated(case).record.ha_executed is True
+
+    blocked = gate_executor_for_live_safety(_actuating_executor(), execute=True)
+    assert blocked(case).record.ha_executed is False

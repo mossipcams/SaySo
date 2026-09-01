@@ -7,6 +7,7 @@ from evals.runner import (
     CaseExecutor,
     CaseTiming,
     dry_run_executor,
+    gate_executor_for_live_safety,
     load_output_case_ids,
     run_benchmark,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "MetricScore",
     "canonicalize_control_plan",
     "dry_run_executor",
+    "gate_executor_for_live_safety",
     "load_eval_cases_jsonl",
     "load_output_case_ids",
     "parse_eval_case",
