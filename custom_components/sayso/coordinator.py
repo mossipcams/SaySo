@@ -40,6 +40,7 @@ from .const import (
 from .deltas import build_registry_delta, build_state_delta
 from .exposure import is_entity_id_exposed
 from .permissions import entity_domain_from_id, validate_action_permission
+from .results import ActionResultStatus, build_action_result_payload
 from .snapshot import build_home_graph_snapshot
 
 _LOGGER = logging.getLogger(__name__)
@@ -328,7 +329,9 @@ class SaySoConnectionCoordinator:
             except json.JSONDecodeError:
                 continue
             if payload.get("type") == MSG_ACTION_REQUEST:
-                await self._handle_action_request(ws, payload)
+                self.hass.async_create_task(
+                    self._handle_action_request(ws, payload),
+                )
 
     async def _handle_action_request(
         self,
@@ -347,7 +350,7 @@ class SaySoConnectionCoordinator:
             await self._send_action_result(
                 ws,
                 request_id=request_id if isinstance(request_id, str) else "unknown",
-                status="rejected",
+                status=ActionResultStatus.REJECTED,
                 reason="invalid_request",
             )
             return
@@ -363,7 +366,7 @@ class SaySoConnectionCoordinator:
             await self._send_action_result(
                 ws,
                 request_id=request_id,
-                status="rejected",
+                status=ActionResultStatus.REJECTED,
                 reason=permission.reason or "rejected",
             )
             return
@@ -373,18 +376,44 @@ class SaySoConnectionCoordinator:
             await self._send_action_result(
                 ws,
                 request_id=request_id,
-                status="rejected",
+                status=ActionResultStatus.REJECTED,
                 reason="invalid_request",
             )
             return
 
-        await self._dispatch_action(
-            entity_id=entity_id,
-            domain=entity_domain,
-            action=action,
-            request=request,
+        await self._send_action_result(
+            ws,
+            request_id=request_id,
+            status=ActionResultStatus.ACCEPTED,
         )
-        await self._send_action_result(ws, request_id=request_id, status="accepted")
+
+        try:
+            await self._dispatch_action(
+                entity_id=entity_id,
+                domain=entity_domain,
+                action=action,
+                request=request,
+            )
+        except Exception:  # noqa: BLE001 — report execution failure to server
+            _LOGGER.exception(
+                "SaySo action failed for request_id=%s entity_id=%s action=%s",
+                request_id,
+                entity_id,
+                action,
+            )
+            await self._send_action_result(
+                ws,
+                request_id=request_id,
+                status=ActionResultStatus.FAILED,
+                reason="execution_failed",
+            )
+            return
+
+        await self._send_action_result(
+            ws,
+            request_id=request_id,
+            status=ActionResultStatus.COMPLETED,
+        )
 
     async def _dispatch_action(
         self,
@@ -407,15 +436,14 @@ class SaySoConnectionCoordinator:
         ws: WebSocketLike,
         *,
         request_id: str,
-        status: str,
+        status: ActionResultStatus,
         reason: str | None = None,
     ) -> None:
-        payload: dict[str, Any] = {
-            "request_id": request_id,
-            "status": status,
-        }
-        if reason is not None:
-            payload["reason"] = reason
+        payload = build_action_result_payload(
+            request_id=request_id,
+            status=status,
+            reason=reason,
+        )
         await ws.send_str(_envelope(MSG_ACTION_RESULT, payload=payload))
 
     async def _heartbeat_loop(self, ws: WebSocketLike) -> None:
