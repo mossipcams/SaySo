@@ -14,3 +14,6 @@ DEFAULT_PORT = 8765
 DEFAULT_SATELLITE_ID = "macbook"
 DEFAULT_SATELLITE_AREA_ID = "area_living_room"
 SATELLITE_AREA_ID_ENV_VAR = "SAYSO_SATELLITE_AREA_ID"
+
+# aiohttp WebSocketResponse defaults to 4 MiB; HA graph snapshots can exceed that.
+HA_WS_MAX_MSG_SIZE = 16 * 1024 * 1024

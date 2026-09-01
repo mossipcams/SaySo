@@ -392,6 +392,70 @@ async def test_reconnect_clears_graph_until_fresh_snapshot() -> None:
 
 
 @pytest.mark.asyncio
+async def test_json_ping_envelope_gets_pong() -> None:
+    ws = FakeGatewayWebSocket()
+    ws.push(_hello_envelope(correlation_id="ping-1"))
+    ws.push(
+        json.dumps(
+            {
+                "version": API_VERSION,
+                "type": MessageType.PING.value,
+                "correlation_id": "hb-42",
+                "payload": {},
+            },
+        ),
+    )
+    ws.push(None)
+
+    session = await handle_ha_connection(
+        ws,
+        authorization="Bearer secret-token",
+        server_token="secret-token",
+    )
+
+    assert session is not None
+    assert len(ws.sent) == 2
+    pong = json.loads(ws.sent[1])
+    assert pong["type"] == MessageType.PONG.value
+    assert pong["correlation_id"] == "hb-42"
+    assert pong["payload"] == {}
+
+
+@pytest.mark.asyncio
+async def test_invalid_graph_snapshot_sends_error_and_stays_not_ready() -> None:
+    shared = HomeGraphStore()
+    readiness = ReadinessState()
+    ws = FakeGatewayWebSocket()
+    ws.push(_hello_envelope(correlation_id="bad-snapshot-1"))
+    ws.push(
+        _graph_envelope(
+            msg_type=MessageType.GRAPH_SNAPSHOT.value,
+            payload={"not_a": "snapshot"},
+            correlation_id="bad-snapshot-1",
+        ),
+    )
+    ws.push(None)
+
+    session = await handle_ha_connection(
+        ws,
+        authorization="Bearer secret-token",
+        server_token="secret-token",
+        graph_store=shared,
+        readiness=readiness,
+    )
+
+    assert session is not None
+    assert session.graph_ready is False
+    assert shared.snapshot is None
+    assert readiness.snapshot().ha_connected is False
+    error_msgs = [json.loads(message) for message in ws.sent if '"error"' in message]
+    assert len(error_msgs) == 1
+    assert error_msgs[0]["type"] == MessageType.ERROR.value
+    assert error_msgs[0]["correlation_id"] == "bad-snapshot-1"
+    assert error_msgs[0]["payload"]["reason"] == "invalid_graph_snapshot"
+
+
+@pytest.mark.asyncio
 async def test_reconnect_without_snapshot_is_not_graph_ready() -> None:
     shared = HomeGraphStore()
     shared.replace_snapshot(_load_graph_fixture())

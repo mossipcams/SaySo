@@ -116,3 +116,77 @@ def test_main_wires_mlx_runtime_for_live_controller(
     controller = run_app.call_args.args[0]["text_controller"]
     assert isinstance(controller, OrchestratorTextController)
     assert controller._runtime is runtime
+
+
+@pytest.mark.asyncio
+async def test_gateway_ws_proxy_skips_protocol_ping_and_pong() -> None:
+    from aiohttp import web
+    from unittest.mock import AsyncMock, MagicMock
+
+    from sayso_server.app import _GatewayWebSocketProxy
+
+    ws = MagicMock()
+    ws.closed = False
+    ping = MagicMock(type=web.WSMsgType.PING, data=b"")
+    pong = MagicMock(type=web.WSMsgType.PONG, data=b"")
+    text = MagicMock(type=web.WSMsgType.TEXT, data='{"type":"hello"}')
+    ws.receive = AsyncMock(side_effect=[ping, pong, text])
+
+    proxy = _GatewayWebSocketProxy(ws)
+    result = await proxy.receive_str()
+
+    assert result == '{"type":"hello"}'
+    assert ws.receive.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_gateway_ws_proxy_ends_only_on_close() -> None:
+    from aiohttp import web
+    from unittest.mock import AsyncMock, MagicMock
+
+    from sayso_server.app import _GatewayWebSocketProxy
+
+    ws = MagicMock()
+    ws.closed = False
+    ping = MagicMock(type=web.WSMsgType.PING, data=b"")
+    close = MagicMock(type=web.WSMsgType.CLOSE, data=None)
+    ws.receive = AsyncMock(side_effect=[ping, close])
+
+    proxy = _GatewayWebSocketProxy(ws)
+    result = await proxy.receive_str()
+
+    assert result is None
+    assert ws.receive.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_aiohttp_ws_handler_prepares_large_max_msg_size() -> None:
+    from aiohttp import web
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from sayso_server.app import create_aiohttp_app
+    from sayso_server.const import HA_WS_MAX_MSG_SIZE
+
+    app = create_aiohttp_app("secret-token")
+    handler = None
+    for route in app.router.routes():
+        if route.resource.canonical == WS_PATH:
+            handler = route.handler
+            break
+    assert handler is not None
+
+    request = MagicMock()
+    request.headers = {"Authorization": "Bearer secret-token"}
+
+    ws = MagicMock()
+    ws.prepare = AsyncMock()
+    ws.closed = False
+    ws.receive = AsyncMock(
+        return_value=MagicMock(type=web.WSMsgType.CLOSE, data=None),
+    )
+
+    with patch("sayso_server.app.web.WebSocketResponse", return_value=ws) as mock_ws_class:
+        with patch("sayso_server.app.handle_ha_connection", new_callable=AsyncMock):
+            await handler(request)
+
+    mock_ws_class.assert_called_once_with(max_msg_size=HA_WS_MAX_MSG_SIZE)

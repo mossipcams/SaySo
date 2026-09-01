@@ -11,7 +11,14 @@ from aiohttp import web
 
 from sayso_server.auth import bearer_token_valid
 from sayso_server.audio_api import create_audio_handler
-from sayso_server.const import AUDIO_PATH, READINESS_PATH, TEXT_PATH, TOKEN_ENV_VAR, WS_PATH
+from sayso_server.const import (
+    AUDIO_PATH,
+    HA_WS_MAX_MSG_SIZE,
+    READINESS_PATH,
+    TEXT_PATH,
+    TOKEN_ENV_VAR,
+    WS_PATH,
+)
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.mlx_stt import MlxWhisperSttRuntime
 from sayso_server.satellites import SatelliteRegistry, register_default_satellites
@@ -116,12 +123,15 @@ class _GatewayWebSocketProxy:
         await self._ws.close()
 
     async def receive_str(self) -> str | None:
-        message = await self._ws.receive()
-        if message.type in {web.WSMsgType.CLOSE, web.WSMsgType.CLOSING, web.WSMsgType.CLOSED}:
-            return None
-        if message.type != web.WSMsgType.TEXT:
-            return None
-        return message.data
+        while True:
+            message = await self._ws.receive()
+            if message.type in {web.WSMsgType.CLOSE, web.WSMsgType.CLOSING, web.WSMsgType.CLOSED}:
+                return None
+            if message.type in {web.WSMsgType.PING, web.WSMsgType.PONG}:
+                continue
+            if message.type != web.WSMsgType.TEXT:
+                continue
+            return message.data
 
 
 def create_aiohttp_app(
@@ -186,7 +196,7 @@ def create_aiohttp_app(
         ):
             raise web.HTTPUnauthorized()
 
-        ws = web.WebSocketResponse()
+        ws = web.WebSocketResponse(max_msg_size=HA_WS_MAX_MSG_SIZE)
         await ws.prepare(request)
         gateway_ws = _GatewayWebSocketProxy(ws)
 

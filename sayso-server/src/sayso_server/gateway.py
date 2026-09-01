@@ -114,10 +114,23 @@ async def _process_graph_messages(
         except (ValidationError, json.JSONDecodeError, UnicodeDecodeError):
             continue
 
-        if envelope.type == MessageType.GRAPH_SNAPSHOT:
+        if envelope.type == MessageType.PING:
+            pong = SaySoEnvelope(
+                version=API_VERSION,
+                type=MessageType.PONG,
+                correlation_id=envelope.correlation_id,
+                payload={},
+            )
+            await ws.send_str(pong.model_dump_json())
+        elif envelope.type == MessageType.GRAPH_SNAPSHOT:
             try:
                 snapshot = HomeGraphSnapshot.model_validate(envelope.payload)
             except ValidationError:
+                await _send_error(
+                    ws,
+                    correlation_id=envelope.correlation_id,
+                    reason="invalid_graph_snapshot",
+                )
                 continue
             session.graph.replace_snapshot(snapshot)
             session.mark_graph_ready()
@@ -129,6 +142,21 @@ async def _process_graph_messages(
             session.graph.apply_registry_delta(envelope.payload)
         elif envelope.type == MessageType.ACTION_RESULT:
             _record_action_result(session, envelope.payload)
+
+
+async def _send_error(
+    ws: GatewayWebSocket,
+    *,
+    correlation_id: str,
+    reason: str,
+) -> None:
+    error = SaySoEnvelope(
+        version=API_VERSION,
+        type=MessageType.ERROR,
+        correlation_id=correlation_id,
+        payload={"reason": reason},
+    )
+    await ws.send_str(error.model_dump_json())
 
 
 async def _receive_or_idle(ws: GatewayWebSocket) -> str | None:
