@@ -15,6 +15,7 @@ from sayso_server.envelope import SaySoEnvelope
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.messages import MessageType
+from sayso_server.readiness import ReadinessState
 from sayso_server.results import ActionResultStatus
 from sayso_server.session import HaSession
 
@@ -37,7 +38,9 @@ async def handle_ha_connection(
     authorization: str | None,
     server_token: str,
     graph_store: HomeGraphStore | None = None,
+    readiness: ReadinessState | None = None,
     on_session_started: Callable[[HaSession, GatewayWebSocket], None] | None = None,
+    on_session_ended: Callable[[HaSession], None] | None = None,
 ) -> HaSession | None:
     """Authenticate, complete the v1 hello handshake, and process graph updates."""
 
@@ -68,18 +71,33 @@ async def handle_ha_connection(
     )
     await ws.send_str(ack.model_dump_json())
     store = graph_store if graph_store is not None else HomeGraphStore()
+    store.clear()
+    if readiness is not None:
+        readiness.set_ha_connected(False)
     session = HaSession(correlation_id=envelope.correlation_id, graph=store)
     if on_session_started is not None:
         on_session_started(session, ws)
     # ponytail: test fakes expose _recv_queue; an empty queue means handshake-only.
     recv_queue = getattr(ws, "_recv_queue", None)
-    if isinstance(recv_queue, asyncio.Queue) and recv_queue.empty():
+    try:
+        if isinstance(recv_queue, asyncio.Queue) and recv_queue.empty():
+            return session
+        await _process_graph_messages(ws, session, readiness=readiness)
         return session
-    await _process_graph_messages(ws, session)
-    return session
+    finally:
+        if on_session_ended is not None:
+            on_session_ended(session)
+        store.clear()
+        if readiness is not None:
+            readiness.set_ha_connected(False)
 
 
-async def _process_graph_messages(ws: GatewayWebSocket, session: HaSession) -> None:
+async def _process_graph_messages(
+    ws: GatewayWebSocket,
+    session: HaSession,
+    *,
+    readiness: ReadinessState | None = None,
+) -> None:
     while not ws.closed:
         for outbound in session.drain_outbound():
             await ws.send_str(outbound)
@@ -102,6 +120,9 @@ async def _process_graph_messages(ws: GatewayWebSocket, session: HaSession) -> N
             except ValidationError:
                 continue
             session.graph.replace_snapshot(snapshot)
+            session.mark_graph_ready()
+            if readiness is not None:
+                readiness.set_ha_connected(True)
         elif envelope.type == MessageType.STATE_DELTA:
             session.graph.apply_state_delta(envelope.payload)
         elif envelope.type == MessageType.REGISTRY_DELTA:

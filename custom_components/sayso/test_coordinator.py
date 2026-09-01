@@ -149,6 +149,68 @@ async def test_reconnect_after_disconnect_restores_connected(
     await coordinator.async_stop()
 
 
+def _snapshot_messages(ws: FakeWebSocket) -> list[dict]:
+    return [
+        json.loads(message)
+        for message in ws.sent
+        if json.loads(message)["type"] == "graph_snapshot"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_reconnect_after_kill_restores_graph_snapshot(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    """Kill/reconnect must send a fresh snapshot before the integration is ready."""
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    sockets: list[FakeWebSocket] = []
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        ws = FakeWebSocket()
+        sockets.append(ws)
+        return ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+
+    async def wait_for_socket_count(count: int) -> None:
+        for _ in range(100):
+            if len(sockets) >= count:
+                return
+            await asyncio.sleep(0.01)
+        pytest.fail(f"expected {count} socket(s), got {len(sockets)}")
+
+    await wait_for_socket_count(1)
+    assert coordinator.connected is True
+    assert len(_snapshot_messages(sockets[0])) == 1
+
+    sockets[0].disconnect()
+
+    for _ in range(50):
+        if not coordinator.connected:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("connected stayed true after kill")
+
+    await wait_for_socket_count(2)
+
+    second = sockets[1]
+    snapshots = _snapshot_messages(second)
+    assert len(snapshots) == 1
+    assert coordinator.connected is True
+    assert snapshots[0]["payload"]["home_id"] == entry.entry_id
+
+    await coordinator.async_stop()
+
+
 @pytest.mark.asyncio
 async def test_connected_sends_heartbeats(
     hass: HomeAssistant,

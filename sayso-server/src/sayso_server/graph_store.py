@@ -26,6 +26,12 @@ class HomeGraphStore:
     def sequence(self) -> int:
         return self._sequence
 
+    def clear(self) -> None:
+        """Drop graph state until a fresh snapshot arrives."""
+
+        self._snapshot = None
+        self._sequence = 0
+
     def replace_snapshot(self, snapshot: HomeGraphSnapshot) -> None:
         """Replace the entire graph atomically."""
 

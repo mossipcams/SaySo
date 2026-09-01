@@ -17,6 +17,7 @@ from sayso_server.gateway import handle_ha_connection
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.messages import MessageType
+from sayso_server.readiness import ReadinessState
 
 FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
 
@@ -198,6 +199,7 @@ async def test_aiohttp_ws_handler_passes_server_token_to_gateway() -> None:
     assert kwargs["authorization"] == "Bearer secret-token"
     assert kwargs["server_token"] == "secret-token"
     assert kwargs["graph_store"] is app["graph_store"]
+    assert kwargs["readiness"] is app["readiness"]
     assert "token" not in kwargs
 
 
@@ -243,30 +245,44 @@ async def test_gateway_updates_shared_graph_store_not_session_orphan() -> None:
     )
     ws.push(None)
 
+    end_state: dict[str, object] = {}
+
+    def capture_end_state(_session: object) -> None:
+        end_state["sequence"] = shared.sequence
+        lamp = next(
+            entity for entity in shared.snapshot.entities if entity.entity_id == "light.floor_lamp"
+        )
+        end_state["lamp_value"] = lamp.state.value
+
     session = await handle_ha_connection(
         ws,
         authorization="Bearer secret-token",
         server_token="secret-token",
         graph_store=shared,
+        on_session_ended=capture_end_state,
     )
 
     assert session is not None
     assert session.graph is shared
-    assert shared.sequence == 43
-    assert shared.snapshot is not None
-    lamp = next(
-        entity for entity in shared.snapshot.entities if entity.entity_id == "light.floor_lamp"
-    )
-    assert lamp.state.value == "on"
+    assert session.graph_ready is True
+    assert end_state["sequence"] == 43
+    assert end_state["lamp_value"] == "on"
+    assert shared.snapshot is None
 
 
 @pytest.mark.asyncio
 async def test_gateway_rejects_stale_delta_on_shared_graph_store() -> None:
     shared = HomeGraphStore()
-    shared.replace_snapshot(_load_graph_fixture())
-    before_sequence = shared.sequence
+    snapshot = _load_graph_fixture()
     ws = FakeGatewayWebSocket()
     ws.push(_hello_envelope(correlation_id="stale-delta-1"))
+    ws.push(
+        _graph_envelope(
+            msg_type=MessageType.GRAPH_SNAPSHOT.value,
+            payload=snapshot.model_dump(mode="json"),
+        ),
+    )
+    before_sequence = snapshot.sequence
     ws.push(
         _graph_envelope(
             msg_type=MessageType.STATE_DELTA.value,
@@ -293,18 +309,112 @@ async def test_gateway_rejects_stale_delta_on_shared_graph_store() -> None:
     )
     ws.push(None)
 
+    end_state: dict[str, object] = {}
+
+    def capture_end_state(_session: object) -> None:
+        end_state["sequence"] = shared.sequence
+        lamp = next(
+            entity for entity in shared.snapshot.entities if entity.entity_id == "light.floor_lamp"
+        )
+        end_state["lamp_value"] = lamp.state.value
+
     await handle_ha_connection(
         ws,
         authorization="Bearer secret-token",
         server_token="secret-token",
         graph_store=shared,
+        on_session_ended=capture_end_state,
     )
 
-    assert shared.sequence == before_sequence
-    lamp = next(
-        entity for entity in shared.snapshot.entities if entity.entity_id == "light.floor_lamp"
+    assert end_state["sequence"] == before_sequence
+    assert end_state["lamp_value"] == "off"
+    assert shared.snapshot is None
+
+
+@pytest.mark.asyncio
+async def test_reconnect_clears_graph_until_fresh_snapshot() -> None:
+    """Kill/reconnect must restore the graph only after a new snapshot arrives."""
+
+    shared = HomeGraphStore()
+    snapshot = _load_graph_fixture()
+    shared.replace_snapshot(snapshot)
+    assert shared.snapshot is not None
+
+    ws1 = FakeGatewayWebSocket()
+    ws1.push(_hello_envelope(correlation_id="reconnect-1"))
+    ws1.push(
+        _graph_envelope(
+            msg_type=MessageType.GRAPH_SNAPSHOT.value,
+            payload=snapshot.model_dump(mode="json"),
+        ),
     )
-    assert lamp.state.value == "off"
+    ws1.push(None)
+
+    session1 = await handle_ha_connection(
+        ws1,
+        authorization="Bearer secret-token",
+        server_token="secret-token",
+        graph_store=shared,
+    )
+
+    assert session1 is not None
+    assert session1.graph_ready is True
+    assert shared.snapshot is None
+
+    ws2 = FakeGatewayWebSocket()
+    ws2.push(_hello_envelope(correlation_id="reconnect-2"))
+    resynced = snapshot.model_copy(update={"sequence": 200})
+    ws2.push(
+        _graph_envelope(
+            msg_type=MessageType.GRAPH_SNAPSHOT.value,
+            payload=resynced.model_dump(mode="json"),
+        ),
+    )
+    ws2.push(None)
+
+    end_state: dict[str, int] = {}
+
+    def capture_resync(_session: object) -> None:
+        end_state["sequence"] = shared.sequence
+
+    session2 = await handle_ha_connection(
+        ws2,
+        authorization="Bearer secret-token",
+        server_token="secret-token",
+        graph_store=shared,
+        on_session_ended=capture_resync,
+    )
+
+    assert session2 is not None
+    assert session2.graph_ready is True
+    assert end_state["sequence"] == 200
+    assert shared.snapshot is None
+
+
+@pytest.mark.asyncio
+async def test_reconnect_without_snapshot_is_not_graph_ready() -> None:
+    shared = HomeGraphStore()
+    shared.replace_snapshot(_load_graph_fixture())
+    readiness = ReadinessState()
+    readiness.set_model_ready(True)
+    readiness.set_ha_connected(True)
+
+    ws = FakeGatewayWebSocket()
+    ws.push(_hello_envelope(correlation_id="no-snapshot-1"))
+    ws.push(None)
+
+    session = await handle_ha_connection(
+        ws,
+        authorization="Bearer secret-token",
+        server_token="secret-token",
+        graph_store=shared,
+        readiness=readiness,
+    )
+
+    assert session is not None
+    assert session.graph_ready is False
+    assert shared.snapshot is None
+    assert readiness.snapshot().ha_connected is False
 
 
 def _ws_handler(app: object) -> object:

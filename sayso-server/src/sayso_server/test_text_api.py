@@ -183,6 +183,8 @@ async def test_explicit_text_controller_overrides_default() -> None:
 
 @pytest.mark.asyncio
 async def test_default_text_controller_shares_graph_store_with_gateway() -> None:
+    import asyncio
+
     from sayso_server.app import create_aiohttp_app
     from sayso_server.gateway import handle_ha_connection
     from sayso_server.messages import MessageType
@@ -190,7 +192,8 @@ async def test_default_text_controller_shares_graph_store_with_gateway() -> None
     class GatewayWebSocket:
         def __init__(self) -> None:
             self.closed = False
-            self._messages = [
+            self._recv_queue: asyncio.Queue[str | None] = asyncio.Queue()
+            self._recv_queue.put_nowait(
                 json.dumps(
                     {
                         "version": API_VERSION,
@@ -199,6 +202,8 @@ async def test_default_text_controller_shares_graph_store_with_gateway() -> None
                         "payload": {},
                     },
                 ),
+            )
+            self._recv_queue.put_nowait(
                 json.dumps(
                     {
                         "version": API_VERSION,
@@ -207,9 +212,7 @@ async def test_default_text_controller_shares_graph_store_with_gateway() -> None
                         "payload": _load_graph().model_dump(mode="json"),
                     },
                 ),
-                None,
-            ]
-            self._index = 0
+            )
 
         async def send_str(self, data: str) -> None:
             return None
@@ -218,22 +221,28 @@ async def test_default_text_controller_shares_graph_store_with_gateway() -> None
             self.closed = True
 
         async def receive_str(self) -> str | None:
-            message = self._messages[self._index]
-            self._index += 1
-            return message
+            return await self._recv_queue.get()
 
     app = create_aiohttp_app("secret-token")
     registry = app["satellite_registry"]
     registry.register("macbook", "area_living_room")
+    ws = GatewayWebSocket()
 
-    await handle_ha_connection(
-        GatewayWebSocket(),
-        authorization="Bearer secret-token",
-        server_token="secret-token",
-        graph_store=app["graph_store"],
+    gateway_task = asyncio.create_task(
+        handle_ha_connection(
+            ws,
+            authorization="Bearer secret-token",
+            server_token="secret-token",
+            graph_store=app["graph_store"],
+        ),
     )
+    for _ in range(200):
+        if app["graph_store"].snapshot is not None:
+            break
+        await asyncio.sleep(0)
+    else:
+        pytest.fail("graph snapshot never arrived")
 
-    assert app["graph_store"].snapshot is not None
     assert app["text_controller"]._graph_store is app["graph_store"]
 
     handler = _text_route_handler(app)
@@ -241,6 +250,10 @@ async def test_default_text_controller_shares_graph_store_with_gateway() -> None
     assert status == 200
     assert body is not None
     assert body["type"] == "text_response"
+
+    ws._recv_queue.put_nowait(None)
+    await gateway_task
+    assert app["graph_store"].snapshot is None
 
 
 @pytest.mark.asyncio
@@ -315,13 +328,16 @@ async def test_missing_graph_never_reaches_controller() -> None:
 
 @pytest.mark.asyncio
 async def test_text_api_reads_graph_after_gateway_ingest() -> None:
+    import asyncio
+
     from sayso_server.gateway import handle_ha_connection
     from sayso_server.messages import MessageType
 
     class GatewayWebSocket:
         def __init__(self) -> None:
             self.closed = False
-            self._messages = [
+            self._recv_queue: asyncio.Queue[str | None] = asyncio.Queue()
+            self._recv_queue.put_nowait(
                 json.dumps(
                     {
                         "version": API_VERSION,
@@ -330,6 +346,8 @@ async def test_text_api_reads_graph_after_gateway_ingest() -> None:
                         "payload": {},
                     },
                 ),
+            )
+            self._recv_queue.put_nowait(
                 json.dumps(
                     {
                         "version": API_VERSION,
@@ -338,9 +356,7 @@ async def test_text_api_reads_graph_after_gateway_ingest() -> None:
                         "payload": _load_graph().model_dump(mode="json"),
                     },
                 ),
-                None,
-            ]
-            self._index = 0
+            )
 
         async def send_str(self, data: str) -> None:
             return None
@@ -349,9 +365,7 @@ async def test_text_api_reads_graph_after_gateway_ingest() -> None:
             self.closed = True
 
         async def receive_str(self) -> str | None:
-            message = self._messages[self._index]
-            self._index += 1
-            return message
+            return await self._recv_queue.get()
 
     from sayso_server.app import create_aiohttp_app
 
@@ -365,13 +379,22 @@ async def test_text_api_reads_graph_after_gateway_ingest() -> None:
     registry = SatelliteRegistry()
     registry.register("macbook", "area_living_room")
     app["satellite_registry"] = registry
+    ws = GatewayWebSocket()
 
-    await handle_ha_connection(
-        GatewayWebSocket(),
-        authorization="Bearer secret-token",
-        server_token="secret-token",
-        graph_store=app["graph_store"],
+    gateway_task = asyncio.create_task(
+        handle_ha_connection(
+            ws,
+            authorization="Bearer secret-token",
+            server_token="secret-token",
+            graph_store=app["graph_store"],
+        ),
     )
+    for _ in range(200):
+        if app["graph_store"].snapshot is not None:
+            break
+        await asyncio.sleep(0)
+    else:
+        pytest.fail("graph snapshot never arrived")
 
     handler = create_text_handler(
         token="secret-token",
@@ -384,6 +407,9 @@ async def test_text_api_reads_graph_after_gateway_ingest() -> None:
     assert body is not None
     assert body["type"] == "text_response"
     assert controller.calls
+
+    ws._recv_queue.put_nowait(None)
+    await gateway_task
 
 
 @pytest.mark.asyncio

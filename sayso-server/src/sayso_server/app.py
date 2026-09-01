@@ -13,7 +13,6 @@ from sayso_server.auth import bearer_token_valid
 from sayso_server.audio_api import create_audio_handler
 from sayso_server.const import AUDIO_PATH, READINESS_PATH, TEXT_PATH, TOKEN_ENV_VAR, WS_PATH
 from sayso_server.graph_store import HomeGraphStore
-from sayso_server.messages import MessageType
 from sayso_server.mlx_stt import MlxWhisperSttRuntime
 from sayso_server.satellites import SatelliteRegistry, register_default_satellites
 from sayso_server.stt import SpeechToTextRuntime
@@ -99,13 +98,11 @@ def _snapshot_from_handler(handler: SaySoHTTPRequestHandler) -> ReadinessSnapsho
     return state.snapshot()
 
 
-class _ReadinessTrackingGatewayWebSocket:
-    """Track HA session lifetime for readiness while proxying gateway I/O."""
+class _GatewayWebSocketProxy:
+    """Proxy aiohttp WebSocket I/O for the HA session gateway."""
 
-    def __init__(self, ws: web.WebSocketResponse, readiness: ReadinessState | None) -> None:
+    def __init__(self, ws: web.WebSocketResponse) -> None:
         self._ws = ws
-        self._readiness = readiness
-        self._marked_connected = False
 
     @property
     def closed(self) -> bool:
@@ -113,35 +110,17 @@ class _ReadinessTrackingGatewayWebSocket:
 
     async def send_str(self, data: str) -> None:
         await self._ws.send_str(data)
-        if self._readiness is not None and not self._marked_connected and _is_hello_ack(data):
-            self._readiness.set_ha_connected(True)
-            self._marked_connected = True
 
     async def close(self) -> None:
         await self._ws.close()
-        self._clear_connected()
 
     async def receive_str(self) -> str | None:
         message = await self._ws.receive()
         if message.type in {web.WSMsgType.CLOSE, web.WSMsgType.CLOSING, web.WSMsgType.CLOSED}:
-            self._clear_connected()
             return None
         if message.type != web.WSMsgType.TEXT:
             return None
         return message.data
-
-    def _clear_connected(self) -> None:
-        if self._readiness is not None and self._marked_connected:
-            self._readiness.set_ha_connected(False)
-            self._marked_connected = False
-
-
-def _is_hello_ack(payload: str) -> bool:
-    try:
-        envelope = json.loads(payload)
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return False
-    return envelope.get("type") == MessageType.HELLO_ACK.value
 
 
 def create_aiohttp_app(
@@ -203,7 +182,7 @@ def create_aiohttp_app(
 
         ws = web.WebSocketResponse()
         await ws.prepare(request)
-        gateway_ws = _ReadinessTrackingGatewayWebSocket(ws, readiness_state)
+        gateway_ws = _GatewayWebSocketProxy(ws)
 
         def on_session_started(session: HaSession, bound_ws: object) -> None:
             binding.attach(session, bound_ws)  # type: ignore[arg-type]
@@ -214,11 +193,11 @@ def create_aiohttp_app(
                 authorization=request.headers.get("Authorization"),
                 server_token=token,
                 graph_store=store,
+                readiness=readiness_state,
                 on_session_started=on_session_started,
             )
         finally:
             binding.detach()
-            gateway_ws._clear_connected()
         return ws
 
     app.router.add_get(HEALTH_PATH, health)

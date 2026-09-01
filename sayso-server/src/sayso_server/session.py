@@ -47,8 +47,12 @@ class HaSession:
 
     correlation_id: str
     graph: HomeGraphStore
+    graph_ready: bool = False
     _outbound: deque[str] = field(default_factory=deque, repr=False)
     _action_results: dict[str, list[ActionResult]] = field(default_factory=dict, repr=False)
+
+    def mark_graph_ready(self) -> None:
+        self.graph_ready = True
 
     def queue_outbound(self, payload: str) -> None:
         self._outbound.append(payload)

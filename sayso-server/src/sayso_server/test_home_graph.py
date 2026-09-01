@@ -247,15 +247,28 @@ async def test_gateway_applies_graph_snapshot_and_sequenced_deltas() -> None:
     )
     ws.push(None)
 
+    store = HomeGraphStore()
+    end_state: dict[str, object] = {}
+
+    def capture_end_state(session: object) -> None:
+        end_state["sequence"] = session.graph.sequence  # type: ignore[attr-defined]
+        lamp = next(
+            entity
+            for entity in session.graph.snapshot.entities  # type: ignore[attr-defined]
+            if entity.entity_id == "light.floor_lamp"
+        )
+        end_state["lamp_value"] = lamp.state.value
+
     session = await handle_ha_connection(
         ws,
         authorization="Bearer secret-token",
         server_token="secret-token",
+        graph_store=store,
+        on_session_ended=capture_end_state,
     )
 
     assert session is not None
-    assert session.graph.sequence == 43
-    lamp = next(
-        entity for entity in session.graph.snapshot.entities if entity.entity_id == "light.floor_lamp"
-    )
-    assert lamp.state.value == "on"
+    assert session.graph_ready is True
+    assert end_state["sequence"] == 43
+    assert end_state["lamp_value"] == "on"
+    assert store.snapshot is None

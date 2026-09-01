@@ -337,9 +337,9 @@ class SaySoConnectionCoordinator:
                 msg = "SaySo server did not acknowledge hello"
                 raise ConnectionError(msg)
 
-            self.connected = True
-            self._ws = ws
             await self._send_graph_snapshot(ws)
+            self._ws = ws
+            self.connected = True
             heartbeat_task = asyncio.create_task(self._heartbeat_loop(ws))
             try:
                 await self._receive_loop(ws)
@@ -400,6 +400,8 @@ class SaySoConnectionCoordinator:
         ws: WebSocketLike,
         envelope: dict[str, Any],
     ) -> None:
+        if not self._connected:
+            return
         request = envelope.get("payload") or {}
         request_id = request.get("request_id") or envelope.get("correlation_id")
         entity_id = request.get("entity_id")
