@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import ClassVar
 
 from aiohttp import web
 
 from sayso_server.auth import bearer_token_valid
-from sayso_server.const import READINESS_PATH, TEXT_PATH, WS_PATH
+from sayso_server.const import READINESS_PATH, TEXT_PATH, TOKEN_ENV_VAR, WS_PATH
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.messages import MessageType
 from sayso_server.satellites import SatelliteRegistry
@@ -18,6 +19,24 @@ from sayso_server.gateway import handle_ha_connection
 from sayso_server.health import HEALTH_PATH
 from sayso_server.readiness import ReadinessSnapshot, ReadinessState, liveness_response, readiness_response
 from sayso_server.session import HaGatewayBinding, HaSession
+
+
+class MissingServerTokenError(RuntimeError):
+    """Raised when the server bearer token is not configured."""
+
+
+def load_server_token(*, environ: Mapping[str, str] | None = None) -> str:
+    """Load the bearer token from ``SAYSO_TOKEN``."""
+
+    import os
+
+    source = os.environ if environ is None else environ
+    token = source.get(TOKEN_ENV_VAR, "").strip()
+    if not token:
+        raise MissingServerTokenError(
+            f"{TOKEN_ENV_VAR} environment variable is required",
+        )
+    return token
 
 
 class SaySoHTTPRequestHandler(BaseHTTPRequestHandler):

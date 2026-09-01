@@ -2270,11 +2270,15 @@ name = "sayso-server"
 version = "0.1.0"
 source = { editable = "sayso-server" }
 dependencies = [
+    { name = "aiohttp" },
     { name = "pydantic" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2.13.5" }]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.14" },
+    { name = "pydantic", specifier = ">=2.13.5" },
+]
 
 [[package]]
 name = "securetar"
