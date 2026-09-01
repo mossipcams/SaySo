@@ -8,7 +8,11 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from sayso_server.control_plan import ActionPlan, ControlPlan, QueryPlan
+from pydantic import Field, model_validator
+
+from sayso_server.control_plan import ActionPlan, ClarificationPlan, ControlPlan, QueryPlan
+from sayso_server.conversation import ConversationStore, LastTarget
+from sayso_server.followups import is_follow_up_intent, resolve_follow_up
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.models import Scope, ScopeKind
 from sayso_server.resolver import resolve_entity_ids
@@ -48,6 +52,19 @@ LANGUAGE_NOISE_CATEGORY_COUNTS: dict[str, int] = {
     "asr": 50,
 }
 LANGUAGE_NOISE_CASE_COUNT = sum(LANGUAGE_NOISE_CATEGORY_COUNTS.values())
+
+FOLLOWUP_DATASET_PATH = EVALS_DIR / "datasets" / "followup.jsonl"
+
+FOLLOWUP_CATEGORY_COUNTS: dict[str, int] = {
+    "active_followup": 24,
+    "ttl_expiry": 23,
+    "referent_change": 23,
+}
+FOLLOWUP_CASE_COUNT = sum(FOLLOWUP_CATEGORY_COUNTS.values())
+
+_FOLLOWUP_SATELLITE_ID = "eval-satellite"
+_FOLLOWUP_DEFAULT_TTL_SECONDS = 300.0
+_FOLLOWUP_EXPIRY_TTL_SECONDS = 60.0
 
 REVIEWED_CORPUS_MIN = 320
 REVIEWED_CORPUS_MAX = 420
@@ -106,6 +123,77 @@ def load_safety_corpus() -> list[EvalCase]:
 
 def load_language_noise_corpus() -> list[EvalCase]:
     return load_eval_cases_jsonl(LANGUAGE_NOISE_DATASET_PATH.read_text())
+
+
+class FollowUpEvalCase(EvalCase):
+    """Multi-turn follow-up case with setup turn metadata."""
+
+    prior_turn_plan: dict[str, Any]
+    prior_referent_entities: list[str] = Field(default_factory=list)
+    conversation_ttl_seconds: float = _FOLLOWUP_DEFAULT_TTL_SECONDS
+    ttl_elapsed_seconds: float | None = None
+
+    @model_validator(mode="after")
+    def validate_follow_up_shape(self) -> FollowUpEvalCase:
+        if len(self.turns) != 2:
+            msg = f"{self.case_id}: follow-up cases require exactly 2 turns"
+            raise ValueError(msg)
+
+        if self.category not in FOLLOWUP_CATEGORY_COUNTS:
+            msg = f"{self.case_id}: unknown follow-up category {self.category!r}"
+            raise ValueError(msg)
+
+        prior_plan = ControlPlan.model_validate(self.prior_turn_plan)
+        if prior_plan.outcome != "action":
+            msg = f"{self.case_id}: prior_turn_plan must be an action plan"
+            raise ValueError(msg)
+
+        follow_plan = ControlPlan.model_validate(self.expected_control_plan)
+        if follow_plan.outcome == "action" and isinstance(follow_plan, ActionPlan):
+            if not is_follow_up_intent(follow_plan.intent):
+                msg = (
+                    f"{self.case_id}: follow-up action intent "
+                    f"{follow_plan.intent!r} is not a follow-up phrase"
+                )
+                raise ValueError(msg)
+
+        if self.category == "ttl_expiry":
+            if self.expected_outcome != ExpectedOutcome.CLARIFICATION:
+                msg = f"{self.case_id}: ttl_expiry requires clarification outcome"
+                raise ValueError(msg)
+            if self.ttl_elapsed_seconds is None:
+                msg = f"{self.case_id}: ttl_expiry requires ttl_elapsed_seconds"
+                raise ValueError(msg)
+            if self.ttl_elapsed_seconds <= self.conversation_ttl_seconds:
+                msg = (
+                    f"{self.case_id}: ttl_elapsed_seconds must exceed "
+                    "conversation_ttl_seconds"
+                )
+                raise ValueError(msg)
+
+        if self.category == "referent_change" and not self.prior_referent_entities:
+            msg = f"{self.case_id}: referent_change requires prior_referent_entities"
+            raise ValueError(msg)
+
+        return self
+
+
+def load_followup_corpus() -> list[FollowUpEvalCase]:
+    cases: list[FollowUpEvalCase] = []
+    for line_number, line in enumerate(
+        FOLLOWUP_DATASET_PATH.read_text().splitlines(),
+        start=1,
+    ):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            data = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            msg = f"line {line_number}: invalid JSON: {exc.msg}"
+            raise ValueError(msg) from exc
+        cases.append(FollowUpEvalCase.model_validate(data))
+    return cases
 
 
 def reviewed_corpus_case_count() -> int:
@@ -256,6 +344,176 @@ def validate_language_noise_corpus(cases: Iterable[EvalCase]) -> None:
         msg = (
             f"reviewed corpus total {total} outside "
             f"[{REVIEWED_CORPUS_MIN}, {REVIEWED_CORPUS_MAX}]"
+        )
+        raise ValueError(msg)
+
+
+def validate_followup_corpus(cases: Iterable[FollowUpEvalCase]) -> None:
+    case_list = list(cases)
+    if len(case_list) != FOLLOWUP_CASE_COUNT:
+        msg = f"case count must be {FOLLOWUP_CASE_COUNT}, got {len(case_list)}"
+        raise ValueError(msg)
+
+    counts = Counter(case.category for case in case_list)
+    for category, expected in FOLLOWUP_CATEGORY_COUNTS.items():
+        if counts[category] != expected:
+            msg = f"category {category!r} expected {expected} cases, got {counts[category]}"
+            raise ValueError(msg)
+
+    unknown = set(counts) - set(FOLLOWUP_CATEGORY_COUNTS)
+    if unknown:
+        msg = f"unknown categories: {sorted(unknown)}"
+        raise ValueError(msg)
+
+    case_ids = [case.case_id for case in case_list]
+    if len(case_ids) != len(set(case_ids)):
+        msg = "case_id values must be unique"
+        raise ValueError(msg)
+
+    valid_origins = load_home_graph_origin_areas()
+    valid_entities = load_home_graph_entity_ids()
+    for case in case_list:
+        if case.home != _HOME:
+            msg = f"{case.case_id}: home must be {_HOME!r}, got {case.home!r}"
+            raise ValueError(msg)
+        if case.origin not in valid_origins:
+            msg = f"{case.case_id}: unknown origin {case.origin!r}"
+            raise ValueError(msg)
+        if len(case.turns) != 2:
+            msg = f"{case.case_id}: follow-up cases require exactly 2 turns"
+            raise ValueError(msg)
+        for entity_id in (
+            *case.expected_candidate_entities,
+            *case.expected_resolved_entities,
+            *case.prior_referent_entities,
+        ):
+            if entity_id not in valid_entities:
+                msg = f"{case.case_id}: unknown entity {entity_id!r}"
+                raise ValueError(msg)
+
+
+def verify_follow_up_resolutions(cases: Iterable[FollowUpEvalCase]) -> None:
+    graph = load_home_graph()
+    for case in cases:
+        _verify_prior_turn_resolution(case, graph)
+        _verify_follow_up_resolution(case, graph)
+
+
+def _verify_prior_turn_resolution(case: FollowUpEvalCase, graph: HomeGraphSnapshot) -> None:
+    prior = ActionPlan.model_validate(case.prior_turn_plan)
+    scope = prior.scope
+    if scope is None and (prior.targets or prior.include or prior.exclude):
+        scope = Scope(kind=ScopeKind.CURRENT_AREA)
+    resolved = resolve_entity_ids(
+        graph,
+        origin_area_id=case.origin,
+        scope=scope,
+        domain=prior.domain,
+        targets=prior.targets,
+        include=prior.include,
+        exclude=prior.exclude,
+    )
+    if not resolved:
+        msg = f"{case.case_id}: prior_turn_plan resolved to an empty entity set"
+        raise ValueError(msg)
+
+
+def _verify_follow_up_resolution(case: FollowUpEvalCase, graph: HomeGraphSnapshot) -> None:
+    clock_now = 0.0
+
+    def clock() -> float:
+        return clock_now
+
+    store = ConversationStore(
+        ttl_seconds=case.conversation_ttl_seconds,
+        clock=clock,
+    )
+    if case.prior_referent_entities:
+        store.record_last_target(
+            _FOLLOWUP_SATELLITE_ID,
+            LastTarget(entity_ids=sorted(case.prior_referent_entities)),
+        )
+
+    prior = ActionPlan.model_validate(case.prior_turn_plan)
+    scope = prior.scope
+    if scope is None and (prior.targets or prior.include or prior.exclude):
+        scope = Scope(kind=ScopeKind.CURRENT_AREA)
+    prior_resolved = resolve_entity_ids(
+        graph,
+        origin_area_id=case.origin,
+        scope=scope,
+        domain=prior.domain,
+        targets=prior.targets,
+        include=prior.include,
+        exclude=prior.exclude,
+    )
+    store.record_last_target(
+        _FOLLOWUP_SATELLITE_ID,
+        LastTarget(entity_ids=sorted(prior_resolved)),
+    )
+
+    if case.ttl_elapsed_seconds is not None:
+        clock_now = case.ttl_elapsed_seconds
+
+    follow_plan = ControlPlan.model_validate(case.expected_control_plan)
+    if isinstance(follow_plan, ClarificationPlan):
+        probe = ActionPlan(
+            outcome="action",
+            intent=follow_plan.intent,
+            domain="light",
+            state="on",
+        )
+        resolution = resolve_follow_up(
+            probe,
+            store,
+            satellite_id=_FOLLOWUP_SATELLITE_ID,
+        )
+        if resolution.outcome != "clarification":
+            msg = (
+                f"{case.case_id}: expected clarification follow-up resolution, "
+                f"got {resolution.outcome!r}"
+            )
+            raise ValueError(msg)
+        if not isinstance(resolution.clarification, ClarificationPlan):
+            msg = f"{case.case_id}: clarification follow-up missing clarification plan"
+            raise ValueError(msg)
+        return
+
+    if not isinstance(follow_plan, ActionPlan):
+        msg = f"{case.case_id}: expected follow-up control plan must be an action plan"
+        raise ValueError(msg)
+
+    resolution = resolve_follow_up(
+        follow_plan,
+        store,
+        satellite_id=_FOLLOWUP_SATELLITE_ID,
+    )
+
+    if case.expected_outcome == ExpectedOutcome.CLARIFICATION:
+        if resolution.outcome != "clarification":
+            msg = (
+                f"{case.case_id}: expected clarification follow-up resolution, "
+                f"got {resolution.outcome!r}"
+            )
+            raise ValueError(msg)
+        if not isinstance(resolution.clarification, ClarificationPlan):
+            msg = f"{case.case_id}: clarification follow-up missing clarification plan"
+            raise ValueError(msg)
+        return
+
+    if case.expected_outcome != ExpectedOutcome.VALID_ACTION:
+        return
+
+    expected = frozenset(case.expected_resolved_entities)
+    if resolution.outcome != "resolved":
+        msg = (
+            f"{case.case_id}: expected resolved follow-up, got {resolution.outcome!r}"
+        )
+        raise ValueError(msg)
+    if resolution.entity_ids != expected:
+        msg = (
+            f"{case.case_id}: expected_resolved_entities {sorted(expected)} "
+            f"!= follow-up resolution {sorted(resolution.entity_ids)}"
         )
         raise ValueError(msg)
 
@@ -5498,6 +5756,1813 @@ def write_language_noise_dataset(path: Path | None = None) -> Path:
     return target
 
 
+_FollowUpSpec = tuple[
+    list[str],
+    dict[str, Any],
+    list[str],
+    dict[str, Any],
+    list[str],
+    str,
+    bool,
+    list[str],
+    float,
+    float | None,
+]
+
+
+def _followup_case(
+    *,
+    case_id: str,
+    category: str,
+    turns: list[str],
+    prior_turn_plan: dict[str, Any],
+    follow_up_plan: dict[str, Any],
+    candidates: list[str],
+    resolved: list[str],
+    outcome: str,
+    execution_allowed: bool,
+    prior_referent_entities: list[str] | None = None,
+    conversation_ttl_seconds: float = _FOLLOWUP_DEFAULT_TTL_SECONDS,
+    ttl_elapsed_seconds: float | None = None,
+    origin: str = _ORIGIN,
+) -> dict[str, Any]:
+    missing = set(resolved) - set(candidates)
+    if missing and outcome == ExpectedOutcome.VALID_ACTION:
+        msg = f"{case_id}: candidates missing resolved entities {sorted(missing)}"
+        raise ValueError(msg)
+    return {
+        "case_id": case_id,
+        "category": category,
+        "home": _HOME,
+        "origin": origin,
+        "turns": turns,
+        "prior_turn_plan": prior_turn_plan,
+        "prior_referent_entities": prior_referent_entities or [],
+        "conversation_ttl_seconds": conversation_ttl_seconds,
+        "ttl_elapsed_seconds": ttl_elapsed_seconds,
+        "expected_control_plan": follow_up_plan,
+        "expected_candidate_entities": candidates,
+        "expected_resolved_entities": resolved,
+        "expected_outcome": outcome,
+        "execution_allowed": execution_allowed,
+    }
+
+
+def _cases_from_followup_specs(
+    category: str,
+    specs: list[_FollowUpSpec],
+) -> list[dict[str, Any]]:
+    return [
+        _followup_case(
+            case_id=f"{category}-{index:03d}",
+            category=category,
+            turns=turns,
+            prior_turn_plan=prior_plan,
+            follow_up_plan=follow_plan,
+            candidates=candidates,
+            resolved=resolved,
+            outcome=outcome,
+            execution_allowed=execution_allowed,
+            prior_referent_entities=prior_referent or None,
+            conversation_ttl_seconds=ttl_seconds,
+            ttl_elapsed_seconds=ttl_elapsed,
+        )
+        for index, (
+            turns,
+            prior_plan,
+            _prior_resolved,
+            follow_plan,
+            candidates,
+            resolved,
+            outcome,
+            execution_allowed,
+            prior_referent,
+            ttl_seconds,
+            ttl_elapsed,
+        ) in enumerate(specs, start=1)
+    ]
+
+
+def _author_active_followup_cases() -> list[dict[str, Any]]:
+    living = list(_LIVING_ROOM_ENTITIES)
+    lights = list(_LIVING_ROOM_LIGHTS)
+    ttl = _FOLLOWUP_DEFAULT_TTL_SECONDS
+    specs: list[_FollowUpSpec] = [
+        (
+            ["Turn off the floor lamp", "Turn it back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "off",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn it back on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on the ceiling lights", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the ceiling lights",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "state": "on",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "light",
+                "state": "off",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Switch off the lamp", "Switch it back on"],
+            {
+                "outcome": "action",
+                "intent": "switch off the lamp",
+                "domain": "light",
+                "targets": ["lamp"],
+                "state": "off",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "switch it back on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on both living room lights", "Turn them off"],
+            {
+                "outcome": "action",
+                "intent": "turn on both living room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "Living Room"},
+                "state": "on",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "turn them off",
+                "domain": "light",
+                "state": "off",
+            },
+            living,
+            list(lights),
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off the ceiling lights", "Turn that back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the ceiling lights",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "state": "off",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn that back on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on the floor lamp", "Turn that off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "on",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn that off",
+                "domain": "light",
+                "state": "off",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on the reading lamp", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the reading lamp",
+                "domain": "light",
+                "targets": ["reading lamp"],
+                "state": "on",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "light",
+                "state": "off",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off the overhead lights", "Turn those back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the overhead lights",
+                "domain": "light",
+                "targets": ["overhead lights"],
+                "state": "off",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn those back on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Dim the ceiling lights to fifty percent", "Turn them back on"],
+            {
+                "outcome": "action",
+                "intent": "dim the ceiling lights to fifty percent",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "value": 50,
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn them back on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Set the floor lamp brightness to seventy five", "Dim it to forty"],
+            {
+                "outcome": "action",
+                "intent": "set the floor lamp brightness to seventy five",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "value": 75,
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "dim it to forty",
+                "domain": "light",
+                "value": 40,
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Toggle the floor lamp", "Toggle it again"],
+            {
+                "outcome": "action",
+                "intent": "toggle the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "toggle",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "toggle it again",
+                "domain": "light",
+                "state": "toggle",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off the lights in here", "Turn them back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the lights in here",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "state": "off",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "turn them back on",
+                "domain": "light",
+                "state": "on",
+            },
+            living,
+            list(lights),
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on living room ceiling", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on living room ceiling",
+                "domain": "light",
+                "targets": ["living room ceiling"],
+                "state": "on",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "light",
+                "state": "off",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off lights in here except the floor lamp", "Turn it on"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights in here except the floor lamp",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "exclude": ["floor lamp"],
+                "state": "off",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn it on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on the ceiling lights and the floor lamp", "Turn them off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the ceiling lights and the floor lamp",
+                "domain": "light",
+                "targets": ["ceiling lights", "floor lamp"],
+                "state": "on",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "turn them off",
+                "domain": "light",
+                "state": "off",
+            },
+            living,
+            list(lights),
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Start movie time", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "start movie time",
+                "domain": "scene",
+                "targets": ["movie time"],
+                "state": "activate",
+            },
+            ["scene.movie_time"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "scene",
+                "state": "off",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Activate movie mode", "Turn that off"],
+            {
+                "outcome": "action",
+                "intent": "activate movie mode",
+                "domain": "scene",
+                "targets": ["movie mode"],
+                "state": "activate",
+            },
+            ["scene.movie_time"],
+            {
+                "outcome": "action",
+                "intent": "turn that off",
+                "domain": "scene",
+                "state": "off",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Set the thermostat to seventy two", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "set the thermostat to seventy two",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "value": 72,
+            },
+            ["climate.downstairs"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "climate",
+                "state": "off",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on the hvac", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the hvac",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "state": "on",
+            },
+            ["climate.downstairs"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "climate",
+                "state": "off",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Run bedtime in the primary bedroom", "Run it again"],
+            {
+                "outcome": "action",
+                "intent": "run bedtime in the primary bedroom",
+                "domain": "script",
+                "scope": {"kind": "named_area", "name": "Primary Bedroom"},
+                "targets": ["bedtime"],
+                "state": "activate",
+            },
+            ["script.good_night"],
+            {
+                "outcome": "action",
+                "intent": "run it again",
+                "domain": "script",
+                "state": "activate",
+            },
+            list(_ALL_ENTITIES),
+            ["script.good_night"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off lounge lights", "Turn them on"],
+            {
+                "outcome": "action",
+                "intent": "turn off lounge lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "state": "off",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "turn them on",
+                "domain": "light",
+                "state": "on",
+            },
+            living,
+            list(lights),
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on family room lights", "Switch them off"],
+            {
+                "outcome": "action",
+                "intent": "turn on family room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "family room"},
+                "state": "on",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "switch them off",
+                "domain": "light",
+                "state": "off",
+            },
+            living,
+            list(lights),
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off lights downstairs", "Turn them back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights downstairs",
+                "domain": "light",
+                "scope": {"kind": "floor", "name": "downstairs"},
+                "state": "off",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "turn them back on",
+                "domain": "light",
+                "state": "on",
+            },
+            list(_ALL_ENTITIES),
+            list(lights),
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on the floor lamp", "Turn it back off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "on",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn it back off",
+                "domain": "light",
+                "state": "off",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            [],
+            ttl,
+            None,
+        ),
+    ]
+    return _cases_from_followup_specs("active_followup", specs)
+
+
+def _author_ttl_expiry_cases() -> list[dict[str, Any]]:
+    living = list(_LIVING_ROOM_ENTITIES)
+    lights = list(_LIVING_ROOM_LIGHTS)
+    ttl = _FOLLOWUP_EXPIRY_TTL_SECONDS
+    elapsed = ttl + 1.0
+    clarify = "prior reference expired or unavailable"
+    specs: list[_FollowUpSpec] = [
+        (
+            ["Turn off the floor lamp", "Turn it back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "off",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "clarification",
+                "intent": "turn it back on",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn on the ceiling lights", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the ceiling lights",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "state": "on",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "clarification",
+                "intent": "turn it off",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Switch off the lamp", "Switch it back on"],
+            {
+                "outcome": "action",
+                "intent": "switch off the lamp",
+                "domain": "light",
+                "targets": ["lamp"],
+                "state": "off",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "clarification",
+                "intent": "switch it back on",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn on both living room lights", "Turn them off"],
+            {
+                "outcome": "action",
+                "intent": "turn on both living room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "Living Room"},
+                "state": "on",
+            },
+            list(lights),
+            {
+                "outcome": "clarification",
+                "intent": "turn them off",
+                "reason": clarify,
+            },
+            living,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn off the ceiling lights", "Turn that back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the ceiling lights",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "state": "off",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "clarification",
+                "intent": "turn that back on",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn on the floor lamp", "Turn that off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "on",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "clarification",
+                "intent": "turn that off",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn on the reading lamp", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the reading lamp",
+                "domain": "light",
+                "targets": ["reading lamp"],
+                "state": "on",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "clarification",
+                "intent": "turn it off",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn off the overhead lights", "Turn those back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the overhead lights",
+                "domain": "light",
+                "targets": ["overhead lights"],
+                "state": "off",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "clarification",
+                "intent": "turn those back on",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Dim the ceiling lights to fifty percent", "Turn them back on"],
+            {
+                "outcome": "action",
+                "intent": "dim the ceiling lights to fifty percent",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "value": 50,
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "clarification",
+                "intent": "turn them back on",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Set the floor lamp brightness to seventy five", "Dim it to forty"],
+            {
+                "outcome": "action",
+                "intent": "set the floor lamp brightness to seventy five",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "value": 75,
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "clarification",
+                "intent": "dim it to forty",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Toggle the floor lamp", "Toggle it again"],
+            {
+                "outcome": "action",
+                "intent": "toggle the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "toggle",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "clarification",
+                "intent": "toggle it again",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn off the lights in here", "Turn them back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the lights in here",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "state": "off",
+            },
+            list(lights),
+            {
+                "outcome": "clarification",
+                "intent": "turn them back on",
+                "reason": clarify,
+            },
+            living,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn on living room ceiling", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on living room ceiling",
+                "domain": "light",
+                "targets": ["living room ceiling"],
+                "state": "on",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "clarification",
+                "intent": "turn it off",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn off lights in here except the floor lamp", "Turn it on"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights in here except the floor lamp",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "exclude": ["floor lamp"],
+                "state": "off",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "clarification",
+                "intent": "turn it on",
+                "reason": clarify,
+            },
+            lights,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn on the ceiling lights and the floor lamp", "Turn them off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the ceiling lights and the floor lamp",
+                "domain": "light",
+                "targets": ["ceiling lights", "floor lamp"],
+                "state": "on",
+            },
+            list(lights),
+            {
+                "outcome": "clarification",
+                "intent": "turn them off",
+                "reason": clarify,
+            },
+            living,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Start movie time", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "start movie time",
+                "domain": "scene",
+                "targets": ["movie time"],
+                "state": "activate",
+            },
+            ["scene.movie_time"],
+            {
+                "outcome": "clarification",
+                "intent": "turn it off",
+                "reason": clarify,
+            },
+            living,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Activate movie mode", "Turn that off"],
+            {
+                "outcome": "action",
+                "intent": "activate movie mode",
+                "domain": "scene",
+                "targets": ["movie mode"],
+                "state": "activate",
+            },
+            ["scene.movie_time"],
+            {
+                "outcome": "clarification",
+                "intent": "turn that off",
+                "reason": clarify,
+            },
+            living,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Set the thermostat to seventy two", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "set the thermostat to seventy two",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "value": 72,
+            },
+            ["climate.downstairs"],
+            {
+                "outcome": "clarification",
+                "intent": "turn it off",
+                "reason": clarify,
+            },
+            living,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn on the hvac", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the hvac",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "state": "on",
+            },
+            ["climate.downstairs"],
+            {
+                "outcome": "clarification",
+                "intent": "turn it off",
+                "reason": clarify,
+            },
+            living,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Run bedtime in the primary bedroom", "Run it again"],
+            {
+                "outcome": "action",
+                "intent": "run bedtime in the primary bedroom",
+                "domain": "script",
+                "scope": {"kind": "named_area", "name": "Primary Bedroom"},
+                "targets": ["bedtime"],
+                "state": "activate",
+            },
+            ["script.good_night"],
+            {
+                "outcome": "clarification",
+                "intent": "run it again",
+                "reason": clarify,
+            },
+            list(_ALL_ENTITIES),
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn off lounge lights", "Turn them on"],
+            {
+                "outcome": "action",
+                "intent": "turn off lounge lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "state": "off",
+            },
+            list(lights),
+            {
+                "outcome": "clarification",
+                "intent": "turn them on",
+                "reason": clarify,
+            },
+            living,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn on family room lights", "Switch them off"],
+            {
+                "outcome": "action",
+                "intent": "turn on family room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "family room"},
+                "state": "on",
+            },
+            list(lights),
+            {
+                "outcome": "clarification",
+                "intent": "switch them off",
+                "reason": clarify,
+            },
+            living,
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+        (
+            ["Turn off lights downstairs", "Turn them back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights downstairs",
+                "domain": "light",
+                "scope": {"kind": "floor", "name": "downstairs"},
+                "state": "off",
+            },
+            list(lights),
+            {
+                "outcome": "clarification",
+                "intent": "turn them back on",
+                "reason": clarify,
+            },
+            list(_ALL_ENTITIES),
+            [],
+            "clarification",
+            False,
+            [],
+            ttl,
+            elapsed,
+        ),
+    ]
+    return _cases_from_followup_specs("ttl_expiry", specs)
+
+
+def _author_referent_change_cases() -> list[dict[str, Any]]:
+    living = list(_LIVING_ROOM_ENTITIES)
+    lights = list(_LIVING_ROOM_LIGHTS)
+    ttl = _FOLLOWUP_DEFAULT_TTL_SECONDS
+    specs: list[_FollowUpSpec] = [
+        (
+            ["Turn on the floor lamp", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "on",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "light",
+                "state": "off",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            ["light.living_room_ceiling"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off the ceiling lights", "Turn it back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the ceiling lights",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "state": "off",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn it back on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            ["light.floor_lamp"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on the reading lamp", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the reading lamp",
+                "domain": "light",
+                "targets": ["reading lamp"],
+                "state": "on",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "light",
+                "state": "off",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            ["light.living_room_ceiling"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off the floor lamp", "Turn it back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "off",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn it back on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            ["light.living_room_ceiling"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on both living room lights", "Turn them off"],
+            {
+                "outcome": "action",
+                "intent": "turn on both living room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "Living Room"},
+                "state": "on",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "turn them off",
+                "domain": "light",
+                "state": "off",
+            },
+            living,
+            list(lights),
+            "valid_action",
+            True,
+            ["scene.movie_time"],
+            ttl,
+            None,
+        ),
+        (
+            ["Start movie time", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "start movie time",
+                "domain": "scene",
+                "targets": ["movie time"],
+                "state": "activate",
+            },
+            ["scene.movie_time"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "scene",
+                "state": "off",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+            ["light.floor_lamp"],
+            ttl,
+            None,
+        ),
+        (
+            ["Set the thermostat to seventy two", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "set the thermostat to seventy two",
+                "domain": "climate",
+                "targets": ["thermostat"],
+                "value": 72,
+            },
+            ["climate.downstairs"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "climate",
+                "state": "off",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+            ["light.living_room_ceiling"],
+            ttl,
+            None,
+        ),
+        (
+            ["Run bedtime in the primary bedroom", "Run it again"],
+            {
+                "outcome": "action",
+                "intent": "run bedtime in the primary bedroom",
+                "domain": "script",
+                "scope": {"kind": "named_area", "name": "Primary Bedroom"},
+                "targets": ["bedtime"],
+                "state": "activate",
+            },
+            ["script.good_night"],
+            {
+                "outcome": "action",
+                "intent": "run it again",
+                "domain": "script",
+                "state": "activate",
+            },
+            list(_ALL_ENTITIES),
+            ["script.good_night"],
+            "valid_action",
+            True,
+            ["light.floor_lamp"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on living room ceiling", "Turn that off"],
+            {
+                "outcome": "action",
+                "intent": "turn on living room ceiling",
+                "domain": "light",
+                "targets": ["living room ceiling"],
+                "state": "on",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn that off",
+                "domain": "light",
+                "state": "off",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            ["light.floor_lamp"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off the overhead lights", "Turn those back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the overhead lights",
+                "domain": "light",
+                "targets": ["overhead lights"],
+                "state": "off",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn those back on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            ["light.floor_lamp"],
+            ttl,
+            None,
+        ),
+        (
+            ["Dim the ceiling lights to fifty percent", "Turn it back on"],
+            {
+                "outcome": "action",
+                "intent": "dim the ceiling lights to fifty percent",
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "value": 50,
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn it back on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            ["light.floor_lamp"],
+            ttl,
+            None,
+        ),
+        (
+            ["Set the floor lamp brightness to seventy five", "Dim it to forty"],
+            {
+                "outcome": "action",
+                "intent": "set the floor lamp brightness to seventy five",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "value": 75,
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "dim it to forty",
+                "domain": "light",
+                "value": 40,
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            ["light.living_room_ceiling"],
+            ttl,
+            None,
+        ),
+        (
+            ["Toggle the floor lamp", "Toggle it again"],
+            {
+                "outcome": "action",
+                "intent": "toggle the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "toggle",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "toggle it again",
+                "domain": "light",
+                "state": "toggle",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            ["light.living_room_ceiling"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off the lights in here", "Turn them back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off the lights in here",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "state": "off",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "turn them back on",
+                "domain": "light",
+                "state": "on",
+            },
+            living,
+            list(lights),
+            "valid_action",
+            True,
+            ["climate.downstairs"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off lights in here except the floor lamp", "Turn it on"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights in here except the floor lamp",
+                "domain": "light",
+                "scope": {"kind": "current_area"},
+                "exclude": ["floor lamp"],
+                "state": "off",
+            },
+            ["light.living_room_ceiling"],
+            {
+                "outcome": "action",
+                "intent": "turn it on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.living_room_ceiling"],
+            "valid_action",
+            True,
+            ["light.floor_lamp"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on the ceiling lights and the floor lamp", "Turn them off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the ceiling lights and the floor lamp",
+                "domain": "light",
+                "targets": ["ceiling lights", "floor lamp"],
+                "state": "on",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "turn them off",
+                "domain": "light",
+                "state": "off",
+            },
+            living,
+            list(lights),
+            "valid_action",
+            True,
+            ["scene.movie_time"],
+            ttl,
+            None,
+        ),
+        (
+            ["Activate movie mode", "Turn that off"],
+            {
+                "outcome": "action",
+                "intent": "activate movie mode",
+                "domain": "scene",
+                "targets": ["movie mode"],
+                "state": "activate",
+            },
+            ["scene.movie_time"],
+            {
+                "outcome": "action",
+                "intent": "turn that off",
+                "domain": "scene",
+                "state": "off",
+            },
+            living,
+            ["scene.movie_time"],
+            "valid_action",
+            True,
+            ["light.living_room_ceiling"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on the hvac", "Turn it off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the hvac",
+                "domain": "climate",
+                "targets": ["hvac"],
+                "state": "on",
+            },
+            ["climate.downstairs"],
+            {
+                "outcome": "action",
+                "intent": "turn it off",
+                "domain": "climate",
+                "state": "off",
+            },
+            living,
+            ["climate.downstairs"],
+            "valid_action",
+            True,
+            ["light.floor_lamp"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off lounge lights", "Turn them on"],
+            {
+                "outcome": "action",
+                "intent": "turn off lounge lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "lounge"},
+                "state": "off",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "turn them on",
+                "domain": "light",
+                "state": "on",
+            },
+            living,
+            list(lights),
+            "valid_action",
+            True,
+            ["binary_sensor.front_door"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on family room lights", "Switch them off"],
+            {
+                "outcome": "action",
+                "intent": "turn on family room lights",
+                "domain": "light",
+                "scope": {"kind": "named_area", "name": "family room"},
+                "state": "on",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "switch them off",
+                "domain": "light",
+                "state": "off",
+            },
+            living,
+            list(lights),
+            "valid_action",
+            True,
+            ["climate.downstairs"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn off lights downstairs", "Turn them back on"],
+            {
+                "outcome": "action",
+                "intent": "turn off lights downstairs",
+                "domain": "light",
+                "scope": {"kind": "floor", "name": "downstairs"},
+                "state": "off",
+            },
+            list(lights),
+            {
+                "outcome": "action",
+                "intent": "turn them back on",
+                "domain": "light",
+                "state": "on",
+            },
+            list(_ALL_ENTITIES),
+            list(lights),
+            "valid_action",
+            True,
+            ["script.good_night"],
+            ttl,
+            None,
+        ),
+        (
+            ["Turn on the floor lamp", "Turn it back off"],
+            {
+                "outcome": "action",
+                "intent": "turn on the floor lamp",
+                "domain": "light",
+                "targets": ["floor lamp"],
+                "state": "on",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "turn it back off",
+                "domain": "light",
+                "state": "off",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            ["scene.movie_time"],
+            ttl,
+            None,
+        ),
+        (
+            ["Switch off the lamp", "Switch it back on"],
+            {
+                "outcome": "action",
+                "intent": "switch off the lamp",
+                "domain": "light",
+                "targets": ["lamp"],
+                "state": "off",
+            },
+            ["light.floor_lamp"],
+            {
+                "outcome": "action",
+                "intent": "switch it back on",
+                "domain": "light",
+                "state": "on",
+            },
+            lights,
+            ["light.floor_lamp"],
+            "valid_action",
+            True,
+            ["light.living_room_ceiling"],
+            ttl,
+            None,
+        ),
+    ]
+    return _cases_from_followup_specs("referent_change", specs)
+
+
+def author_followup_cases() -> list[dict[str, Any]]:
+    cases = [
+        *_author_active_followup_cases(),
+        *_author_ttl_expiry_cases(),
+        *_author_referent_change_cases(),
+    ]
+    if len(cases) != FOLLOWUP_CASE_COUNT:
+        msg = f"authored {len(cases)} cases, expected {FOLLOWUP_CASE_COUNT}"
+        raise RuntimeError(msg)
+    counts = Counter(case["category"] for case in cases)
+    if dict(counts) != FOLLOWUP_CATEGORY_COUNTS:
+        msg = f"authored category counts {dict(counts)} != {FOLLOWUP_CATEGORY_COUNTS}"
+        raise RuntimeError(msg)
+    parsed = [FollowUpEvalCase.model_validate(case) for case in cases]
+    validate_followup_corpus(parsed)
+    verify_follow_up_resolutions(parsed)
+    return cases
+
+
+def write_followup_dataset(path: Path | None = None) -> Path:
+    target = path or FOLLOWUP_DATASET_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    cases = author_followup_cases()
+    lines = [json.dumps(case, separators=(",", ":")) for case in cases]
+    target.write_text("\n".join(lines) + "\n")
+    return target
+
+
 if __name__ == "__main__":
     written = write_core_dataset()
     print(f"wrote {CORE_CASE_COUNT} cases to {written}")
@@ -5505,3 +7570,5 @@ if __name__ == "__main__":
     print(f"wrote {SAFETY_CASE_COUNT} cases to {safety_written}")
     noise_written = write_language_noise_dataset()
     print(f"wrote {LANGUAGE_NOISE_CASE_COUNT} cases to {noise_written}")
+    followup_written = write_followup_dataset()
+    print(f"wrote {FOLLOWUP_CASE_COUNT} cases to {followup_written}")
