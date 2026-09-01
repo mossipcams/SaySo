@@ -109,7 +109,8 @@ class SaySoConnectionCoordinator:
     ) -> None:
         self.hass = hass
         self.entry = entry
-        self.connected = False
+        self._connected = False
+        self._connection_listeners: list[Callable[[], None]] = []
         self._uses_injected_service_caller = service_caller is not None
         self._ws_connect = ws_connect or (
             lambda url, token: _default_ws_connect(hass, url, token)
@@ -136,6 +137,37 @@ class SaySoConnectionCoordinator:
         self._home_id = entry.entry_id
         self._options = get_entry_options(entry)
         self._unsubscribers: list[Callable[[], None]] = []
+
+    @property
+    def connected(self) -> bool:
+        return self._connected
+
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        if self._connected == value:
+            return
+        self._connected = value
+        self._notify_connection_listeners()
+
+    @callback
+    def async_add_connection_listener(
+        self,
+        update_callback: Callable[[], None],
+    ) -> Callable[[], None]:
+        """Subscribe to connection-state changes."""
+
+        self._connection_listeners.append(update_callback)
+
+        @callback
+        def remove_listener() -> None:
+            self._connection_listeners.remove(update_callback)
+
+        return remove_listener
+
+    @callback
+    def _notify_connection_listeners(self) -> None:
+        for listener in self._connection_listeners:
+            listener()
 
     @property
     def url(self) -> str:

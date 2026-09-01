@@ -6,6 +6,8 @@ from homeassistant.config_entries import ConfigEntry
 
 DOMAIN = "sayso"
 
+DEVICE_NAME = "SaySo Voice Assistant"
+
 CONF_URL = "url"
 CONF_TOKEN = "token"
 

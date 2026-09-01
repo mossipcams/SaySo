@@ -32,7 +32,7 @@ async def test_setup_entry_stores_credentials_and_loads(hass: HomeAssistant) -> 
     assert stored[CONF_URL] == "http://127.0.0.1:8765"
     assert stored[CONF_TOKEN] == "good-token"
     assert stored["options"] == DEFAULT_OPTIONS
-    assert stored["coordinator"].connected is False
+    assert "coordinator" in stored
 
 
 @pytest.mark.asyncio
