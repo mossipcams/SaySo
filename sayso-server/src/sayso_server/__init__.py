@@ -11,7 +11,7 @@ from sayso_server.api import API_VERSION, PROTOCOL_NAME
 from sayso_server.auth import bearer_token_valid
 from sayso_server.capability import CapabilityValidationError, validate_target_capabilities
 from sayso_server.candidates import CandidateRequest, ScoredCandidate, retrieve_candidates
-from sayso_server.const import TEXT_PATH, WS_PATH
+from sayso_server.const import READINESS_PATH, TEXT_PATH, WS_PATH
 from sayso_server.conversation import (
     ConversationReferent,
     ConversationStore,
@@ -56,6 +56,7 @@ from sayso_server.exclusions import (
 )
 from sayso_server.followups import FollowUpResolution, is_follow_up_intent, resolve_follow_up
 from sayso_server.resolver import resolve_entity_ids
+from sayso_server.readiness import ReadinessSnapshot, ReadinessState
 from sayso_server.ha_client import ActionRequest, ActionRequestClient, FakeHaClient, HaClient, ServiceCall
 from sayso_server.orchestrator import classify_action_results, execute_control_plan
 from sayso_server.queries import QueryOutcome, evaluate_query
@@ -136,6 +137,9 @@ __all__ = [
     "PROTOCOL_NAME",
     "QueryOutcome",
     "QueryPlan",
+    "READINESS_PATH",
+    "ReadinessSnapshot",
+    "ReadinessState",
     "ReferentKind",
     "SaySoEnvelope",
     "SatelliteConversationState",
