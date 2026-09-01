@@ -15,7 +15,13 @@ from sayso_server.auth import bearer_token_valid
 from sayso_server.const import AUDIO_PATH
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.satellites import SatelliteRegistry
-from sayso_server.text_api import ErrorResponseEnvelope
+from sayso_server.stt import SpeechToTextRuntime
+from sayso_server.text_api import (
+    ErrorResponseEnvelope,
+    TextController,
+    TextResponseEnvelope,
+    TextResponsePayload,
+)
 
 SAMPLE_RATE_HZ = 16_000
 CHANNELS = 1
@@ -95,6 +101,69 @@ class EchoAudioController:
         }
 
 
+class VoicePipelineController:
+    """Transcribe PCM, then run the same text controller path as POST /api/v1/text."""
+
+    def __init__(
+        self,
+        *,
+        stt_runtime: SpeechToTextRuntime,
+        text_controller: TextController,
+    ) -> None:
+        self._stt_runtime = stt_runtime
+        self._text_controller = text_controller
+
+    def _transcript_for(self, pcm: bytes) -> str:
+        self._stt_runtime.load()
+        return self._stt_runtime.transcribe(pcm).text
+
+    def handle(
+        self,
+        *,
+        satellite_id: str,
+        area_id: str,
+        sequence: int,
+        duration_ms: int,
+        pcm: bytes,
+        correlation_id: str,
+    ) -> dict[str, Any]:
+        del sequence, duration_ms
+        text = self._transcript_for(pcm)
+        return self._text_controller.handle(
+            satellite_id=satellite_id,
+            area_id=area_id,
+            text=text,
+            correlation_id=correlation_id,
+        )
+
+    async def handle_async(
+        self,
+        *,
+        satellite_id: str,
+        area_id: str,
+        sequence: int,
+        duration_ms: int,
+        pcm: bytes,
+        correlation_id: str,
+    ) -> dict[str, Any]:
+        del sequence, duration_ms
+        text = self._transcript_for(pcm)
+        handle_async = getattr(self._text_controller, "handle_async", None)
+        if handle_async is not None:
+            return await handle_async(
+                satellite_id=satellite_id,
+                area_id=area_id,
+                text=text,
+                correlation_id=correlation_id,
+            )
+        return self._text_controller.handle(
+            satellite_id=satellite_id,
+            area_id=area_id,
+            text=text,
+            correlation_id=correlation_id,
+        )
+
+
 def expected_pcm_byte_length(*, duration_ms: int, sample_rate_hz: int, channels: int) -> int:
     """Return the exact byte length for a PCM16 chunk."""
 
@@ -132,10 +201,23 @@ def create_audio_handler(
     satellite_registry: SatelliteRegistry,
     graph_store: HomeGraphStore,
     audio_controller: AudioController | None = None,
+    stt_runtime: SpeechToTextRuntime | None = None,
+    text_controller: TextController | None = None,
 ) -> web.RequestHandler:
     """Create the aiohttp handler for POST /api/v1/audio."""
 
-    controller = audio_controller or EchoAudioController()
+    if audio_controller is not None:
+        controller: AudioController | VoicePipelineController | None = audio_controller
+        response_mode = "audio_response"
+    elif stt_runtime is not None and text_controller is not None:
+        controller = VoicePipelineController(
+            stt_runtime=stt_runtime,
+            text_controller=text_controller,
+        )
+        response_mode = "text_response"
+    else:
+        controller = None
+        response_mode = "text_response"
 
     async def audio(request: web.Request) -> web.Response:
         if not bearer_token_valid(
@@ -187,20 +269,51 @@ def create_audio_handler(
             )
             return web.json_response(error.model_dump(mode="json"), status=400)
 
-        payload = controller.handle(
-            satellite_id=envelope.payload.satellite_id,
-            area_id=area_id,
-            sequence=envelope.payload.sequence,
-            duration_ms=envelope.payload.duration_ms,
-            pcm=pcm,
-            correlation_id=envelope.correlation_id,
-        )
-        response = AudioResponseEnvelope(
-            version=API_VERSION,
-            type="audio_response",
-            correlation_id=envelope.correlation_id,
-            payload=AudioResponsePayload.model_validate(payload),
-        )
+        if controller is None:
+            error = ErrorResponseEnvelope(
+                version=API_VERSION,
+                type="error",
+                correlation_id=envelope.correlation_id,
+                payload={
+                    "code": "not_configured",
+                    "message": "audio voice pipeline unavailable",
+                },
+            )
+            return web.json_response(error.model_dump(mode="json"), status=503)
+
+        handle_async = getattr(controller, "handle_async", None)
+        if handle_async is not None:
+            payload = await handle_async(
+                satellite_id=envelope.payload.satellite_id,
+                area_id=area_id,
+                sequence=envelope.payload.sequence,
+                duration_ms=envelope.payload.duration_ms,
+                pcm=pcm,
+                correlation_id=envelope.correlation_id,
+            )
+        else:
+            payload = controller.handle(
+                satellite_id=envelope.payload.satellite_id,
+                area_id=area_id,
+                sequence=envelope.payload.sequence,
+                duration_ms=envelope.payload.duration_ms,
+                pcm=pcm,
+                correlation_id=envelope.correlation_id,
+            )
+        if response_mode == "audio_response":
+            response = AudioResponseEnvelope(
+                version=API_VERSION,
+                type="audio_response",
+                correlation_id=envelope.correlation_id,
+                payload=AudioResponsePayload.model_validate(payload),
+            )
+        else:
+            response = TextResponseEnvelope(
+                version=API_VERSION,
+                type="text_response",
+                correlation_id=envelope.correlation_id,
+                payload=TextResponsePayload.model_validate(payload),
+            )
         return web.json_response(response.model_dump(mode="json"))
 
     return audio
@@ -225,6 +338,7 @@ __all__ = [
     "PCM_ENCODING",
     "SAMPLE_RATE_HZ",
     "CHANNELS",
+    "VoicePipelineController",
     "create_audio_handler",
     "expected_pcm_byte_length",
     "validate_pcm_payload",

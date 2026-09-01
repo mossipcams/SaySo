@@ -8,11 +8,10 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from sayso_server.audio_api import BYTES_PER_SAMPLE, CHANNELS, PCM_ENCODING, SAMPLE_RATE_HZ
-
-STT_SAMPLE_RATE_HZ = SAMPLE_RATE_HZ
-STT_CHANNELS = CHANNELS
-STT_PCM_ENCODING = PCM_ENCODING
+STT_SAMPLE_RATE_HZ = 16_000
+STT_CHANNELS = 1
+STT_PCM_ENCODING = "pcm_s16le"
+_BYTES_PER_SAMPLE = 2
 
 
 class SttMetadata(BaseModel):
@@ -63,6 +62,36 @@ class SpeechToTextRuntime(ABC):
         """Transcribe PCM16 mono audio into text and metrics."""
 
 
+class FakeSpeechToTextRuntime(SpeechToTextRuntime):
+    """Deterministic STT stand-in for tests and local wiring."""
+
+    def __init__(self, *, transcript: str = "turn off the floor lamp") -> None:
+        self.transcript = transcript
+        self.transcribe_calls: list[bytes] = []
+        self._loaded = False
+
+    def load(self) -> None:
+        self._loaded = True
+
+    def transcribe(
+        self,
+        pcm: bytes,
+        *,
+        sample_rate_hz: int = STT_SAMPLE_RATE_HZ,
+    ) -> TranscriptionResult:
+        if not self._loaded:
+            msg = "speech-to-text runtime must be loaded before transcribe"
+            raise RuntimeError(msg)
+        validate_pcm16_mono(pcm, sample_rate_hz=sample_rate_hz)
+        self.transcribe_calls.append(pcm)
+        return TranscriptionResult(
+            text=self.transcript,
+            latency_ms=0.0,
+            audio_duration_ms=pcm_duration_ms(pcm=pcm, sample_rate_hz=sample_rate_hz),
+            metadata=SttMetadata(model_id="fake", runtime="fake"),
+        )
+
+
 def validate_pcm16_mono(pcm: bytes, *, sample_rate_hz: int = STT_SAMPLE_RATE_HZ) -> None:
     """Validate PCM framing for the resident STT contract."""
 
@@ -72,14 +101,14 @@ def validate_pcm16_mono(pcm: bytes, *, sample_rate_hz: int = STT_SAMPLE_RATE_HZ)
     if len(pcm) == 0:
         msg = "pcm must not be empty"
         raise ValueError(msg)
-    if len(pcm) % BYTES_PER_SAMPLE != 0:
+    if len(pcm) % _BYTES_PER_SAMPLE != 0:
         msg = "pcm must contain whole 16-bit samples"
         raise ValueError(msg)
 
 
 def pcm_duration_ms(*, pcm: bytes, sample_rate_hz: int = STT_SAMPLE_RATE_HZ) -> int:
     validate_pcm16_mono(pcm, sample_rate_hz=sample_rate_hz)
-    sample_count = len(pcm) // BYTES_PER_SAMPLE
+    sample_count = len(pcm) // _BYTES_PER_SAMPLE
     return sample_count * 1000 // sample_rate_hz
 
 
@@ -116,6 +145,7 @@ __all__ = [
     "STT_CHANNELS",
     "STT_PCM_ENCODING",
     "STT_SAMPLE_RATE_HZ",
+    "FakeSpeechToTextRuntime",
     "SpeechToTextRuntime",
     "SttClipFixture",
     "SttMetadata",

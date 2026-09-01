@@ -14,7 +14,9 @@ from sayso_server.audio_api import create_audio_handler
 from sayso_server.const import AUDIO_PATH, READINESS_PATH, TEXT_PATH, TOKEN_ENV_VAR, WS_PATH
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.messages import MessageType
+from sayso_server.mlx_stt import MlxWhisperSttRuntime
 from sayso_server.satellites import SatelliteRegistry, register_default_satellites
+from sayso_server.stt import SpeechToTextRuntime
 from sayso_server.text_api import TextController, create_live_text_controller, create_text_handler
 from sayso_server.gateway import handle_ha_connection
 from sayso_server.health import HEALTH_PATH
@@ -146,6 +148,7 @@ def create_aiohttp_app(
     token: str,
     *,
     text_controller: TextController | None = None,
+    stt_runtime: SpeechToTextRuntime | None = None,
     satellite_registry: SatelliteRegistry | None = None,
     graph_store: HomeGraphStore | None = None,
     readiness: ReadinessState | None = None,
@@ -163,9 +166,11 @@ def create_aiohttp_app(
     controller = text_controller
     if controller is None:
         controller = create_live_text_controller(binding, graph_store=store)
+    stt = stt_runtime or MlxWhisperSttRuntime()
     app["satellite_registry"] = registry
     app["graph_store"] = store
     app["text_controller"] = controller
+    app["stt_runtime"] = stt
     app["readiness"] = readiness_state
     app["ha_gateway_binding"] = binding
 
@@ -233,6 +238,8 @@ def create_aiohttp_app(
             token=token,
             satellite_registry=registry,
             graph_store=store,
+            stt_runtime=stt,
+            text_controller=controller,
         ),
     )
     app.router.add_get(WS_PATH, websocket)

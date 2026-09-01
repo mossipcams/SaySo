@@ -21,6 +21,8 @@ from sayso_server.const import AUDIO_PATH
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.satellites import SatelliteRegistry
+from sayso_server.stt import FakeSpeechToTextRuntime
+from sayso_server.text_api import TextController, create_text_handler
 
 FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
 RECORDED_PCM = FIXTURES / "audio_pcm16_mono_16k.bin"
@@ -98,11 +100,13 @@ class RecordingAudioController:
 
 
 def _build_handler(
-    controller: RecordingAudioController,
+    controller: RecordingAudioController | None = None,
     *,
     satellite_id: str = "macbook",
     area_id: str = "area_living_room",
     with_graph: bool = True,
+    stt_runtime: FakeSpeechToTextRuntime | None = None,
+    text_controller: TextController | None = None,
 ):
     registry = SatelliteRegistry()
     registry.register(satellite_id, area_id)
@@ -114,6 +118,8 @@ def _build_handler(
         satellite_registry=registry,
         graph_store=graph_store,
         audio_controller=controller,
+        stt_runtime=stt_runtime,
+        text_controller=text_controller,
     )
 
 
@@ -282,37 +288,107 @@ async def test_odd_pcm_byte_length_is_rejected() -> None:
 
 
 @pytest.mark.asyncio
-async def test_recorded_fixture_round_trips_with_sequence_metadata() -> None:
-    controller = RecordingAudioController()
-    handler = _build_handler(controller)
+async def test_recorded_fixture_transcribes_then_runs_text_controller() -> None:
+    from sayso_server.test_text_api import RecordingTextController
+
+    transcript = "turn off the floor lamp"
+    stt = FakeSpeechToTextRuntime(transcript=transcript)
+    stt.load()
+    text_controller = RecordingTextController()
+    handler = _build_handler(stt_runtime=stt, text_controller=text_controller)
     original_pcm = RECORDED_PCM.read_bytes()
     status, body = await _post_audio(
         handler,
-        _audio_request(correlation_id="round-trip-1", sequence=3),
+        _audio_request(correlation_id="voice-pipeline-1", sequence=3),
     )
     assert status == 200
     assert body is not None
     assert body["version"] == API_VERSION
-    assert body["type"] == "audio_response"
-    assert body["correlation_id"] == "round-trip-1"
-    payload = body["payload"]
-    assert payload["sequence"] == 3
-    assert payload["duration_ms"] == RECORDED_DURATION_MS
-    assert payload["sample_rate_hz"] == SAMPLE_RATE_HZ
-    assert payload["channels"] == CHANNELS
-    assert payload["encoding"] == PCM_ENCODING
-    assert payload["byte_length"] == len(original_pcm)
-    assert base64.b64decode(payload["pcm_base64"]) == original_pcm
-    assert controller.calls == [
+    assert body["type"] == "text_response"
+    assert body["correlation_id"] == "voice-pipeline-1"
+    assert body["payload"]["category"] == "completed"
+    assert stt.transcribe_calls == [original_pcm]
+    assert text_controller.calls == [
         {
             "satellite_id": "macbook",
             "area_id": "area_living_room",
-            "sequence": 3,
-            "duration_ms": RECORDED_DURATION_MS,
-            "pcm": original_pcm,
-            "correlation_id": "round-trip-1",
+            "text": transcript,
+            "correlation_id": "voice-pipeline-1",
         },
     ]
+
+
+@pytest.mark.asyncio
+async def test_identical_transcript_via_text_and_audio_produces_same_outcome() -> None:
+    from sayso_server.ha_client import FakeHaClient
+    from sayso_server.runtime import FakeModelRuntime
+    from sayso_server.text_api import OrchestratorTextController
+
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    runtime = FakeModelRuntime()
+    runtime.load()
+    text_controller = OrchestratorTextController(
+        runtime=runtime,
+        ha_client=FakeHaClient(),
+        graph_store=graph_store,
+    )
+    transcript = "turn off the floor lamp"
+    stt = FakeSpeechToTextRuntime(transcript=transcript)
+    stt.load()
+
+    registry = SatelliteRegistry()
+    registry.register("macbook", "area_living_room")
+    text_handler = create_text_handler(
+        token="secret-token",
+        satellite_registry=registry,
+        graph_store=graph_store,
+        text_controller=text_controller,
+    )
+    audio_handler = create_audio_handler(
+        token="secret-token",
+        satellite_registry=registry,
+        graph_store=graph_store,
+        stt_runtime=stt,
+        text_controller=text_controller,
+    )
+
+    text_status, text_body = await _post_text_like(text_handler, transcript, "parity-text")
+    audio_status, audio_body = await _post_audio(
+        audio_handler,
+        _audio_request(correlation_id="parity-audio"),
+    )
+
+    assert text_status == 200
+    assert audio_status == 200
+    assert text_body is not None
+    assert audio_body is not None
+    assert text_body["type"] == "text_response"
+    assert audio_body["type"] == "text_response"
+    assert text_body["payload"]["category"] == audio_body["payload"]["category"]
+    assert text_body["payload"]["plan"] == audio_body["payload"]["plan"]
+
+
+async def _post_text_like(handler, text: str, correlation_id: str) -> tuple[int, dict[str, object] | None]:
+    body = {
+        "version": API_VERSION,
+        "type": "text",
+        "correlation_id": correlation_id,
+        "payload": {
+            "satellite_id": "macbook",
+            "text": text,
+        },
+    }
+    request = MagicMock()
+    header_values = {"Content-Type": "application/json", "Authorization": "Bearer secret-token"}
+    request.headers = MagicMock()
+    request.headers.get = lambda key, default=None: header_values.get(key, default)
+    request.text = AsyncMock(return_value=json.dumps(body))
+    response = await handler(request)
+    if response.body is None:
+        return response.status, None
+    payload = json.loads(response.text)
+    return response.status, payload
 
 
 def test_create_aiohttp_app_registers_audio_route() -> None:
