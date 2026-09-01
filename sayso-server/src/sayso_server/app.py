@@ -16,6 +16,7 @@ from sayso_server.graph_store import HomeGraphStore
 from sayso_server.mlx_stt import MlxWhisperSttRuntime
 from sayso_server.satellites import SatelliteRegistry, register_default_satellites
 from sayso_server.stt import SpeechToTextRuntime
+from sayso_server.runtime import ModelRuntime
 from sayso_server.text_api import TextController, create_live_text_controller, create_text_handler
 from sayso_server.gateway import handle_ha_connection
 from sayso_server.health import HEALTH_PATH
@@ -127,6 +128,7 @@ def create_aiohttp_app(
     token: str,
     *,
     text_controller: TextController | None = None,
+    model_runtime: ModelRuntime | None = None,
     stt_runtime: SpeechToTextRuntime | None = None,
     satellite_registry: SatelliteRegistry | None = None,
     graph_store: HomeGraphStore | None = None,
@@ -144,7 +146,11 @@ def create_aiohttp_app(
     binding = ha_gateway_binding if ha_gateway_binding is not None else HaGatewayBinding()
     controller = text_controller
     if controller is None:
-        controller = create_live_text_controller(binding, graph_store=store)
+        controller = create_live_text_controller(
+            binding,
+            graph_store=store,
+            runtime=model_runtime,
+        )
     stt = stt_runtime or MlxWhisperSttRuntime()
     app["satellite_registry"] = registry
     app["graph_store"] = store

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from sayso_server.app import MissingServerTokenError, create_aiohttp_app, load_server_token
@@ -15,6 +17,8 @@ from sayso_server.const import (
     WS_PATH,
 )
 from sayso_server.health import HEALTH_PATH
+from sayso_server.mlx_runtime import MODEL_ID_ENV_VAR, build_mlx_runtime_for_server, ensure_mlx_lm_available
+from sayso_server.runtime import FakeModelRuntime
 from sayso_server.text_api import OrchestratorTextController
 
 
@@ -46,3 +50,69 @@ def test_create_aiohttp_app_uses_default_live_wiring() -> None:
     registration = app["satellite_registry"].get(DEFAULT_SATELLITE_ID)
     assert registration is not None
     assert registration.area_id == DEFAULT_SATELLITE_AREA_ID
+    controller = app["text_controller"]
+    assert isinstance(controller, OrchestratorTextController)
+    assert isinstance(controller._runtime, FakeModelRuntime)
+
+
+def test_create_aiohttp_app_accepts_injected_model_runtime() -> None:
+    runtime = FakeModelRuntime(model_id="injected")
+    runtime.load()
+    app = create_aiohttp_app("secret-token", model_runtime=runtime)
+    controller = app["text_controller"]
+    assert isinstance(controller, OrchestratorTextController)
+    assert controller._runtime is runtime
+
+
+def test_ensure_mlx_lm_available_raises_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name: str, *args: object, **kwargs: object) -> object:
+        if name == "mlx_lm" or name.startswith("mlx_lm."):
+            msg = "No module named 'mlx_lm'"
+            raise ModuleNotFoundError(msg)
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    with pytest.raises(RuntimeError, match="mlx-lm"):
+        ensure_mlx_lm_available()
+
+
+def test_build_mlx_runtime_for_server_uses_env_model_id() -> None:
+    from sayso_server.mlx_runtime import MlxLoadedModel
+
+    load_calls: list[str] = []
+
+    def fake_loader(model_id: str) -> MlxLoadedModel:
+        load_calls.append(model_id)
+        return MlxLoadedModel(model=object(), tokenizer=object())
+
+    with patch("sayso_server.mlx_runtime.ensure_mlx_lm_available"):
+        runtime = build_mlx_runtime_for_server(
+            environ={MODEL_ID_ENV_VAR: "custom/model"},
+            loader=fake_loader,
+        )
+
+    assert runtime._model_id == "custom/model"
+    assert load_calls == ["custom/model"]
+
+
+def test_main_wires_mlx_runtime_for_live_controller(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(TOKEN_ENV_VAR, "secret-token")
+
+    runtime = FakeModelRuntime(model_id="mlx-wired")
+    runtime.load()
+
+    from sayso_server.__main__ import main
+
+    with patch("sayso_server.__main__.build_mlx_runtime_for_server", return_value=runtime):
+        with patch("sayso_server.__main__.web.run_app") as run_app:
+            main()
+
+    controller = run_app.call_args.args[0]["text_controller"]
+    assert isinstance(controller, OrchestratorTextController)
+    assert controller._runtime is runtime
