@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
+from pathlib import Path
 from typing import Protocol
 
 SAMPLE_RATE_HZ = 16_000
@@ -21,6 +22,17 @@ def pcm_duration_ms(*, byte_length: int) -> int:
     """Return duration in milliseconds for a PCM16 byte buffer."""
 
     return byte_length * 1000 // (SAMPLE_RATE_HZ * CHANNELS * BYTES_PER_SAMPLE)
+
+
+def read_pcm16_file(path: Path | str) -> bytes:
+    """Read raw 16 kHz mono PCM16 bytes from ``path``."""
+
+    pcm = Path(path).read_bytes()
+    if not pcm:
+        raise ValueError("PCM file is empty")
+    if len(pcm) % BYTES_PER_SAMPLE != 0:
+        raise ValueError("PCM byte length must be even")
+    return pcm
 
 
 class MicSource(Protocol):

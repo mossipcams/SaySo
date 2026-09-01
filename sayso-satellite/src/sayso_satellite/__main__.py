@@ -2,25 +2,53 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 from collections.abc import Callable
 from typing import Any
 
-from sayso_satellite.client import send_text
+from sayso_satellite.capture import read_pcm16_file
+from sayso_satellite.client import send_audio, send_text
 from sayso_satellite.response import render_text_response_payload
 
 
-def main() -> None:
-    if len(sys.argv) < 2:
-        print("usage: python -m sayso_satellite <text>", file=sys.stderr)
-        raise SystemExit(2)
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="sayso_satellite")
+    parser.add_argument(
+        "--audio-file",
+        dest="audio_file",
+        metavar="PATH",
+        help="Send raw 16 kHz mono PCM16 from PATH",
+    )
+    parser.add_argument(
+        "text",
+        nargs="*",
+        help="Text to send when not using --audio-file",
+    )
+    return parser
 
-    text = " ".join(sys.argv[1:])
-    try:
-        status, body = send_text(text)
-    except RuntimeError as exc:
-        print(str(exc), file=sys.stderr)
-        raise SystemExit(1) from exc
+
+def main(argv: list[str] | None = None) -> None:
+    parser = _build_parser()
+    args = parser.parse_args(argv[1:] if argv is not None else None)
+
+    if args.audio_file:
+        try:
+            pcm = read_pcm16_file(args.audio_file)
+            status, body = send_audio(pcm)
+        except (OSError, ValueError, RuntimeError) as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(1) from exc
+    else:
+        if not args.text:
+            parser.print_usage(file=sys.stderr)
+            raise SystemExit(2)
+        text = " ".join(args.text)
+        try:
+            status, body = send_text(text)
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(1) from exc
 
     if body is not None:
         print_response_body(body)

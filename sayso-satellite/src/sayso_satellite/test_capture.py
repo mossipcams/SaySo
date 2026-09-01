@@ -16,6 +16,7 @@ from sayso_satellite.capture import (
     SAMPLE_RATE_HZ,
     expected_pcm_byte_length,
     pcm_duration_ms,
+    read_pcm16_file,
 )
 
 FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
@@ -113,3 +114,23 @@ def test_end_without_begin_raises() -> None:
     capture = PushToTalkCapture(pre_roll_ms=20)
     with pytest.raises(RuntimeError, match="not active"):
         capture.end()
+
+
+def test_read_pcm16_file_reads_fixture() -> None:
+    pcm = read_pcm16_file(RECORDED_PCM)
+    assert pcm == RECORDED_PCM.read_bytes()
+    assert len(pcm) % BYTES_PER_SAMPLE == 0
+
+
+def test_read_pcm16_file_rejects_empty(tmp_path: Path) -> None:
+    empty = tmp_path / "empty.bin"
+    empty.write_bytes(b"")
+    with pytest.raises(ValueError, match="empty"):
+        read_pcm16_file(empty)
+
+
+def test_read_pcm16_file_rejects_odd_byte_length(tmp_path: Path) -> None:
+    odd = tmp_path / "odd.bin"
+    odd.write_bytes(b"\x00\x01\x02")
+    with pytest.raises(ValueError, match="even"):
+        read_pcm16_file(odd)
