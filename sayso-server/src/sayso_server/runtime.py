@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -23,7 +24,19 @@ from sayso_server.parser import parse_model_output
 from sayso_server.prompt import PromptOrigin, build_lfm_prompt
 from sayso_server.scoring import lookup_origin
 
+_logger = logging.getLogger(__name__)
+
 ValidatedPlan = ActionPlan | QueryPlan | ClarificationPlan | UnsupportedPlan | NoActionPlan
+
+
+def parse_lfm_prompt_payload(prompt: str) -> dict[str, object]:
+    """Parse the JSON payload from a built LFM prompt."""
+    json_start = prompt.index("{")
+    loaded = json.loads(prompt[json_start:])
+    if not isinstance(loaded, dict):
+        msg = "LFM prompt payload must be a JSON object"
+        raise TypeError(msg)
+    return loaded
 
 
 class ModelMetadata(BaseModel):
@@ -96,6 +109,7 @@ def compose_plan_generation(
         areas=snapshot.areas,
     )
     raw = runtime.generate(prompt)
+    _logger.info("raw model sample: %s", raw.text)
     plan = parse_model_output(raw.text, intent=text)
     return PlanGenerationResult(
         plan=plan,
@@ -130,7 +144,7 @@ class FakeModelRuntime(ModelRuntime):
             raise RuntimeError(msg)
 
         started = self._clock()
-        payload = json.loads(prompt)
+        payload = parse_lfm_prompt_payload(prompt)
         user_text = payload["user_text"]
         raw_text = json.dumps(
             {

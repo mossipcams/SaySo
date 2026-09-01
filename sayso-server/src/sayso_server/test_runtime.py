@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
+import pytest
+
 from sayso_server.control_plan import ControlPlan, NoActionPlan
+from sayso_server.conversation import SatelliteConversationState
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.parser import parse_model_output
+from sayso_server.prompt import PromptOrigin, build_lfm_prompt
 from sayso_server.runtime import (
     FakeModelRuntime,
     ModelRuntime,
@@ -64,6 +69,24 @@ def test_generate_requires_load() -> None:
         raise AssertionError("expected RuntimeError when generate called before load")
 
 
+def test_fake_runtime_parses_json_from_first_brace_in_prefixed_prompt() -> None:
+    graph = _load_graph()
+    lamp = next(entity for entity in graph.entities if entity.name == "Floor Lamp")
+    prompt = build_lfm_prompt(
+        user_text="turn off the lamp",
+        origin=PromptOrigin(satellite_id="sat-1", area_name="Living Room"),
+        conversation=SatelliteConversationState(),
+        candidates=[lamp],
+        areas=graph.areas,
+    )
+
+    result = _use_runtime(FakeModelRuntime(), prompt)
+
+    plan = parse_model_output(result.text, intent="turn off the lamp")
+    assert plan.outcome == "query"
+    assert plan.intent == "turn off the lamp"
+
+
 def test_compose_plan_generation_includes_candidates_in_prompt() -> None:
     graph = _load_graph()
     runtime = FakeModelRuntime()
@@ -80,6 +103,33 @@ def test_compose_plan_generation_includes_candidates_in_prompt() -> None:
     assert result.plan.outcome == "query"
     assert result.plan.intent == "turn off the floor lamp"
     assert result.metadata.runtime == "fake"
+
+
+def test_compose_plan_generation_logs_raw_model_sample(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    graph = _load_graph()
+    runtime = FakeModelRuntime()
+    runtime.load()
+
+    with caplog.at_level(logging.INFO, logger="sayso_server.runtime"):
+        result = compose_plan_generation(
+            runtime=runtime,
+            snapshot=graph,
+            satellite_id="macbook",
+            area_id="area_living_room",
+            text="turn off the floor lamp",
+        )
+
+    assert result.plan.outcome == "query"
+    raw_samples = [
+        record.message
+        for record in caplog.records
+        if record.message.startswith("raw model sample:")
+    ]
+    assert len(raw_samples) == 1
+    assert "turn off the floor lamp" in raw_samples[0]
+    assert "turn off the floor lamp" not in caplog.text.split("raw model sample:")[0]
 
 
 def test_compose_plan_generation_invalid_model_output_stays_invalid() -> None:

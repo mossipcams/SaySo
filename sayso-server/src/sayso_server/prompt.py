@@ -14,6 +14,11 @@ from sayso_server.home_graph import Area, Entity, Scene, Script
 
 CandidateItem = Entity | Scene | Script
 
+GENERATION_INSTRUCTION = (
+    "Reply with only one ControlPlan JSON object that matches control_plan_schema. "
+    "No prose, explanation, or markdown."
+)
+
 
 class PromptOrigin(BaseModel):
     satellite_id: str = Field(min_length=1)
@@ -53,7 +58,7 @@ def build_lfm_prompt(
         "control_plan_schema": control_plan_schema,
         "user_text": user_text,
     }
-    return json.dumps(payload, indent=2, sort_keys=True)
+    return f"{GENERATION_INSTRUCTION}\n{json.dumps(payload, indent=2, sort_keys=True)}"
 
 
 def _serialize_conversation(

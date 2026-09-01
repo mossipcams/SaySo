@@ -435,7 +435,12 @@ async def test_valid_request_returns_text_response_envelope() -> None:
 
 def test_orchestrator_text_controller_composes_candidates_prompt_and_parse() -> None:
     from sayso_server.ha_client import FakeHaClient
-    from sayso_server.runtime import ModelMetadata, ModelRuntime, RawGenerationResult
+    from sayso_server.runtime import (
+        ModelMetadata,
+        ModelRuntime,
+        RawGenerationResult,
+        parse_lfm_prompt_payload,
+    )
     from sayso_server.text_api import OrchestratorTextController
 
     graph = _load_graph()
@@ -452,7 +457,7 @@ def test_orchestrator_text_controller_composes_candidates_prompt_and_parse() -> 
 
         def generate(self, prompt: str) -> RawGenerationResult:
             self.prompts.append(prompt)
-            payload = json.loads(prompt)
+            payload = parse_lfm_prompt_payload(prompt)
             user_text = payload["user_text"]
             return RawGenerationResult(
                 text=json.dumps(
@@ -501,13 +506,17 @@ class _ActionPlanRuntime:
         self._loaded = True
 
     def generate(self, prompt: str) -> object:
-        from sayso_server.runtime import ModelMetadata, RawGenerationResult
+        from sayso_server.runtime import (
+            ModelMetadata,
+            RawGenerationResult,
+            parse_lfm_prompt_payload,
+        )
 
         if not self._loaded:
             msg = "model runtime must be loaded before generate"
             raise RuntimeError(msg)
 
-        payload = json.loads(prompt)
+        payload = parse_lfm_prompt_payload(prompt)
         user_text = payload["user_text"]
         return RawGenerationResult(
             text=json.dumps(

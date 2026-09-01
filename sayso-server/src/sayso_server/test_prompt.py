@@ -7,7 +7,7 @@ from sayso_server.conversation import LastIntent, LastTarget, SatelliteConversat
 from sayso_server.control_plan import ControlPlan
 from sayso_server.home_graph import Area, Entity, HomeGraphSnapshot, Scene, Script
 from sayso_server.models import ENTITY_ID_PATTERN
-from sayso_server.prompt import PromptOrigin, build_lfm_prompt
+from sayso_server.prompt import GENERATION_INSTRUCTION, PromptOrigin, build_lfm_prompt
 
 FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
 
@@ -15,6 +15,27 @@ FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
 def _load_graph() -> HomeGraphSnapshot:
     data = json.loads((FIXTURES / "home_graph.json").read_text())
     return HomeGraphSnapshot.model_validate(data)
+
+
+def test_prompt_includes_json_only_generation_instruction() -> None:
+    graph = _load_graph()
+    lamp = next(entity for entity in graph.entities if entity.name == "Floor Lamp")
+
+    prompt = build_lfm_prompt(
+        user_text="Turn off the lamp",
+        origin=PromptOrigin(satellite_id="sat-1", area_name="Living Room"),
+        conversation=SatelliteConversationState(),
+        candidates=[lamp],
+        areas=graph.areas,
+    )
+
+    assert prompt.startswith(GENERATION_INSTRUCTION)
+    assert prompt[len(GENERATION_INSTRUCTION) :].startswith("\n")
+
+    payload = json.loads(prompt[prompt.index("{") :])
+    assert "generation_instruction" not in payload
+    assert "ControlPlan JSON" in GENERATION_INSTRUCTION
+    assert "No prose" in GENERATION_INSTRUCTION
 
 
 def test_prompt_includes_schema_origin_state_candidates_and_user_text() -> None:
