@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
+from typing import Any
 
 from sayso_satellite.client import send_text
+from sayso_satellite.response import render_text_response_payload
 
 
 def main() -> None:
@@ -20,9 +23,23 @@ def main() -> None:
         raise SystemExit(1) from exc
 
     if body is not None:
-        print(json_dumps(body))
+        print_response_body(body)
     if status >= 400:
         raise SystemExit(1)
+
+
+def print_response_body(
+    body: dict[str, Any],
+    *,
+    sink: Callable[[str], None] | None = None,
+) -> None:
+    """Print a text_response via response policy, otherwise dump JSON."""
+
+    if body.get("type") == "text_response" and isinstance(body.get("payload"), dict):
+        render_text_response_payload(body["payload"], sink=sink)
+        return
+    writer = sink or print
+    writer(json_dumps(body))
 
 
 def json_dumps(value: object) -> str:
