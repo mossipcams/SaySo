@@ -9,6 +9,7 @@ from sayso_server.ambiguity import (
 )
 from sayso_server.api import API_VERSION, PROTOCOL_NAME
 from sayso_server.auth import bearer_token_valid
+from sayso_server.capability import CapabilityValidationError, validate_target_capabilities
 from sayso_server.candidates import CandidateRequest, ScoredCandidate, retrieve_candidates
 from sayso_server.const import WS_PATH
 from sayso_server.conversation import (
@@ -68,6 +69,7 @@ __all__ = [
     "CapabilityKind",
     "CandidateRequest",
     "CandidateSelection",
+    "CapabilityValidationError",
     "ClarificationPlan",
     "ControlPlan",
     "DEFAULT_AMBIGUITY_MARGIN",
@@ -122,5 +124,6 @@ __all__ = [
     "resolve_names_in_scope",
     "retrieve_candidates",
     "sayso_api_v1_json_schema",
+    "validate_target_capabilities",
 ]
 __version__ = "0.1.0"
