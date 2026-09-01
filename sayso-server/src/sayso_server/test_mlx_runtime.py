@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 
 from sayso_server.mlx_runtime import DEFAULT_MLX_MODEL_ID, MlxLoadedModel, MlxModelRuntime
-from sayso_server.runtime import PlanGenerationResult
+from sayso_server.parser import parse_model_output
+from sayso_server.runtime import RawGenerationResult
 
 
 def _valid_plan_json(intent: str) -> str:
@@ -30,8 +31,8 @@ def test_mlx_runtime_loads_once_for_two_generations() -> None:
 
     runtime = MlxModelRuntime(loader=fake_loader, generate_fn=fake_generate)
     runtime.load()
-    runtime.generate_plan("turn off the living room lights")
-    runtime.generate_plan("turn on the kitchen light")
+    runtime.generate("turn off the living room lights")
+    runtime.generate("turn on the kitchen light")
 
     assert load_calls == [DEFAULT_MLX_MODEL_ID]
 
@@ -45,9 +46,10 @@ def test_mlx_runtime_emits_warm_metrics_after_load() -> None:
 
     runtime = MlxModelRuntime(loader=fake_loader, generate_fn=fake_generate)
     runtime.load()
-    result = runtime.generate_plan("check if any lights are on")
+    result = runtime.generate("check if any lights are on")
+    plan = parse_model_output(result.text, intent="check if any lights are on")
 
-    assert isinstance(result, PlanGenerationResult)
+    assert isinstance(result, RawGenerationResult)
     assert result.metadata.model_id == DEFAULT_MLX_MODEL_ID
     assert result.metadata.runtime == "mlx"
     assert result.metadata.warm is True
@@ -55,6 +57,7 @@ def test_mlx_runtime_emits_warm_metrics_after_load() -> None:
     assert result.prompt_tokens == 4
     assert result.completion_tokens == 2
     assert result.latency_ms >= 0
+    assert plan.outcome == "query"
 
 
 def test_mlx_runtime_latency_excludes_load_time() -> None:
@@ -75,7 +78,7 @@ def test_mlx_runtime_latency_excludes_load_time() -> None:
         clock=fake_clock,
     )
     runtime.load()
-    result = runtime.generate_plan("hello")
+    result = runtime.generate("hello")
 
     assert result.latency_ms == 500.0
 
@@ -87,8 +90,8 @@ def test_mlx_runtime_generate_requires_load() -> None:
     )
 
     try:
-        runtime.generate_plan("hello")
+        runtime.generate("hello")
     except RuntimeError as exc:
         assert "load" in str(exc).lower()
     else:
-        raise AssertionError("expected RuntimeError when generate_plan called before load")
+        raise AssertionError("expected RuntimeError when generate called before load")

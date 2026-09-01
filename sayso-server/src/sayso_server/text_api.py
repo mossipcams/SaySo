@@ -16,7 +16,7 @@ from sayso_server.conversation import ConversationStore
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.ha_client import ActionRequestClient
 from sayso_server.orchestrator import execute_control_plan, execute_control_plan_async
-from sayso_server.runtime import FakeModelRuntime, ModelRuntime
+from sayso_server.runtime import FakeModelRuntime, ModelRuntime, compose_plan_generation
 from sayso_server.satellites import SatelliteRegistry
 from sayso_server.telemetry import InteractionTelemetry, TelemetrySink
 
@@ -102,8 +102,20 @@ class OrchestratorTextController:
             satellite_id=satellite_id,
             area_id=area_id,
         )
+        conversation = (
+            self._conversation_store.get_state(satellite_id)
+            if self._conversation_store is not None
+            else None
+        )
         with telemetry.time_stage("plan"):
-            generation = self._runtime.generate_plan(text)
+            generation = compose_plan_generation(
+                runtime=self._runtime,
+                snapshot=snapshot,
+                satellite_id=satellite_id,
+                area_id=area_id,
+                text=text,
+                conversation=conversation,
+            )
         telemetry.set_model_from_generation(generation)
         outcome = execute_control_plan(
             generation.plan,
@@ -154,8 +166,20 @@ class OrchestratorTextController:
             satellite_id=satellite_id,
             area_id=area_id,
         )
+        conversation = (
+            self._conversation_store.get_state(satellite_id)
+            if self._conversation_store is not None
+            else None
+        )
         with telemetry.time_stage("plan"):
-            generation = self._runtime.generate_plan(text)
+            generation = compose_plan_generation(
+                runtime=self._runtime,
+                snapshot=snapshot,
+                satellite_id=satellite_id,
+                area_id=area_id,
+                text=text,
+                conversation=conversation,
+            )
         telemetry.set_model_from_generation(generation)
         execute = (
             execute_control_plan_async

@@ -405,3 +405,61 @@ async def test_valid_request_returns_text_response_envelope() -> None:
             "correlation_id": "corr-ok",
         },
     ]
+
+
+def test_orchestrator_text_controller_composes_candidates_prompt_and_parse() -> None:
+    from sayso_server.ha_client import FakeHaClient
+    from sayso_server.runtime import ModelMetadata, ModelRuntime, RawGenerationResult
+    from sayso_server.text_api import OrchestratorTextController
+
+    graph = _load_graph()
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(graph)
+
+    class RecordingRuntime(ModelRuntime):
+        def __init__(self) -> None:
+            self.prompts: list[str] = []
+            self._loaded = False
+
+        def load(self) -> None:
+            self._loaded = True
+
+        def generate(self, prompt: str) -> RawGenerationResult:
+            self.prompts.append(prompt)
+            payload = json.loads(prompt)
+            user_text = payload["user_text"]
+            return RawGenerationResult(
+                text=json.dumps(
+                    {
+                        "outcome": "query",
+                        "intent": user_text,
+                        "domain": "light",
+                    }
+                ),
+                prompt_tokens=10,
+                completion_tokens=2,
+                latency_ms=1.0,
+                metadata=ModelMetadata(model_id="recording", runtime="fake"),
+            )
+
+    runtime = RecordingRuntime()
+    runtime.load()
+    controller = OrchestratorTextController(
+        runtime=runtime,
+        ha_client=FakeHaClient(),
+        graph_store=graph_store,
+    )
+
+    result = controller.handle(
+        satellite_id="macbook",
+        area_id="area_living_room",
+        text="turn off the floor lamp",
+        correlation_id="compose-1",
+    )
+
+    assert runtime.prompts
+    prompt = runtime.prompts[0]
+    assert "turn off the floor lamp" in prompt
+    assert "Floor Lamp" in prompt
+    assert "category" in result
+    assert "plan" in result

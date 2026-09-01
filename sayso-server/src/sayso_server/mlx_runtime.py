@@ -6,8 +6,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from sayso_server.parser import parse_model_output
-from sayso_server.runtime import ModelMetadata, ModelRuntime, PlanGenerationResult
+from sayso_server.runtime import ModelMetadata, ModelRuntime, RawGenerationResult
 
 DEFAULT_MLX_MODEL_ID = "mlx-community/LFM2.5-230M-OptiQ-4bit"
 
@@ -78,18 +77,17 @@ class MlxModelRuntime(ModelRuntime):
         self._loaded = self._loader(self._model_id)
         self._clock()
 
-    def generate_plan(self, text: str) -> PlanGenerationResult:
+    def generate(self, prompt: str) -> RawGenerationResult:
         if self._loaded is None:
-            msg = "model runtime must be loaded before generate_plan"
+            msg = "model runtime must be loaded before generate"
             raise RuntimeError(msg)
 
         started = self._clock()
-        raw_output, prompt_tokens, completion_tokens = self._generate_fn(self._loaded, text)
+        raw_output, prompt_tokens, completion_tokens = self._generate_fn(self._loaded, prompt)
         elapsed_ms = max(0.0, (self._clock() - started) * 1000.0)
-        plan = parse_model_output(raw_output, intent=text)
 
-        return PlanGenerationResult(
-            plan=plan,
+        return RawGenerationResult(
+            text=raw_output,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             latency_ms=elapsed_ms,
