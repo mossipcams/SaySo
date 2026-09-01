@@ -14,6 +14,7 @@ from sayso_server.envelope import SaySoEnvelope
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.messages import MessageType
+from sayso_server.results import ActionResultStatus
 from sayso_server.session import HaSession
 
 
@@ -76,7 +77,13 @@ async def handle_ha_connection(
 
 async def _process_graph_messages(ws: GatewayWebSocket, session: HaSession) -> None:
     while not ws.closed:
-        raw = await ws.receive_str()
+        for outbound in session.drain_outbound():
+            await ws.send_str(outbound)
+
+        try:
+            raw = await asyncio.wait_for(ws.receive_str(), timeout=0.05)
+        except asyncio.TimeoutError:
+            continue
         if raw is None:
             return
 
@@ -95,3 +102,33 @@ async def _process_graph_messages(ws: GatewayWebSocket, session: HaSession) -> N
             session.graph.apply_state_delta(envelope.payload)
         elif envelope.type == MessageType.REGISTRY_DELTA:
             session.graph.apply_registry_delta(envelope.payload)
+        elif envelope.type == MessageType.ACTION_RESULT:
+            _record_action_result(session, envelope.payload)
+
+
+async def _receive_or_idle(ws: GatewayWebSocket) -> str | None:
+    """Wait for inbound text or briefly idle so queued outbound can flush."""
+    try:
+        return await asyncio.wait_for(ws.receive_str(), timeout=0.05)
+    except asyncio.TimeoutError:
+        return None
+
+
+def _record_action_result(session: HaSession, payload: dict[str, object]) -> None:
+    request_id = payload.get("request_id")
+    status = payload.get("status")
+    if not isinstance(request_id, str) or not request_id:
+        return
+    if not isinstance(status, str):
+        return
+    try:
+        parsed_status = ActionResultStatus(status)
+    except ValueError:
+        return
+    reason = payload.get("reason")
+    parsed_reason = reason if isinstance(reason, str) else None
+    session.record_action_result(
+        request_id=request_id,
+        status=parsed_status,
+        reason=parsed_reason,
+    )

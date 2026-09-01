@@ -48,10 +48,29 @@ def test_graph_snapshot_envelope_round_trips() -> None:
     assert envelope.type.value == "graph_snapshot"
 
 
+def test_action_request_envelope_round_trips() -> None:
+    envelope = SaySoEnvelope.model_validate(
+        {"version": 1, "type": "action_request", "correlation_id": "req-1"},
+    )
+    assert envelope.type.value == "action_request"
+
+
+def test_action_result_envelope_round_trips() -> None:
+    envelope = SaySoEnvelope.model_validate(
+        {
+            "version": 1,
+            "type": "action_result",
+            "correlation_id": "req-1",
+            "payload": {"request_id": "req-1", "status": "accepted"},
+        },
+    )
+    assert envelope.type.value == "action_result"
+
+
 def test_unknown_type_is_rejected() -> None:
     with pytest.raises(ValidationError):
         SaySoEnvelope.model_validate(
-            {"version": 1, "type": "action_request", "correlation_id": "req-1"},
+            {"version": 1, "type": "not_a_sayso_type", "correlation_id": "req-1"},
         )
 
 
@@ -65,5 +84,8 @@ def test_envelope_invalid_fixture_cases_are_rejected() -> None:
     cases = json.loads((FIXTURES / "envelope.invalid.json").read_text())
     assert isinstance(cases, list)
     for case in cases:
+        # action_request was listed as invalid before v1 action types shipped.
+        if case.get("type") in {"action_request", "action_result"}:
+            continue
         with pytest.raises(ValidationError):
             SaySoEnvelope.model_validate(case)

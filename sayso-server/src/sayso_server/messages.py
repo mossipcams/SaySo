@@ -14,6 +14,8 @@ class MessageType(StrEnum):
     GRAPH_SNAPSHOT = "graph_snapshot"
     STATE_DELTA = "state_delta"
     REGISTRY_DELTA = "registry_delta"
+    ACTION_REQUEST = "action_request"
+    ACTION_RESULT = "action_result"
 
 
 MESSAGE_TYPES_V1: frozenset[str] = frozenset(member.value for member in MessageType)
