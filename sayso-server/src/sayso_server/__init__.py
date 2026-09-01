@@ -40,6 +40,12 @@ from sayso_server.normalize import normalize_tokens
 from sayso_server.parser import parse_model_output
 from sayso_server.prompt import PromptOrigin, build_lfm_prompt
 from sayso_server.protocol import parse_envelope, parse_envelope_json
+from sayso_server.exclusions import (
+    apply_inclusions_exclusions,
+    filter_entity_ids_by_domain,
+    matches_semantic_name,
+    resolve_names_in_scope,
+)
 from sayso_server.resolver import resolve_entity_ids
 from sayso_server.runtime import FakeModelRuntime, ModelMetadata, ModelRuntime, PlanGenerationResult
 from sayso_server.scope import expand_scope
@@ -91,12 +97,16 @@ __all__ = [
     "__version__",
     "build_lfm_prompt",
     "control_plan_json_schema",
+    "apply_inclusions_exclusions",
     "expand_scope",
+    "filter_entity_ids_by_domain",
+    "matches_semantic_name",
     "normalize_tokens",
     "parse_envelope",
     "parse_envelope_json",
     "parse_model_output",
     "resolve_entity_ids",
+    "resolve_names_in_scope",
     "retrieve_candidates",
     "sayso_api_v1_json_schema",
 ]
