@@ -15,8 +15,11 @@ from custom_components.sayso.const import (
     CONF_TOKEN,
     CONF_URL,
     DOMAIN,
+    HA_WS_MAX_MSG_SIZE,
+    HELLO_ACK_TIMEOUT,
     RECONNECT_INITIAL_DELAY,
     RECONNECT_MAX_DELAY,
+    WS_CONNECT_TIMEOUT,
     WS_PATH,
 )
 from custom_components.sayso.conftest import FakeWebSocket
@@ -374,6 +377,114 @@ async def test_hello_ack_requires_wsmsgtype_not_string_type(
         pytest.fail("hello_ack not recognized — message.type may be compared to strings")
 
     await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_connection_failure_logs_warning_with_exception(
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        msg = "server unreachable"
+        raise ConnectionError(msg)
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    with caplog.at_level("WARNING", logger="custom_components.sayso.coordinator"):
+        await coordinator.async_start()
+        await asyncio.sleep(0.05)
+        await coordinator.async_stop()
+
+    assert any(
+        "SaySo connection failed" in record.message and record.exc_info is not None
+        for record in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+async def test_default_ws_connect_uses_large_max_msg_size(
+    hass: HomeAssistant,
+) -> None:
+    from unittest.mock import MagicMock
+
+    shared_session = MagicMock()
+    shared_session.ws_connect = AsyncMock(return_value=FakeWebSocket())
+
+    with patch(
+        "custom_components.sayso.coordinator.async_get_clientsession",
+        return_value=shared_session,
+    ):
+        await _real_default_ws_connect(hass, f"ws://127.0.0.1:8765{WS_PATH}", "token")
+
+    shared_session.ws_connect.assert_called_once_with(
+        f"ws://127.0.0.1:8765{WS_PATH}",
+        headers={"Authorization": "Bearer token"},
+        max_msg_size=HA_WS_MAX_MSG_SIZE,
+    )
+
+
+@pytest.mark.asyncio
+async def test_connect_once_uses_bounded_ws_and_hello_ack_timeouts(
+    hass: HomeAssistant,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    async def hang_forever(_url: str, _token: str) -> FakeWebSocket:
+        await asyncio.Event().wait()
+        return FakeWebSocket()
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=hang_forever)
+    wait_for_calls: list[float] = []
+    original_wait_for = asyncio.wait_for
+
+    async def record_wait_for(coro, *, timeout):  # type: ignore[no-untyped-def]
+        wait_for_calls.append(timeout)
+        return await original_wait_for(coro, timeout=timeout)
+
+    with (
+        patch(
+            "custom_components.sayso.coordinator.asyncio.wait_for",
+            side_effect=record_wait_for,
+        ),
+        patch("custom_components.sayso.coordinator.WS_CONNECT_TIMEOUT", 0.01),
+    ):
+        with pytest.raises(asyncio.TimeoutError):
+            await coordinator._connect_once()
+
+    assert wait_for_calls == [0.01]
+
+    class SilentWebSocket(FakeWebSocket):
+        async def receive(self) -> Any:
+            await asyncio.Event().wait()
+            return await super().receive()
+
+    async def connect(_url: str, _token: str) -> SilentWebSocket:
+        return SilentWebSocket()
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    wait_for_calls.clear()
+
+    with (
+        patch(
+            "custom_components.sayso.coordinator.asyncio.wait_for",
+            side_effect=record_wait_for,
+        ),
+        patch("custom_components.sayso.coordinator.HELLO_ACK_TIMEOUT", 0.01),
+    ):
+        with pytest.raises(asyncio.TimeoutError):
+            await coordinator._connect_once()
+
+    assert wait_for_calls == [WS_CONNECT_TIMEOUT, 0.01]
 
 
 @pytest.mark.asyncio

@@ -13,6 +13,14 @@ CONF_TOKEN = "token"
 
 WS_PATH = "/api/v1/ws"
 
+# aiohttp defaults to 4 MiB; HA graph snapshots can exceed that after reload.
+HA_WS_MAX_MSG_SIZE = 64 * 1024 * 1024
+WS_CONNECT_TIMEOUT = 30.0
+HELLO_ACK_TIMEOUT = 30.0
+
+# Bulky entity attributes omitted from Home Graph snapshots.
+SNAPSHOT_OMIT_ATTRIBUTES = frozenset({"forecast"})
+
 RECONNECT_INITIAL_DELAY = 1.0
 RECONNECT_MAX_DELAY = 30.0
 RECONNECT_BACKOFF_FACTOR = 2.0

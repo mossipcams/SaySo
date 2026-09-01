@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import enum
+from datetime import date, datetime
 from typing import Any
 
 from homeassistant.core import HomeAssistant, State
@@ -16,7 +18,7 @@ from .capabilities import (
     scene_capabilities,
     script_capabilities,
 )
-from .const import API_VERSION
+from .const import API_VERSION, SNAPSHOT_OMIT_ATTRIBUTES
 from .exposure import is_entity_exposed
 
 
@@ -168,12 +170,35 @@ def _entity_display_name(hass: HomeAssistant, entry: RegistryEntry) -> str:
     return entry.entity_id
 
 
+def _json_safe(value: Any) -> Any:
+    """Coerce HA state attribute values into JSON-serializable data."""
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, enum.Enum):
+        return value.value
+    if isinstance(value, (set, frozenset)):
+        return sorted(_json_safe(item) for item in value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return str(value)
+
+
 def _serialize_state(state: State | None) -> dict[str, Any]:
     if state is None:
         return {"value": "unavailable", "attributes": {}}
 
-    payload: dict[str, Any] = {
+    attributes: dict[str, Any] = {}
+    for key, value in state.attributes.items():
+        if key in SNAPSHOT_OMIT_ATTRIBUTES:
+            continue
+        attributes[key] = _json_safe(value)
+
+    return {
         "value": state.state,
-        "attributes": dict(state.attributes),
+        "attributes": attributes,
     }
-    return payload

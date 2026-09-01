@@ -25,7 +25,9 @@ from .const import (
     API_VERSION,
     CONF_TOKEN,
     CONF_URL,
+    HA_WS_MAX_MSG_SIZE,
     HEARTBEAT_INTERVAL,
+    HELLO_ACK_TIMEOUT,
     MSG_ACTION_REQUEST,
     MSG_ACTION_RESULT,
     MSG_GRAPH_SNAPSHOT,
@@ -38,6 +40,7 @@ from .const import (
     RECONNECT_INITIAL_DELAY,
     RECONNECT_MAX_DELAY,
     STATE_VERIFICATION_TIMEOUT,
+    WS_CONNECT_TIMEOUT,
     WS_PATH,
     get_entry_options,
 )
@@ -317,7 +320,11 @@ class SaySoConnectionCoordinator:
             except asyncio.CancelledError:
                 raise
             except Exception:  # noqa: BLE001 — reconnect on any connection failure
-                _LOGGER.debug("SaySo connection failed; retrying in %.1fs", delay)
+                _LOGGER.warning(
+                    "SaySo connection failed; retrying in %.1fs",
+                    delay,
+                    exc_info=True,
+                )
 
             if self._stop_event.is_set():
                 break
@@ -328,10 +335,16 @@ class SaySoConnectionCoordinator:
 
     async def _connect_once(self) -> None:
         ws_url = http_to_ws_url(self.url)
-        ws = await self._ws_connect(ws_url, self.token)
+        ws = await asyncio.wait_for(
+            self._ws_connect(ws_url, self.token),
+            timeout=WS_CONNECT_TIMEOUT,
+        )
         try:
             await ws.send_str(_envelope("hello"))
-            if not await self._wait_for_hello_ack(ws):
+            if not await asyncio.wait_for(
+                self._wait_for_hello_ack(ws),
+                timeout=HELLO_ACK_TIMEOUT,
+            ):
                 await ws.close()
                 self.connected = False
                 msg = "SaySo server did not acknowledge hello"
@@ -573,4 +586,5 @@ async def _default_ws_connect(
     return await session.ws_connect(
         url,
         headers={"Authorization": f"Bearer {token}"},
+        max_msg_size=HA_WS_MAX_MSG_SIZE,
     )
