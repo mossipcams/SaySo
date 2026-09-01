@@ -4,6 +4,7 @@ from sayso_server.api import API_VERSION, PROTOCOL_NAME
 from sayso_server.auth import bearer_token_valid
 from sayso_server.const import WS_PATH
 from sayso_server.gateway import handle_ha_connection
+from sayso_server.graph_store import HomeGraphStore
 from sayso_server.session import HaSession
 from sayso_server.conversation import (
     ConversationReferent,
@@ -55,6 +56,7 @@ __all__ = [
     "Entity",
     "FakeModelRuntime",
     "HaSession",
+    "HomeGraphStore",
     "WS_PATH",
     "bearer_token_valid",
     "handle_ha_connection",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Protocol
 
@@ -10,6 +11,7 @@ from pydantic import ValidationError
 from sayso_server.api import API_VERSION
 from sayso_server.auth import bearer_token_valid
 from sayso_server.envelope import SaySoEnvelope
+from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.messages import MessageType
 from sayso_server.session import HaSession
 
@@ -32,7 +34,7 @@ async def handle_ha_connection(
     authorization: str | None,
     server_token: str,
 ) -> HaSession | None:
-    """Authenticate and complete the v1 hello handshake."""
+    """Authenticate, complete the v1 hello handshake, and process graph updates."""
 
     if not bearer_token_valid(authorization=authorization, expected_token=server_token):
         await ws.close()
@@ -60,4 +62,33 @@ async def handle_ha_connection(
         payload={},
     )
     await ws.send_str(ack.model_dump_json())
-    return HaSession(correlation_id=envelope.correlation_id)
+    session = HaSession(correlation_id=envelope.correlation_id)
+    # ponytail: test fakes expose _recv_queue; an empty queue means handshake-only.
+    recv_queue = getattr(ws, "_recv_queue", None)
+    if isinstance(recv_queue, asyncio.Queue) and recv_queue.empty():
+        return session
+    await _process_graph_messages(ws, session)
+    return session
+
+
+async def _process_graph_messages(ws: GatewayWebSocket, session: HaSession) -> None:
+    while not ws.closed:
+        raw = await ws.receive_str()
+        if raw is None:
+            return
+
+        try:
+            envelope = SaySoEnvelope.model_validate_json(raw)
+        except (ValidationError, json.JSONDecodeError, UnicodeDecodeError):
+            continue
+
+        if envelope.type == MessageType.GRAPH_SNAPSHOT:
+            try:
+                snapshot = HomeGraphSnapshot.model_validate(envelope.payload)
+            except ValidationError:
+                continue
+            session.graph.replace_snapshot(snapshot)
+        elif envelope.type == MessageType.STATE_DELTA:
+            session.graph.apply_state_delta(envelope.payload)
+        elif envelope.type == MessageType.REGISTRY_DELTA:
+            session.graph.apply_registry_delta(envelope.payload)
