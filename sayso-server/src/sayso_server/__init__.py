@@ -55,7 +55,9 @@ from sayso_server.exclusions import (
     resolve_names_in_scope,
 )
 from sayso_server.resolver import resolve_entity_ids
-from sayso_server.ha_client import FakeHaClient, HaClient, ServiceCall
+from sayso_server.ha_client import ActionRequest, ActionRequestClient, FakeHaClient, HaClient, ServiceCall
+from sayso_server.orchestrator import classify_action_results, execute_control_plan
+from sayso_server.results import ActionResult, ActionResultStatus, ExecutionCategory, ExecutionOutcome
 from sayso_server.runtime import FakeModelRuntime, ModelMetadata, ModelRuntime, PlanGenerationResult
 from sayso_server.safety import evaluate_safety_barrier, execute_if_safe
 from sayso_server.scope import expand_scope
@@ -66,6 +68,10 @@ from sayso_server.session import HaSession
 __all__ = [
     "API_VERSION",
     "ActionPlan",
+    "ActionRequest",
+    "ActionRequestClient",
+    "ActionResult",
+    "ActionResultStatus",
     "Area",
     "Capability",
     "CapabilityKind",
@@ -129,7 +135,11 @@ __all__ = [
     "resolve_names_in_scope",
     "retrieve_candidates",
     "sayso_api_v1_json_schema",
+    "ExecutionCategory",
+    "ExecutionOutcome",
+    "classify_action_results",
     "evaluate_safety_barrier",
+    "execute_control_plan",
     "execute_if_safe",
     "validate_target_capabilities",
 ]
