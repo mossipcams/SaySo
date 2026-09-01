@@ -2,79 +2,10 @@
 
 from __future__ import annotations
 
-import json
-from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-from sayso_satellite.__main__ import json_dumps, print_response_body
-from sayso_satellite.response import EARCON_TOKEN, ResponseMode
-
-
-def test_print_response_body_renders_text_response_earcon() -> None:
-    buffer = StringIO()
-    body = {
-        "version": 1,
-        "type": "text_response",
-        "correlation_id": "c1",
-        "payload": {
-            "category": "completed",
-            "reason": "state_changed",
-            "response_mode": ResponseMode.EARCON.value,
-            "response_content": EARCON_TOKEN,
-        },
-    }
-
-    print_response_body(body, sink=buffer.write)
-
-    assert buffer.getvalue() == EARCON_TOKEN
-
-
-def test_print_response_body_renders_text_response_short_text() -> None:
-    lines: list[str] = []
-    body = {
-        "version": 1,
-        "type": "text_response",
-        "correlation_id": "c1",
-        "payload": {
-            "category": "no_action",
-            "reason": "which lights?",
-            "response_mode": ResponseMode.TEXT.value,
-            "response_content": "which lights?",
-        },
-    }
-
-    print_response_body(body, sink=lines.append)
-
-    assert lines == ["which lights?"]
-
-
-def test_print_response_body_falls_back_to_json_for_other_envelopes() -> None:
-    buffer = StringIO()
-    body = {"version": 1, "type": "error", "correlation_id": "c1", "payload": {"code": "invalid_request"}}
-
-    print_response_body(body, sink=buffer.write)
-
-    assert json.loads(buffer.getvalue()) == body
-
-
-def test_main_exits_non_zero_on_http_error(capsys: pytest.CaptureFixture[str]) -> None:
-    from sayso_satellite.__main__ import main
-
-    with patch("sys.argv", ["sayso_satellite", "hello"]):
-        with patch(
-            "sayso_satellite.__main__.send_text",
-            return_value=(401, {"error": "unauthorized"}),
-        ):
-            with pytest.raises(SystemExit) as exc:
-                main()
-
-    assert exc.value.code == 1
-    captured = capsys.readouterr()
-    assert "unauthorized" in captured.out
-
 
 def test_main_prints_usage_when_no_args(capsys: pytest.CaptureFixture[str]) -> None:
     from sayso_satellite.__main__ import main
@@ -87,23 +18,6 @@ def test_main_prints_usage_when_no_args(capsys: pytest.CaptureFixture[str]) -> N
     assert "usage" in capsys.readouterr().err.lower()
 
 
-def test_json_dumps_is_stable() -> None:
-    assert json_dumps({"b": 2, "a": 1}) == '{\n  "a": 1,\n  "b": 2\n}'
-
-
-def test_main_sends_text_from_argv(capsys: pytest.CaptureFixture[str]) -> None:
-    from sayso_satellite.__main__ import main
-
-    with patch(
-        "sayso_satellite.__main__.send_text",
-        return_value=(200, {"type": "text_response", "payload": {}}),
-    ) as mock_send:
-        main(["sayso_satellite", "turn", "off", "the", "light"])
-
-    mock_send.assert_called_once_with("turn off the light", timeout=None)
-    assert capsys.readouterr().out == ""
-
-
 def test_main_sends_audio_from_file(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
@@ -113,29 +27,24 @@ def test_main_sends_audio_from_file(
     pcm = b"\x00\x01" * 100
     audio_path = Path(tmp_path) / "sample.bin"
     audio_path.write_bytes(pcm)
-    response = {
-        "version": 1,
-        "type": "text_response",
-        "correlation_id": "c1",
-        "payload": {
-            "category": "completed",
-            "reason": "state_changed",
-            "response_mode": ResponseMode.EARCON.value,
-            "response_content": EARCON_TOKEN,
-        },
-    }
+    result = {"status": "completed", "text": "turn on the lamp", "intent": {}}
 
     with patch(
-        "sayso_satellite.__main__.send_audio",
-        return_value=(200, response),
-    ) as mock_send:
-        main(["sayso_satellite", "--audio-file", str(audio_path)])
+        "sayso_satellite.__main__.run_assist",
+        return_value=result,
+    ) as mock_run:
+        main(["sayso_satellite", "--audio-file", str(audio_path), "--ha-token", "secret-token"])
 
-    mock_send.assert_called_once_with(pcm, timeout=None)
-    assert capsys.readouterr().out == EARCON_TOKEN
+    mock_run.assert_called_once_with(
+        pcm,
+        token="secret-token",
+        websocket_url="ws://127.0.0.1:8123/api/websocket",
+        timeout=None,
+    )
+    assert capsys.readouterr().out == "turn on the lamp\n"
 
 
-def test_main_audio_exits_non_zero_on_http_error(
+def test_main_audio_exits_non_zero_on_assist_error(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
@@ -144,19 +53,20 @@ def test_main_audio_exits_non_zero_on_http_error(
     pcm = b"\x00\x00" * 50
     audio_path = tmp_path / "sample.bin"
     audio_path.write_bytes(pcm)
+    from sayso_satellite.assist import AssistError
 
     with patch(
-        "sayso_satellite.__main__.send_audio",
-        return_value=(401, {"error": "unauthorized"}),
+        "sayso_satellite.__main__.run_assist",
+        side_effect=AssistError("authentication failed"),
     ):
         with pytest.raises(SystemExit) as exc:
-            main(["sayso_satellite", "--audio-file", str(audio_path)])
+            main(["sayso_satellite", "--audio-file", str(audio_path), "--ha-token", "secret-token"])
 
     assert exc.value.code == 1
-    assert "unauthorized" in capsys.readouterr().out
+    assert "authentication failed" in capsys.readouterr().err
 
 
-def test_main_passes_timeout_to_send_audio(
+def test_main_passes_timeout_to_assist(
     tmp_path: Path,
 ) -> None:
     from sayso_satellite.__main__ import main
@@ -166,12 +76,27 @@ def test_main_passes_timeout_to_send_audio(
     audio_path.write_bytes(pcm)
 
     with patch(
-        "sayso_satellite.__main__.send_audio",
-        return_value=(200, {"type": "text_response", "payload": {}}),
-    ) as mock_send:
-        main(["sayso_satellite", "--audio-file", str(audio_path), "--timeout", "240"])
+        "sayso_satellite.__main__.run_assist",
+        return_value={"status": "completed", "text": "done", "intent": {}},
+    ) as mock_run:
+        main(
+            [
+                "sayso_satellite",
+                "--audio-file",
+                str(audio_path),
+                "--timeout",
+                "240",
+                "--ha-token",
+                "secret-token",
+            ]
+        )
 
-    mock_send.assert_called_once_with(pcm, timeout=240.0)
+    mock_run.assert_called_once_with(
+        pcm,
+        token="secret-token",
+        websocket_url="ws://127.0.0.1:8123/api/websocket",
+        timeout=240.0,
+    )
 
 
 def test_main_sends_corner_lamp_fixture_via_cli(
@@ -182,24 +107,88 @@ def test_main_sends_corner_lamp_fixture_via_cli(
     fixtures = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
     pcm_path = fixtures / "turn_off_the_corner_lamp.pcm"
     pcm = pcm_path.read_bytes()
-    response = {
-        "version": 1,
-        "type": "text_response",
-        "correlation_id": "c1",
-        "payload": {
-            "category": "completed",
-            "reason": "state_changed",
-            "response_mode": ResponseMode.EARCON.value,
-            "response_content": EARCON_TOKEN,
+    result = {"status": "completed", "text": "turn off the lamp", "intent": {}}
+
+    with patch(
+        "sayso_satellite.__main__.run_assist",
+        return_value=result,
+    ) as mock_run:
+        main(["sayso_satellite", "--audio-file", str(pcm_path), "--ha-token", "secret-token"])
+
+    mock_run.assert_called_once()
+    assert mock_run.call_args.args[0] == pcm
+    assert capsys.readouterr().out == "turn off the lamp\n"
+
+
+def test_main_sends_audio_to_home_assistant_assist(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    from sayso_satellite.__main__ import main
+
+    pcm = b"\x00\x01" * 100
+    audio_path = tmp_path / "sample.bin"
+    audio_path.write_bytes(pcm)
+    result = {
+        "status": "completed",
+        "text": "turn on the lamp",
+        "intent": {
+            "response": {
+                "speech": {"plain": {"speech": "Done"}},
+            },
         },
     }
 
     with patch(
-        "sayso_satellite.__main__.send_audio",
-        return_value=(200, response),
-    ) as mock_send:
-        main(["sayso_satellite", "--audio-file", str(pcm_path)])
+        "sayso_satellite.__main__.run_assist",
+        return_value=result,
+    ) as mock_run:
+        main(
+            [
+                "sayso_satellite",
+                "--audio-file",
+                str(audio_path),
+                "--ha-websocket-url",
+                "ws://ha.example/api/websocket",
+                "--ha-token",
+                "secret-token",
+            ]
+        )
 
-    mock_send.assert_called_once()
-    assert mock_send.call_args.args[0] == pcm
-    assert capsys.readouterr().out == EARCON_TOKEN
+    mock_run.assert_called_once_with(
+        pcm,
+        token="secret-token",
+        websocket_url="ws://ha.example/api/websocket",
+        timeout=None,
+    )
+    assert capsys.readouterr().out == "Done\n"
+
+
+def test_main_uses_assist_environment_configuration(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sayso_satellite.__main__ import main
+
+    pcm = b"\x00\x01" * 100
+    audio_path = tmp_path / "sample.bin"
+    audio_path.write_bytes(pcm)
+    monkeypatch.setenv("SAYSO_HA_TOKEN", "environment-secret")
+    monkeypatch.setenv("SAYSO_HA_WEBSOCKET_URL", "ws://ha.example/api/websocket")
+
+    with patch(
+        "sayso_satellite.__main__.run_assist",
+        return_value={"status": "completed", "text": "Done", "intent": {}},
+    ) as mock_run:
+        main(["sayso_satellite", "--audio-file", str(audio_path)])
+
+    mock_run.assert_called_once_with(
+        pcm,
+        token="environment-secret",
+        websocket_url="ws://ha.example/api/websocket",
+        timeout=None,
+    )
+    captured = capsys.readouterr()
+    assert captured.out == "Done\n"
+    assert "environment-secret" not in captured.out + captured.err

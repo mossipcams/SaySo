@@ -3,6 +3,7 @@ name = "sayso-satellite"
 version = "0.1.0"
 description = "SaySo satellite: Mac smart-speaker client"
 requires-python = ">=3.12"
+dependencies = ["websockets>=13.0"]
 
 [build-system]
 requires = ["hatchling"]

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -59,7 +59,6 @@ def test_readiness_response_separates_model_and_ha() -> None:
         "ready": False,
         "model_ready": True,
         "ha_connected": False,
-        "stt_ready": False,
     }
 
 
@@ -75,32 +74,7 @@ def test_liveness_response_ok_while_dependencies_missing() -> None:
     assert body["liveness"] == "ok"
     assert body["model_ready"] is False
     assert body["ha_connected"] is False
-    assert body["stt_ready"] is False
     assert "ready" not in body
-
-
-def test_readiness_snapshot_stt_ready_defaults_false() -> None:
-    snapshot = ReadinessSnapshot(model_ready=True, ha_connected=True)
-    assert snapshot.stt_ready is False
-
-
-def test_readiness_state_set_stt_ready() -> None:
-    state = ReadinessState()
-    assert state.snapshot().stt_ready is False
-
-    state.set_stt_ready(True)
-    assert state.snapshot().stt_ready is True
-
-    state.set_stt_ready(False)
-    assert state.snapshot().stt_ready is False
-
-
-def test_stt_ready_does_not_gate_aggregate_ready() -> None:
-    snapshot = ReadinessSnapshot(model_ready=False, ha_connected=False, stt_ready=True)
-    assert snapshot.ready is False
-
-    snapshot = ReadinessSnapshot(model_ready=True, ha_connected=True, stt_ready=False)
-    assert snapshot.ready is True
 
 
 def test_readiness_state_tracks_restart_transitions() -> None:
@@ -144,7 +118,6 @@ async def test_aiohttp_ready_returns_503_until_model_and_ha_ready() -> None:
         "ready": False,
         "model_ready": False,
         "ha_connected": False,
-        "stt_ready": False,
     }
 
     readiness.set_model_ready(True)
@@ -159,7 +132,6 @@ async def test_aiohttp_ready_returns_503_until_model_and_ha_ready() -> None:
         "ready": True,
         "model_ready": True,
         "ha_connected": True,
-        "stt_ready": False,
     }
 
 

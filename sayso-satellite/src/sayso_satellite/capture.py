@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections import deque
 from pathlib import Path
-from typing import Protocol
 
 SAMPLE_RATE_HZ = 16_000
 CHANNELS = 1
@@ -33,13 +32,6 @@ def read_pcm16_file(path: Path | str) -> bytes:
     if len(pcm) % BYTES_PER_SAMPLE != 0:
         raise ValueError("PCM byte length must be even")
     return pcm
-
-
-class MicSource(Protocol):
-    """Injectable microphone that yields PCM16 mono chunks."""
-
-    def read(self, *, max_bytes: int) -> bytes:
-        """Return up to ``max_bytes`` of PCM; empty when exhausted."""
 
 
 class FixtureMicSource:

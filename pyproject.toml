@@ -11,6 +11,8 @@ members = ["sayso-server", "sayso-satellite"]
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "hassil==3.11.0",
+    "home-assistant-intents==2026.7.30",
     "pytest-homeassistant-custom-component==0.13.357",
     "sayso-server",
     "sayso-satellite",

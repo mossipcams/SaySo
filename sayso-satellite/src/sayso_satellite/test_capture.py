@@ -77,7 +77,7 @@ def test_pre_roll_retains_leading_phoneme() -> None:
     assert result[: len(clipped)] != clipped[: min(len(result), len(clipped))]
 
 
-def test_capture_output_framing_for_audio_api() -> None:
+def test_capture_output_framing_for_assist() -> None:
     pcm = RECORDED_PCM.read_bytes()
     capture = PushToTalkCapture(pre_roll_ms=DEFAULT_PRE_ROLL_MS)
     mic = FixtureMicSource(pcm, chunk_bytes=expected_pcm_byte_length(duration_ms=10))

@@ -10,9 +10,7 @@ from typing import ClassVar
 from aiohttp import web
 
 from sayso_server.auth import bearer_token_valid
-from sayso_server.audio_api import create_audio_handler
 from sayso_server.const import (
-    AUDIO_PATH,
     HA_WS_MAX_MSG_SIZE,
     READINESS_PATH,
     TEXT_PATH,
@@ -21,9 +19,7 @@ from sayso_server.const import (
 )
 from sayso_server.conversation import ConversationStore
 from sayso_server.graph_store import HomeGraphStore
-from sayso_server.mlx_stt import MlxWhisperSttRuntime
 from sayso_server.satellites import SatelliteRegistry, register_default_satellites
-from sayso_server.stt import SpeechToTextRuntime
 from sayso_server.runtime import ModelRuntime
 from sayso_server.telemetry import open_jsonl_telemetry_sink_from_env
 from sayso_server.text_api import TextController, create_live_text_controller, create_text_handler
@@ -150,7 +146,6 @@ def create_aiohttp_app(
     *,
     text_controller: TextController | None = None,
     model_runtime: ModelRuntime | None = None,
-    stt_runtime: SpeechToTextRuntime | None = None,
     satellite_registry: SatelliteRegistry | None = None,
     graph_store: HomeGraphStore | None = None,
     readiness: ReadinessState | None = None,
@@ -178,11 +173,9 @@ def create_aiohttp_app(
             conversation_store=ConversationStore(ttl_seconds=300.0),
             telemetry_sink=env_telemetry_sink,
         )
-    stt = stt_runtime or MlxWhisperSttRuntime()
     app["satellite_registry"] = registry
     app["graph_store"] = store
     app["text_controller"] = controller
-    app["stt_runtime"] = stt
     app["readiness"] = readiness_state
     app["ha_gateway_binding"] = binding
 
@@ -241,16 +234,6 @@ def create_aiohttp_app(
             token=token,
             satellite_registry=registry,
             graph_store=store,
-            text_controller=controller,
-        ),
-    )
-    app.router.add_post(
-        AUDIO_PATH,
-        create_audio_handler(
-            token=token,
-            satellite_registry=registry,
-            graph_store=store,
-            stt_runtime=stt,
             text_controller=controller,
         ),
     )

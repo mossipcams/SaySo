@@ -11,7 +11,7 @@ from .coordinator import SaySoConnectionCoordinator
 
 type SaySoConfigEntry = ConfigEntry
 
-PLATFORMS: list[str] = ["binary_sensor"]
+PLATFORMS: list[str] = ["binary_sensor", "conversation"]
 SERVICE_SYNC_HOME_GRAPH = "sync_home_graph"
 
 
