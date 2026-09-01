@@ -177,6 +177,10 @@ class SaySoConnectionCoordinator:
     def token(self) -> str:
         return self.entry.data[CONF_TOKEN]
 
+    @property
+    def sequence(self) -> int:
+        return self._sequence
+
     async def async_start(self) -> None:
         """Start the connection loop."""
 
