@@ -17,7 +17,7 @@ from sayso_server.ha_client import ActionRequestClient
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.models import ActionState, Scope, ScopeKind
 from sayso_server.queries import evaluate_query
-from sayso_server.resolver import resolve_entity_ids
+from sayso_server.resolver import resolve_action_entities
 from sayso_server.results import (
     ActionResult,
     ActionResultStatus,
@@ -102,16 +102,39 @@ def execute_control_plan(
             if follow_up.outcome == "resolved":
                 follow_up_entity_ids = sorted(follow_up.entity_ids)
 
-        resolved_entity_ids = resolve_entity_ids(
+        conversation = (
+            conversation_store.get_state(satellite_id)
+            if conversation_store is not None and satellite_id is not None
+            else None
+        )
+        resolution = resolve_action_entities(
             snapshot,
             origin_area_id=origin_area_id,
+            intent=plan.intent,
             scope=scope,
             entity_ids=follow_up_entity_ids,
             domain=plan.domain,
             targets=plan.targets,
             include=plan.include,
             exclude=plan.exclude,
+            conversation=conversation,
         )
+        if resolution.clarification is not None:
+            with _telemetry_stage(telemetry, "validate"):
+                barrier = evaluate_safety_barrier(
+                    resolution.clarification,
+                    snapshot,
+                    frozenset(),
+                )
+            if barrier is None:
+                msg = "ambiguity clarification must produce a safety barrier"
+                raise RuntimeError(msg)
+            return ExecutionOutcome(
+                category=ExecutionCategory.NO_ACTION,
+                plan=barrier,
+                reason=barrier.reason,
+            )
+        resolved_entity_ids = resolution.entity_ids
 
     with _telemetry_stage(telemetry, "validate"):
         barrier = evaluate_safety_barrier(plan, snapshot, resolved_entity_ids)
@@ -241,16 +264,39 @@ async def execute_control_plan_async(
             if follow_up.outcome == "resolved":
                 follow_up_entity_ids = sorted(follow_up.entity_ids)
 
-        resolved_entity_ids = resolve_entity_ids(
+        conversation = (
+            conversation_store.get_state(satellite_id)
+            if conversation_store is not None and satellite_id is not None
+            else None
+        )
+        resolution = resolve_action_entities(
             snapshot,
             origin_area_id=origin_area_id,
+            intent=plan.intent,
             scope=scope,
             entity_ids=follow_up_entity_ids,
             domain=plan.domain,
             targets=plan.targets,
             include=plan.include,
             exclude=plan.exclude,
+            conversation=conversation,
         )
+        if resolution.clarification is not None:
+            with _telemetry_stage(telemetry, "validate"):
+                barrier = evaluate_safety_barrier(
+                    resolution.clarification,
+                    snapshot,
+                    frozenset(),
+                )
+            if barrier is None:
+                msg = "ambiguity clarification must produce a safety barrier"
+                raise RuntimeError(msg)
+            return ExecutionOutcome(
+                category=ExecutionCategory.NO_ACTION,
+                plan=barrier,
+                reason=barrier.reason,
+            )
+        resolved_entity_ids = resolution.entity_ids
 
     with _telemetry_stage(telemetry, "validate"):
         barrier = evaluate_safety_barrier(plan, snapshot, resolved_entity_ids)
