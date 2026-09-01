@@ -57,6 +57,7 @@ from sayso_server.exclusions import (
 from sayso_server.resolver import resolve_entity_ids
 from sayso_server.ha_client import ActionRequest, ActionRequestClient, FakeHaClient, HaClient, ServiceCall
 from sayso_server.orchestrator import classify_action_results, execute_control_plan
+from sayso_server.queries import QueryOutcome, evaluate_query
 from sayso_server.results import ActionResult, ActionResultStatus, ExecutionCategory, ExecutionOutcome
 from sayso_server.runtime import FakeModelRuntime, ModelMetadata, ModelRuntime, PlanGenerationResult
 from sayso_server.safety import evaluate_safety_barrier, execute_if_safe
@@ -106,6 +107,7 @@ __all__ = [
     "PlanGenerationResult",
     "PromptOrigin",
     "PROTOCOL_NAME",
+    "QueryOutcome",
     "QueryPlan",
     "ReferentKind",
     "SaySoEnvelope",
@@ -138,6 +140,7 @@ __all__ = [
     "ExecutionCategory",
     "ExecutionOutcome",
     "classify_action_results",
+    "evaluate_query",
     "evaluate_safety_barrier",
     "execute_control_plan",
     "execute_if_safe",

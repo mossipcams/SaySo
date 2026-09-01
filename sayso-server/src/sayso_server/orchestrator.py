@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from sayso_server.control_plan import ActionPlan
+from sayso_server.control_plan import ActionPlan, NoActionPlan, QueryPlan
 from sayso_server.ha_client import ActionRequestClient
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.models import ActionState, Scope, ScopeKind
+from sayso_server.queries import evaluate_query
 from sayso_server.resolver import resolve_entity_ids
 from sayso_server.results import (
     ActionResult,
@@ -32,6 +33,24 @@ def execute_control_plan(
     request_id: str,
 ) -> ExecutionOutcome:
     """Run the control-plan execution pipeline and emit an exact outcome category."""
+
+    if isinstance(plan, QueryPlan):
+        query_result = evaluate_query(
+            plan,
+            snapshot,
+            origin_area_id=origin_area_id,
+        )
+        if isinstance(query_result, NoActionPlan):
+            return ExecutionOutcome(
+                category=ExecutionCategory.NO_ACTION,
+                plan=query_result,
+                reason=query_result.reason,
+            )
+        return ExecutionOutcome(
+            category=ExecutionCategory.COMPLETED,
+            plan=query_result,
+            reason=query_result.answer,
+        )
 
     if not isinstance(plan, ActionPlan):
         barrier = evaluate_safety_barrier(plan, snapshot, frozenset())
