@@ -2,10 +2,8 @@
 
 from sayso_server.api import API_VERSION, PROTOCOL_NAME
 from sayso_server.auth import bearer_token_valid
+from sayso_server.candidates import CandidateRequest, ScoredCandidate, retrieve_candidates
 from sayso_server.const import WS_PATH
-from sayso_server.gateway import handle_ha_connection
-from sayso_server.graph_store import HomeGraphStore
-from sayso_server.session import HaSession
 from sayso_server.conversation import (
     ConversationReferent,
     ConversationStore,
@@ -23,6 +21,8 @@ from sayso_server.control_plan import (
     UnsupportedPlan,
 )
 from sayso_server.envelope import SaySoEnvelope
+from sayso_server.gateway import handle_ha_connection
+from sayso_server.graph_store import HomeGraphStore
 from sayso_server.home_graph import (
     Area,
     Capability,
@@ -36,11 +36,14 @@ from sayso_server.home_graph import (
     State,
 )
 from sayso_server.messages import MESSAGE_TYPES_V1, MessageType
-from sayso_server.prompt import PromptOrigin, build_lfm_prompt
+from sayso_server.normalize import normalize_tokens
 from sayso_server.parser import parse_model_output
+from sayso_server.prompt import PromptOrigin, build_lfm_prompt
 from sayso_server.protocol import parse_envelope, parse_envelope_json
 from sayso_server.runtime import FakeModelRuntime, ModelMetadata, ModelRuntime, PlanGenerationResult
 from sayso_server.schema import control_plan_json_schema, sayso_api_v1_json_schema
+from sayso_server.scoring import ScoreBreakdown
+from sayso_server.session import HaSession
 
 __all__ = [
     "API_VERSION",
@@ -48,6 +51,7 @@ __all__ = [
     "Area",
     "Capability",
     "CapabilityKind",
+    "CandidateRequest",
     "ClarificationPlan",
     "ControlPlan",
     "ConversationReferent",
@@ -72,20 +76,24 @@ __all__ = [
     "PlanGenerationResult",
     "PromptOrigin",
     "PROTOCOL_NAME",
-    "build_lfm_prompt",
     "QueryPlan",
     "ReferentKind",
     "SaySoEnvelope",
     "SatelliteConversationState",
     "Scene",
+    "ScoreBreakdown",
+    "ScoredCandidate",
     "Script",
     "State",
     "UnsupportedPlan",
     "__version__",
+    "build_lfm_prompt",
     "control_plan_json_schema",
+    "normalize_tokens",
     "parse_envelope",
     "parse_envelope_json",
     "parse_model_output",
+    "retrieve_candidates",
     "sayso_api_v1_json_schema",
 ]
 __version__ = "0.1.0"
