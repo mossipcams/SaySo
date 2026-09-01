@@ -104,6 +104,40 @@ class ConversationStore:
     ) -> LastIntent | None:
         return self._resolve(referent, satellite_id=satellite_id, kind=ReferentKind.LAST_INTENT)
 
+    def active_last_target(self, satellite_id: str) -> LastTarget | None:
+        """Return the current last target when its TTL has not expired."""
+        return self._active_referent(
+            satellite_id,
+            value_attr="last_target",
+            recorded_at_attr="last_target_at",
+        )
+
+    def active_last_intent(self, satellite_id: str) -> LastIntent | None:
+        """Return the current last intent when its TTL has not expired."""
+        return self._active_referent(
+            satellite_id,
+            value_attr="last_intent",
+            recorded_at_attr="last_intent_at",
+        )
+
+    def _active_referent(
+        self,
+        satellite_id: str,
+        *,
+        value_attr: str,
+        recorded_at_attr: str,
+    ) -> LastTarget | LastIntent | None:
+        state = self._states.get(satellite_id)
+        if state is None:
+            return None
+        value = getattr(state, value_attr)
+        recorded_at = getattr(state, recorded_at_attr)
+        if value is None or recorded_at is None:
+            return None
+        if self._clock() - recorded_at > self._ttl_seconds:
+            return None
+        return value
+
     def _resolve(
         self,
         referent: ConversationReferent,

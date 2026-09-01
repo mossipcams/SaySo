@@ -5,6 +5,8 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from sayso_server.control_plan import ActionPlan, NoActionPlan, QueryPlan
+from sayso_server.conversation import ConversationStore, LastIntent, LastTarget
+from sayso_server.followups import resolve_follow_up
 from sayso_server.ha_client import ActionRequestClient
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.models import ActionState, Scope, ScopeKind
@@ -31,6 +33,8 @@ def execute_control_plan(
     origin_area_id: str,
     ha_client: ActionRequestClient,
     request_id: str,
+    conversation_store: ConversationStore | None = None,
+    satellite_id: str | None = None,
 ) -> ExecutionOutcome:
     """Run the control-plan execution pipeline and emit an exact outcome category."""
 
@@ -67,10 +71,27 @@ def execute_control_plan(
     if scope is None and (plan.targets or plan.include or plan.exclude):
         scope = Scope(kind=ScopeKind.CURRENT_AREA)
 
+    follow_up_entity_ids: list[str] | None = None
+    if conversation_store is not None and satellite_id is not None:
+        follow_up = resolve_follow_up(plan, conversation_store, satellite_id=satellite_id)
+        if follow_up.outcome == "clarification" and follow_up.clarification is not None:
+            barrier = evaluate_safety_barrier(follow_up.clarification, snapshot, frozenset())
+            if barrier is None:
+                msg = "follow-up clarification must produce a safety barrier"
+                raise RuntimeError(msg)
+            return ExecutionOutcome(
+                category=ExecutionCategory.NO_ACTION,
+                plan=barrier,
+                reason=barrier.reason,
+            )
+        if follow_up.outcome == "resolved":
+            follow_up_entity_ids = sorted(follow_up.entity_ids)
+
     resolved_entity_ids = resolve_entity_ids(
         snapshot,
         origin_area_id=origin_area_id,
         scope=scope,
+        entity_ids=follow_up_entity_ids,
         domain=plan.domain,
         targets=plan.targets,
         include=plan.include,
@@ -98,12 +119,41 @@ def execute_control_plan(
     results = tuple(ha_client.take_action_results(request_id))
     category, reason = classify_action_results(request_id, results)
 
+    if (
+        category is ExecutionCategory.COMPLETED
+        and conversation_store is not None
+        and satellite_id is not None
+    ):
+        _record_conversation_referents(
+            conversation_store,
+            satellite_id=satellite_id,
+            plan=plan,
+            resolved_entity_ids=resolved_entity_ids,
+        )
+
     return ExecutionOutcome(
         category=category,
         plan=plan,
         request_id=request_id,
         results=results,
         reason=reason,
+    )
+
+
+def _record_conversation_referents(
+    store: ConversationStore,
+    *,
+    satellite_id: str,
+    plan: ActionPlan,
+    resolved_entity_ids: frozenset[str],
+) -> None:
+    store.record_last_target(
+        satellite_id,
+        LastTarget(entity_ids=sorted(resolved_entity_ids)),
+    )
+    store.record_last_intent(
+        satellite_id,
+        LastIntent(intent=plan.intent, outcome=plan.outcome),
     )
 
 

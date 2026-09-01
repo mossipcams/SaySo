@@ -54,6 +54,7 @@ from sayso_server.exclusions import (
     matches_semantic_name,
     resolve_names_in_scope,
 )
+from sayso_server.followups import FollowUpResolution, is_follow_up_intent, resolve_follow_up
 from sayso_server.resolver import resolve_entity_ids
 from sayso_server.ha_client import ActionRequest, ActionRequestClient, FakeHaClient, HaClient, ServiceCall
 from sayso_server.orchestrator import classify_action_results, execute_control_plan
@@ -88,6 +89,7 @@ __all__ = [
     "Entity",
     "FakeHaClient",
     "FakeModelRuntime",
+    "FollowUpResolution",
     "HaClient",
     "HaSession",
     "HomeGraphStore",
@@ -144,6 +146,8 @@ __all__ = [
     "evaluate_safety_barrier",
     "execute_control_plan",
     "execute_if_safe",
+    "is_follow_up_intent",
+    "resolve_follow_up",
     "validate_target_capabilities",
 ]
 __version__ = "0.1.0"
