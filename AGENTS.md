@@ -29,7 +29,12 @@ Defer until the voice path works end to end:
 
 ## Workflow
 
-- Source of truth: `docs/MVP_PLAN.md`. Phase 4 eval tasks: `docs/EVALUATION_PLAN.md`.
+- Read `docs/ARCHITECTURE.md` before changing runtime wiring or assuming the
+  MVP topology is already assembled. It documents what is implemented,
+  partial, planned, conflicting, and unresolved.
+- Source of truth for remaining numbered units: `docs/MVP_PLAN.md`. Phase 4
+  eval tasks: `docs/EVALUATION_PLAN.md`. Prefer the next increment that
+  `docs/ARCHITECTURE.md` lists as required for the first physical-device demo.
 - Python throughout. Colocated `test_*.py`. Never create a `tests/` directory.
 - One numbered TDD unit at a time unless the user already authorized continuing.
 - Do not start a `tests/` directory. Do not commit `context.json`.
