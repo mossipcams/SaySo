@@ -11,7 +11,7 @@ from sayso_server.api import API_VERSION, PROTOCOL_NAME
 from sayso_server.auth import bearer_token_valid
 from sayso_server.capability import CapabilityValidationError, validate_target_capabilities
 from sayso_server.candidates import CandidateRequest, ScoredCandidate, retrieve_candidates
-from sayso_server.const import WS_PATH
+from sayso_server.const import TEXT_PATH, WS_PATH
 from sayso_server.conversation import (
     ConversationReferent,
     ConversationStore,
@@ -64,6 +64,14 @@ from sayso_server.runtime import FakeModelRuntime, ModelMetadata, ModelRuntime, 
 from sayso_server.safety import evaluate_safety_barrier, execute_if_safe
 from sayso_server.scope import expand_scope
 from sayso_server.schema import control_plan_json_schema, sayso_api_v1_json_schema
+from sayso_server.satellites import SatelliteRegistry
+from sayso_server.text_api import (
+    OrchestratorTextController,
+    TextController,
+    TextRequestEnvelope,
+    TextResponseEnvelope,
+    create_text_handler,
+)
 from sayso_server.scoring import DEFAULT_AMBIGUITY_MARGIN, ScoreBreakdown
 from sayso_server.session import HaSession
 
@@ -93,6 +101,13 @@ __all__ = [
     "HaClient",
     "HaSession",
     "HomeGraphStore",
+    "SatelliteRegistry",
+    "TEXT_PATH",
+    "TextController",
+    "TextRequestEnvelope",
+    "TextResponseEnvelope",
+    "OrchestratorTextController",
+    "create_text_handler",
     "WS_PATH",
     "bearer_token_valid",
     "handle_ha_connection",

@@ -9,7 +9,10 @@ from typing import ClassVar
 from aiohttp import web
 
 from sayso_server.auth import bearer_token_valid
-from sayso_server.const import WS_PATH
+from sayso_server.const import TEXT_PATH, WS_PATH
+from sayso_server.graph_store import HomeGraphStore
+from sayso_server.satellites import SatelliteRegistry
+from sayso_server.text_api import TextController, create_text_handler
 from sayso_server.gateway import handle_ha_connection
 from sayso_server.health import HEALTH_PATH, health_status
 
@@ -70,10 +73,21 @@ class _AiohttpGatewayWebSocket:
         return message.data
 
 
-def create_aiohttp_app(token: str) -> web.Application:
-    """Create an aiohttp app exposing health and HA WebSocket endpoints."""
+def create_aiohttp_app(
+    token: str,
+    *,
+    text_controller: TextController | None = None,
+    satellite_registry: SatelliteRegistry | None = None,
+    graph_store: HomeGraphStore | None = None,
+) -> web.Application:
+    """Create an aiohttp app exposing health, text, and HA WebSocket endpoints."""
 
     app = web.Application()
+    registry = satellite_registry or SatelliteRegistry()
+    store = graph_store or HomeGraphStore()
+    app["satellite_registry"] = registry
+    app["graph_store"] = store
+    app["text_controller"] = text_controller
 
     async def health(request: web.Request) -> web.Response:
         status = health_status(
@@ -101,5 +115,14 @@ def create_aiohttp_app(token: str) -> web.Application:
         return ws
 
     app.router.add_get(HEALTH_PATH, health)
+    app.router.add_post(
+        TEXT_PATH,
+        create_text_handler(
+            token=token,
+            satellite_registry=registry,
+            graph_store=store,
+            text_controller=text_controller,
+        ),
+    )
     app.router.add_get(WS_PATH, websocket)
     return app
