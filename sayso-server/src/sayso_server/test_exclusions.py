@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from sayso_server.home_graph import HomeGraphSnapshot
+from sayso_server.exclusions import filter_entity_ids_by_domain
+from sayso_server.home_graph import Capability, CapabilityKind, Entity, HomeGraphSnapshot, State
 from sayso_server.models import Scope, ScopeKind
 from sayso_server.resolver import resolve_entity_ids
 
@@ -99,6 +100,52 @@ def test_exclude_applies_to_explicit_entity_ids() -> None:
     )
 
     assert result == frozenset({"light.living_room_ceiling"})
+
+
+def test_light_domain_filter_keeps_switch_entities() -> None:
+    graph = _load_graph()
+    corner_lamp = Entity(
+        entity_id="switch.corner_lamp",
+        domain="switch",
+        name="Corner Lamp",
+        aliases=["corner lamp"],
+        area_id="area_living_room",
+        capabilities=[Capability(kind=CapabilityKind.POWER)],
+        state=State(value="on"),
+    )
+    graph = graph.model_copy(update={"entities": [*graph.entities, corner_lamp]})
+
+    result = filter_entity_ids_by_domain(
+        graph,
+        frozenset({"switch.corner_lamp", "light.floor_lamp", "climate.downstairs"}),
+        "light",
+    )
+
+    assert result == frozenset({"switch.corner_lamp", "light.floor_lamp"})
+
+
+def test_named_target_retries_on_whole_graph_when_missing_in_area() -> None:
+    graph = _load_graph()
+    sidetable_lamp = Entity(
+        entity_id="switch.sidetable_lamp",
+        domain="switch",
+        name="Sidetable Lamp",
+        aliases=["sidetable"],
+        area_id="area_kitchen",
+        capabilities=[Capability(kind=CapabilityKind.POWER)],
+        state=State(value="on"),
+    )
+    graph = graph.model_copy(update={"entities": [*graph.entities, sidetable_lamp]})
+
+    result = resolve_entity_ids(
+        graph,
+        origin_area_id="area_living_room",
+        scope=Scope(kind=ScopeKind.CURRENT_AREA),
+        domain="light",
+        targets=["sidetable"],
+    )
+
+    assert result == frozenset({"switch.sidetable_lamp"})
 
 
 def test_include_exclude_resolution_is_deterministic() -> None:

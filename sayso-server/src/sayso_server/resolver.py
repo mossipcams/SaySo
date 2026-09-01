@@ -10,7 +10,7 @@ from sayso_server.control_plan import ClarificationPlan
 from sayso_server.conversation import SatelliteConversationState
 from sayso_server.exclusions import apply_inclusions_exclusions, filter_entity_ids_by_domain
 from sayso_server.home_graph import HomeGraphSnapshot
-from sayso_server.models import Scope
+from sayso_server.models import Scope, ScopeKind
 from sayso_server.scope import expand_scope
 
 
@@ -42,13 +42,28 @@ def resolve_entity_ids(
     if domain is not None:
         base = filter_entity_ids_by_domain(snapshot, base, domain)
 
-    return apply_inclusions_exclusions(
+    result = apply_inclusions_exclusions(
         snapshot,
         base,
         targets=targets,
         include=include,
         exclude=exclude,
     )
+
+    names = [*(targets or []), *(include or [])]
+    if not result and names and not entity_ids and scope is not None:
+        whole_base = expand_scope(snapshot, origin_area_id, Scope(kind=ScopeKind.ALL))
+        if domain is not None:
+            whole_base = filter_entity_ids_by_domain(snapshot, whole_base, domain)
+        result = apply_inclusions_exclusions(
+            snapshot,
+            whole_base,
+            targets=targets,
+            include=include,
+            exclude=exclude,
+        )
+
+    return result
 
 
 def resolve_action_entities(

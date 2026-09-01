@@ -328,6 +328,46 @@ async def test_ambiguous_named_target_async_emits_no_action_without_request() ->
     assert ha_client.action_requests == []
 
 
+def test_switch_lamp_action_request_uses_resolved_entity_domain() -> None:
+    graph = _load_graph()
+    corner_lamp = Entity(
+        entity_id="switch.corner_lamp",
+        domain="switch",
+        name="Corner Lamp",
+        aliases=["corner plug"],
+        area_id="area_living_room",
+        capabilities=[
+            Capability(kind=CapabilityKind.POWER),
+        ],
+        state=State(value="on"),
+    )
+    graph = graph.model_copy(update={"entities": [*graph.entities, corner_lamp]})
+    ha_client = FakeHaClient()
+    plan = _action_plan(
+        intent="turn off corner plug",
+        targets=["corner plug"],
+    )
+    ha_client.queue_results(
+        [
+            ("req-1", ActionResultStatus.ACCEPTED, None),
+            ("req-1", ActionResultStatus.COMPLETED, "state_changed"),
+        ],
+    )
+
+    outcome = execute_control_plan(
+        plan,
+        graph,
+        origin_area_id="area_living_room",
+        ha_client=ha_client,
+        request_id="req-1",
+    )
+
+    assert outcome.category == ExecutionCategory.COMPLETED
+    assert len(ha_client.action_requests) == 1
+    assert ha_client.action_requests[0].entity_id == "switch.corner_lamp"
+    assert ha_client.action_requests[0].domain == "switch"
+
+
 def test_empty_target_set_is_no_action_before_request() -> None:
     graph = _load_graph()
     ha_client = FakeHaClient()

@@ -7,9 +7,20 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field, model_validator
 
 from sayso_server.conversation import SatelliteConversationState
-from sayso_server.home_graph import HomeGraphSnapshot
+from sayso_server.exclusions import domain_matches
+from sayso_server.home_graph import Entity, HomeGraphSnapshot, Scene
 from sayso_server.normalize import normalize_tokens
 from sayso_server.scoring import CandidateItem, ScoreBreakdown, infer_domain, lookup_origin, score_candidate
+
+
+def _matches_inferred_domain(item: CandidateItem, inferred_domain: str | None) -> bool:
+    if inferred_domain is None:
+        return True
+    if isinstance(item, Entity):
+        return domain_matches(item.domain, inferred_domain)
+    if isinstance(item, Scene):
+        return inferred_domain == "scene"
+    return inferred_domain == "script"
 
 
 class CandidateRequest(BaseModel):
@@ -63,6 +74,10 @@ def retrieve_candidates(
         *snapshot.scenes,
         *snapshot.scripts,
     ]
+    if inferred_domain is not None:
+        candidates = [
+            item for item in candidates if _matches_inferred_domain(item, inferred_domain)
+        ]
     scored = [
         ScoredCandidate(
             item=item,

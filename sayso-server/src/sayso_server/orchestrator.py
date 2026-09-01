@@ -147,12 +147,13 @@ def execute_control_plan(
 
     entity_id = sorted(resolved_entity_ids)[0]
     action, payload = _semantic_action(plan)
+    entity_domain = _resolved_entity_domain(snapshot, entity_id)
 
     with _telemetry_stage(telemetry, "request"):
         ha_client.send_action_request(
             request_id=request_id,
             entity_id=entity_id,
-            domain=plan.domain,
+            domain=entity_domain,
             action=action,
             data=payload,
         )
@@ -309,12 +310,13 @@ async def execute_control_plan_async(
 
     entity_id = sorted(resolved_entity_ids)[0]
     action, payload = _semantic_action(plan)
+    entity_domain = _resolved_entity_domain(snapshot, entity_id)
 
     with _telemetry_stage(telemetry, "request"):
         ha_client.send_action_request(
             request_id=request_id,
             entity_id=entity_id,
-            domain=plan.domain,
+            domain=entity_domain,
             action=action,
             data=payload,
         )
@@ -341,6 +343,19 @@ async def execute_control_plan_async(
         results=results,
         reason=reason,
     )
+
+
+def _resolved_entity_domain(snapshot: HomeGraphSnapshot, entity_id: str) -> str:
+    for entity in snapshot.entities:
+        if entity.entity_id == entity_id:
+            return entity.domain
+    for scene in snapshot.scenes:
+        if scene.entity_id == entity_id:
+            return "scene"
+    for script in snapshot.scripts:
+        if script.entity_id == entity_id:
+            return "script"
+    return entity_id.split(".", 1)[0]
 
 
 def _telemetry_stage(

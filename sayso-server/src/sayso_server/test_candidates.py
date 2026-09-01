@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sayso_server.candidates import CandidateRequest, retrieve_candidates
 from sayso_server.conversation import LastTarget, SatelliteConversationState
-from sayso_server.home_graph import HomeGraphSnapshot
+from sayso_server.home_graph import Capability, CapabilityKind, Entity, HomeGraphSnapshot, State
 from sayso_server.normalize import normalize_tokens
 
 FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
@@ -81,6 +81,63 @@ def test_referent_boosts_last_target_in_top_candidates() -> None:
     )
 
     assert _entity_ids(results)[0] == "light.living_room_ceiling"
+
+
+def test_inferred_light_domain_includes_switch_plug_lamps() -> None:
+    graph = _load_graph()
+    corner_lamp = Entity(
+        entity_id="switch.corner_lamp",
+        domain="switch",
+        name="Corner Lamp",
+        aliases=["corner lamp"],
+        area_id="area_living_room",
+        capabilities=[Capability(kind=CapabilityKind.POWER)],
+        state=State(value="on"),
+    )
+    graph = graph.model_copy(update={"entities": [*graph.entities, corner_lamp]})
+
+    results = retrieve_candidates(
+        graph,
+        origin_area_id="area_living_room",
+        request=CandidateRequest(utterance="turn off corner lamp"),
+        limit=5,
+    )
+
+    assert "switch.corner_lamp" in _entity_ids(results)
+
+
+def test_inferred_light_domain_excludes_floor_sensor_at_limit_one() -> None:
+    graph = _load_graph()
+    floor_sensor = Entity(
+        entity_id="sensor.alyssa_iphone_ble_floor",
+        domain="sensor",
+        name="Floor",
+        aliases=["floor"],
+        area_id="area_living_room",
+        capabilities=[Capability(kind=CapabilityKind.QUERY)],
+        state=State(value="42"),
+    )
+    corner_lamp = Entity(
+        entity_id="switch.corner_lamp",
+        domain="switch",
+        name="Corner Lamp",
+        aliases=["corner lamp"],
+        area_id="area_living_room",
+        capabilities=[Capability(kind=CapabilityKind.POWER)],
+        state=State(value="on"),
+    )
+    graph = graph.model_copy(
+        update={"entities": [*graph.entities, floor_sensor, corner_lamp]},
+    )
+
+    results = retrieve_candidates(
+        graph,
+        origin_area_id="area_living_room",
+        request=CandidateRequest(utterance="turn off the floor lamp"),
+        limit=1,
+    )
+
+    assert _entity_ids(results) == ["light.floor_lamp"]
 
 
 def test_scoring_breakdown_includes_all_signals() -> None:

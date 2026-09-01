@@ -73,6 +73,13 @@ def matches_semantic_name(name: str, item: CandidateItem) -> bool:
     return False
 
 
+def domain_matches(item_domain: str, requested_domain: str) -> bool:
+    """Return whether an item domain satisfies a requested control domain."""
+    if requested_domain == "light":
+        return item_domain in ("light", "switch")
+    return item_domain == requested_domain
+
+
 def filter_entity_ids_by_domain(
     snapshot: HomeGraphSnapshot,
     entity_ids: frozenset[str],
@@ -83,7 +90,8 @@ def filter_entity_ids_by_domain(
     matched = sorted(
         entity_id
         for entity_id in entity_ids
-        if (item := items_by_id.get(entity_id)) is not None and _item_domain(item) == domain
+        if (item := items_by_id.get(entity_id)) is not None
+        and domain_matches(_item_domain(item), domain)
     )
     return frozenset(matched)
 
