@@ -10,7 +10,7 @@ from sayso_satellite.capture import (
     expected_pcm_byte_length,
     pcm_duration_ms,
 )
-from sayso_satellite.client import DEFAULT_SATELLITE_ID, send_text
+from sayso_satellite.client import DEFAULT_SATELLITE_ID, PCM_ENCODING, send_audio, send_text
 from sayso_satellite.response import (
     EARCON_TOKEN,
     ResponseMode,
@@ -24,6 +24,7 @@ __all__ = [
     "DEFAULT_PRE_ROLL_MS",
     "DEFAULT_SATELLITE_ID",
     "EARCON_TOKEN",
+    "PCM_ENCODING",
     "FixtureMicSource",
     "PushToTalkCapture",
     "ResponseMode",
@@ -33,6 +34,7 @@ __all__ = [
     "pcm_duration_ms",
     "render_response",
     "render_text_response_payload",
+    "send_audio",
     "send_text",
 ]
 __version__ = "0.1.0"
