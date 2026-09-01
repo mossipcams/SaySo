@@ -1,6 +1,7 @@
 """SaySo server wire constants."""
 
 TEXT_PATH = "/api/v1/text"
+AUDIO_PATH = "/api/v1/audio"
 WS_PATH = "/api/v1/ws"
 READINESS_PATH = "/api/v1/ready"
 

@@ -10,7 +10,8 @@ from typing import ClassVar
 from aiohttp import web
 
 from sayso_server.auth import bearer_token_valid
-from sayso_server.const import READINESS_PATH, TEXT_PATH, TOKEN_ENV_VAR, WS_PATH
+from sayso_server.audio_api import create_audio_handler
+from sayso_server.const import AUDIO_PATH, READINESS_PATH, TEXT_PATH, TOKEN_ENV_VAR, WS_PATH
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.messages import MessageType
 from sayso_server.satellites import SatelliteRegistry, register_default_satellites
@@ -224,6 +225,14 @@ def create_aiohttp_app(
             satellite_registry=registry,
             graph_store=store,
             text_controller=controller,
+        ),
+    )
+    app.router.add_post(
+        AUDIO_PATH,
+        create_audio_handler(
+            token=token,
+            satellite_registry=registry,
+            graph_store=store,
         ),
     )
     app.router.add_get(WS_PATH, websocket)

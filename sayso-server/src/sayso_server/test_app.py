@@ -6,6 +6,7 @@ import pytest
 
 from sayso_server.app import MissingServerTokenError, create_aiohttp_app, load_server_token
 from sayso_server.const import (
+    AUDIO_PATH,
     DEFAULT_SATELLITE_AREA_ID,
     DEFAULT_SATELLITE_ID,
     READINESS_PATH,
@@ -36,7 +37,7 @@ def test_create_aiohttp_app_uses_default_live_wiring() -> None:
     app = create_aiohttp_app("secret-token")
     paths = {route.resource.canonical for route in app.router.routes()}
 
-    assert paths == {HEALTH_PATH, READINESS_PATH, TEXT_PATH, WS_PATH}
+    assert paths == {HEALTH_PATH, READINESS_PATH, TEXT_PATH, AUDIO_PATH, WS_PATH}
     assert isinstance(app["text_controller"], OrchestratorTextController)
     assert app["satellite_registry"] is not None
     assert app["graph_store"] is not None
