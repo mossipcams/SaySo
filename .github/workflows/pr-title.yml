@@ -3,10 +3,7 @@ name: PR title
 on:
   pull_request:
     types:
-      - opened
       - edited
-      - synchronize
-      - reopened
 
 permissions:
   contents: read
@@ -21,4 +18,4 @@ jobs:
       - name: Validate PR title
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-        run: python scripts/check_pr_title.py
+        run: python3 scripts/check_pr_title.py
