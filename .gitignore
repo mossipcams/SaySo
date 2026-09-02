@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Secrets / local state
+context.json
+.env
+*.env
+
+# Training artifacts (never commit)
+training/artifacts/*
+!training/artifacts/.gitkeep
+training/datasets/*.jsonl
+!training/datasets/README.md
+!training/datasets/.gitkeep
+training/datasets/*/
+training/checkpoints/
+training/runs/
+training/*.gguf
+training/**/*.gguf
+
+# Hugging Face / model caches
+.cache/
+.huggingface/
+training/.cache/
+training/hf_cache/
+
+# Large generated outputs
+*.safetensors
+*.bin
+*.pt
+*.ckpt
