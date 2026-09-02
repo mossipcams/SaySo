@@ -156,68 +156,78 @@ class SaySoConversationEntity(
         runtime: SaySoRuntimeData,
         tool_calls: list[ToolCall],
     ) -> conversation.ConversationResult:
-        """Execute one tool-call round trip and return the final text response."""
+        """Execute tool calls sequentially until final text or iteration limit."""
         if chat_log.llm_api is None:
             return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
         allowed_tools = {tool.name for tool in chat_log.llm_api.tools}
-        tool_inputs: list[llm.ToolInput] = []
-        for tool_call in tool_calls:
-            if not _is_valid_tool_call(tool_call, allowed_tools):
-                return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
-            tool_inputs.append(
-                llm.ToolInput(
-                    id=tool_call.id,
-                    tool_name=tool_call.name,
-                    tool_args=tool_call.arguments,
+        iteration = 1
+        current_tool_calls = tool_calls
+
+        while True:
+            for tool_call in current_tool_calls:
+                if not _is_valid_tool_call(tool_call, allowed_tools):
+                    return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+
+                assistant_content = conversation.AssistantContent(
+                    agent_id=self.entity_id,
+                    content=None,
+                    tool_calls=[
+                        llm.ToolInput(
+                            id=tool_call.id,
+                            tool_name=tool_call.name,
+                            tool_args=tool_call.arguments,
+                        )
+                    ],
+                )
+                async for tool_result in chat_log.async_add_assistant_content(
+                    assistant_content
+                ):
+                    if "error" in tool_result.tool_result:
+                        return _error_result(
+                            user_input, chat_log, ERROR_ACTION_FAILED
+                        )
+
+            messages = _chat_log_to_messages(chat_log.content)
+            try:
+                follow_up = await runtime.client.chat_completion(
+                    messages,
+                    model=runtime.model,
+                    tools=_format_tools(chat_log.llm_api),
+                    temperature=runtime.temperature,
+                    max_tokens=runtime.max_output_tokens,
+                )
+            except SaySoTimeoutError:
+                return _error_result(user_input, chat_log, ERROR_REQUEST_TIMEOUT)
+            except SaySoConnectionError:
+                return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+            except (SaySoHttpError, SaySoInvalidResponseError) as err:
+                _LOGGER.debug("llama.cpp follow-up response error: %s", err)
+                return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+            except SaySoError as err:
+                _LOGGER.debug("SaySo follow-up error: %s", err)
+                return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+
+            if follow_up.tool_calls:
+                if iteration >= runtime.max_tool_iterations:
+                    return _error_result(
+                        user_input, chat_log, ERROR_TOOL_ITERATION_LIMIT
+                    )
+                iteration += 1
+                current_tool_calls = follow_up.tool_calls
+                continue
+
+            error_message = _validate_text_completion(follow_up)
+            if error_message is not None:
+                return _error_result(user_input, chat_log, error_message)
+
+            chat_log.async_add_assistant_content_without_tools(
+                conversation.AssistantContent(
+                    agent_id=self.entity_id,
+                    content=follow_up.content,
                 )
             )
-
-        assistant_content = conversation.AssistantContent(
-            agent_id=self.entity_id,
-            content=None,
-            tool_calls=tool_inputs,
-        )
-        async for tool_result in chat_log.async_add_assistant_content(
-            assistant_content
-        ):
-            if "error" in tool_result.tool_result:
-                return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
-
-        messages = _chat_log_to_messages(chat_log.content)
-        try:
-            follow_up = await runtime.client.chat_completion(
-                messages,
-                model=runtime.model,
-                tools=_format_tools(chat_log.llm_api),
-                temperature=runtime.temperature,
-                max_tokens=runtime.max_output_tokens,
-            )
-        except SaySoTimeoutError:
-            return _error_result(user_input, chat_log, ERROR_REQUEST_TIMEOUT)
-        except SaySoConnectionError:
-            return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
-        except (SaySoHttpError, SaySoInvalidResponseError) as err:
-            _LOGGER.debug("llama.cpp follow-up response error: %s", err)
-            return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
-        except SaySoError as err:
-            _LOGGER.debug("SaySo follow-up error: %s", err)
-            return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
-
-        if follow_up.tool_calls:
-            return _error_result(user_input, chat_log, ERROR_TOOL_ITERATION_LIMIT)
-
-        error_message = _validate_text_completion(follow_up)
-        if error_message is not None:
-            return _error_result(user_input, chat_log, error_message)
-
-        chat_log.async_add_assistant_content_without_tools(
-            conversation.AssistantContent(
-                agent_id=self.entity_id,
-                content=follow_up.content,
-            )
-        )
-        return conversation.async_get_result_from_chat_log(user_input, chat_log)
+            return conversation.async_get_result_from_chat_log(user_input, chat_log)
 
 
 def _format_tools(llm_api: llm.APIInstance | None) -> list[dict[str, Any]] | None:

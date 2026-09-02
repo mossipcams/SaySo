@@ -16,6 +16,7 @@ from pytest_homeassistant_custom_component.common import setup_test_component_pl
 
 from custom_components.sayso.client import ChatCompletionResult, LlamaCppClient, ToolCall
 from custom_components.sayso.const import (
+    CONF_MAX_TOOL_ITERATIONS,
     DOMAIN,
     ERROR_ACTION_FAILED,
     ERROR_EMPTY_RESPONSE,
@@ -57,6 +58,11 @@ class _TestLight(LightEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on."""
         self._is_on = True
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the light off."""
+        self._is_on = False
         self.async_write_ha_state()
 
 
@@ -416,13 +422,68 @@ async def test_unknown_tool_fails_closed(
     assert _speech(result) == ERROR_ACTION_FAILED
 
 
-async def test_follow_up_tool_call_fails_closed(
+async def test_sequential_tool_calls_succeed(
     hass: HomeAssistant,
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test a second tool-call iteration fails closed in milestone 5."""
+    """Test multiple tool-call iterations succeed until final text."""
     entry = await _create_entry(hass)
+
+    with patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(
+            side_effect=[
+                ChatCompletionResult(
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            name="HassTurnOn",
+                            arguments={"name": "Living Room"},
+                        )
+                    ],
+                ),
+                ChatCompletionResult(
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call_2",
+                            name="HassTurnOff",
+                            arguments={"name": "Living Room"},
+                        )
+                    ],
+                ),
+                ChatCompletionResult(
+                    content="The living room light is off.",
+                    tool_calls=[],
+                ),
+            ]
+        ),
+    ) as mock_chat:
+        result = await _converse(hass, entry, "Toggle the living room light")
+
+    assert mock_chat.await_count == 3
+    assert hass.states.get("light.living_room").state == "off"
+    assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
+    assert _speech(result) == "The living room light is off."
+
+
+async def test_max_tool_iterations_fails_closed(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+    assist_light: None,
+) -> None:
+    """Test exceeding max tool iterations fails closed without claiming success."""
+    entry = await _create_entry(hass)
+    hass.config_entries.async_update_entry(
+        entry,
+        options={**dict(entry.options), CONF_MAX_TOOL_ITERATIONS: 1},
+    )
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    entry = hass.config_entries.async_get_entry(entry.entry_id)
 
     with patch.object(
         LlamaCppClient,
@@ -457,6 +518,128 @@ async def test_follow_up_tool_call_fails_closed(
     assert mock_chat.await_count == 2
     assert result.response.response_type == intent.IntentResponseType.ERROR
     assert _speech(result) == ERROR_TOOL_ITERATION_LIMIT
+
+
+async def test_malformed_tool_arguments_fails_closed(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+) -> None:
+    """Test malformed tool arguments fail closed before execution."""
+    entry = await _create_entry(hass)
+
+    with patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(
+            return_value=ChatCompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="",
+                        name="HassTurnOn",
+                        arguments={"name": "Living Room"},
+                    )
+                ],
+            )
+        ),
+    ) as mock_chat:
+        result = await _converse(hass, entry, "Turn on the living room light")
+
+    mock_chat.assert_awaited_once()
+    assert result.response.response_type == intent.IntentResponseType.ERROR
+    assert _speech(result) == ERROR_ACTION_FAILED
+
+
+async def test_non_object_tool_arguments_fails_closed(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+) -> None:
+    """Test non-object tool arguments fail closed before execution."""
+    entry = await _create_entry(hass)
+
+    with patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(
+            return_value=ChatCompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="call_1",
+                        name="HassTurnOn",
+                        arguments=[],  # type: ignore[arg-type]
+                    )
+                ],
+            )
+        ),
+    ) as mock_chat:
+        result = await _converse(hass, entry, "Turn on the living room light")
+
+    mock_chat.assert_awaited_once()
+    assert result.response.response_type == intent.IntentResponseType.ERROR
+    assert _speech(result) == ERROR_ACTION_FAILED
+
+
+async def test_tool_validation_failure_fails_closed(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+    assist_light: None,
+) -> None:
+    """Test Home Assistant tool validation errors fail closed."""
+    entry = await _create_entry(hass)
+
+    with patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(
+            return_value=ChatCompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="call_1",
+                        name="HassTurnOn",
+                        arguments={"name": 123},
+                    )
+                ],
+            )
+        ),
+    ) as mock_chat:
+        result = await _converse(hass, entry, "Turn on the living room light")
+
+    mock_chat.assert_awaited_once()
+    assert result.response.response_type == intent.IntentResponseType.ERROR
+    assert _speech(result) == ERROR_ACTION_FAILED
+
+
+async def test_tool_execution_failure_fails_closed(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+    assist_light: None,
+) -> None:
+    """Test Home Assistant tool execution errors fail closed."""
+    entry = await _create_entry(hass)
+
+    with patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(
+            return_value=ChatCompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="call_1",
+                        name="HassTurnOn",
+                        arguments={"name": "Nonexistent Room"},
+                    )
+                ],
+            )
+        ),
+    ) as mock_chat:
+        result = await _converse(hass, entry, "Turn on the nonexistent room light")
+
+    mock_chat.assert_awaited_once()
+    assert result.response.response_type == intent.IntentResponseType.ERROR
+    assert _speech(result) == ERROR_ACTION_FAILED
 
 
 async def test_connection_error(
