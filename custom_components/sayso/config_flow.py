@@ -14,8 +14,9 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlowWithReload,
 )
-from homeassistant.const import CONF_API_KEY, CONF_LLM_HASS_API, CONF_MODEL, CONF_PROMPT, CONF_URL
+from homeassistant.const import CONF_API_KEY, CONF_LLM_HASS_API, CONF_MODEL, CONF_URL
 from homeassistant.core import HomeAssistant, callback
+
 from homeassistant.helpers import config_validation as cv, llm
 from homeassistant.helpers.llm import LLM_API_ASSIST
 from homeassistant.helpers.selector import (
@@ -35,6 +36,7 @@ from .client import LlamaCppClient, normalize_base_url
 from .const import (
     CONF_MAX_OUTPUT_TOKENS,
     CONF_MAX_TOOL_ITERATIONS,
+    CONF_PROMPT,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
     DEFAULT_BASE_URL,

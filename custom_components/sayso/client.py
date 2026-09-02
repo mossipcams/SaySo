@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -27,9 +28,6 @@ from .exceptions import (
     SaySoTimeoutError,
 )
 
-_LOGGER = logging.getLogger(__name__)
-
-
 def normalize_base_url(base_url: str) -> str:
     """Normalize a llama.cpp base URL and ensure a single /v1 suffix."""
     url = base_url.strip().rstrip("/")
@@ -38,6 +36,44 @@ def normalize_base_url(base_url: str) -> str:
     if not url.endswith("/v1"):
         url = f"{url}/v1"
     return url
+
+
+def serialize_chat_completions_payload(payload: dict[str, Any]) -> bytes:
+    """Serialize the chat-completions payload using aiohttp-compatible JSON."""
+    return json.dumps(payload, ensure_ascii=True).encode("utf-8")
+
+
+def build_chat_completions_payload(
+    messages: list[dict[str, Any]],
+    *,
+    model: str,
+    tools: list[dict[str, Any]] | None = None,
+    temperature: float = DEFAULT_TEMPERATURE,
+    max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+) -> dict[str, Any]:
+    """Build the production chat-completions payload sent to llama.cpp."""
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if tools is not None:
+        payload["tools"] = tools
+    return payload
+
+
+def _extract_prompt_tokens(body: dict[str, Any]) -> int | None:
+    usage = body.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    prompt_tokens = usage.get("prompt_tokens")
+    if isinstance(prompt_tokens, int):
+        return prompt_tokens
+    return None
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +91,9 @@ class ChatCompletionResult:
 
     content: str | None
     tool_calls: list[ToolCall]
+    request_payload: dict[str, Any] | None = None
+    request_bytes: int | None = None
+    prompt_tokens: int | None = None
 
 
 class LlamaCppClient:
@@ -143,14 +182,14 @@ class LlamaCppClient:
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     ) -> ChatCompletionResult:
         """Request a single chat completion from llama.cpp."""
-        payload: dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        if tools is not None:
-            payload["tools"] = tools
+        payload = build_chat_completions_payload(
+            messages,
+            model=model,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        request_bytes = len(serialize_chat_completions_payload(payload))
 
         try:
             async with self._session.post(
@@ -159,7 +198,11 @@ class LlamaCppClient:
                 headers=self._auth_headers(),
                 timeout=ClientTimeout(total=self._timeout),
             ) as response:
-                return await self._parse_response(response)
+                return await self._parse_response(
+                    response,
+                    request_payload=payload,
+                    request_bytes=request_bytes,
+                )
         except TimeoutError as err:
             raise SaySoTimeoutError("llama.cpp request timed out") from err
         except aiohttp.ServerTimeoutError as err:
@@ -167,7 +210,57 @@ class LlamaCppClient:
         except ClientError as err:
             raise SaySoConnectionError("llama.cpp is unreachable") from err
 
-    async def _parse_response(self, response: ClientResponse) -> ChatCompletionResult:
+    async def probe_ttft_ms(self, payload: dict[str, Any]) -> float:
+        """Measure time-to-first-token using an eval-only streaming probe."""
+        stream_payload = dict(payload)
+        stream_payload["stream"] = True
+        started_at = time.perf_counter()
+        try:
+            async with self._session.post(
+                self.chat_completions_url,
+                json=stream_payload,
+                headers=self._auth_headers(),
+                timeout=ClientTimeout(total=self._timeout),
+            ) as response:
+                if response.status in {401, 403}:
+                    raise SaySoAuthError("llama.cpp rejected the API key")
+                if response.status >= 400:
+                    raise SaySoHttpError(response.status)
+
+                while True:
+                    raw_line = await response.content.readline()
+                    if not raw_line:
+                        break
+                    line = raw_line.decode("utf-8").strip()
+                    if not line.startswith("data: "):
+                        continue
+                    data = line[6:]
+                    if data == "[DONE]":
+                        break
+                    try:
+                        event = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    if _sse_event_has_generated_token(event):
+                        return (time.perf_counter() - started_at) * 1000.0
+
+                raise SaySoInvalidResponseError(
+                    "llama.cpp stream ended without a generated token"
+                )
+        except TimeoutError as err:
+            raise SaySoTimeoutError("llama.cpp request timed out") from err
+        except aiohttp.ServerTimeoutError as err:
+            raise SaySoTimeoutError("llama.cpp request timed out") from err
+        except ClientError as err:
+            raise SaySoConnectionError("llama.cpp is unreachable") from err
+
+    async def _parse_response(
+        self,
+        response: ClientResponse,
+        *,
+        request_payload: dict[str, Any] | None = None,
+        request_bytes: int | None = None,
+    ) -> ChatCompletionResult:
         if response.status in {401, 403}:
             raise SaySoAuthError("llama.cpp rejected the API key")
 
@@ -211,7 +304,13 @@ class LlamaCppClient:
                 "llama.cpp returned neither content nor tool calls"
             )
 
-        return ChatCompletionResult(content=content, tool_calls=tool_calls)
+        return ChatCompletionResult(
+            content=content,
+            tool_calls=tool_calls,
+            request_payload=request_payload,
+            request_bytes=request_bytes,
+            prompt_tokens=_extract_prompt_tokens(body),
+        )
 
     async def _parse_models_response(self, response: ClientResponse) -> list[str]:
         if response.status in {401, 403}:
@@ -296,3 +395,38 @@ def _format_llama_error(error: Any) -> str:
     if isinstance(error, str) and error:
         return error
     return "llama.cpp returned an error response"
+
+
+def _sse_event_has_generated_token(event: Any) -> bool:
+    if not isinstance(event, dict):
+        return False
+    choices = event.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return False
+    choice = choices[0]
+    if not isinstance(choice, dict):
+        return False
+    delta = choice.get("delta")
+    if not isinstance(delta, dict):
+        return False
+
+    content = delta.get("content")
+    if isinstance(content, str) and content:
+        return True
+
+    tool_calls = delta.get("tool_calls")
+    if not isinstance(tool_calls, list):
+        return False
+    for tool_call in tool_calls:
+        if not isinstance(tool_call, dict):
+            continue
+        function = tool_call.get("function")
+        if not isinstance(function, dict):
+            continue
+        arguments = function.get("arguments")
+        name = function.get("name")
+        if isinstance(arguments, str) and arguments:
+            return True
+        if isinstance(name, str) and name:
+            return True
+    return False
