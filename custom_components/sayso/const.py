@@ -1,3 +1,11 @@
 """Constants for the SaySo integration."""
 
 DOMAIN = "sayso"
+
+DEFAULT_BASE_URL = "http://127.0.0.1:8080/v1"
+DEFAULT_TEMPERATURE = 0
+DEFAULT_MAX_OUTPUT_TOKENS = 160
+DEFAULT_MAX_TOOL_ITERATIONS = 3
+DEFAULT_TIMEOUT = 30
+
+CHAT_COMPLETIONS_PATH = "/chat/completions"
