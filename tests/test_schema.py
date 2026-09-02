@@ -12,6 +12,7 @@ from voluptuous_openapi import UNSUPPORTED
 
 from custom_components.sayso.schema import (
     ToolArgumentFailureCode,
+    ToolRoutingMetadata,
     _build_compiled_tools_from_source,
     build_tool_map,
     canonicalize_schema,
@@ -20,6 +21,7 @@ from custom_components.sayso.schema import (
     compile_tool,
     compile_tools,
     emit_canonical_json,
+    extract_tool_routing_metadata,
     normalize_schema,
     schema_fingerprint,
     validate_tool_arguments,
@@ -630,3 +632,45 @@ def test_compile_tools_rebuilds_when_constraint_changes(monkeypatch: Any) -> Non
     )
 
     assert build_calls == 2
+
+
+def test_extract_tool_routing_metadata_reads_explicit_domain_constraints() -> None:
+    """Declared vol.In domain constraints are extracted without name inference."""
+    class _DomainRestrictedTool(llm.Tool):
+        name = "FanSpeed"
+        description = "Set a fan speed."
+        parameters = vol.Schema(
+            {
+                "domain": vol.All(
+                    vol.Coerce(list),
+                    [vol.In(["fan"])],
+                )
+            }
+        )
+
+        async def async_call(
+            self,
+            hass: Any,
+            tool_input: llm.ToolInput,
+            llm_context: llm.LLMContext,
+        ) -> dict[str, Any]:
+            return {"ok": True}
+
+    class _UnrestrictedTool(llm.Tool):
+        name = "light_by_name_only"
+        description = "No explicit domain metadata."
+        parameters = vol.Schema({})
+
+        async def async_call(
+            self,
+            hass: Any,
+            tool_input: llm.ToolInput,
+            llm_context: llm.LLMContext,
+        ) -> dict[str, Any]:
+            return {"ok": True}
+
+    restricted = extract_tool_routing_metadata(_DomainRestrictedTool())
+    unknown = extract_tool_routing_metadata(_UnrestrictedTool())
+
+    assert restricted == ToolRoutingMetadata(declared_domains=frozenset({"fan"}))
+    assert unknown == ToolRoutingMetadata()

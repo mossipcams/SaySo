@@ -34,6 +34,13 @@ from .diagnostics import (
     BoundaryPhase,
     record_boundary_failure,
 )
+from .routing import (
+    build_routing_catalog,
+    build_routing_preferences,
+    build_routing_registries,
+    identify_command_domain,
+    select_tools_for_domain,
+)
 from .schema import (
     CompiledToolSchema,
     ToolArgumentFailureCode,
@@ -120,13 +127,29 @@ class SaySoConversationEntity(
             return err.as_conversation_result()
 
         compiled_schema = compile_llm_tools(chat_log.llm_api)
+        llm_context = user_input.as_llm_context(DOMAIN)
+        domain_hint = identify_command_domain(
+            user_input.text,
+            build_routing_catalog(self.hass, assistant=llm_context.assistant),
+            registries=build_routing_registries(self.hass),
+            preferences=build_routing_preferences(self.hass, llm_context),
+        )
+        active_tools = (
+            select_tools_for_domain(
+                compiled_schema.tools,
+                chat_log.llm_api.tools,
+                domain_hint,
+            )
+            if compiled_schema is not None
+            else None
+        )
         messages = _chat_log_to_messages(chat_log.content)
 
         try:
             result = await runtime.client.chat_completion(
                 messages,
                 model=runtime.model,
-                tools=compiled_schema.tools if compiled_schema else None,
+                tools=active_tools,
                 temperature=runtime.temperature,
                 max_tokens=runtime.max_output_tokens,
             )
@@ -153,6 +176,7 @@ class SaySoConversationEntity(
                 runtime,
                 result.tool_calls,
                 compiled_schema,
+                active_tools,
             )
 
         error_message = _validate_text_completion(result)
@@ -174,12 +198,19 @@ class SaySoConversationEntity(
         runtime: SaySoRuntimeData,
         tool_calls: list[ToolCall],
         compiled_schema: CompiledToolSchema | None,
+        active_tools: tuple[dict[str, Any], ...] | None,
     ) -> conversation.ConversationResult:
         """Execute tool calls sequentially until final text or iteration limit."""
         if chat_log.llm_api is None:
             return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
-        allowed_tools = {tool.name for tool in chat_log.llm_api.tools}
+        complete_allowed_tools = {tool.name for tool in chat_log.llm_api.tools}
+        validation_tool_names = (
+            {tool["function"]["name"] for tool in active_tools}
+            if active_tools is not None
+            else complete_allowed_tools
+        )
+        request_tools = active_tools
         tool_map = build_tool_map(chat_log.llm_api.tools)
         iteration = 1
         correction_used = False
@@ -188,14 +219,82 @@ class SaySoConversationEntity(
         phase = BoundaryPhase.INITIAL
 
         while True:
-            if not _validate_tool_call_batch(current_tool_calls, allowed_tools):
+            if not _validate_tool_call_batch_structure(current_tool_calls):
                 _record_boundary(
                     self._entry.entry_id,
-                    _batch_validation_failure_code(current_tool_calls, allowed_tools),
+                    BoundaryFailureCode.INVALID_ARGUMENTS,
                     phase,
                     compiled_schema,
                 )
                 return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+
+            unavailable_calls = [
+                tool_call
+                for tool_call in current_tool_calls
+                if tool_call.name not in complete_allowed_tools
+            ]
+            if unavailable_calls:
+                _record_boundary(
+                    self._entry.entry_id,
+                    BoundaryFailureCode.UNAVAILABLE_TOOL,
+                    phase,
+                    compiled_schema,
+                )
+                return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+
+            filtered_misses = [
+                tool_call
+                for tool_call in current_tool_calls
+                if tool_call.name not in validation_tool_names
+            ]
+            if filtered_misses:
+                if correction_used or tools_executed or compiled_schema is None:
+                    _record_boundary(
+                        self._entry.entry_id,
+                        BoundaryFailureCode.SCHEMA_MISMATCH,
+                        phase,
+                        compiled_schema,
+                    )
+                    return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+
+                phase = BoundaryPhase.CORRECTION
+                correction_messages = _build_filtered_miss_correction_messages(
+                    _chat_log_to_messages(chat_log.content),
+                    filtered_misses,
+                    complete_allowed_tools,
+                    compiled_schema.fingerprint,
+                )
+                try:
+                    correction_response = await runtime.client.chat_completion(
+                        correction_messages,
+                        model=runtime.model,
+                        tools=compiled_schema.tools,
+                        temperature=runtime.temperature,
+                        max_tokens=runtime.max_output_tokens,
+                    )
+                except (
+                    SaySoTimeoutError,
+                    SaySoConnectionError,
+                    SaySoHttpError,
+                    SaySoInvalidResponseError,
+                    SaySoError,
+                ) as err:
+                    return _client_exception_result(
+                        self._entry.entry_id,
+                        BoundaryPhase.CORRECTION,
+                        compiled_schema,
+                        user_input,
+                        chat_log,
+                        err,
+                        log_label="llama.cpp correction",
+                    )
+
+                correction_used = True
+                validation_tool_names = complete_allowed_tools
+                if not correction_response.tool_calls:
+                    return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+                current_tool_calls = correction_response.tool_calls
+                continue
 
             validated_tool_calls: list[tuple[ToolCall, dict[str, Any]]] = []
             validation_failures: list[
@@ -237,7 +336,7 @@ class SaySoConversationEntity(
                 correction_messages = _build_pre_execution_correction_messages(
                     _chat_log_to_messages(chat_log.content),
                     validation_failures,
-                    allowed_tools,
+                    complete_allowed_tools,
                     compiled_schema.fingerprint,
                 )
                 try:
@@ -266,6 +365,7 @@ class SaySoConversationEntity(
                     )
 
                 correction_used = True
+                validation_tool_names = complete_allowed_tools
                 if not correction_response.tool_calls:
                     return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
                 current_tool_calls = correction_response.tool_calls
@@ -307,7 +407,7 @@ class SaySoConversationEntity(
                 follow_up = await runtime.client.chat_completion(
                     messages,
                     model=runtime.model,
-                    tools=compiled_schema.tools if compiled_schema else None,
+                    tools=request_tools,
                     temperature=runtime.temperature,
                     max_tokens=runtime.max_output_tokens,
                 )
@@ -423,6 +523,34 @@ def _batch_validation_failure_code(
     return BoundaryFailureCode.INVALID_ARGUMENTS
 
 
+def _build_filtered_miss_correction_messages(
+    base_messages: list[dict[str, Any]],
+    filtered_misses: list[ToolCall],
+    allowed_tools: set[str],
+    fingerprint: str,
+) -> list[dict[str, Any]]:
+    """Append a synthetic transcript for one filtered-schema correction request."""
+    validation_failures = [
+        (
+            tool_call,
+            ToolArgumentValidationError(
+                code=ToolArgumentFailureCode.SCHEMA_MISMATCH,
+                message=(
+                    f"Tool {tool_call.name} is not available in the active schema subset"
+                ),
+                tool_name=tool_call.name,
+            ),
+        )
+        for tool_call in filtered_misses
+    ]
+    return _build_pre_execution_correction_messages(
+        base_messages,
+        validation_failures,
+        allowed_tools,
+        fingerprint,
+    )
+
+
 def _build_pre_execution_correction_messages(
     base_messages: list[dict[str, Any]],
     validation_failures: list[tuple[ToolCall, ToolArgumentValidationError]],
@@ -468,11 +596,8 @@ def _build_pre_execution_correction_messages(
     return messages
 
 
-def _validate_tool_call_batch(
-    tool_calls: list[ToolCall],
-    allowed_tools: set[str],
-) -> bool:
-    """Return whether every call in the batch is well-formed and authorized."""
+def _validate_tool_call_batch_structure(tool_calls: list[ToolCall]) -> bool:
+    """Return whether every call in the batch is structurally well-formed."""
     seen_ids: set[str] = set()
     for tool_call in tool_calls:
         if not tool_call.id or not tool_call.name:
@@ -480,11 +605,19 @@ def _validate_tool_call_batch(
         if tool_call.id in seen_ids:
             return False
         seen_ids.add(tool_call.id)
-        if tool_call.name not in allowed_tools:
-            return False
         if not isinstance(tool_call.arguments, dict):
             return False
     return True
+
+
+def _validate_tool_call_batch(
+    tool_calls: list[ToolCall],
+    allowed_tools: set[str],
+) -> bool:
+    """Return whether every call in the batch is well-formed and authorized."""
+    if not _validate_tool_call_batch_structure(tool_calls):
+        return False
+    return all(tool_call.name in allowed_tools for tool_call in tool_calls)
 
 
 def _validate_text_completion(result: ChatCompletionResult) -> str | None:
