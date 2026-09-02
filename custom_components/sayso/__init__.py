@@ -31,7 +31,7 @@ from .const import (
 )
 from .exceptions import SaySoError
 
-PLATFORMS: list[Platform] = []
+PLATFORMS: list[Platform] = [Platform.CONVERSATION]
 
 type SaySoConfigEntry = ConfigEntry[SaySoRuntimeData]
 

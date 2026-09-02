@@ -18,6 +18,11 @@ CONF_TEMPERATURE = "temperature"
 DEFAULT_SYSTEM_PROMPT = """You are SaySo, a local Home Assistant voice agent.
 Use the available tools for home state queries and actions. Only claim an action succeeded when its tool result confirms success. Use names, areas, and context supplied by Home Assistant. If a request is ambiguous, ask one short question. Keep spoken responses brief. Do not describe tool calls."""
 
+ERROR_MODEL_UNAVAILABLE = "The local model is unavailable."
+ERROR_REQUEST_TIMEOUT = "That request took too long."
+ERROR_EMPTY_RESPONSE = "I didn't get a response from the local model."
+ERROR_TOOL_CALLS_UNSUPPORTED = "I can't perform that action yet."
+
 CHAT_COMPLETIONS_PATH = "/chat/completions"
 MODELS_PATH = "/models"
 

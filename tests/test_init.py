@@ -9,7 +9,6 @@ import pytest
 from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.setup import async_setup_component
 
 from custom_components.sayso.client import LlamaCppClient
 from custom_components.sayso.const import (
@@ -24,12 +23,6 @@ from tests.test_config_flow import (
     _complete_user_step,
     _start_user_step,
 )
-
-
-@pytest.fixture(autouse=True)
-async def setup_llm(hass: HomeAssistant) -> None:
-    """Load the LLM integration for config-flow helpers."""
-    assert await async_setup_component(hass, "llm", {})
 
 
 @pytest.fixture

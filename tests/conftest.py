@@ -13,6 +13,7 @@ import pytest
 from aiohttp import ClientTimeout
 from homeassistant.core import HomeAssistant
 from homeassistant.loader import DATA_CUSTOM_COMPONENTS
+from homeassistant.setup import async_setup_component
 
 from custom_components.sayso.client import LlamaCppClient
 
@@ -27,6 +28,14 @@ def enable_custom_integrations(
     """Allow Home Assistant to discover this repository's custom components."""
     monkeypatch.setattr(custom_components, "__path__", [CUSTOM_COMPONENTS_PATH])
     hass.data.pop(DATA_CUSTOM_COMPONENTS, None)
+
+
+@pytest.fixture(autouse=True)
+async def setup_required_integrations(hass: HomeAssistant) -> None:
+    """Load Home Assistant integrations required by SaySo tests."""
+    assert await async_setup_component(hass, "homeassistant", {})
+    assert await async_setup_component(hass, "llm", {})
+    assert await async_setup_component(hass, "conversation", {})
 
 
 @pytest.fixture
