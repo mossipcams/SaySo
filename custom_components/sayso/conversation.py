@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
 from typing import Any, Literal, override
 
 from homeassistant.components import conversation
@@ -12,7 +11,6 @@ from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, intent, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from voluptuous_openapi import convert
 
 from . import SaySoConfigEntry, SaySoRuntimeData
 from .client import ChatCompletionResult, ToolCall
@@ -30,6 +28,20 @@ from .exceptions import (
     SaySoHttpError,
     SaySoInvalidResponseError,
     SaySoTimeoutError,
+)
+from .diagnostics import (
+    BoundaryFailureCode,
+    BoundaryPhase,
+    record_boundary_failure,
+)
+from .schema import (
+    CompiledToolSchema,
+    ToolArgumentFailureCode,
+    ToolArgumentValidationError,
+    build_tool_map,
+    compile_llm_tools,
+    format_synthetic_validation_error,
+    validate_tool_arguments,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -107,27 +119,32 @@ class SaySoConversationEntity(
         except conversation.ConverseError as err:
             return err.as_conversation_result()
 
-        tools = _format_tools(chat_log.llm_api)
+        compiled_schema = compile_llm_tools(chat_log.llm_api)
         messages = _chat_log_to_messages(chat_log.content)
 
         try:
             result = await runtime.client.chat_completion(
                 messages,
                 model=runtime.model,
-                tools=tools,
+                tools=compiled_schema.tools if compiled_schema else None,
                 temperature=runtime.temperature,
                 max_tokens=runtime.max_output_tokens,
             )
-        except SaySoTimeoutError:
-            return _error_result(user_input, chat_log, ERROR_REQUEST_TIMEOUT)
-        except SaySoConnectionError:
-            return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
-        except (SaySoHttpError, SaySoInvalidResponseError) as err:
-            _LOGGER.debug("llama.cpp response error: %s", err)
-            return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
-        except SaySoError as err:
-            _LOGGER.debug("SaySo error: %s", err)
-            return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+        except (
+            SaySoTimeoutError,
+            SaySoConnectionError,
+            SaySoHttpError,
+            SaySoInvalidResponseError,
+            SaySoError,
+        ) as err:
+            return _client_exception_result(
+                self._entry.entry_id,
+                BoundaryPhase.INITIAL,
+                compiled_schema,
+                user_input,
+                chat_log,
+                err,
+            )
 
         if result.tool_calls:
             return await self._async_handle_tool_calls(
@@ -135,6 +152,7 @@ class SaySoConversationEntity(
                 chat_log,
                 runtime,
                 result.tool_calls,
+                compiled_schema,
             )
 
         error_message = _validate_text_completion(result)
@@ -155,61 +173,169 @@ class SaySoConversationEntity(
         chat_log: conversation.ChatLog,
         runtime: SaySoRuntimeData,
         tool_calls: list[ToolCall],
+        compiled_schema: CompiledToolSchema | None,
     ) -> conversation.ConversationResult:
         """Execute tool calls sequentially until final text or iteration limit."""
         if chat_log.llm_api is None:
             return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
         allowed_tools = {tool.name for tool in chat_log.llm_api.tools}
+        tool_map = build_tool_map(chat_log.llm_api.tools)
         iteration = 1
+        correction_used = False
+        tools_executed = False
         current_tool_calls = tool_calls
+        phase = BoundaryPhase.INITIAL
 
         while True:
+            if not _validate_tool_call_batch(current_tool_calls, allowed_tools):
+                _record_boundary(
+                    self._entry.entry_id,
+                    _batch_validation_failure_code(current_tool_calls, allowed_tools),
+                    phase,
+                    compiled_schema,
+                )
+                return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+
+            validated_tool_calls: list[tuple[ToolCall, dict[str, Any]]] = []
+            validation_failures: list[
+                tuple[ToolCall, ToolArgumentValidationError]
+            ] = []
             for tool_call in current_tool_calls:
-                if not _is_valid_tool_call(tool_call, allowed_tools):
+                tool = tool_map[tool_call.name]
+                normalized_args, validation_error = validate_tool_arguments(
+                    tool,
+                    tool_call.arguments,
+                )
+                if validation_error is not None:
+                    _LOGGER.debug(
+                        "Tool argument validation failed for %s (%s): %s",
+                        tool_call.name,
+                        validation_error.code,
+                        validation_error.message,
+                    )
+                    validation_failures.append((tool_call, validation_error))
+                else:
+                    validated_tool_calls.append((tool_call, normalized_args))
+
+            if validation_failures:
+                if (
+                    validated_tool_calls
+                    or correction_used
+                    or tools_executed
+                    or compiled_schema is None
+                ):
+                    _record_boundary(
+                        self._entry.entry_id,
+                        _validation_failure_code(validation_failures[0][1]),
+                        phase,
+                        compiled_schema,
+                    )
                     return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
-                assistant_content = conversation.AssistantContent(
-                    agent_id=self.entity_id,
-                    content=None,
-                    tool_calls=[
-                        llm.ToolInput(
-                            id=tool_call.id,
-                            tool_name=tool_call.name,
-                            tool_args=tool_call.arguments,
-                        )
-                    ],
+                phase = BoundaryPhase.CORRECTION
+                correction_messages = _build_pre_execution_correction_messages(
+                    _chat_log_to_messages(chat_log.content),
+                    validation_failures,
+                    allowed_tools,
+                    compiled_schema.fingerprint,
                 )
-                async for tool_result in chat_log.async_add_assistant_content(
-                    assistant_content
-                ):
-                    if "error" in tool_result.tool_result:
-                        return _error_result(
-                            user_input, chat_log, ERROR_ACTION_FAILED
-                        )
+                try:
+                    correction_response = await runtime.client.chat_completion(
+                        correction_messages,
+                        model=runtime.model,
+                        tools=compiled_schema.tools,
+                        temperature=runtime.temperature,
+                        max_tokens=runtime.max_output_tokens,
+                    )
+                except (
+                    SaySoTimeoutError,
+                    SaySoConnectionError,
+                    SaySoHttpError,
+                    SaySoInvalidResponseError,
+                    SaySoError,
+                ) as err:
+                    return _client_exception_result(
+                        self._entry.entry_id,
+                        BoundaryPhase.CORRECTION,
+                        compiled_schema,
+                        user_input,
+                        chat_log,
+                        err,
+                        log_label="llama.cpp correction",
+                    )
+
+                correction_used = True
+                if not correction_response.tool_calls:
+                    return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+                current_tool_calls = correction_response.tool_calls
+                continue
+
+            assistant_content = conversation.AssistantContent(
+                agent_id=self.entity_id,
+                content=None,
+                tool_calls=[
+                    llm.ToolInput(
+                        id=tool_call.id,
+                        tool_name=tool_call.name,
+                        tool_args=normalized_args,
+                    )
+                    for tool_call, normalized_args in validated_tool_calls
+                ],
+            )
+            batch_failed = False
+            async for _tool_result in chat_log.async_add_assistant_content(
+                assistant_content
+            ):
+                if "error" in _tool_result.tool_result:
+                    batch_failed = True
+
+            if batch_failed:
+                _record_boundary(
+                    self._entry.entry_id,
+                    BoundaryFailureCode.TOOL_EXECUTION_FAILED,
+                    BoundaryPhase.EXECUTION,
+                    compiled_schema,
+                )
+                return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+
+            tools_executed = True
+            phase = BoundaryPhase.FOLLOW_UP
 
             messages = _chat_log_to_messages(chat_log.content)
             try:
                 follow_up = await runtime.client.chat_completion(
                     messages,
                     model=runtime.model,
-                    tools=_format_tools(chat_log.llm_api),
+                    tools=compiled_schema.tools if compiled_schema else None,
                     temperature=runtime.temperature,
                     max_tokens=runtime.max_output_tokens,
                 )
-            except SaySoTimeoutError:
-                return _error_result(user_input, chat_log, ERROR_REQUEST_TIMEOUT)
-            except SaySoConnectionError:
-                return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
-            except (SaySoHttpError, SaySoInvalidResponseError) as err:
-                _LOGGER.debug("llama.cpp follow-up response error: %s", err)
-                return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
-            except SaySoError as err:
-                _LOGGER.debug("SaySo follow-up error: %s", err)
-                return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+            except (
+                SaySoTimeoutError,
+                SaySoConnectionError,
+                SaySoHttpError,
+                SaySoInvalidResponseError,
+                SaySoError,
+            ) as err:
+                return _client_exception_result(
+                    self._entry.entry_id,
+                    BoundaryPhase.FOLLOW_UP,
+                    compiled_schema,
+                    user_input,
+                    chat_log,
+                    err,
+                    log_label="llama.cpp follow-up",
+                )
 
             if follow_up.tool_calls:
                 if iteration >= runtime.max_tool_iterations:
+                    _record_boundary(
+                        self._entry.entry_id,
+                        BoundaryFailureCode.ITERATION_LIMIT,
+                        BoundaryPhase.FOLLOW_UP,
+                        compiled_schema,
+                    )
                     return _error_result(
                         user_input, chat_log, ERROR_TOOL_ITERATION_LIMIT
                     )
@@ -230,35 +356,135 @@ class SaySoConversationEntity(
             return conversation.async_get_result_from_chat_log(user_input, chat_log)
 
 
-def _format_tools(llm_api: llm.APIInstance | None) -> list[dict[str, Any]] | None:
-    """Convert Home Assistant LLM tools to OpenAI-compatible function definitions."""
-    if llm_api is None or not llm_api.tools:
-        return None
-
-    serializer = llm_api.custom_serializer or llm.selector_serializer
-    return [_format_tool(tool, serializer) for tool in llm_api.tools]
-
-
-def _format_tool(
-    tool: llm.Tool, custom_serializer: Callable[[Any], Any] | None
-) -> dict[str, Any]:
-    """Format a Home Assistant tool as an OpenAI function definition."""
-    tool_spec: dict[str, Any] = {
-        "name": tool.name,
-        "parameters": convert(tool.parameters, custom_serializer=custom_serializer),
-    }
-    if tool.description:
-        tool_spec["description"] = tool.description
-    return {"type": "function", "function": tool_spec}
+def _record_boundary(
+    entry_id: str,
+    code: BoundaryFailureCode,
+    phase: BoundaryPhase,
+    compiled_schema: CompiledToolSchema | None,
+) -> None:
+    """Record one boundary failure and log its stable code and phase."""
+    fingerprint = compiled_schema.fingerprint if compiled_schema else None
+    record_boundary_failure(
+        entry_id,
+        code,
+        phase,
+        fingerprint=fingerprint,
+    )
+    _LOGGER.debug("SaySo boundary failure: code=%s phase=%s", code.value, phase.value)
 
 
-def _is_valid_tool_call(tool_call: ToolCall, allowed_tools: set[str]) -> bool:
-    """Return whether a tool call is well-formed and authorized for this request."""
-    if not tool_call.id or not tool_call.name:
-        return False
-    if tool_call.name not in allowed_tools:
-        return False
-    return isinstance(tool_call.arguments, dict)
+def _client_exception_result(
+    entry_id: str,
+    phase: BoundaryPhase,
+    compiled_schema: CompiledToolSchema | None,
+    user_input: conversation.ConversationInput,
+    chat_log: conversation.ChatLog,
+    err: BaseException,
+    *,
+    log_label: str = "llama.cpp",
+) -> conversation.ConversationResult:
+    """Map a SaySo client exception to a spoken error after recording timeout boundaries."""
+    if isinstance(err, SaySoTimeoutError):
+        _record_boundary(
+            entry_id,
+            BoundaryFailureCode.REQUEST_TIMEOUT,
+            phase,
+            compiled_schema,
+        )
+        return _error_result(user_input, chat_log, ERROR_REQUEST_TIMEOUT)
+    if isinstance(err, SaySoConnectionError):
+        return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+    if isinstance(err, (SaySoHttpError, SaySoInvalidResponseError)):
+        _LOGGER.debug("%s response error: %s", log_label, err)
+        return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+    if isinstance(err, SaySoError):
+        _LOGGER.debug("SaySo error: %s", err)
+        return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+    raise err
+
+
+def _validation_failure_code(
+    error: ToolArgumentValidationError,
+) -> BoundaryFailureCode:
+    """Map a tool-argument validation error to a boundary diagnostic code."""
+    if error.code == ToolArgumentFailureCode.SCHEMA_MISMATCH:
+        return BoundaryFailureCode.SCHEMA_MISMATCH
+    return BoundaryFailureCode.INVALID_ARGUMENTS
+
+
+def _batch_validation_failure_code(
+    tool_calls: list[ToolCall],
+    allowed_tools: set[str],
+) -> BoundaryFailureCode:
+    """Map a batch prevalidation failure to a boundary diagnostic code."""
+    for tool_call in tool_calls:
+        if tool_call.name not in allowed_tools:
+            return BoundaryFailureCode.UNAVAILABLE_TOOL
+    return BoundaryFailureCode.INVALID_ARGUMENTS
+
+
+def _build_pre_execution_correction_messages(
+    base_messages: list[dict[str, Any]],
+    validation_failures: list[tuple[ToolCall, ToolArgumentValidationError]],
+    allowed_tools: set[str],
+    fingerprint: str,
+) -> list[dict[str, Any]]:
+    """Append a synthetic assistant/tool transcript for one correction request."""
+    messages = list(base_messages)
+    allowed_tool_names = sorted(allowed_tools)
+    messages.append(
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.name,
+                        "arguments": json.dumps(
+                            tool_call.arguments, sort_keys=True
+                        ),
+                    },
+                }
+                for tool_call, _error in validation_failures
+            ],
+        }
+    )
+    for tool_call, validation_error in validation_failures:
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": json.dumps(
+                    format_synthetic_validation_error(
+                        validation_error,
+                        allowed_tools=allowed_tool_names,
+                        fingerprint=fingerprint,
+                    )
+                ),
+            }
+        )
+    return messages
+
+
+def _validate_tool_call_batch(
+    tool_calls: list[ToolCall],
+    allowed_tools: set[str],
+) -> bool:
+    """Return whether every call in the batch is well-formed and authorized."""
+    seen_ids: set[str] = set()
+    for tool_call in tool_calls:
+        if not tool_call.id or not tool_call.name:
+            return False
+        if tool_call.id in seen_ids:
+            return False
+        seen_ids.add(tool_call.id)
+        if tool_call.name not in allowed_tools:
+            return False
+        if not isinstance(tool_call.arguments, dict):
+            return False
+    return True
 
 
 def _validate_text_completion(result: ChatCompletionResult) -> str | None:
@@ -293,7 +519,7 @@ def _chat_log_to_messages(
                         "type": "function",
                         "function": {
                             "name": tool_call.tool_name,
-                            "arguments": json.dumps(tool_call.tool_args),
+                            "arguments": json.dumps(tool_call.tool_args, sort_keys=True),
                         },
                     }
                     for tool_call in item.tool_calls
