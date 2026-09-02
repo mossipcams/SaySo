@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
@@ -14,7 +15,11 @@ import voluptuous as vol
 from homeassistant.helpers import llm
 from voluptuous_openapi import convert
 
+from .exceptions import SaySoInvalidToolEnvelopeError
+
 COMPILE_CACHE_MAXSIZE = 32
+
+_FUNCTION_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,13 +194,55 @@ def emit_canonical_json(tools: list[dict[str, Any]]) -> bytes:
 
 
 def schema_fingerprint(tools: list[dict[str, Any]]) -> str:
-    """Return the SHA-256 hex digest of the canonical compiled-tool JSON."""
-    payload = json.dumps(
-        tools,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+    """Return the SHA-256 fingerprint of the canonical compiled-tool JSON."""
+    digest = hashlib.sha256(emit_canonical_json(tools)).hexdigest()
+    return f"sha256:{digest}"
+
+
+def validate_compiled_tool_envelope(
+    tools: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+) -> None:
+    """Reject invalid outer tool envelopes before caching or transport."""
+    seen_names: set[str] = set()
+    for index, tool in enumerate(tools):
+        if not isinstance(tool, dict):
+            raise SaySoInvalidToolEnvelopeError(
+                f"Tool entry at index {index} must be an object"
+            )
+        if tool.get("type") != "function":
+            raise SaySoInvalidToolEnvelopeError(
+                f"Tool entry at index {index} must have type 'function'"
+            )
+
+        function = tool.get("function")
+        if not isinstance(function, dict):
+            raise SaySoInvalidToolEnvelopeError(
+                f"Tool entry at index {index} must include a function object"
+            )
+
+        name = function.get("name")
+        if not isinstance(name, str) or not _FUNCTION_NAME_RE.fullmatch(name):
+            raise SaySoInvalidToolEnvelopeError(
+                f"Tool entry at index {index} has an invalid function name"
+            )
+        if name in seen_names:
+            raise SaySoInvalidToolEnvelopeError(
+                f"Duplicate function name {name!r} in compiled tool envelope"
+            )
+        seen_names.add(name)
+
+        parameters = function.get("parameters")
+        if not isinstance(parameters, dict) or parameters.get("type") != "object":
+            raise SaySoInvalidToolEnvelopeError(
+                f"Tool {name!r} must have parameters with type 'object'"
+            )
+
+        try:
+            json.dumps(tool, ensure_ascii=False)
+        except TypeError as err:
+            raise SaySoInvalidToolEnvelopeError(
+                f"Tool {name!r} is not JSON-serializable"
+            ) from err
 
 
 def compile_parameters(
@@ -230,7 +277,9 @@ def compile_tool(
         {"type": "function", "function": tool_spec},
         top_level=True,
     )
-    return canonicalize_schema(normalized)
+    compiled = canonicalize_schema(normalized)
+    validate_compiled_tool_envelope((compiled,))
+    return compiled
 
 
 def _emit_tool_source_entry(
@@ -288,7 +337,9 @@ def _build_compiled_tools_from_source(
             top_level=True,
         )
         compiled.append(canonicalize_schema(normalized))
-    return tuple(canonicalize_compiled_tools(compiled))
+    compiled_tools = canonicalize_compiled_tools(compiled)
+    validate_compiled_tool_envelope(compiled_tools)
+    return tuple(compiled_tools)
 
 
 @lru_cache(maxsize=COMPILE_CACHE_MAXSIZE)
