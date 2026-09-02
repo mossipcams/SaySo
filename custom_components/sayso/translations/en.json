@@ -1,0 +1,55 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to llama.cpp",
+        "description": "Enter the OpenAI-compatible llama.cpp base URL and optional API key.",
+        "data": {
+          "url": "Base URL",
+          "api_key": "API key (optional)"
+        }
+      },
+      "model": {
+        "title": "Select model",
+        "description": "Choose the model identifier exposed by llama.cpp.",
+        "data": {
+          "model": "Model"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to llama.cpp.",
+      "invalid_auth": "Authentication failed. Check the API key.",
+      "invalid_response": "llama.cpp returned an invalid response.",
+      "invalid_url": "Enter a valid URL.",
+      "model_not_found": "The selected model is not available on llama.cpp.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This llama.cpp endpoint and model combination is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SaySo options",
+        "data": {
+          "model": "Model",
+          "timeout": "Request timeout (seconds)",
+          "llm_hass_api": "Home Assistant LLM API",
+          "prompt": "System prompt",
+          "temperature": "Temperature",
+          "max_output_tokens": "Maximum output tokens",
+          "max_tool_iterations": "Maximum tool iterations"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to llama.cpp.",
+      "invalid_auth": "Authentication failed. Check the API key.",
+      "invalid_response": "llama.cpp returned an invalid response.",
+      "model_not_found": "The selected model is not available on llama.cpp.",
+      "unknown": "Unexpected error."
+    }
+  }
+}

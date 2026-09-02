@@ -2,6 +2,7 @@
   "domain": "sayso",
   "name": "SaySo",
   "codeowners": [],
+  "config_flow": true,
   "documentation": "https://github.com/sayso/sayso",
   "integration_type": "service",
   "iot_class": "local_polling",

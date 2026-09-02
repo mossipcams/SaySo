@@ -16,12 +16,14 @@ from .const import (
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT,
+    MODELS_PATH,
 )
 from .exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
     SaySoHttpError,
     SaySoInvalidResponseError,
+    SaySoModelNotFoundError,
     SaySoTimeoutError,
 )
 
@@ -98,6 +100,39 @@ class LlamaCppClient:
         """Full URL for chat completions."""
         return f"{self._base_url}{CHAT_COMPLETIONS_PATH}"
 
+    @property
+    def models_url(self) -> str:
+        """Full URL for the models listing endpoint."""
+        return f"{self._base_url}{MODELS_PATH}"
+
+    def _auth_headers(self) -> dict[str, str]:
+        """Return authorization headers when an API key is configured."""
+        if not self._api_key:
+            return {}
+        return {"Authorization": f"Bearer {self._api_key}"}
+
+    async def list_models(self) -> list[str]:
+        """Return model identifiers advertised by llama.cpp."""
+        try:
+            async with self._session.get(
+                self.models_url,
+                headers=self._auth_headers(),
+                timeout=ClientTimeout(total=self._timeout),
+            ) as response:
+                return await self._parse_models_response(response)
+        except TimeoutError as err:
+            raise SaySoTimeoutError("llama.cpp request timed out") from err
+        except aiohttp.ServerTimeoutError as err:
+            raise SaySoTimeoutError("llama.cpp request timed out") from err
+        except ClientError as err:
+            raise SaySoConnectionError("llama.cpp is unreachable") from err
+
+    async def validate_model(self, model: str) -> None:
+        """Ensure the configured model is available on llama.cpp."""
+        models = await self.list_models()
+        if model not in models:
+            raise SaySoModelNotFoundError(f"Model {model!r} is not available")
+
     async def chat_completion(
         self,
         messages: list[dict[str, Any]],
@@ -117,15 +152,11 @@ class LlamaCppClient:
         if tools is not None:
             payload["tools"] = tools
 
-        headers: dict[str, str] = {}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
-
         try:
             async with self._session.post(
                 self.chat_completions_url,
                 json=payload,
-                headers=headers,
+                headers=self._auth_headers(),
                 timeout=ClientTimeout(total=self._timeout),
             ) as response:
                 return await self._parse_response(response)
@@ -181,6 +212,44 @@ class LlamaCppClient:
             )
 
         return ChatCompletionResult(content=content, tool_calls=tool_calls)
+
+    async def _parse_models_response(self, response: ClientResponse) -> list[str]:
+        if response.status in {401, 403}:
+            raise SaySoAuthError("llama.cpp rejected the API key")
+
+        if response.status >= 400:
+            raise SaySoHttpError(response.status)
+
+        try:
+            body = await response.json(content_type=None)
+        except (json.JSONDecodeError, aiohttp.ContentTypeError, ValueError) as err:
+            raise SaySoInvalidResponseError("llama.cpp returned invalid JSON") from err
+
+        if not isinstance(body, dict):
+            raise SaySoInvalidResponseError("llama.cpp returned invalid JSON")
+
+        if "error" in body:
+            raise SaySoInvalidResponseError(
+                _format_llama_error(body.get("error"))
+            )
+
+        data = body.get("data")
+        if not isinstance(data, list):
+            raise SaySoInvalidResponseError("llama.cpp returned invalid models list")
+
+        models: list[str] = []
+        for item in data:
+            if not isinstance(item, dict):
+                raise SaySoInvalidResponseError("llama.cpp returned invalid models list")
+            model_id = item.get("id")
+            if not isinstance(model_id, str) or not model_id:
+                raise SaySoInvalidResponseError("llama.cpp returned invalid models list")
+            models.append(model_id)
+
+        if not models:
+            raise SaySoInvalidResponseError("llama.cpp returned no models")
+
+        return models
 
 
 def _parse_tool_call(raw: Any) -> ToolCall:

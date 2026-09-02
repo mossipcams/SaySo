@@ -300,6 +300,29 @@ async def test_no_retry_after_terminal_transport_failure(
     assert llama_client._session.post.call_count == 1
 
 
+async def test_list_models_uses_http_get(
+    mock_session: aiohttp.ClientSession,
+) -> None:
+    """Test list_models uses the models endpoint over GET."""
+    response = AsyncMock()
+    response.status = 200
+    response.json = AsyncMock(return_value={"data": [{"id": "test-model"}]})
+    context_manager = AsyncMock()
+    context_manager.__aenter__ = AsyncMock(return_value=response)
+    context_manager.__aexit__ = AsyncMock(return_value=False)
+    mock_session.get = MagicMock(return_value=context_manager)
+
+    client = LlamaCppClient(mock_session, "http://127.0.0.1:8080/v1", api_key="test-key")
+    models = await client.list_models()
+
+    assert models == ["test-model"]
+    mock_session.get.assert_called_once()
+    assert (
+        mock_session.get.call_args.args[0]
+        == "http://127.0.0.1:8080/v1/models"
+    )
+
+
 async def test_from_hass_uses_shared_session(hass: HomeAssistant) -> None:
     shared_session = MagicMock(spec=aiohttp.ClientSession)
     with patch(

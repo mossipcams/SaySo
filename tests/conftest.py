@@ -3,15 +3,30 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Callable
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
+import custom_components
 import pytest
 from aiohttp import ClientTimeout
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import DATA_CUSTOM_COMPONENTS
 
 from custom_components.sayso.client import LlamaCppClient
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CUSTOM_COMPONENTS_PATH = str(REPO_ROOT / "custom_components")
+
+
+@pytest.fixture(autouse=True)
+def enable_custom_integrations(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Allow Home Assistant to discover this repository's custom components."""
+    monkeypatch.setattr(custom_components, "__path__", [CUSTOM_COMPONENTS_PATH])
+    hass.data.pop(DATA_CUSTOM_COMPONENTS, None)
 
 
 @pytest.fixture
