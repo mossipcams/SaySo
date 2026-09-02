@@ -1,5 +1,7 @@
 # SaySo architecture boundary closure plan
 
+Status: completed — superseded by [CLEAN_REBUILD_PLAN.md](CLEAN_REBUILD_PLAN.md).
+
 ## Decision
 
 Keep SaySo's current architecture. SaySo already has the intended control

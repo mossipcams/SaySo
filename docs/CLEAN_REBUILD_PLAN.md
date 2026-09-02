@@ -36,9 +36,8 @@ green.
 
 - The production path is implemented, but the physical Mac demo has not been
   run.
-- `uv run pytest -q`: 540 passed, 1 failed. The failure is the committed API
-  schema fixture missing the implemented conversation and prepare message
-  types.
+- `uv run pytest -q`: 541 passed (committed API schema fixture includes
+  conversation and prepare message types; Task 1 complete).
 - `uv run pytest -q evals`: 217 passed.
 - The RMS/energy wake detector is a prototype, but it is sufficient for the
   first physical demo.
@@ -85,7 +84,7 @@ green.
 
 ## Execution rules
 
-Each numbered unit is a 5–15 minute stop point. Approval starts Task 1 only.
+Each numbered unit is a 5–15 minute stop point. Next stop is Task 2.
 After every unit, report the red and green checks and ask, `Task N done.
 Continue?`
 
@@ -105,16 +104,22 @@ the runtime contract is already correct and the fixture is stale.
 
 ## Phase 1 — Restore a reproducible baseline
 
-### Task 1 — Synchronize the committed protocol schema (5–10 min)
+### Task 1 — Synchronize the committed protocol schema (5–10 min) — done
 
-- Test first: run the already-failing
-  `test_sayso_api_v1_json_schema_matches_committed_fixture`; no redundant test
-  is needed because it precisely exposes the drift.
-- Minimal implementation: regenerate only
+Completed. The committed fixture `evals/fixtures/sayso_api_v1.schema.json` now
+includes conversation and prepare message types;
+`test_sayso_api_v1_json_schema_matches_committed_fixture` passes, and
+`uv run pytest -q` reports 541 passed.
+
+Historical steps (already executed):
+
+- Test first: schema drift was exposed by
+  `test_sayso_api_v1_json_schema_matches_committed_fixture`.
+- Minimal implementation: regenerated only
   `evals/fixtures/sayso_api_v1.schema.json` from the current
-  `SaySoEnvelope.model_json_schema()`. Do not change the envelope or remove the
-  implemented conversation/prepare message types.
-- Verify: run the focused schema test, then `uv run pytest -q` and
+  `SaySoEnvelope.model_json_schema()` without changing the envelope or removing
+  the implemented conversation/prepare message types.
+- Verify: focused schema test, then `uv run pytest -q` and
   `uv run pytest -q evals`.
 
 ### Task 2 — Prove clean dependency and import setup (10–15 min)

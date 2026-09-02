@@ -117,6 +117,43 @@ Three processes:
    path, and correlated WebSocket messages (`conversation_request`, `prepare`,
    `action_request` / `action_result`).
 
+### Model runtime (`SAYSO_MODEL_ID`)
+
+The resident server loads one MLX model at startup. Override the Hugging Face
+model id with the `SAYSO_MODEL_ID` environment variable. When unset, the
+default is `mlx-community/LFM2.5-230M-OptiQ-4bit` (see
+`sayso_server.mlx_runtime.DEFAULT_MLX_MODEL_ID`).
+
+`mlx-lm` is required on the host that runs `sayso-server` but is not in the
+locked workspace dependencies. Install it separately, for example
+`uv pip install mlx-lm`, before starting the server.
+
+### Mac satellite device origin (`SAYSO_HA_DEVICE_ID`)
+
+The Mac client may pass a Home Assistant **device registry** ID through
+`SAYSO_HA_DEVICE_ID` or `--device-id`. The satellite forwards it on
+`assist_pipeline/run`; Assist supplies `ConversationInput.device_id`; the
+SaySo coordinator resolves it through HA's device registry to
+`(source_id, area_id)` for the planning payload. There is no implicit Mac or
+living-room fallback.
+
+- **Optional** for explicit named targets (“turn on the floor lamp”).
+- **Required** for area-relative origin (“turn off the lights in here”) so the
+  validator receives the Mac's current area.
+
+Obtain a device registry ID from Home Assistant (use any device assigned to the
+Mac's room; entity IDs are not valid here):
+
+1. **Device page URL** — **Settings → Devices & services**, open the device,
+   copy the final path segment from `/config/devices/device/<device_id>`.
+2. **Temporary automation YAML** — add a device trigger for that hardware,
+   choose **Edit in YAML**, and read the `device_id` field.
+3. **Advanced** — inspect `$HA_CONFIG/.storage/core.device_registry` (or your
+   install's equivalent config path).
+
+Assign the device to an area in Home Assistant; otherwise area-relative
+commands clarify instead of acting.
+
 ```text
 Satellite
   -> Home Assistant Assist pipeline

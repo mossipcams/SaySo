@@ -28,7 +28,7 @@ From a clean checkout:
 uv sync --frozen
 uv run pytest -q
 uv run pytest -q evals
-python -c 'import sayso_server, sayso_satellite'
+uv run python -c 'import sayso_server, sayso_satellite'
 ```
 
 ## 1. Start the server
@@ -98,12 +98,21 @@ uv run python -m sayso_satellite \
   --audio-file evals/fixtures/audio_pcm16_mono_16k.bin
 ```
 
-**Live voice loop** (requires `ffmpeg`, registered HA device for origin area):
+**Live voice loop** (requires `ffmpeg`; optional HA device ID for area origin):
 
 ```bash
 export SAYSO_HA_DEVICE_ID='<ha-device-id>'   # optional; CLI --device-id also works
 uv run python -m sayso_satellite --live --wake --loop
 ```
+
+Omit `SAYSO_HA_DEVICE_ID` for explicit named targets (for example, “turn on the
+floor lamp”). Set it when you want area-relative phrases such as “turn off the
+lights in here” to resolve from the Mac’s room. Use a Home Assistant **device
+registry** ID (not an entity ID): open **Settings → Devices & services**, choose
+a device assigned to that room, and copy the ID from the browser URL path
+(`/config/devices/device/<device_id>`). See
+[Architecture](docs/ARCHITECTURE.md) for lookup alternatives and how the
+integration resolves it.
 
 Optional tuning: `SAYSO_WAKE_THRESHOLD`, `SAYSO_WAKE_HITS`, `SAYSO_LISTEN_MS`,
 `--capture-ms`. See [Architecture](docs/ARCHITECTURE.md) for the full voice
@@ -133,6 +142,7 @@ execution requires both `--execute` and `--allowlist` — see
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Evaluation plan](docs/EVALUATION_PLAN.md)
-- [WebSocket conversation plan](docs/WEBSOCKET_CONVERSATION_PLAN.md)
+- [Clean rebuild plan](docs/CLEAN_REBUILD_PLAN.md) — current close-out
+- [WebSocket conversation plan](docs/WEBSOCKET_CONVERSATION_PLAN.md) —
+  completed; superseded by the rebuild plan
 - [Tuning plan](docs/TUNING_PLAN.md)
-- [Clean rebuild plan](docs/CLEAN_REBUILD_PLAN.md)
