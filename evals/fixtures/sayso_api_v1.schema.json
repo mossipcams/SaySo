@@ -11,7 +11,11 @@
         "state_delta",
         "registry_delta",
         "action_request",
-        "action_result"
+        "action_result",
+        "conversation_request",
+        "conversation_response",
+        "prepare",
+        "prepare_response"
       ],
       "title": "MessageType",
       "type": "string"
