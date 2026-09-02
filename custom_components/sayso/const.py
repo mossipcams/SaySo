@@ -1,6 +1,6 @@
 """Constants for the SaySo integration."""
 
-from homeassistant.const import CONF_MODEL, CONF_PROMPT, CONF_LLM_HASS_API
+from homeassistant.const import CONF_LLM_HASS_API, CONF_MODEL, CONF_PROMPT
 
 DOMAIN = "sayso"
 

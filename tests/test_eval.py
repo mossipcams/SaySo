@@ -608,7 +608,6 @@ def test_build_live_latency_report_is_deterministic() -> None:
 
 
 EVALS_ROOT = Path(__file__).resolve().parents[1] / "evals"
-BASELINE_MINIMUM_PATH = EVALS_ROOT / "baselines" / "minimum.json"
 BASELINE_CURRENT_PATH = EVALS_ROOT / "baselines" / "current.json"
 
 
@@ -693,7 +692,7 @@ def test_compare_eval_reports_rejects_metadata_mismatch() -> None:
     )
     candidate = _build_fixture_release_report(
         improved_records,
-        homeassistant="2024.12.0",
+        homeassistant="2026.8.2",
     )
 
     comparison = compare_eval_reports(baseline, candidate)
@@ -813,19 +812,13 @@ def test_compare_report_formats_are_compact() -> None:
     assert "delta" in payload
 
 
-def test_baseline_files_exist_for_both_ha_matrix_versions() -> None:
-    """Archived baselines cover minimum and current HA matrix entries."""
-    minimum = load_baseline(BASELINE_MINIMUM_PATH)
+def test_baseline_file_exists_for_current_ha_matrix_version() -> None:
+    """Archived baseline covers the current HA matrix entry."""
     current = load_baseline(BASELINE_CURRENT_PATH)
 
-    validate_release_report(minimum)
     validate_release_report(current)
 
-    assert minimum["matrix_id"] == "minimum"
-    assert minimum["metadata"]["homeassistant"] == "2024.12.0"
     assert current["matrix_id"] == "current"
     assert current["metadata"]["homeassistant"] == "2026.8.3"
-    assert minimum["fingerprints"]["cases_version"] == 1
     assert current["fingerprints"]["cases_version"] == 1
-    assert "latency_tolerance_ms" in minimum
     assert "latency_tolerance_ms" in current

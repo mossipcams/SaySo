@@ -9,7 +9,6 @@ from homeassistant.const import (
     CONF_API_KEY,
     CONF_LLM_HASS_API,
     CONF_MODEL,
-    CONF_PROMPT,
     CONF_URL,
     Platform,
 )
@@ -20,6 +19,7 @@ from .client import LlamaCppClient
 from .const import (
     CONF_MAX_OUTPUT_TOKENS,
     CONF_MAX_TOOL_ITERATIONS,
+    CONF_PROMPT,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
     DEFAULT_MAX_OUTPUT_TOKENS,
