@@ -21,7 +21,8 @@ Use the available tools for home state queries and actions. Only claim an action
 ERROR_MODEL_UNAVAILABLE = "The local model is unavailable."
 ERROR_REQUEST_TIMEOUT = "That request took too long."
 ERROR_EMPTY_RESPONSE = "I didn't get a response from the local model."
-ERROR_TOOL_CALLS_UNSUPPORTED = "I can't perform that action yet."
+ERROR_ACTION_FAILED = "I couldn't complete that action."
+ERROR_TOOL_ITERATION_LIMIT = "I couldn't complete that action."
 
 CHAT_COMPLETIONS_PATH = "/chat/completions"
 MODELS_PATH = "/models"

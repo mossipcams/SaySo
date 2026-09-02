@@ -4,22 +4,25 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any, Literal, override
 
 from homeassistant.components import conversation
 from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, intent
+from homeassistant.helpers import device_registry as dr, intent, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from voluptuous_openapi import convert
 
 from . import SaySoConfigEntry, SaySoRuntimeData
-from .client import ChatCompletionResult
+from .client import ChatCompletionResult, ToolCall
 from .const import (
     DOMAIN,
+    ERROR_ACTION_FAILED,
     ERROR_EMPTY_RESPONSE,
     ERROR_MODEL_UNAVAILABLE,
     ERROR_REQUEST_TIMEOUT,
-    ERROR_TOOL_CALLS_UNSUPPORTED,
+    ERROR_TOOL_ITERATION_LIMIT,
 )
 from .exceptions import (
     SaySoConnectionError,
@@ -104,11 +107,14 @@ class SaySoConversationEntity(
         except conversation.ConverseError as err:
             return err.as_conversation_result()
 
+        tools = _format_tools(chat_log.llm_api)
         messages = _chat_log_to_messages(chat_log.content)
+
         try:
             result = await runtime.client.chat_completion(
                 messages,
                 model=runtime.model,
+                tools=tools,
                 temperature=runtime.temperature,
                 max_tokens=runtime.max_output_tokens,
             )
@@ -123,7 +129,15 @@ class SaySoConversationEntity(
             _LOGGER.debug("SaySo error: %s", err)
             return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
 
-        error_message = _validate_completion(result)
+        if result.tool_calls:
+            return await self._async_handle_tool_calls(
+                user_input,
+                chat_log,
+                runtime,
+                result.tool_calls,
+            )
+
+        error_message = _validate_text_completion(result)
         if error_message is not None:
             return _error_result(user_input, chat_log, error_message)
 
@@ -135,12 +149,110 @@ class SaySoConversationEntity(
         )
         return conversation.async_get_result_from_chat_log(user_input, chat_log)
 
+    async def _async_handle_tool_calls(
+        self,
+        user_input: conversation.ConversationInput,
+        chat_log: conversation.ChatLog,
+        runtime: SaySoRuntimeData,
+        tool_calls: list[ToolCall],
+    ) -> conversation.ConversationResult:
+        """Execute one tool-call round trip and return the final text response."""
+        if chat_log.llm_api is None:
+            return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
-def _validate_completion(result: ChatCompletionResult) -> str | None:
-    """Return a user-facing error when the model output is unusable."""
-    if result.tool_calls:
-        return ERROR_TOOL_CALLS_UNSUPPORTED
+        allowed_tools = {tool.name for tool in chat_log.llm_api.tools}
+        tool_inputs: list[llm.ToolInput] = []
+        for tool_call in tool_calls:
+            if not _is_valid_tool_call(tool_call, allowed_tools):
+                return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+            tool_inputs.append(
+                llm.ToolInput(
+                    id=tool_call.id,
+                    tool_name=tool_call.name,
+                    tool_args=tool_call.arguments,
+                )
+            )
 
+        assistant_content = conversation.AssistantContent(
+            agent_id=self.entity_id,
+            content=None,
+            tool_calls=tool_inputs,
+        )
+        async for tool_result in chat_log.async_add_assistant_content(
+            assistant_content
+        ):
+            if "error" in tool_result.tool_result:
+                return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+
+        messages = _chat_log_to_messages(chat_log.content)
+        try:
+            follow_up = await runtime.client.chat_completion(
+                messages,
+                model=runtime.model,
+                tools=_format_tools(chat_log.llm_api),
+                temperature=runtime.temperature,
+                max_tokens=runtime.max_output_tokens,
+            )
+        except SaySoTimeoutError:
+            return _error_result(user_input, chat_log, ERROR_REQUEST_TIMEOUT)
+        except SaySoConnectionError:
+            return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+        except (SaySoHttpError, SaySoInvalidResponseError) as err:
+            _LOGGER.debug("llama.cpp follow-up response error: %s", err)
+            return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+        except SaySoError as err:
+            _LOGGER.debug("SaySo follow-up error: %s", err)
+            return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+
+        if follow_up.tool_calls:
+            return _error_result(user_input, chat_log, ERROR_TOOL_ITERATION_LIMIT)
+
+        error_message = _validate_text_completion(follow_up)
+        if error_message is not None:
+            return _error_result(user_input, chat_log, error_message)
+
+        chat_log.async_add_assistant_content_without_tools(
+            conversation.AssistantContent(
+                agent_id=self.entity_id,
+                content=follow_up.content,
+            )
+        )
+        return conversation.async_get_result_from_chat_log(user_input, chat_log)
+
+
+def _format_tools(llm_api: llm.APIInstance | None) -> list[dict[str, Any]] | None:
+    """Convert Home Assistant LLM tools to OpenAI-compatible function definitions."""
+    if llm_api is None or not llm_api.tools:
+        return None
+
+    serializer = llm_api.custom_serializer or llm.selector_serializer
+    return [_format_tool(tool, serializer) for tool in llm_api.tools]
+
+
+def _format_tool(
+    tool: llm.Tool, custom_serializer: Callable[[Any], Any] | None
+) -> dict[str, Any]:
+    """Format a Home Assistant tool as an OpenAI function definition."""
+    tool_spec: dict[str, Any] = {
+        "name": tool.name,
+        "parameters": convert(tool.parameters, custom_serializer=custom_serializer),
+    }
+    if tool.description:
+        tool_spec["description"] = tool.description
+    return {"type": "function", "function": tool_spec}
+
+
+def _is_valid_tool_call(tool_call: ToolCall, allowed_tools: set[str]) -> bool:
+    """Return whether a tool call is well-formed and authorized for this request."""
+    if not tool_call.id or not tool_call.name:
+        return False
+    if tool_call.name not in allowed_tools:
+        return False
+    return isinstance(tool_call.arguments, dict)
+
+
+def _validate_text_completion(result: ChatCompletionResult) -> str | None:
+    """Return a user-facing error when the model output is unusable text."""
     content = (result.content or "").strip()
     if not content:
         return ERROR_EMPTY_RESPONSE
@@ -160,7 +272,23 @@ def _chat_log_to_messages(
         elif isinstance(item, conversation.UserContent):
             messages.append({"role": "user", "content": item.content})
         elif isinstance(item, conversation.AssistantContent):
-            messages.append({"role": "assistant", "content": item.content or ""})
+            message: dict[str, Any] = {
+                "role": "assistant",
+                "content": item.content or "",
+            }
+            if item.tool_calls:
+                message["tool_calls"] = [
+                    {
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_call.tool_name,
+                            "arguments": json.dumps(tool_call.tool_args),
+                        },
+                    }
+                    for tool_call in item.tool_calls
+                ]
+            messages.append(message)
         elif isinstance(item, conversation.ToolResultContent):
             messages.append(
                 {
