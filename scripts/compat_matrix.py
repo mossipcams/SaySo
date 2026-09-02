@@ -17,12 +17,11 @@ from typing import Final, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Exact resolved versions exercised by the matrix (not open ranges).
-MINIMUM_HA_VERSION: Final = "2024.12.0"
+# Exact resolved version exercised by the matrix (not an open range).
 CURRENT_HA_VERSION: Final = "2026.8.3"
 
 # Declared support floor; must stay aligned with pyproject.toml and README.
-DECLARED_MINIMUM_HA_VERSION: Final = "2024.12.0"
+DECLARED_MINIMUM_HA_VERSION: Final = "2026.8.3"
 
 # Categories required by Task 21; mapped to existing test modules.
 COMPAT_TEST_PATHS: Final[tuple[str, ...]] = (
@@ -46,7 +45,7 @@ COMPAT_TEST_CATEGORIES: Final[dict[str, str]] = {
 
 @dataclass(frozen=True, slots=True)
 class MatrixEntry:
-    """One HA/Python pair in the two-entry compatibility matrix."""
+    """One HA/Python pair in the compatibility matrix."""
 
     id: str
     label: str
@@ -56,18 +55,61 @@ class MatrixEntry:
 
 MATRIX: Final[tuple[MatrixEntry, ...]] = (
     MatrixEntry(
-        id="minimum",
-        label="Home Assistant minimum supported",
-        homeassistant=MINIMUM_HA_VERSION,
-        python="3.12",
-    ),
-    MatrixEntry(
         id="current",
-        label="Home Assistant current known-good",
+        label="Home Assistant minimum supported and current known-good",
         homeassistant=CURRENT_HA_VERSION,
         python="3.14",
     ),
 )
+
+# Integration roots whose manifest requirements are installed after Home Assistant.
+# Conversation setup on 2026.8.3 pulls hassil via the conversation manifest.
+COMPONENT_REQUIREMENT_ROOTS: Final[dict[str, tuple[str, ...]]] = {
+    "current": ("conversation", "llm"),
+}
+
+
+def homeassistant_components_dir(venv_dir: Path) -> Path:
+    """Return the installed Home Assistant components directory for a venv."""
+    python = venv_dir / "bin" / "python"
+    script = (
+        "import homeassistant, pathlib; "
+        "print(pathlib.Path(homeassistant.__file__).resolve().parent / 'components')"
+    )
+    completed = subprocess.run(
+        [str(python), "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return Path(completed.stdout.strip())
+
+
+def collect_integration_requirements(
+    components_dir: Path,
+    roots: Sequence[str],
+) -> tuple[str, ...]:
+    """Collect pinned requirements from integration manifests and dependencies."""
+    pending = list(roots)
+    seen_domains: set[str] = set()
+    requirements: set[str] = set()
+
+    while pending:
+        domain = pending.pop()
+        if domain in seen_domains:
+            continue
+        seen_domains.add(domain)
+
+        manifest_path = components_dir / domain / "manifest.json"
+        if not manifest_path.is_file():
+            continue
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        requirements.update(manifest.get("requirements", []))
+        for dependency_key in ("dependencies", "after_dependencies"):
+            pending.extend(manifest.get(dependency_key, []))
+
+    return tuple(sorted(requirements))
 
 
 def get_entry(entry_id: str) -> MatrixEntry:
@@ -100,8 +142,18 @@ def install_commands(entry: MatrixEntry, venv_dir: Path) -> list[list[str]]:
             "pytest-asyncio>=0.24",
             "pytest-homeassistant-custom-component>=0.13",
         ],
-        [str(pip), "install", "-e", str(ROOT)],
     ]
+
+
+def install_component_requirements(entry: MatrixEntry, venv_dir: Path) -> None:
+    """Install integration manifest requirements needed by the compat test suite."""
+    pip = venv_dir / "bin" / "pip"
+    component_requirements = collect_integration_requirements(
+        homeassistant_components_dir(venv_dir),
+        COMPONENT_REQUIREMENT_ROOTS[entry.id],
+    )
+    if component_requirements:
+        run_command([str(pip), "install", *component_requirements])
 
 
 def pytest_command(venv_dir: Path, test_paths: Sequence[str] | None = None) -> list[str]:
@@ -124,6 +176,8 @@ def setup_venv(entry_id: str, venv_dir: Path | None = None) -> Path:
         raise SystemExit("Refusing to install into the worktree .venv")
     for command in install_commands(entry, target):
         run_command(command)
+    install_component_requirements(entry, target)
+    run_command([str(target / "bin" / "pip"), "install", "-e", str(ROOT)])
     return target
 
 

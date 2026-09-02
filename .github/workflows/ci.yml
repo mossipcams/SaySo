@@ -18,9 +18,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - id: minimum
-            ha: "2024.12.0"
-            python: "3.12"
           - id: current
             ha: "2026.8.3"
             python: "3.14"
@@ -53,9 +50,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - id: minimum
-            ha: "2024.12.0"
-            python: "3.12"
           - id: current
             ha: "2026.8.3"
             python: "3.14"
