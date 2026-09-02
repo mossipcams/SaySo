@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from evals.latency import latency_report
+from evals.latency import boundary_ms, cold_readiness_report, latency_report, timing_boundaries_from_stages
 
 
 def test_latency_report_empty_input_returns_zero_sample() -> None:
@@ -81,3 +81,38 @@ def test_latency_report_omits_stage_fields_absent_from_all_rows() -> None:
     rows = [{"total_ms": 100.0}, {"total_ms": 200.0}]
     report = latency_report(rows, warm_only=False)
     assert report.stages == {}
+
+
+def test_timing_boundaries_from_stages_shared_eos_definitions() -> None:
+    boundaries = timing_boundaries_from_stages(
+        stt_stage_ms=5.0,
+        plan_stage_ms=10.0,
+        resolve_stage_ms=3.0,
+        validate_stage_ms=2.0,
+        request_stage_ms=4.0,
+        verify_stage_ms=6.0,
+    )
+    assert boundaries == {
+        "plan_ms": 15.0,
+        "request_ms": 24.0,
+        "verify_ms": 30.0,
+    }
+
+
+def test_cold_readiness_report_summarizes_only_cold_start_rows() -> None:
+    rows = [
+        {"cold_start": True, "readiness_ms": 1000.0, "total_ms": 2000.0},
+        {"cold_start": True, "readiness_ms": 500.0, "total_ms": 50.0},
+        {"total_ms": 40.0, "readiness_ms": 999.0},
+    ]
+    stats = cold_readiness_report(rows)
+    assert stats.n == 2
+    assert stats.median == 500.0
+    assert stats.p95 == 1000.0
+
+
+def test_boundary_ms_reads_jsonl_boundary_field() -> None:
+    row = {"plan_ms": 12.0, "request_ms": 34.0, "verify_ms": 56.0}
+    assert boundary_ms(row, "plan_ms") == 12.0
+    assert boundary_ms(row, "request_ms") == 34.0
+    assert boundary_ms(row, "verify_ms") == 56.0

@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 import pytest
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -109,6 +109,8 @@ async def test_mismatched_domain_never_calls_home_assistant(
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
 
+    coordinator._conversation_contexts["req-1"] = Context()
+
     fake_ws.push(
         _action_request(
             entity_id=switch.entity_id,
@@ -182,6 +184,8 @@ async def test_disallowed_domain_never_calls_home_assistant(
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
 
+    coordinator._conversation_contexts["req-1"] = Context()
+
     fake_ws.push(
         _action_request(
             entity_id=light.entity_id,
@@ -254,6 +258,8 @@ async def test_disallowed_action_never_calls_home_assistant(
     )
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
+
+    coordinator._conversation_contexts["req-1"] = Context()
 
     fake_ws.push(
         _action_request(
@@ -343,6 +349,8 @@ async def test_unexposed_entity_never_calls_home_assistant(
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
 
+    coordinator._conversation_contexts["req-1"] = Context()
+
     fake_ws.push(
         _action_request(
             entity_id=hidden_light.entity_id,
@@ -415,6 +423,8 @@ async def test_unsupported_capability_never_calls_home_assistant(
     )
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
+
+    coordinator._conversation_contexts["req-1"] = Context()
 
     fake_ws.push(
         _action_request(

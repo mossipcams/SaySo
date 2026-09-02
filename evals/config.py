@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_MODEL_ID = "mlx-community/LFM2.5-230M-OptiQ-4bit"
+HOME_LLM_270M_MODEL_ID = "acon96/Home-FunctionGemma-270m"
+COMPARISON_BASELINE_RUNTIME = "external"
 BENCHMARK_CONFIG_RECORD_KIND = "benchmark_config"
 
 
@@ -100,3 +102,17 @@ def load_benchmark_config(output_path: str | Path) -> BenchmarkConfig | None:
 
 def is_benchmark_config_line(payload: dict[str, Any]) -> bool:
     return payload.get("record_kind") == BENCHMARK_CONFIG_RECORD_KIND
+
+
+def comparison_baseline_benchmark_config() -> BenchmarkConfig:
+    """Home-LLM 270M comparison slot; adapter not wired in-tree yet."""
+    return BenchmarkConfig(
+        model_id=HOME_LLM_270M_MODEL_ID,
+        runtime=COMPARISON_BASELINE_RUNTIME,
+        revision=None,
+    )
+
+
+def sayso_comparison_benchmark_config() -> BenchmarkConfig:
+    """SaySo side of the Home-LLM comparison benchmark."""
+    return BenchmarkConfig()

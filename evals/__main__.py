@@ -6,8 +6,15 @@ import argparse
 import sys
 from pathlib import Path
 
+from evals.comparison_report import (
+    ComparisonReportError,
+    build_comparison_report,
+    default_comparison_report_path,
+    write_comparison_report,
+)
 from evals.config import BenchmarkConfig
 from evals.corpus import (
+    load_comparison_corpus,
     load_core_corpus,
     load_followup_corpus,
     load_language_noise_corpus,
@@ -24,7 +31,7 @@ from evals.report import (
 from evals.runner import run_benchmark
 from evals.schema import EvalCase
 
-CORPUS_CHOICES = ("core", "safety", "language_noise", "followup", "all")
+CORPUS_CHOICES = ("core", "safety", "language_noise", "followup", "comparison", "all")
 
 
 def load_corpus_cases(corpus: str) -> list[EvalCase]:
@@ -36,6 +43,8 @@ def load_corpus_cases(corpus: str) -> list[EvalCase]:
         return load_language_noise_corpus()
     if corpus == "followup":
         return load_followup_corpus()
+    if corpus == "comparison":
+        return load_comparison_corpus()
     cases: list[EvalCase] = []
     cases.extend(load_core_corpus())
     cases.extend(load_safety_corpus())
@@ -51,13 +60,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--corpus",
-        required=True,
         choices=CORPUS_CHOICES,
         help="Eval corpus to run",
     )
     parser.add_argument(
         "--output",
-        required=True,
         type=Path,
         help="JSONL output path for benchmark records",
     )
@@ -80,6 +87,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--check-gate",
         action="store_true",
         help="Check expansion gate on existing benchmark output; exit 1 when blocked",
+    )
+    parser.add_argument(
+        "--comparison-report",
+        action="store_true",
+        help="Write evals/reports/comparison.report.json from two JSONL benchmark runs",
+    )
+    parser.add_argument(
+        "--compare-sayso",
+        type=Path,
+        help="SaySo 230M JSONL output for --comparison-report",
+    )
+    parser.add_argument(
+        "--compare-baseline",
+        type=Path,
+        help="Home-LLM 270M JSONL output for --comparison-report",
     )
     parser.add_argument(
         "--warmup",
@@ -111,8 +133,37 @@ def check_expansion_gate(cases: list[EvalCase], output_path: Path) -> int:
     return 1
 
 
+def build_comparison_report_from_paths(
+    sayso_output: Path,
+    baseline_output: Path,
+) -> dict[str, object]:
+    cases = load_comparison_corpus()
+    return build_comparison_report(sayso_output, baseline_output, cases=cases)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    if args.comparison_report:
+        if args.compare_sayso is None or args.compare_baseline is None:
+            print(
+                "error: --comparison-report requires --compare-sayso and --compare-baseline",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            report = build_comparison_report_from_paths(args.compare_sayso, args.compare_baseline)
+        except ComparisonReportError as exc:
+            print(f"comparison_report=blocked: {exc}", file=sys.stderr)
+            return 1
+        report_path = write_comparison_report(default_comparison_report_path(), report)
+        print(f"comparison_report={report_path}")
+        return 0
+
+    if args.corpus is None or args.output is None:
+        print("error: benchmark run requires --corpus and --output", file=sys.stderr)
+        return 2
+
     cases = load_corpus_cases(args.corpus)
 
     if args.check_gate:

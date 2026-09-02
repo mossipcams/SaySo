@@ -8,13 +8,16 @@ from unittest.mock import MagicMock
 import pytest
 
 from sayso_server.const import READINESS_PATH
+from sayso_server.graph_store import HomeGraphStore
 from sayso_server.readiness import (
     ReadinessSnapshot,
     ReadinessState,
     liveness_response,
+    prepare_response_payload,
     readiness_http_status,
     readiness_response,
 )
+from sayso_server.session import HaSession
 
 
 @pytest.mark.parametrize(
@@ -75,6 +78,26 @@ def test_liveness_response_ok_while_dependencies_missing() -> None:
     assert body["model_ready"] is False
     assert body["ha_connected"] is False
     assert "ready" not in body
+
+
+def test_prepare_response_payload_reports_session_and_readiness() -> None:
+    readiness = ReadinessState()
+    readiness.set_model_ready(True)
+    session = HaSession(correlation_id="prep-corr", graph=HomeGraphStore())
+
+    assert prepare_response_payload(session=session, readiness=readiness) == {
+        "connected": False,
+        "graph_ready": False,
+        "model_ready": True,
+    }
+
+    session.mark_graph_ready()
+    readiness.set_ha_connected(True)
+    assert prepare_response_payload(session=session, readiness=readiness) == {
+        "connected": True,
+        "graph_ready": True,
+        "model_ready": True,
+    }
 
 
 def test_readiness_state_tracks_restart_transitions() -> None:

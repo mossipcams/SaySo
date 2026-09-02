@@ -16,6 +16,10 @@ class MessageType(StrEnum):
     REGISTRY_DELTA = "registry_delta"
     ACTION_REQUEST = "action_request"
     ACTION_RESULT = "action_result"
+    CONVERSATION_REQUEST = "conversation_request"
+    CONVERSATION_RESPONSE = "conversation_response"
+    PREPARE = "prepare"
+    PREPARE_RESPONSE = "prepare_response"
 
 
 MESSAGE_TYPES_V1: frozenset[str] = frozenset(member.value for member in MessageType)

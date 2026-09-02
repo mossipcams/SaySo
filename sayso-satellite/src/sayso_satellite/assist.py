@@ -18,10 +18,18 @@ class AssistError(RuntimeError):
     """Raised when the Assist WebSocket conversation cannot be trusted."""
 
 
+class TtsOutput(TypedDict):
+    url: str
+    token: str
+    mime_type: str
+    media_id: str
+
+
 class AssistResult(TypedDict):
     status: Literal["completed"]
     text: str
     intent: dict[str, Any]
+    tts: TtsOutput
 
 
 class AssistWebSocket(Protocol):
@@ -98,7 +106,7 @@ async def _run_assist(
             "type": "assist_pipeline/run",
             "id": run_id,
             "start_stage": "stt",
-            "end_stage": "intent",
+            "end_stage": "tts",
             "input": {"sample_rate": SAMPLE_RATE_HZ},
         }
         for key, value in (
@@ -118,6 +126,7 @@ async def _run_assist(
         stt_started = False
         transcript: str | None = None
         intent: dict[str, Any] | None = None
+        tts: TtsOutput | None = None
 
         while True:
             message = await _receive_json(websocket)
@@ -164,15 +173,31 @@ async def _run_assist(
                 if transcript is None or not isinstance(output, dict):
                     raise AssistError("malformed intent-end event")
                 intent = output
+            elif event_type == "tts-end":
+                if intent is None:
+                    raise AssistError("malformed tts-end event")
+                tts = _parse_tts_output(data.get("tts_output"))
             elif event_type == "run-end":
-                if not run_started or not stt_started or transcript is None or intent is None:
-                    raise AssistError("Assist pipeline ended before completion")
-                return {"status": "completed", "text": transcript, "intent": intent}
+                if (
+                    not run_started
+                    or not stt_started
+                    or transcript is None
+                    or intent is None
+                    or tts is None
+                ):
+                    raise AssistError("Assist pipeline ended before TTS completion")
+                return {
+                    "status": "completed",
+                    "text": transcript,
+                    "intent": intent,
+                    "tts": tts,
+                }
             elif event_type not in {
                 "intent-start",
                 "intent-progress",
                 "stt-vad-start",
                 "stt-vad-end",
+                "tts-start",
             }:
                 raise AssistError(f"unexpected Assist pipeline event: {event_type}")
 
@@ -226,6 +251,32 @@ def _handler_id(data: dict[str, Any]) -> int | None:
             raise AssistError("malformed stt binary handler ID")
         return None
     return value
+
+
+def _parse_tts_output(output: object) -> TtsOutput:
+    if not isinstance(output, dict):
+        raise AssistError("malformed TTS output")
+    url = output.get("url")
+    token = output.get("token")
+    mime_type = output.get("mime_type")
+    media_id = output.get("media_id")
+    if (
+        not isinstance(url, str)
+        or not url.strip()
+        or not isinstance(token, str)
+        or not token.strip()
+        or not isinstance(mime_type, str)
+        or not mime_type.strip()
+        or not isinstance(media_id, str)
+        or not media_id.strip()
+    ):
+        raise AssistError("malformed TTS output")
+    return {
+        "url": url,
+        "token": token,
+        "mime_type": mime_type,
+        "media_id": media_id,
+    }
 
 
 def _raise_pipeline_error(data: dict[str, Any]) -> None:

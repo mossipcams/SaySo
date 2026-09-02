@@ -1,0 +1,41 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": [
+        {
+          "type": "text",
+          "text": "You are a helpful home assistant.\nDevices:\ntimer.kitchen 'Kitchen Timer' = idle"
+        }
+      ],
+      "train_on_turn": false
+    },
+    {
+      "role": "user",
+      "content": [{"type": "text", "text": "start a five minute timer"}],
+      "train_on_turn": false
+    },
+    {
+      "role": "assistant",
+      "content": [{"type": "text", "text": "Starting the timer."}],
+      "train_on_turn": true,
+      "tool_calls": [
+        {
+          "function": {
+            "name": "HassStartTimer",
+            "arguments": "{\"name\": \"timer.kitchen\", \"duration\": \"300\"}"
+          }
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "function": {
+        "name": "HassStartTimer",
+        "description": "Starts a timer",
+        "parameters": {"type": "object", "properties": {}}
+      }
+    }
+  ]
+}

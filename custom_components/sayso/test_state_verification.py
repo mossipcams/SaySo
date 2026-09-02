@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -119,6 +119,8 @@ async def test_completed_waits_for_state_change(
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
 
+    coordinator._conversation_contexts["req-1"] = Context()
+
     fake_ws.push(
         _action_request(
             entity_id=light.entity_id,
@@ -225,6 +227,8 @@ async def test_unchanged_outcome_when_state_value_is_unchanged(
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
 
+    coordinator._conversation_contexts["req-1"] = Context()
+
     fake_ws.push(
         _action_request(
             entity_id=light.entity_id,
@@ -299,6 +303,8 @@ async def test_timeout_when_no_state_event(
         )
         await coordinator.async_start()
         await _wait_until(lambda: coordinator.connected, timeout=2.0)
+
+        coordinator._conversation_contexts["req-1"] = Context()
 
         fake_ws.push(
             _action_request(

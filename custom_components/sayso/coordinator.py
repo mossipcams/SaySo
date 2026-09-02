@@ -12,8 +12,9 @@ from uuid import uuid4
 import aiohttp
 from aiohttp import WSMsgType
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import Context, Event, HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_registry import (
     EVENT_ENTITY_REGISTRY_UPDATED,
     EventEntityRegistryUpdatedData,
@@ -30,6 +31,10 @@ from .const import (
     HELLO_ACK_TIMEOUT,
     MSG_ACTION_REQUEST,
     MSG_ACTION_RESULT,
+    MSG_CONVERSATION_REQUEST,
+    MSG_CONVERSATION_RESPONSE,
+    MSG_PREPARE,
+    MSG_PREPARE_RESPONSE,
     MSG_GRAPH_SNAPSHOT,
     MSG_REGISTRY_DELTA,
     MSG_STATE_DELTA,
@@ -39,6 +44,8 @@ from .const import (
     RECONNECT_BACKOFF_FACTOR,
     RECONNECT_INITIAL_DELAY,
     RECONNECT_MAX_DELAY,
+    CONVERSATION_REQUEST_TIMEOUT,
+    PREPARE_REQUEST_TIMEOUT,
     STATE_VERIFICATION_TIMEOUT,
     WS_CONNECT_TIMEOUT,
     WS_PATH,
@@ -58,6 +65,10 @@ from .state_verification import (
 _LOGGER = logging.getLogger(__name__)
 
 
+class SaySoConversationError(Exception):
+    """Raised when a correlated conversation request cannot complete."""
+
+
 class WebSocketLike(Protocol):
     """Minimal WebSocket surface used by the coordinator."""
 
@@ -74,6 +85,21 @@ WsConnect = Any  # Callable[[str, str], Awaitable[WebSocketLike]]
 ServiceCaller = Callable[[str, str, dict[str, Any]], Any]
 
 
+def _action_turn_correlation_id(
+    envelope: dict[str, Any],
+    request: dict[str, Any],
+) -> str | None:
+    """Resolve the initiating conversation turn ID carried on an action_request."""
+
+    request_id = request.get("request_id")
+    if isinstance(request_id, str) and request_id:
+        return request_id
+    correlation_id = envelope.get("correlation_id")
+    if isinstance(correlation_id, str) and correlation_id:
+        return correlation_id
+    return None
+
+
 def http_to_ws_url(url: str) -> str:
     """Convert a configured HTTP(S) base URL to the SaySo WebSocket URL."""
 
@@ -87,14 +113,68 @@ def http_to_ws_url(url: str) -> str:
     return f"{base}{WS_PATH}"
 
 
-def _envelope(message_type: str, *, payload: dict[str, Any] | None = None) -> str:
+def _envelope(
+    message_type: str,
+    *,
+    payload: dict[str, Any] | None = None,
+    correlation_id: str | None = None,
+) -> str:
     return json.dumps(
         {
             "version": API_VERSION,
             "type": message_type,
-            "correlation_id": uuid4().hex,
+            "correlation_id": correlation_id or uuid4().hex,
             "payload": payload or {},
         },
+    )
+
+
+def resolve_conversation_source(
+    hass: HomeAssistant,
+    *,
+    device_id: str | None,
+    satellite_id: str | None,
+) -> tuple[str | None, str | None]:
+    """Resolve a conversation origin from HA's device registry.
+
+    Returns ``(source_id, area_id)`` where ``source_id`` is the stable device
+    registry ID and ``area_id`` is the device's current area when assigned.
+    """
+
+    device_reg = dr.async_get(hass)
+    for candidate in (device_id, satellite_id):
+        if not isinstance(candidate, str) or not candidate:
+            continue
+        device = device_reg.async_get(candidate)
+        if device is not None:
+            return device.id, device.area_id
+    return None, None
+
+
+def _conversation_request_payload(
+    *,
+    transcript: str,
+    source_id: str | None,
+    area_id: str | None,
+    stt_ms: float,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"transcript": transcript}
+    if source_id is not None:
+        payload["source_id"] = source_id
+    if area_id is not None:
+        payload["area_id"] = area_id
+    if stt_ms > 0.0:
+        payload["stt_ms"] = stt_ms
+    return payload
+
+
+def _prepare_payload_ready(payload: dict[str, Any]) -> bool:
+    """Return True when the server reports full runtime readiness."""
+
+    return (
+        payload.get("connected") is True
+        and payload.get("graph_ready") is True
+        and payload.get("model_ready") is True
     )
 
 
@@ -140,6 +220,9 @@ class SaySoConnectionCoordinator:
         self._home_id = entry.entry_id
         self._options = get_entry_options(entry)
         self._unsubscribers: list[Callable[[], None]] = []
+        self._pending_conversations: dict[str, asyncio.Future[dict[str, Any]]] = {}
+        self._pending_prepares: dict[str, asyncio.Future[dict[str, Any]]] = {}
+        self._conversation_contexts: dict[str, Context] = {}
 
     @property
     def connected(self) -> bool:
@@ -204,6 +287,12 @@ class SaySoConnectionCoordinator:
     async def async_stop(self) -> None:
         """Stop the connection loop and clear connected state."""
 
+        self._fail_all_pending_conversations(
+            SaySoConversationError("SaySo coordinator stopped"),
+        )
+        self._fail_all_pending_prepares(
+            SaySoConversationError("SaySo coordinator stopped"),
+        )
         self._stop_event.set()
         if self._runner_task is not None:
             self._runner_task.cancel()
@@ -217,6 +306,173 @@ class SaySoConnectionCoordinator:
         self._unsubscribers.clear()
         self._ws = None
         self.connected = False
+
+    async def async_request_conversation(
+        self,
+        *,
+        transcript: str,
+        device_id: str | None = None,
+        satellite_id: str | None = None,
+        context: Context | None = None,
+        stt_ms: float = 0.0,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Send a correlated conversation_request and await its response."""
+
+        ws = self._ws
+        if ws is None or ws.closed or not self._connected:
+            msg = "SaySo WebSocket is not connected"
+            raise SaySoConversationError(msg)
+
+        source_id, area_id = resolve_conversation_source(
+            self.hass,
+            device_id=device_id,
+            satellite_id=satellite_id,
+        )
+
+        correlation_id = uuid4().hex
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[dict[str, Any]] = loop.create_future()
+        self._pending_conversations[correlation_id] = future
+        if context is not None:
+            self._conversation_contexts[correlation_id] = context
+
+        payload = _conversation_request_payload(
+            transcript=transcript,
+            source_id=source_id,
+            area_id=area_id,
+            stt_ms=stt_ms,
+        )
+
+        wait_timeout = (
+            timeout if timeout is not None else CONVERSATION_REQUEST_TIMEOUT
+        )
+
+        try:
+            await ws.send_str(
+                _envelope(
+                    MSG_CONVERSATION_REQUEST,
+                    correlation_id=correlation_id,
+                    payload=payload,
+                ),
+            )
+            return await asyncio.wait_for(future, timeout=wait_timeout)
+        except asyncio.TimeoutError:
+            self._fail_pending_conversation(
+                correlation_id,
+                asyncio.TimeoutError("conversation request timed out"),
+            )
+            raise
+        finally:
+            self._pending_conversations.pop(correlation_id, None)
+            self._conversation_contexts.pop(correlation_id, None)
+
+    async def async_request_prepare(
+        self,
+        *,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Send a correlated prepare request and await readiness confirmation."""
+
+        ws = self._ws
+        if ws is None or ws.closed or not self._connected:
+            msg = "SaySo WebSocket is not connected"
+            raise SaySoConversationError(msg)
+
+        correlation_id = uuid4().hex
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[dict[str, Any]] = loop.create_future()
+        self._pending_prepares[correlation_id] = future
+
+        wait_timeout = timeout if timeout is not None else PREPARE_REQUEST_TIMEOUT
+
+        try:
+            await ws.send_str(
+                _envelope(
+                    MSG_PREPARE,
+                    correlation_id=correlation_id,
+                    payload={},
+                ),
+            )
+            payload = await asyncio.wait_for(future, timeout=wait_timeout)
+        except asyncio.TimeoutError:
+            self._fail_pending_prepare(
+                correlation_id,
+                asyncio.TimeoutError("prepare request timed out"),
+            )
+            raise
+        finally:
+            self._pending_prepares.pop(correlation_id, None)
+
+        if not _prepare_payload_ready(payload):
+            msg = "SaySo is not ready"
+            raise SaySoConversationError(msg)
+
+        return payload
+
+    def _resolve_conversation_response(self, envelope: dict[str, Any]) -> None:
+        correlation_id = envelope.get("correlation_id")
+        if not isinstance(correlation_id, str) or not correlation_id:
+            return
+
+        future = self._pending_conversations.get(correlation_id)
+        if future is None or future.done():
+            return
+
+        payload = envelope.get("payload")
+        if not isinstance(payload, dict):
+            future.set_exception(
+                SaySoConversationError("invalid conversation response payload"),
+            )
+            return
+
+        future.set_result(payload)
+
+    def _resolve_prepare_response(self, envelope: dict[str, Any]) -> None:
+        correlation_id = envelope.get("correlation_id")
+        if not isinstance(correlation_id, str) or not correlation_id:
+            return
+
+        future = self._pending_prepares.get(correlation_id)
+        if future is None or future.done():
+            return
+
+        payload = envelope.get("payload")
+        if not isinstance(payload, dict):
+            future.set_exception(
+                SaySoConversationError("invalid prepare response payload"),
+            )
+            return
+
+        future.set_result(payload)
+
+    def _fail_pending_conversation(
+        self,
+        correlation_id: str,
+        exc: BaseException,
+    ) -> None:
+        future = self._pending_conversations.pop(correlation_id, None)
+        self._conversation_contexts.pop(correlation_id, None)
+        if future is not None and not future.done():
+            future.set_exception(exc)
+
+    def _fail_pending_prepare(
+        self,
+        correlation_id: str,
+        exc: BaseException,
+    ) -> None:
+        future = self._pending_prepares.pop(correlation_id, None)
+        if future is not None and not future.done():
+            future.set_exception(exc)
+
+    def _fail_all_pending_conversations(self, exc: BaseException) -> None:
+        for correlation_id in list(self._pending_conversations):
+            self._fail_pending_conversation(correlation_id, exc)
+        self._conversation_contexts.clear()
+
+    def _fail_all_pending_prepares(self, exc: BaseException) -> None:
+        for correlation_id in list(self._pending_prepares):
+            self._fail_pending_prepare(correlation_id, exc)
 
     def _register_listeners(self) -> None:
         if self._unsubscribers:
@@ -363,6 +619,12 @@ class SaySoConnectionCoordinator:
                 except asyncio.CancelledError:
                     pass
         finally:
+            self._fail_all_pending_conversations(
+                SaySoConversationError("SaySo WebSocket disconnected"),
+            )
+            self._fail_all_pending_prepares(
+                SaySoConversationError("SaySo WebSocket disconnected"),
+            )
             self.connected = False
             self._ws = None
             if not ws.closed:
@@ -407,6 +669,10 @@ class SaySoConnectionCoordinator:
                 self.hass.async_create_task(
                     self._handle_action_request(ws, payload),
                 )
+            elif payload.get("type") == MSG_CONVERSATION_RESPONSE:
+                self._resolve_conversation_response(payload)
+            elif payload.get("type") == MSG_PREPARE_RESPONSE:
+                self._resolve_prepare_response(payload)
 
     async def _handle_action_request(
         self,
@@ -429,6 +695,21 @@ class SaySoConnectionCoordinator:
                 request_id=request_id if isinstance(request_id, str) else "unknown",
                 status=ActionResultStatus.REJECTED,
                 reason="invalid_request",
+            )
+            return
+
+        turn_correlation_id = _action_turn_correlation_id(envelope, request)
+        request_context = (
+            self._conversation_contexts.get(turn_correlation_id)
+            if turn_correlation_id is not None
+            else None
+        )
+        if request_context is None:
+            await self._send_action_result(
+                ws,
+                request_id=request_id,
+                status=ActionResultStatus.REJECTED,
+                reason="missing_context",
             )
             return
 
@@ -472,6 +753,7 @@ class SaySoConnectionCoordinator:
                 domain=entity_domain,
                 action=action,
                 request=request,
+                request_context=request_context,
             )
 
         try:
@@ -512,6 +794,7 @@ class SaySoConnectionCoordinator:
         domain: str,
         action: str,
         request: dict[str, Any],
+        request_context: Context | None = None,
     ) -> None:
         ha_domain, service, data = map_action_to_ha_service(
             entity_id=entity_id,
@@ -519,7 +802,16 @@ class SaySoConnectionCoordinator:
             action=action,
             request=request,
         )
-        await self._service_caller(ha_domain, service, data)
+        if self._uses_injected_service_caller:
+            await self._service_caller(ha_domain, service, data)
+        else:
+            await _default_service_caller(
+                self.hass,
+                ha_domain,
+                service,
+                data,
+                context=request_context,
+            )
 
     async def _send_action_result(
         self,
@@ -555,8 +847,16 @@ async def _default_service_caller(
     domain: str,
     service: str,
     data: dict[str, Any],
+    *,
+    context: Context | None = None,
 ) -> None:
-    await hass.services.async_call(domain, service, data)
+    await hass.services.async_call(
+        domain,
+        service,
+        data,
+        context=context,
+        blocking=True,
+    )
 
 
 def _verification_to_action_result(

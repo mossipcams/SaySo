@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from evals.config import BenchmarkConfig, is_benchmark_config_line, load_benchmark_config
-from evals.latency import LatencyReport
+from evals.latency import LatencyReport, cold_readiness_report
 from evals.ledger import LedgerSummary
 from evals.metrics import EvalRecord, MetricScore, score_records
 from evals.schema import EvalCase
@@ -94,7 +94,13 @@ def _serialize_ledger_summary(summary: LedgerSummary) -> dict[str, Any]:
     }
 
 
-def _serialize_latency_report(latency: LatencyReport, *, warm_only: bool) -> dict[str, Any]:
+def _serialize_latency_report(
+    latency: LatencyReport,
+    *,
+    warm_only: bool,
+    rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    cold_readiness = cold_readiness_report(rows or [])
     return {
         "warm_only": warm_only,
         "n": latency.n,
@@ -108,6 +114,11 @@ def _serialize_latency_report(latency: LatencyReport, *, warm_only: bool) -> dic
             }
             for field, stats in latency.stages.items()
         },
+        "cold_readiness_ms": {
+            "n": cold_readiness.n,
+            "median": cold_readiness.median,
+            "p95": cold_readiness.p95,
+        },
     }
 
 
@@ -118,12 +129,13 @@ def build_eval_report(
     config: BenchmarkConfig,
     *,
     warm_only: bool = True,
+    rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build a JSON-serializable statistical report for one benchmark run."""
     return {
         "metrics": _serialize_metric_score(score),
         "failures": _serialize_ledger_summary(ledger_summary),
-        "latency": _serialize_latency_report(latency, warm_only=warm_only),
+        "latency": _serialize_latency_report(latency, warm_only=warm_only, rows=rows),
         "config": asdict(config),
     }
 
@@ -182,6 +194,38 @@ def ledger_summary_from_benchmark_output(
     return summarize_ledger(list(entries_by_case.values()))
 
 
+def build_gate_inputs_from_rows(
+    cases: list[EvalCase],
+    rows: list[dict[str, Any]],
+    *,
+    warm_only: bool = True,
+    expected_query_answers: dict[str, str] | None = None,
+) -> tuple[MetricScore, LedgerSummary, LatencyReport]:
+    """Score in-memory benchmark rows and return gate inputs."""
+    from evals.ledger import LedgerEntry, ledger_entries, ledger_summary as summarize_ledger
+    from evals.latency import latency_report
+
+    records = [record_from_jsonl_row(row) for row in rows]
+    score = score_records(cases, records, expected_query_answers=expected_query_answers)
+    entries = ledger_entries(cases, records)
+    entries_by_case = {entry.case_id: entry for entry in entries}
+    for row in rows:
+        case_id = row.get("case_id")
+        executor_error = row.get("executor_error")
+        if not isinstance(case_id, str) or not case_id:
+            continue
+        if not isinstance(executor_error, str) or not executor_error:
+            continue
+        entries_by_case[case_id] = LedgerEntry(
+            case_id=case_id,
+            stage="schema",
+            reason="executor_error",
+        )
+    summary = summarize_ledger(list(entries_by_case.values()))
+    latency = latency_report(rows, warm_only=warm_only)
+    return score, summary, latency
+
+
 def build_gate_inputs_from_benchmark_output(
     cases: list[EvalCase],
     output_path: str | Path,
@@ -190,14 +234,13 @@ def build_gate_inputs_from_benchmark_output(
     expected_query_answers: dict[str, str] | None = None,
 ) -> tuple[MetricScore, LedgerSummary, LatencyReport]:
     """Score a benchmark JSONL run and return gate inputs."""
-    from evals.latency import latency_report
-
     rows = load_benchmark_jsonl_rows(output_path)
-    records = [record_from_jsonl_row(row) for row in rows]
-    score = score_records(cases, records, expected_query_answers=expected_query_answers)
-    summary = ledger_summary_from_benchmark_output(cases, output_path)
-    latency = latency_report(rows, warm_only=warm_only)
-    return score, summary, latency
+    return build_gate_inputs_from_rows(
+        cases,
+        rows,
+        warm_only=warm_only,
+        expected_query_answers=expected_query_answers,
+    )
 
 
 def build_report_from_benchmark_output(
@@ -214,6 +257,7 @@ def build_report_from_benchmark_output(
         expected_query_answers=expected_query_answers,
     )
     config = load_benchmark_config(output_path) or BenchmarkConfig()
+    rows = load_benchmark_jsonl_rows(output_path)
 
     return build_eval_report(
         score,
@@ -221,4 +265,5 @@ def build_report_from_benchmark_output(
         latency,
         config,
         warm_only=warm_only,
+        rows=rows,
     )

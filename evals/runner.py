@@ -24,6 +24,7 @@ class CaseTiming:
     validate_ms: float | None = None
     request_ms: float | None = None
     verify_ms: float | None = None
+    readiness_ms: float | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     model_id: str | None = None
@@ -149,6 +150,7 @@ def _record_to_jsonl(
         "validate_ms",
         "request_ms",
         "verify_ms",
+        "readiness_ms",
         "prompt_tokens",
         "completion_tokens",
         "model_id",

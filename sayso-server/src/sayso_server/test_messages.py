@@ -17,3 +17,13 @@ def test_home_graph_message_types_are_registered() -> None:
 def test_action_message_types_are_registered() -> None:
     for action_type in ("action_request", "action_result"):
         assert action_type in MESSAGE_TYPES_V1
+
+
+def test_conversation_message_types_are_registered() -> None:
+    for conversation_type in ("conversation_request", "conversation_response"):
+        assert conversation_type in MESSAGE_TYPES_V1
+
+
+def test_prepare_message_types_are_registered() -> None:
+    for prepare_type in ("prepare", "prepare_response"):
+        assert prepare_type in MESSAGE_TYPES_V1

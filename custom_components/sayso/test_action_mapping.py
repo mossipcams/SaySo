@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 from homeassistant.components.light import ColorMode
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -188,6 +188,8 @@ async def test_coordinator_dispatches_set_brightness_with_exact_payload(
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
 
+    coordinator._conversation_contexts["req-1"] = Context()
+
     fake_ws.push(
         _action_request(
             entity_id=light.entity_id,
@@ -256,6 +258,8 @@ async def test_coordinator_dispatches_set_temperature_with_exact_payload(
     )
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
+
+    coordinator._conversation_contexts["req-1"] = Context()
 
     fake_ws.push(
         _action_request(

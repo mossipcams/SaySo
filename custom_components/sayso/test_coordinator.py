@@ -8,25 +8,41 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sayso.const import (
+    CONF_ACTION_ALLOWLIST,
+    CONF_DOMAIN_ALLOWLIST,
+    CONF_ENTITY_IDS,
+    CONF_EXPOSURE_MODE,
     CONF_TOKEN,
     CONF_URL,
     DOMAIN,
+    EXPOSURE_MODE_ENTITY,
     HA_WS_MAX_MSG_SIZE,
     HELLO_ACK_TIMEOUT,
+    MSG_ACTION_REQUEST,
+    MSG_ACTION_RESULT,
+    MSG_CONVERSATION_REQUEST,
+    MSG_CONVERSATION_RESPONSE,
+    MSG_PREPARE,
+    MSG_PREPARE_RESPONSE,
     RECONNECT_INITIAL_DELAY,
     RECONNECT_MAX_DELAY,
     WS_CONNECT_TIMEOUT,
     WS_PATH,
 )
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from custom_components.sayso.conftest import FakeWebSocket
 from custom_components.sayso.coordinator import (
     SaySoConnectionCoordinator,
+    SaySoConversationError,
     _default_ws_connect as _real_default_ws_connect,
     http_to_ws_url,
+    resolve_conversation_source,
 )
 
 
@@ -50,6 +66,1094 @@ def fast_timing():
         ),
     ):
         yield {"heartbeat_interval": patched_heartbeat}
+
+
+async def _wait_until_connected(coordinator: SaySoConnectionCoordinator) -> None:
+    for _ in range(50):
+        if coordinator.connected:
+            return
+        await asyncio.sleep(0.01)
+    pytest.fail("coordinator never connected")
+
+
+async def _wait_until(predicate, *, timeout: float = 2.0, interval: float = 0.01) -> None:
+    for _ in range(int(timeout / interval)):
+        if predicate():
+            return
+        await asyncio.sleep(interval)
+    pytest.fail(f"condition not met within {timeout}s")
+
+
+def _conversation_requests(ws: FakeWebSocket) -> list[dict[str, Any]]:
+    return [
+        json.loads(message)
+        for message in ws.sent
+        if json.loads(message)["type"] == MSG_CONVERSATION_REQUEST
+    ]
+
+
+def _action_request(
+    *,
+    turn_correlation_id: str,
+    entity_id: str,
+    domain: str,
+    action: str,
+    envelope_correlation_id: str = "hello-session-1",
+) -> str:
+    return json.dumps(
+        {
+            "version": 1,
+            "type": MSG_ACTION_REQUEST,
+            "correlation_id": envelope_correlation_id,
+            "payload": {
+                "request_id": turn_correlation_id,
+                "entity_id": entity_id,
+                "domain": domain,
+                "action": action,
+            },
+        },
+    )
+
+
+def _action_results(ws: FakeWebSocket) -> list[dict[str, Any]]:
+    return [
+        json.loads(message)
+        for message in ws.sent
+        if json.loads(message)["type"] == MSG_ACTION_RESULT
+    ]
+
+
+class _RecordingServiceCaller:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    async def __call__(
+        self,
+        domain: str,
+        service: str,
+        data: dict[str, Any] | None = None,
+    ) -> None:
+        self.calls.append((domain, service, data))
+
+
+def _conversation_response(
+    *,
+    correlation_id: str,
+    speech: str,
+    response_type: str = "no_action",
+) -> str:
+    return json.dumps(
+        {
+            "version": 1,
+            "type": MSG_CONVERSATION_RESPONSE,
+            "correlation_id": correlation_id,
+            "payload": {
+                "speech": speech,
+                "response_type": response_type,
+            },
+        },
+    )
+
+
+def _register_satellite_device(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    *,
+    area_name: str | None = "Living Room",
+) -> tuple[dr.DeviceEntry, ar.AreaEntry | None]:
+    area_reg = ar.async_get(hass)
+    area = area_reg.async_create(area_name) if area_name is not None else None
+
+    device_reg = dr.async_get(hass)
+    device = device_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("test", "mac_satellite")},
+    )
+    if area is not None:
+        device_reg.async_update_device(device.id, area_id=area.id)
+    return device, area
+
+
+@pytest.mark.asyncio
+async def test_device_id_resolves_through_registry_to_area_in_conversation_request(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    device, area = _register_satellite_device(hass, entry)
+    fake_ws = FakeWebSocket()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="turn on the lamp",
+            device_id=device.id,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    payload = requests[0]["payload"]
+    assert payload["source_id"] == device.id
+    assert payload["area_id"] == area.id
+    assert "satellite_id" not in payload
+
+    fake_ws.push(
+        _conversation_response(
+            correlation_id=requests[0]["correlation_id"],
+            speech="Done.",
+        ),
+    )
+    await request_task
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_satellite_id_resolves_to_same_device_and_area(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    device, area = _register_satellite_device(hass, entry)
+    fake_ws = FakeWebSocket()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="turn on the lamp",
+            satellite_id=device.id,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    payload = requests[0]["payload"]
+    assert payload["source_id"] == device.id
+    assert payload["area_id"] == area.id
+    assert "satellite_id" not in payload
+
+    fake_ws.push(
+        _conversation_response(
+            correlation_id=requests[0]["correlation_id"],
+            speech="Done.",
+        ),
+    )
+    await request_task
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_device_without_area_produces_no_fabricated_origin(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    device, _area = _register_satellite_device(hass, entry, area_name=None)
+    fake_ws = FakeWebSocket()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="turn on the lamp",
+            device_id=device.id,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    payload = requests[0]["payload"]
+    assert payload["source_id"] == device.id
+    assert "area_id" not in payload
+    assert "satellite_id" not in payload
+
+    fake_ws.push(
+        _conversation_response(
+            correlation_id=requests[0]["correlation_id"],
+            speech="Done.",
+        ),
+    )
+    await request_task
+    await coordinator.async_stop()
+
+
+def test_resolve_conversation_source_prefers_device_id_over_satellite_id(
+    hass: HomeAssistant,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    area_reg = ar.async_get(hass)
+    living_room = area_reg.async_create("Living Room")
+    kitchen = area_reg.async_create("Kitchen")
+
+    device_reg = dr.async_get(hass)
+    primary = device_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("test", "primary")},
+    )
+    device_reg.async_update_device(primary.id, area_id=living_room.id)
+    secondary = device_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("test", "secondary")},
+    )
+    device_reg.async_update_device(secondary.id, area_id=kitchen.id)
+
+    source_id, area_id = resolve_conversation_source(
+        hass,
+        device_id=primary.id,
+        satellite_id=secondary.id,
+    )
+    assert source_id == primary.id
+    assert area_id == living_room.id
+
+
+@pytest.mark.asyncio
+async def test_starting_conversation_stores_exact_context_under_correlation_id(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+    turn_context = Context(user_id="user-abc", parent_id="parent-xyz")
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="turn on the lamp",
+            satellite_id="macbook",
+            context=turn_context,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    correlation_id = requests[0]["correlation_id"]
+    assert coordinator._conversation_contexts[correlation_id] is turn_context
+
+    fake_ws.push(
+        _conversation_response(
+            correlation_id=correlation_id,
+            speech="Done.",
+        ),
+    )
+    await request_task
+    assert coordinator._conversation_contexts == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_turns_keep_distinct_contexts(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+    context_a = Context(user_id="user-a")
+    context_b = Context(user_id="user-b")
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    async def respond_both() -> None:
+        for _ in range(100):
+            requests = _conversation_requests(fake_ws)
+            if len(requests) >= 2:
+                break
+            await asyncio.sleep(0.01)
+        else:
+            pytest.fail("expected two conversation_request messages")
+
+        stored = coordinator._conversation_contexts
+        by_transcript = {
+            request["payload"]["transcript"]: request["correlation_id"]
+            for request in requests
+        }
+        assert stored[by_transcript["turn A"]] is context_a
+        assert stored[by_transcript["turn B"]] is context_b
+
+        for request in requests:
+            fake_ws.push(
+                _conversation_response(
+                    correlation_id=request["correlation_id"],
+                    speech=f"response-{request['payload']['transcript']}",
+                ),
+            )
+
+    responder = asyncio.create_task(respond_both())
+    try:
+        await asyncio.gather(
+            coordinator.async_request_conversation(
+                transcript="turn A",
+                satellite_id="macbook",
+                context=context_a,
+            ),
+            coordinator.async_request_conversation(
+                transcript="turn B",
+                satellite_id="macbook",
+                context=context_b,
+            ),
+        )
+    finally:
+        await responder
+
+    assert coordinator._conversation_contexts == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_context_never_appears_in_websocket_payload(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+    turn_context = Context(user_id="user-abc", parent_id="parent-xyz")
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="turn on the lamp",
+            satellite_id="macbook",
+            context=turn_context,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    raw_messages = [
+        message
+        for message in fake_ws.sent
+        if json.loads(message)["type"] == MSG_CONVERSATION_REQUEST
+    ]
+    for raw in raw_messages:
+        assert "Context" not in raw
+        assert "user_id" not in raw
+        assert "parent_id" not in raw
+        payload = json.loads(raw)["payload"]
+        assert "context" not in payload
+        assert "context_id" not in payload
+
+    correlation_id = requests[0]["correlation_id"]
+    fake_ws.push(
+        _conversation_response(
+            correlation_id=correlation_id,
+            speech="Done.",
+        ),
+    )
+    await request_task
+    assert coordinator._conversation_contexts == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_action_without_matching_stored_context_is_rejected(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+        options={
+            CONF_DOMAIN_ALLOWLIST: ["light"],
+            CONF_ACTION_ALLOWLIST: ["on"],
+            CONF_EXPOSURE_MODE: EXPOSURE_MODE_ENTITY,
+            CONF_ENTITY_IDS: ["light.kitchen"],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    entity_reg = er.async_get(hass)
+    light = entity_reg.async_get_or_create(
+        "light",
+        "test",
+        "kitchen",
+        suggested_object_id="kitchen",
+    )
+    hass.states.async_set(light.entity_id, "off")
+    await hass.async_block_till_done()
+
+    fake_ws = FakeWebSocket()
+    service_caller = _RecordingServiceCaller()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(
+        hass,
+        entry,
+        ws_connect=connect,
+        service_caller=service_caller,
+    )
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="turn on the kitchen light",
+            satellite_id="macbook",
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    turn_correlation_id = requests[0]["correlation_id"]
+    fake_ws.push(
+        _action_request(
+            turn_correlation_id=turn_correlation_id,
+            entity_id=light.entity_id,
+            domain="light",
+            action="on",
+        ),
+    )
+
+    await _wait_until(lambda: _action_results(fake_ws), timeout=2.0)
+
+    assert service_caller.calls == []
+    results = _action_results(fake_ws)
+    assert results[-1]["payload"]["status"] == "rejected"
+    assert results[-1]["payload"]["reason"] == "missing_context"
+
+    fake_ws.push(
+        _conversation_response(
+            correlation_id=turn_correlation_id,
+            speech="Done.",
+        ),
+    )
+    await request_task
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_orphan_action_request_without_stored_context_is_rejected(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    """Orphan action_request with no in-flight turn must fail closed."""
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+        options={
+            CONF_DOMAIN_ALLOWLIST: ["light"],
+            CONF_ACTION_ALLOWLIST: ["on"],
+            CONF_EXPOSURE_MODE: EXPOSURE_MODE_ENTITY,
+            CONF_ENTITY_IDS: ["light.kitchen"],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    entity_reg = er.async_get(hass)
+    light = entity_reg.async_get_or_create(
+        "light",
+        "test",
+        "kitchen",
+        suggested_object_id="kitchen",
+    )
+    hass.states.async_set(light.entity_id, "off")
+    await hass.async_block_till_done()
+
+    fake_ws = FakeWebSocket()
+    service_caller = _RecordingServiceCaller()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(
+        hass,
+        entry,
+        ws_connect=connect,
+        service_caller=service_caller,
+    )
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    fake_ws.push(
+        _action_request(
+            turn_correlation_id="orphan-turn-1",
+            entity_id=light.entity_id,
+            domain="light",
+            action="on",
+        ),
+    )
+
+    await _wait_until(lambda: _action_results(fake_ws), timeout=2.0)
+
+    assert service_caller.calls == []
+    results = _action_results(fake_ws)
+    assert results[-1]["payload"]["status"] == "rejected"
+    assert results[-1]["payload"]["reason"] == "missing_context"
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_default_service_caller_passes_context_with_blocking(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+        options={
+            CONF_DOMAIN_ALLOWLIST: ["light"],
+            CONF_ACTION_ALLOWLIST: ["on"],
+            CONF_EXPOSURE_MODE: EXPOSURE_MODE_ENTITY,
+            CONF_ENTITY_IDS: ["light.kitchen"],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    entity_reg = er.async_get(hass)
+    light = entity_reg.async_get_or_create(
+        "light",
+        "test",
+        "kitchen",
+        suggested_object_id="kitchen",
+    )
+    hass.states.async_set(light.entity_id, "off")
+    await hass.async_block_till_done()
+
+    fake_ws = FakeWebSocket()
+    turn_context = Context(user_id="user-abc", parent_id="parent-xyz")
+    service_call = AsyncMock()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="turn on the kitchen light",
+            satellite_id="macbook",
+            context=turn_context,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    turn_correlation_id = requests[0]["correlation_id"]
+    recorded: list[tuple[str, str, dict[str, Any], Context | None]] = []
+
+    async def record_default_service_call(
+        _hass: HomeAssistant,
+        domain: str,
+        service: str,
+        data: dict[str, Any],
+        *,
+        context: Context | None = None,
+    ) -> None:
+        recorded.append((domain, service, data, context))
+
+    with patch(
+        "custom_components.sayso.coordinator._default_service_caller",
+        side_effect=record_default_service_call,
+    ):
+        fake_ws.push(
+            _action_request(
+                turn_correlation_id=turn_correlation_id,
+                entity_id=light.entity_id,
+                domain="light",
+                action="on",
+            ),
+        )
+        await _wait_until(lambda: recorded, timeout=2.0)
+
+    assert recorded == [
+        ("light", "turn_on", {"entity_id": light.entity_id}, turn_context),
+    ]
+
+    fake_ws.push(
+        _conversation_response(
+            correlation_id=turn_correlation_id,
+            speech="Done.",
+        ),
+    )
+    await request_task
+    assert coordinator._conversation_contexts == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_conversation_requests_receive_matching_responses(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    async def respond_in_reverse_order() -> None:
+        for _ in range(100):
+            requests = _conversation_requests(fake_ws)
+            if len(requests) >= 2:
+                break
+            await asyncio.sleep(0.01)
+        else:
+            pytest.fail("expected two conversation_request messages")
+
+        second = requests[1]["correlation_id"]
+        first = requests[0]["correlation_id"]
+        fake_ws.push(
+            _conversation_response(
+                correlation_id=second,
+                speech="response for B",
+            ),
+        )
+        fake_ws.push(
+            _conversation_response(
+                correlation_id=first,
+                speech="response for A",
+            ),
+        )
+
+    responder = asyncio.create_task(respond_in_reverse_order())
+    try:
+        result_a, result_b = await asyncio.gather(
+            coordinator.async_request_conversation(
+                transcript="turn A",
+                satellite_id="macbook",
+            ),
+            coordinator.async_request_conversation(
+                transcript="turn B",
+                satellite_id="macbook",
+            ),
+        )
+    finally:
+        await responder
+
+    assert result_a["speech"] == "response for A"
+    assert result_b["speech"] == "response for B"
+    assert coordinator._pending_conversations == {}
+    assert coordinator._conversation_contexts == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_clarification_response_clears_retained_context(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+    turn_context = Context(user_id="user-clarify")
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="turn on the lights",
+            satellite_id="macbook",
+            context=turn_context,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    correlation_id = requests[0]["correlation_id"]
+    assert coordinator._conversation_contexts[correlation_id] is turn_context
+
+    fake_ws.push(
+        _conversation_response(
+            correlation_id=correlation_id,
+            speech="Which room?",
+            response_type="clarification",
+        ),
+    )
+    result = await request_task
+    assert result["response_type"] == "clarification"
+    assert coordinator._conversation_contexts == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_invalid_conversation_response_clears_retained_context(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+    turn_context = Context(user_id="user-error")
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="turn on the lamp",
+            satellite_id="macbook",
+            context=turn_context,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    correlation_id = requests[0]["correlation_id"]
+    assert coordinator._conversation_contexts[correlation_id] is turn_context
+
+    fake_ws.push(
+        json.dumps(
+            {
+                "version": 1,
+                "type": MSG_CONVERSATION_RESPONSE,
+                "correlation_id": correlation_id,
+                "payload": "not-a-dict",
+            },
+        ),
+    )
+
+    with pytest.raises(SaySoConversationError):
+        await request_task
+
+    assert coordinator._conversation_contexts == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_conversation_request_timeout_clears_pending_state(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+    turn_context = Context(user_id="user-timeout")
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    with patch(
+        "custom_components.sayso.coordinator.CONVERSATION_REQUEST_TIMEOUT",
+        0.05,
+    ):
+        with pytest.raises(asyncio.TimeoutError):
+            await coordinator.async_request_conversation(
+                transcript="slow turn",
+                satellite_id="macbook",
+                context=turn_context,
+            )
+
+    assert coordinator._pending_conversations == {}
+    assert coordinator._conversation_contexts == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_conversation_request_disconnect_fails_pending_and_clears_state(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    turn_context = Context(user_id="user-disconnect")
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="pending turn",
+            satellite_id="macbook",
+            context=turn_context,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    assert coordinator._conversation_contexts[requests[0]["correlation_id"]] is turn_context
+
+    fake_ws.disconnect()
+
+    with pytest.raises(SaySoConversationError):
+        await request_task
+
+    assert coordinator._pending_conversations == {}
+    assert coordinator._conversation_contexts == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_conversation_request_clears_retained_context(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+    turn_context = Context(user_id="user-cancel")
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="pending turn",
+            satellite_id="macbook",
+            context=turn_context,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    assert coordinator._conversation_contexts[requests[0]["correlation_id"]] is turn_context
+
+    request_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await request_task
+
+    assert coordinator._pending_conversations == {}
+    assert coordinator._conversation_contexts == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_conversation_request_shutdown_fails_pending_and_clears_state(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    turn_context = Context(user_id="user-shutdown")
+    request_task = asyncio.create_task(
+        coordinator.async_request_conversation(
+            transcript="pending turn",
+            satellite_id="macbook",
+            context=turn_context,
+        ),
+    )
+
+    for _ in range(100):
+        requests = _conversation_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("conversation_request was never sent")
+
+    assert coordinator._conversation_contexts[requests[0]["correlation_id"]] is turn_context
+
+    stop_task = asyncio.create_task(coordinator.async_stop())
+
+    with pytest.raises(SaySoConversationError):
+        await request_task
+
+    await stop_task
+    assert coordinator._pending_conversations == {}
+    assert coordinator._conversation_contexts == {}
 
 
 @pytest.mark.asyncio
@@ -553,6 +1657,224 @@ async def test_private_connect_session_closed_when_socket_ends(
         await asyncio.sleep(0.01)
     else:
         pytest.fail("private connect session was not closed when socket ended")
+
+    await coordinator.async_stop()
+
+
+def _prepare_requests(ws: FakeWebSocket) -> list[dict[str, Any]]:
+    return [
+        json.loads(message)
+        for message in ws.sent
+        if json.loads(message)["type"] == MSG_PREPARE
+    ]
+
+
+def _prepare_response(
+    *,
+    correlation_id: str,
+    connected: bool = True,
+    graph_ready: bool = True,
+    model_ready: bool = True,
+) -> str:
+    return json.dumps(
+        {
+            "version": 1,
+            "type": MSG_PREPARE_RESPONSE,
+            "correlation_id": correlation_id,
+            "payload": {
+                "connected": connected,
+                "graph_ready": graph_ready,
+                "model_ready": model_ready,
+            },
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_request_reports_readiness_without_conversation_or_action(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    prepare_task = asyncio.create_task(coordinator.async_request_prepare())
+
+    for _ in range(100):
+        requests = _prepare_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("prepare request was never sent")
+
+    assert _conversation_requests(fake_ws) == []
+    assert requests[0]["payload"] == {}
+
+    fake_ws.push(_prepare_response(correlation_id=requests[0]["correlation_id"]))
+    payload = await prepare_task
+
+    assert payload == {
+        "connected": True,
+        "graph_ready": True,
+        "model_ready": True,
+    }
+    assert coordinator._pending_prepares == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_prepare_request_negative_readiness_raises_without_conversation(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    prepare_task = asyncio.create_task(coordinator.async_request_prepare())
+
+    for _ in range(100):
+        requests = _prepare_requests(fake_ws)
+        if requests:
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("prepare request was never sent")
+
+    fake_ws.push(
+        _prepare_response(
+            correlation_id=requests[0]["correlation_id"],
+            model_ready=False,
+        ),
+    )
+
+    with pytest.raises(SaySoConversationError, match="not ready"):
+        await prepare_task
+
+    assert _conversation_requests(fake_ws) == []
+    assert coordinator._pending_prepares == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_prepare_request_timeout_clears_pending_state(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    with patch(
+        "custom_components.sayso.coordinator.PREPARE_REQUEST_TIMEOUT",
+        0.05,
+    ):
+        with pytest.raises(asyncio.TimeoutError):
+            await coordinator.async_request_prepare()
+
+    assert coordinator._pending_prepares == {}
+
+    await coordinator.async_stop()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_prepare_requests_receive_matching_responses(
+    hass: HomeAssistant,
+    fast_timing,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_URL: "http://127.0.0.1:8765", CONF_TOKEN: "secret-token"},
+    )
+    entry.add_to_hass(hass)
+
+    fake_ws = FakeWebSocket()
+
+    async def connect(_url: str, _token: str) -> FakeWebSocket:
+        return fake_ws
+
+    coordinator = SaySoConnectionCoordinator(hass, entry, ws_connect=connect)
+    await coordinator.async_start()
+    await _wait_until_connected(coordinator)
+
+    async def respond_both() -> None:
+        for _ in range(100):
+            requests = _prepare_requests(fake_ws)
+            if len(requests) >= 2:
+                break
+            await asyncio.sleep(0.01)
+        else:
+            pytest.fail("expected two prepare messages")
+
+        by_correlation = {request["correlation_id"]: request for request in requests}
+        for correlation_id in by_correlation:
+            fake_ws.push(
+                _prepare_response(
+                    correlation_id=correlation_id,
+                    model_ready=correlation_id == requests[0]["correlation_id"],
+                ),
+            )
+
+    responder = asyncio.create_task(respond_both())
+    try:
+        first, second = await asyncio.gather(
+            coordinator.async_request_prepare(),
+            coordinator.async_request_prepare(),
+            return_exceptions=True,
+        )
+    finally:
+        await responder
+
+    ready_payload = {
+        "connected": True,
+        "graph_ready": True,
+        "model_ready": True,
+    }
+    results = [first, second]
+    assert sum(isinstance(result, dict) for result in results) == 1
+    assert sum(
+        isinstance(result, SaySoConversationError) and "not ready" in str(result)
+        for result in results
+    ) == 1
+    assert ready_payload in [result for result in results if isinstance(result, dict)]
+    assert coordinator._pending_prepares == {}
 
     await coordinator.async_stop()
 

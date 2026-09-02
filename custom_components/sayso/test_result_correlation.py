@@ -7,7 +7,7 @@ import json
 from typing import Any
 
 import pytest
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -134,6 +134,9 @@ async def test_concurrent_requests_correlate_results_by_request_id(
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
 
+    coordinator._conversation_contexts["req-kitchen"] = Context()
+    coordinator._conversation_contexts["req-bedroom"] = Context()
+
     fake_ws.push(
         _action_request(
             request_id="req-kitchen",
@@ -251,6 +254,9 @@ async def test_rejected_result_carries_request_id_under_concurrency(
     )
     await coordinator.async_start()
     await _wait_until(lambda: coordinator.connected, timeout=2.0)
+
+    coordinator._conversation_contexts["req-slow"] = Context()
+    coordinator._conversation_contexts["req-reject"] = Context()
 
     fake_ws.push(
         _action_request(

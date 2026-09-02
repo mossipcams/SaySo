@@ -33,4 +33,5 @@ testpaths = [
     "custom_components",
     "sayso-server/src/sayso_server",
     "sayso-satellite/src/sayso_satellite",
+    "train",
 ]

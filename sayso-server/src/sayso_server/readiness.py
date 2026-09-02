@@ -60,6 +60,25 @@ def readiness_body(snapshot: ReadinessSnapshot) -> dict[str, bool]:
     }
 
 
+def prepare_response_payload(
+    *,
+    session: HaSession,
+    readiness: ReadinessState | None,
+) -> dict[str, bool]:
+    """WebSocket prepare_response payload from session graph and readiness state."""
+
+    snapshot = (
+        readiness.snapshot()
+        if readiness is not None
+        else ReadinessSnapshot(model_ready=False, ha_connected=False)
+    )
+    return {
+        "connected": snapshot.ha_connected,
+        "graph_ready": session.graph_ready,
+        "model_ready": snapshot.model_ready,
+    }
+
+
 def liveness_body(snapshot: ReadinessSnapshot) -> dict[str, object]:
     """JSON body for GET /api/v1/health."""
 

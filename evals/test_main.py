@@ -41,16 +41,34 @@ def _tiny_case(case_id: str = "cli-001") -> EvalCase:
     return EvalCase.model_validate(_tiny_case_payload(case_id))
 
 
-def test_build_parser_requires_corpus_and_output() -> None:
+def test_build_parser_requires_corpus_and_output_for_benchmark_run() -> None:
     parser = build_parser()
-    with pytest.raises(SystemExit):
-        parser.parse_args([])
     args = parser.parse_args(["--corpus", "core", "--output", "/tmp/out.jsonl"])
     assert args.corpus == "core"
     assert args.output == Path("/tmp/out.jsonl")
     assert args.execute is False
     assert args.allowlist == ""
     assert args.warmup == 0
+
+
+def test_main_benchmark_run_requires_corpus_and_output() -> None:
+    rc = main([])
+    assert rc == 2
+
+
+def test_build_parser_accepts_comparison_report_without_corpus() -> None:
+    args = build_parser().parse_args(
+        [
+            "--comparison-report",
+            "--compare-sayso",
+            "/tmp/sayso.jsonl",
+            "--compare-baseline",
+            "/tmp/baseline.jsonl",
+        ],
+    )
+    assert args.comparison_report is True
+    assert args.compare_sayso == Path("/tmp/sayso.jsonl")
+    assert args.compare_baseline == Path("/tmp/baseline.jsonl")
 
 
 def test_parse_allowlist_splits_and_strips() -> None:

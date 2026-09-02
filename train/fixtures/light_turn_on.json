@@ -1,0 +1,48 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": [
+        {
+          "type": "text",
+          "text": "You are a helpful home assistant.\nThe current time and date is 3:15 PM on Monday, January 6 2025\nDevices:\nlight.living_room_ceiling 'Living Room Ceiling' = off\nlight.floor_lamp 'Floor Lamp' = off"
+        }
+      ],
+      "train_on_turn": false
+    },
+    {
+      "role": "user",
+      "content": [{"type": "text", "text": "turn on the floor lamp"}],
+      "train_on_turn": false
+    },
+    {
+      "role": "assistant",
+      "content": [{"type": "text", "text": "Turning on the floor lamp."}],
+      "train_on_turn": true,
+      "tool_calls": [
+        {
+          "function": {
+            "name": "HassTurnOn",
+            "arguments": "{\"name\": \"light.floor_lamp\"}"
+          }
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "function": {
+        "name": "HassTurnOn",
+        "description": "Turns on a device",
+        "parameters": {"type": "object", "properties": {}}
+      }
+    },
+    {
+      "function": {
+        "name": "HassTurnOff",
+        "description": "Turns off a device",
+        "parameters": {"type": "object", "properties": {}}
+      }
+    }
+  ]
+}

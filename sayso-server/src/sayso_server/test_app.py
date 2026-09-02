@@ -212,6 +212,45 @@ def test_main_wires_mlx_runtime_for_live_controller(
 
 
 @pytest.mark.asyncio
+async def test_aiohttp_ws_handler_passes_text_controller_to_gateway() -> None:
+    from aiohttp import web
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from sayso_server.app import create_aiohttp_app
+
+    app = create_aiohttp_app("secret-token")
+    handler = None
+    for route in app.router.routes():
+        if route.resource.canonical == WS_PATH:
+            handler = route.handler
+            break
+    assert handler is not None
+
+    request = MagicMock()
+    request.headers = {"Authorization": "Bearer secret-token"}
+
+    ws = MagicMock()
+    ws.prepare = AsyncMock()
+    ws.closed = False
+    ws.receive = AsyncMock(
+        return_value=MagicMock(type=web.WSMsgType.CLOSE, data=None),
+    )
+
+    with patch("sayso_server.app.web.WebSocketResponse", return_value=ws):
+        with patch(
+            "sayso_server.app.handle_ha_connection",
+            new_callable=AsyncMock,
+            return_value=MagicMock(correlation_id="ws-route-2"),
+        ) as mock_handle:
+            await handler(request)
+
+    mock_handle.assert_awaited_once()
+    _, kwargs = mock_handle.call_args
+    assert kwargs["text_controller"] is app["text_controller"]
+    assert kwargs["satellite_registry"] is app["satellite_registry"]
+
+
+@pytest.mark.asyncio
 async def test_gateway_ws_proxy_skips_protocol_ping_and_pong() -> None:
     from aiohttp import web
     from unittest.mock import AsyncMock, MagicMock

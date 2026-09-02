@@ -8,9 +8,16 @@ from pathlib import Path
 import pytest
 
 from evals import executor as executor_module
-from evals.executor import _HOME_GRAPH_PATH, controller_dry_run_executor
+from evals.config import HOME_LLM_270M_MODEL_ID
+from evals.executor import (
+    _HOME_GRAPH_PATH,
+    comparison_baseline_executor,
+    controller_dry_run_executor,
+    execute_controller_dry_run,
+)
 from evals.runner import dry_run_executor
 from evals.schema import EvalCase
+from sayso_server.runtime import FakeModelRuntime, parse_lfm_prompt_payload
 
 
 def _action_case(case_id: str, utterance: str = "Turn off the lights") -> EvalCase:
@@ -113,10 +120,82 @@ def test_controller_dry_run_executor_caches_home_graph_between_calls(
 
 def test_controller_dry_run_executor_reuses_resident_fake_runtime() -> None:
     controller_dry_run_executor(_action_case("resident-runtime-a"))
-    first = executor_module._resident_fake_runtime_instance()
+    first = executor_module._resident_fake_runtime
     controller_dry_run_executor(_action_case("resident-runtime-b"))
-    second = executor_module._resident_fake_runtime_instance()
+    second = executor_module._resident_fake_runtime
     assert first is second
+    assert first is not None
+
+
+class _ActionPlanFakeRuntime(FakeModelRuntime):
+    def generate(self, prompt: str):
+        raw = super().generate(prompt)
+        payload = parse_lfm_prompt_payload(prompt)
+        user_text = payload["user_text"]
+        action_text = json.dumps(
+            {
+                "outcome": "action",
+                "intent": user_text,
+                "domain": "light",
+                "targets": ["ceiling lights"],
+                "state": "off",
+            },
+        )
+        return raw.model_copy(update={"text": action_text})
+
+
+def test_controller_dry_run_records_shared_latency_boundaries() -> None:
+    runtime = _ActionPlanFakeRuntime()
+    runtime.load()
+    case = _action_case("boundary-timing-001", utterance="turn off the ceiling lights")
+    result = execute_controller_dry_run(case, runtime)
+    timing = result.timing
+    assert timing.plan_ms is not None
+    assert timing.request_ms is not None
+    assert timing.verify_ms is not None
+    assert timing.plan_ms <= timing.request_ms <= timing.verify_ms
+    assert timing.resolve_ms is not None
+    assert timing.validate_ms is not None
+
+
+def test_controller_dry_run_boundary_fields_follow_shared_formula() -> None:
+    runtime = _ActionPlanFakeRuntime()
+    runtime.load()
+    case = _action_case("boundary-formula-001", utterance="turn off the ceiling lights")
+    result = execute_controller_dry_run(case, runtime)
+    timing = result.timing
+    assert timing.plan_ms is not None
+    assert timing.request_ms is not None
+    assert timing.verify_ms is not None
+    assert timing.resolve_ms is not None
+    assert timing.validate_ms is not None
+    assert timing.plan_ms <= timing.request_ms <= timing.verify_ms
+    assert timing.request_ms >= timing.plan_ms + timing.resolve_ms + timing.validate_ms
+
+
+def test_comparison_baseline_executor_populates_same_boundary_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor_module._resident_comparison_runtime = None
+    case = _action_case("boundary-parity-001", utterance="turn off the ceiling lights")
+    result = comparison_baseline_executor(case)
+    timing = result.timing
+    assert timing.model_id == HOME_LLM_270M_MODEL_ID
+    for field in ("plan_ms", "request_ms", "verify_ms", "resolve_ms", "validate_ms"):
+        assert getattr(timing, field) is not None
+    assert timing.plan_ms <= timing.request_ms <= timing.verify_ms
+
+
+def test_comparison_baseline_executor_records_readiness_separately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor_module._resident_comparison_runtime = None
+    case = _action_case("comparison-readiness-001")
+    result = comparison_baseline_executor(case)
+    assert result.timing.readiness_ms is not None
+    assert result.timing.readiness_ms >= 0.0
+    second = comparison_baseline_executor(_action_case("comparison-readiness-002"))
+    assert second.timing.readiness_ms is None
 
 
 def test_run_benchmark_records_control_plan_without_importing_main(

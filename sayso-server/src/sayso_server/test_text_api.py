@@ -13,7 +13,11 @@ from sayso_server.const import TEXT_PATH
 from sayso_server.graph_store import HomeGraphStore
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.satellites import SatelliteRegistry
-from sayso_server.text_api import create_text_handler
+from sayso_server.text_api import (
+    ConversationRequestPayload,
+    create_text_handler,
+    resolve_conversation_area,
+)
 
 FIXTURES = Path(__file__).resolve().parents[3] / "evals" / "fixtures"
 
@@ -55,7 +59,7 @@ class RecordingTextController:
         self,
         *,
         satellite_id: str,
-        area_id: str,
+        area_id: str | None,
         text: str,
         correlation_id: str,
         input_type: str = "text",
@@ -112,6 +116,79 @@ async def _post_text(
         return response.status, None
     payload = json.loads(response.text)
     return response.status, payload
+
+
+def test_resolve_conversation_area_accepts_area_in_graph() -> None:
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    payload = ConversationRequestPayload(
+        transcript="turn off the floor lamp",
+        source_id="device-floor-lamp",
+        area_id="area_living_room",
+    )
+
+    area_id, error = resolve_conversation_area(payload, graph_store=graph_store)
+
+    assert error is None
+    assert area_id == "area_living_room"
+
+
+def test_resolve_conversation_area_rejects_unknown_area() -> None:
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    payload = ConversationRequestPayload(
+        transcript="turn off the floor lamp",
+        source_id="device-floor-lamp",
+        area_id="area_deleted_room",
+    )
+
+    area_id, error = resolve_conversation_area(payload, graph_store=graph_store)
+
+    assert area_id is None
+    assert error == "unknown_area"
+
+
+def test_resolve_conversation_area_rejects_stale_area_after_graph_resync() -> None:
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    payload = ConversationRequestPayload(
+        transcript="turn off the floor lamp",
+        source_id="device-floor-lamp",
+        area_id="living_room",
+    )
+
+    area_id, error = resolve_conversation_area(payload, graph_store=graph_store)
+
+    assert area_id is None
+    assert error == "unknown_area"
+
+
+def test_resolve_conversation_area_rejects_missing_graph() -> None:
+    graph_store = HomeGraphStore()
+    payload = ConversationRequestPayload(
+        transcript="turn off the floor lamp",
+        source_id="device-floor-lamp",
+        area_id="area_living_room",
+    )
+
+    area_id, error = resolve_conversation_area(payload, graph_store=graph_store)
+
+    assert area_id is None
+    assert error == "no_graph"
+
+
+def test_resolve_conversation_area_accepts_missing_area_without_error() -> None:
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    payload = ConversationRequestPayload(
+        transcript="turn off the lights",
+        source_id="text-chat",
+    )
+
+    area_id, error = resolve_conversation_area(payload, graph_store=graph_store)
+
+    assert area_id is None
+    assert error is None
 
 
 def test_text_path_constant() -> None:
@@ -178,7 +255,7 @@ async def test_explicit_text_controller_overrides_default() -> None:
     assert controller.calls == [
         {
             "satellite_id": "macbook",
-            "area_id": "area_living_room",
+            "area_id": None,
             "text": "turn off the floor lamp",
             "correlation_id": "override-1",
             "input_type": "text",
@@ -310,15 +387,22 @@ async def test_unknown_satellite_never_reaches_controller() -> None:
 
 
 @pytest.mark.asyncio
-async def test_unknown_area_never_reaches_controller() -> None:
+async def test_text_chat_passes_no_area_to_controller() -> None:
     controller = RecordingTextController()
-    handler = _build_handler(controller, area_id="area_missing")
+    handler = _build_handler(controller, area_id="area_living_room")
     status, body = await _post_text(handler, _text_request())
-    assert status == 400
+    assert status == 200
     assert body is not None
-    assert body["type"] == "error"
-    assert body["payload"]["code"] == "unknown_area"
-    assert controller.calls == []
+    assert controller.calls == [
+        {
+            "satellite_id": "macbook",
+            "area_id": None,
+            "text": "turn off the floor lamp",
+            "correlation_id": "corr-text-1",
+            "input_type": "text",
+            "stt_ms": 0.0,
+        },
+    ]
 
 
 @pytest.mark.asyncio
@@ -432,7 +516,7 @@ async def test_valid_request_returns_text_response_envelope() -> None:
     assert controller.calls == [
         {
             "satellite_id": "macbook",
-            "area_id": "area_living_room",
+            "area_id": None,
             "text": "turn off the floor lamp",
             "correlation_id": "corr-ok",
             "input_type": "text",
@@ -504,11 +588,78 @@ def test_orchestrator_text_controller_composes_candidates_prompt_and_parse() -> 
     assert "plan" in result
 
 
+def test_missing_origin_area_relative_request_returns_area_clarification() -> None:
+    from sayso_server.ha_client import FakeHaClient
+    from sayso_server.text_api import OrchestratorTextController
+
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    runtime = _ActionPlanRuntime(
+        plan={
+            "outcome": "action",
+            "intent": "turn off the lights",
+            "domain": "light",
+            "scope": {"kind": "current_area"},
+            "state": "off",
+        },
+    )
+    runtime.load()
+    controller = OrchestratorTextController(
+        runtime=runtime,
+        ha_client=FakeHaClient(),
+        graph_store=graph_store,
+    )
+
+    result = controller.handle(
+        satellite_id="text-chat",
+        area_id=None,
+        text="turn off the lights",
+        correlation_id="missing-origin-area-relative",
+    )
+
+    assert result["category"] == "no_action"
+    assert result["reason"] == "clarification required: which area?"
+
+
+def test_missing_origin_explicit_target_still_resolves() -> None:
+    from sayso_server.ha_client import FakeHaClient
+    from sayso_server.results import ActionResultStatus
+    from sayso_server.text_api import OrchestratorTextController
+
+    graph_store = HomeGraphStore()
+    graph_store.replace_snapshot(_load_graph())
+    runtime = _ActionPlanRuntime()
+    runtime.load()
+    ha_client = FakeHaClient()
+    ha_client.queue_results(
+        [
+            ("missing-origin-explicit-target", ActionResultStatus.ACCEPTED, None),
+            ("missing-origin-explicit-target", ActionResultStatus.COMPLETED, "state_changed"),
+        ],
+    )
+    controller = OrchestratorTextController(
+        runtime=runtime,
+        ha_client=ha_client,
+        graph_store=graph_store,
+    )
+
+    result = controller.handle(
+        satellite_id="text-chat",
+        area_id=None,
+        text="turn off the floor lamp",
+        correlation_id="missing-origin-explicit-target",
+    )
+
+    assert result["category"] == "completed"
+    assert result["plan"]["outcome"] == "action"
+
+
 class _ActionPlanRuntime:
     """Runtime stub that emits a resolvable light action plan."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, plan: dict[str, object] | None = None) -> None:
         self._loaded = False
+        self._plan = plan
 
     def load(self) -> None:
         self._loaded = True
@@ -526,16 +677,15 @@ class _ActionPlanRuntime:
 
         payload = parse_lfm_prompt_payload(prompt)
         user_text = payload["user_text"]
+        plan_body = self._plan or {
+            "outcome": "action",
+            "intent": user_text,
+            "domain": "light",
+            "targets": ["floor lamp"],
+            "state": "off",
+        }
         return RawGenerationResult(
-            text=json.dumps(
-                {
-                    "outcome": "action",
-                    "intent": user_text,
-                    "domain": "light",
-                    "targets": ["floor lamp"],
-                    "state": "off",
-                }
-            ),
+            text=json.dumps(plan_body),
             prompt_tokens=1,
             completion_tokens=1,
             latency_ms=0.0,

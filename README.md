@@ -16,7 +16,9 @@ uv run pytest -q
 python -c 'import sayso_server, sayso_satellite'
 ```
 
-## Operator runbook
+## Docs
 
-To bring up the SaySo server, Home Assistant integration, and Mac satellite and
-run health → connect → command, see [docs/OPERATOR.md](docs/OPERATOR.md).
+- [Architecture](docs/ARCHITECTURE.md)
+- [Evaluation plan](docs/EVALUATION_PLAN.md)
+- [WebSocket conversation plan](docs/WEBSOCKET_CONVERSATION_PLAN.md)
+- [Tuning plan](docs/TUNING_PLAN.md)

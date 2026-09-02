@@ -1,6 +1,18 @@
 """SaySo evaluation datasets, schema, and benchmark tooling."""
 
-from evals.config import BenchmarkConfig, DEFAULT_MODEL_ID
+from evals.comparison_report import (
+    ComparisonReportError,
+    build_comparison_report,
+    default_comparison_report_path,
+    write_comparison_report,
+)
+from evals.config import (
+    BenchmarkConfig,
+    DEFAULT_MODEL_ID,
+    HOME_LLM_270M_MODEL_ID,
+    comparison_baseline_benchmark_config,
+    sayso_comparison_benchmark_config,
+)
 from evals.executor import controller_dry_run_executor, execute_controller_dry_run
 from evals.metrics import EvalRecord, MetricScore, canonicalize_control_plan, score_records
 from evals.mlx_executor import (
@@ -27,10 +39,16 @@ from evals.schema import EvalCase, EvalSchemaError, ExpectedOutcome, load_eval_c
 
 __all__ = [
     "BenchmarkConfig",
+    "ComparisonReportError",
+    "build_comparison_report",
+    "default_comparison_report_path",
     "BenchmarkRunResult",
     "build_eval_report",
     "build_report_from_benchmark_output",
     "DEFAULT_MODEL_ID",
+    "HOME_LLM_270M_MODEL_ID",
+    "comparison_baseline_benchmark_config",
+    "sayso_comparison_benchmark_config",
     "MLX_EVAL_ENV_VAR",
     "CaseExecutionResult",
     "CaseExecutor",
@@ -56,5 +74,6 @@ __all__ = [
     "resolve_eval_executor",
     "run_benchmark",
     "score_records",
+    "write_comparison_report",
     "write_eval_report",
 ]

@@ -9,7 +9,7 @@ from sayso_server.api import API_VERSION
 from sayso_server.envelope import SaySoEnvelope
 from sayso_server.gateway import GatewayWebSocket
 from sayso_server.messages import MessageType
-from sayso_server.results import ActionResult, ExecutionCategory
+from sayso_server.results import ActionResult
 from sayso_server.session import HaGatewayBinding, HaSession
 
 
@@ -60,20 +60,10 @@ class HaWsActionClient:
         *,
         timeout: float = 30.0,
     ) -> list[ActionResult]:
-        """Wait for correlated action_result payloads without blocking the event loop."""
-        from sayso_server.orchestrator import classify_action_results
-
-        loop = asyncio.get_running_loop()
-        deadline = loop.time() + timeout
-        while True:
-            results = self._session.peek_action_results(request_id)
-            if results:
-                category, _ = classify_action_results(request_id, results)
-                if category is not ExecutionCategory.INCOMPLETE_RESULTS:
-                    return self._session.take_action_results(request_id)
-            if loop.time() >= deadline:
-                return self._session.take_action_results(request_id)
-            await asyncio.sleep(0)
+        return await self._session.collect_action_results(
+            request_id,
+            timeout=timeout,
+        )
 
 
 class BoundHaWsActionClient:

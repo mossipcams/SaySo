@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from evals.config import is_benchmark_config_line
-from evals.executor import controller_dry_run_executor
+from evals.executor import controller_dry_run_executor, comparison_baseline_executor
 from evals.metrics import EvalRecord
 from evals.runner import (
     BenchmarkRunResult,
@@ -510,6 +510,40 @@ def test_gate_executor_for_live_safety_directly() -> None:
 
     blocked = gate_executor_for_live_safety(_actuating_executor(), execute=True)
     assert blocked(case).record.ha_executed is False
+
+
+def test_record_to_jsonl_includes_readiness_ms_when_present() -> None:
+    record = EvalRecord(case_id="ready-001", ha_executed=False)
+    timing = CaseTiming(total_ms=1.0, readiness_ms=250.0)
+    line = _record_to_jsonl(record, timing, cold_start=True)
+    assert line["readiness_ms"] == 250.0
+    assert line["cold_start"] is True
+
+
+def test_run_benchmark_comparison_executors_emit_boundary_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from evals import executor as executor_module
+
+    executor_module._resident_fake_runtime = None
+    executor_module._resident_comparison_runtime = None
+    case = _action_case("boundary-jsonl-001")
+    sayso_output = tmp_path / "sayso.jsonl"
+    baseline_output = tmp_path / "baseline.jsonl"
+
+    run_benchmark([case], sayso_output, controller_dry_run_executor)
+    run_benchmark([case], baseline_output, comparison_baseline_executor)
+
+    sayso_line = _read_output_lines(sayso_output)[0]
+    baseline_line = _read_output_lines(baseline_output)[0]
+    for field in ("plan_ms", "request_ms", "verify_ms"):
+        assert field in sayso_line
+        assert field in baseline_line
+    assert sayso_line["cold_start"] is True
+    assert "readiness_ms" in sayso_line
+    assert baseline_line["cold_start"] is True
+    assert "readiness_ms" in baseline_line
 
 
 def test_run_benchmark_runs_controller_dry_run_when_execute_false(

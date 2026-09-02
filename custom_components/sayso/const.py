@@ -17,6 +17,8 @@ WS_PATH = "/api/v1/ws"
 HA_WS_MAX_MSG_SIZE = 64 * 1024 * 1024
 WS_CONNECT_TIMEOUT = 30.0
 HELLO_ACK_TIMEOUT = 30.0
+CONVERSATION_REQUEST_TIMEOUT = 30.0
+PREPARE_REQUEST_TIMEOUT = 30.0
 
 # Bulky entity attributes omitted from Home Graph snapshots.
 SNAPSHOT_OMIT_ATTRIBUTES = frozenset({"forecast"})
@@ -33,6 +35,10 @@ MSG_STATE_DELTA = "state_delta"
 MSG_REGISTRY_DELTA = "registry_delta"
 MSG_ACTION_REQUEST = "action_request"
 MSG_ACTION_RESULT = "action_result"
+MSG_CONVERSATION_REQUEST = "conversation_request"
+MSG_CONVERSATION_RESPONSE = "conversation_response"
+MSG_PREPARE = "prepare"
+MSG_PREPARE_RESPONSE = "prepare_response"
 
 REJECT_ENTITY_NOT_EXPOSED = "entity_not_exposed"
 REJECT_DOMAIN_MISMATCH = "domain_mismatch"

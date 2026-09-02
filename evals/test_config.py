@@ -11,10 +11,13 @@ import pytest
 from evals.config import (
     BENCHMARK_CONFIG_RECORD_KIND,
     DEFAULT_MODEL_ID,
+    HOME_LLM_270M_MODEL_ID,
     BenchmarkConfig,
+    comparison_baseline_benchmark_config,
     config_sidecar_path,
     load_benchmark_config,
     parse_benchmark_config,
+    sayso_comparison_benchmark_config,
     write_benchmark_config_header,
     write_config_sidecar,
 )
@@ -236,3 +239,20 @@ def test_run_benchmark_uses_config_seed_and_warmup_over_kwargs(tmp_path: Path) -
     assert lines[0]["seed"] == 42
     assert lines[0]["warmup_count"] == 1
     assert "cold_start" not in lines[1]
+
+
+def test_home_llm_270m_model_id_is_pinned_honestly() -> None:
+    assert HOME_LLM_270M_MODEL_ID == "acon96/Home-FunctionGemma-270m"
+
+
+def test_comparison_baseline_benchmark_config_is_external_slot() -> None:
+    config = comparison_baseline_benchmark_config()
+    assert config.model_id == HOME_LLM_270M_MODEL_ID
+    assert config.runtime == "external"
+    assert config.revision is None
+
+
+def test_sayso_comparison_benchmark_config_uses_default_lfm() -> None:
+    config = sayso_comparison_benchmark_config()
+    assert config.model_id == DEFAULT_MODEL_ID
+    assert config.runtime == "fake"

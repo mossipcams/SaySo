@@ -220,6 +220,8 @@ def create_aiohttp_app(
                 server_token=token,
                 graph_store=store,
                 readiness=readiness_state,
+                text_controller=controller,
+                satellite_registry=registry,
                 on_session_started=on_session_started,
             )
         finally:

@@ -103,6 +103,25 @@ def test_build_eval_report_includes_failures_by_stage() -> None:
     assert failures["by_stage_reason"][0]["case_ids"] == ["a-001"]
 
 
+def test_build_eval_report_includes_cold_readiness_separate_from_warm_latency() -> None:
+    rows = [
+        {"total_ms": 1000.0, "cold_start": True, "readiness_ms": 800.0, "plan_ms": 900.0},
+        {"total_ms": 50.0, "plan_ms": 10.0, "request_ms": 20.0, "verify_ms": 30.0},
+        {"total_ms": 150.0, "plan_ms": 30.0, "request_ms": 40.0, "verify_ms": 60.0},
+    ]
+    report = build_eval_report(
+        _sample_score(),
+        _sample_ledger_summary(),
+        latency_report(rows, warm_only=True),
+        BenchmarkConfig(),
+        rows=rows,
+    )
+
+    assert report["latency"]["cold_readiness_ms"] == {"n": 1, "median": 800.0, "p95": 800.0}
+    assert report["latency"]["n"] == 2
+    assert report["latency"]["stages"]["plan_ms"] == {"n": 2, "median": 10.0, "p95": 30.0}
+
+
 def test_build_eval_report_includes_latency_sample_size_and_percentiles() -> None:
     report = build_eval_report(
         _sample_score(),

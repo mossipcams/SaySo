@@ -54,6 +54,17 @@ LANGUAGE_NOISE_CATEGORY_COUNTS: dict[str, int] = {
 LANGUAGE_NOISE_CASE_COUNT = sum(LANGUAGE_NOISE_CATEGORY_COUNTS.values())
 
 FOLLOWUP_DATASET_PATH = EVALS_DIR / "datasets" / "followup.jsonl"
+COMPARISON_DATASET_PATH = EVALS_DIR / "datasets" / "comparison.jsonl"
+
+COMPARISON_SCENARIO_COUNTS: dict[str, int] = {
+    "warm": 1,
+    "cold": 1,
+    "current_area": 1,
+    "named_area": 1,
+    "ambiguous_target": 1,
+    "multi_target": 1,
+}
+COMPARISON_CASE_COUNT = sum(COMPARISON_SCENARIO_COUNTS.values())
 
 FOLLOWUP_CATEGORY_COUNTS: dict[str, int] = {
     "active_followup": 24,
@@ -178,6 +189,10 @@ class FollowUpEvalCase(EvalCase):
         return self
 
 
+def load_comparison_corpus() -> list[EvalCase]:
+    return load_eval_cases_jsonl(COMPARISON_DATASET_PATH.read_text())
+
+
 def load_followup_corpus() -> list[FollowUpEvalCase]:
     cases: list[FollowUpEvalCase] = []
     for line_number, line in enumerate(
@@ -198,6 +213,49 @@ def load_followup_corpus() -> list[FollowUpEvalCase]:
 
 def reviewed_corpus_case_count() -> int:
     return CORE_CASE_COUNT + SAFETY_CASE_COUNT + LANGUAGE_NOISE_CASE_COUNT
+
+
+def validate_comparison_corpus(cases: Iterable[EvalCase]) -> None:
+    case_list = list(cases)
+    if len(case_list) != COMPARISON_CASE_COUNT:
+        msg = f"case count must be {COMPARISON_CASE_COUNT}, got {len(case_list)}"
+        raise ValueError(msg)
+
+    counts = Counter(case.category for case in case_list)
+    for scenario, expected in COMPARISON_SCENARIO_COUNTS.items():
+        if counts[scenario] != expected:
+            msg = f"scenario {scenario!r} expected {expected} cases, got {counts[scenario]}"
+            raise ValueError(msg)
+
+    unknown = set(counts) - set(COMPARISON_SCENARIO_COUNTS)
+    if unknown:
+        msg = f"unknown comparison scenarios: {sorted(unknown)}"
+        raise ValueError(msg)
+
+    case_ids = [case.case_id for case in case_list]
+    if len(case_ids) != len(set(case_ids)):
+        msg = "case_id values must be unique"
+        raise ValueError(msg)
+
+    valid_origins = load_home_graph_origin_areas()
+    valid_entities = load_home_graph_entity_ids()
+    for case in case_list:
+        if case.home != _HOME:
+            msg = f"{case.case_id}: home must be {_HOME!r}, got {case.home!r}"
+            raise ValueError(msg)
+        if case.origin not in valid_origins:
+            msg = f"{case.case_id}: unknown origin {case.origin!r}"
+            raise ValueError(msg)
+        if case.execution_allowed:
+            msg = f"{case.case_id}: comparison cases must keep execution_allowed=false"
+            raise ValueError(msg)
+        for entity_id in (
+            *case.expected_candidate_entities,
+            *case.expected_resolved_entities,
+        ):
+            if entity_id not in valid_entities:
+                msg = f"{case.case_id}: unknown entity {entity_id!r}"
+                raise ValueError(msg)
 
 
 def validate_core_corpus(cases: Iterable[EvalCase]) -> None:

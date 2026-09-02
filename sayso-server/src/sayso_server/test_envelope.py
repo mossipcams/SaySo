@@ -67,6 +67,66 @@ def test_action_result_envelope_round_trips() -> None:
     assert envelope.type.value == "action_result"
 
 
+def test_conversation_request_envelope_preserves_correlation_id() -> None:
+    correlation_id = "turn-9f3c2a1b-4d5e-6789-abcd-ef0123456789"
+    envelope = SaySoEnvelope.model_validate(
+        {
+            "version": 1,
+            "type": "conversation_request",
+            "correlation_id": correlation_id,
+            "payload": {"transcript": "turn off the lights"},
+        },
+    )
+    assert envelope.type.value == "conversation_request"
+    assert envelope.correlation_id == correlation_id
+
+
+def test_conversation_response_envelope_preserves_correlation_id() -> None:
+    correlation_id = "turn-9f3c2a1b-4d5e-6789-abcd-ef0123456789"
+    envelope = SaySoEnvelope.model_validate(
+        {
+            "version": 1,
+            "type": "conversation_response",
+            "correlation_id": correlation_id,
+            "payload": {"speech": "Okay.", "response_type": "action_done"},
+        },
+    )
+    assert envelope.type.value == "conversation_response"
+    assert envelope.correlation_id == correlation_id
+
+
+def test_prepare_envelope_preserves_correlation_id() -> None:
+    correlation_id = "prep-9f3c2a1b-4d5e-6789-abcd-ef0123456789"
+    envelope = SaySoEnvelope.model_validate(
+        {
+            "version": 1,
+            "type": "prepare",
+            "correlation_id": correlation_id,
+            "payload": {},
+        },
+    )
+    assert envelope.type.value == "prepare"
+    assert envelope.correlation_id == correlation_id
+
+
+def test_prepare_response_envelope_preserves_correlation_id() -> None:
+    correlation_id = "prep-9f3c2a1b-4d5e-6789-abcd-ef0123456789"
+    envelope = SaySoEnvelope.model_validate(
+        {
+            "version": 1,
+            "type": "prepare_response",
+            "correlation_id": correlation_id,
+            "payload": {
+                "connected": False,
+                "graph_ready": False,
+                "model_ready": True,
+            },
+        },
+    )
+    assert envelope.type.value == "prepare_response"
+    assert envelope.correlation_id == correlation_id
+
+
 def test_unknown_type_is_rejected() -> None:
     with pytest.raises(ValidationError):
         SaySoEnvelope.model_validate(

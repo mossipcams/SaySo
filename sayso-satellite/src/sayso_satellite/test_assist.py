@@ -43,6 +43,15 @@ def _event(event_type: str, data: dict[str, object]) -> str:
     )
 
 
+def _tts_output() -> dict[str, str]:
+    return {
+        "media_id": "media-source://tts/-stream-/abc.mp3",
+        "token": "abc.mp3",
+        "url": "/api/tts_proxy/abc.mp3",
+        "mime_type": "audio/mpeg",
+    }
+
+
 def _successful_messages() -> list[str]:
     return [
         _message("auth_required"),
@@ -52,11 +61,21 @@ def _successful_messages() -> list[str]:
         _event("stt-start", {"engine": "test"}),
         _event("stt-end", {"stt_output": {"text": "turn on the lamp"}}),
         _event("intent-end", {"intent_output": {"response": "Done"}}),
+        _event(
+            "tts-start",
+            {
+                "engine": "test-tts",
+                "language": "en",
+                "voice": "default",
+                "tts_input": "Done",
+            },
+        ),
+        _event("tts-end", {"tts_output": _tts_output()}),
         _event("run-end", {}),
     ]
 
 
-def test_run_assist_authenticates_streams_pcm_and_returns_intent() -> None:
+def test_run_assist_authenticates_streams_pcm_and_returns_tts() -> None:
     websocket = FakeWebSocket(_successful_messages())
     calls: list[str] = []
 
@@ -81,7 +100,7 @@ def test_run_assist_authenticates_streams_pcm_and_returns_intent() -> None:
         "type": "assist_pipeline/run",
         "id": 1,
         "start_stage": "stt",
-        "end_stage": "intent",
+        "end_stage": "tts",
         "input": {"sample_rate": 16_000},
     }
     assert websocket.sent[2:] == [b"\x07abcd", b"\x071234", b"\x07"]
@@ -89,7 +108,91 @@ def test_run_assist_authenticates_streams_pcm_and_returns_intent() -> None:
         "status": "completed",
         "text": "turn on the lamp",
         "intent": {"response": "Done"},
+        "tts": _tts_output(),
     }
+
+
+def test_run_assist_rejects_run_end_before_tts_end() -> None:
+    messages = _successful_messages()[:-2] + [_event("run-end", {})]
+    websocket = FakeWebSocket(messages)
+
+    with pytest.raises(AssistError, match="TTS"):
+        run_assist(
+            b"abcd",
+            token="secret-token",
+            connect=lambda _url: FakeConnection(websocket),
+        )
+
+
+@pytest.mark.parametrize(
+    ("tts_output", "error"),
+    [
+        ({}, "malformed TTS output"),
+        ({"token": "abc.mp3"}, "malformed TTS output"),
+        ({"url": "/api/tts_proxy/abc.mp3"}, "malformed TTS output"),
+        ({"url": "", "token": "abc.mp3", "mime_type": "audio/mpeg"}, "malformed TTS output"),
+    ],
+)
+def test_run_assist_rejects_malformed_tts_output(
+    tts_output: dict[str, str],
+    error: str,
+) -> None:
+    messages = _successful_messages()[:-2] + [
+        _event("tts-end", {"tts_output": tts_output}),
+        _event("run-end", {}),
+    ]
+    websocket = FakeWebSocket(messages)
+
+    with pytest.raises(AssistError, match=error):
+        run_assist(
+            b"abcd",
+            token="secret-token",
+            connect=lambda _url: FakeConnection(websocket),
+        )
+
+
+def test_run_assist_surfaces_tts_pipeline_errors() -> None:
+    messages = _successful_messages()[:-3] + [
+        _event("error", {"code": "tts-failed", "message": "synthesis broke"}),
+    ]
+    websocket = FakeWebSocket(messages)
+
+    with pytest.raises(AssistError, match="tts-failed"):
+        run_assist(
+            b"abcd",
+            token="secret-token",
+            connect=lambda _url: FakeConnection(websocket),
+        )
+
+
+def test_run_assist_omits_device_id_when_unset() -> None:
+    websocket = FakeWebSocket(_successful_messages())
+
+    run_assist(
+        b"abcd1234",
+        token="secret-token",
+        connect=lambda _url: FakeConnection(websocket),
+        chunk_size=4,
+    )
+
+    run_message = json.loads(websocket.sent[1])
+    assert run_message["type"] == "assist_pipeline/run"
+    assert "device_id" not in run_message
+
+
+def test_run_assist_includes_device_id_when_set() -> None:
+    websocket = FakeWebSocket(_successful_messages())
+
+    run_assist(
+        b"abcd1234",
+        token="secret-token",
+        device_id="living-room-mac",
+        connect=lambda _url: FakeConnection(websocket),
+        chunk_size=4,
+    )
+
+    run_message = json.loads(websocket.sent[1])
+    assert run_message["device_id"] == "living-room-mac"
 
 
 @pytest.mark.parametrize(

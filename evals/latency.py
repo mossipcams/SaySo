@@ -16,6 +16,13 @@ _STAGE_MS_FIELDS = (
     "verify_ms",
 )
 
+# Shared EOS boundary fields written to JSONL for model comparison (unit 9.2).
+# START: turn processing begins (eval text path; no STT).
+# STOP plan_ms: ControlPlan ready.
+# STOP request_ms: action_request sent.
+# STOP verify_ms: state verification finished.
+LATENCY_BOUNDARY_FIELDS = ("plan_ms", "request_ms", "verify_ms")
+
 
 @dataclass(frozen=True)
 class LatencyFieldStats:
@@ -64,6 +71,52 @@ def _field_stats(values: list[float]) -> LatencyFieldStats:
         median=_nearest_rank_percentile(ordered, 50.0),
         p95=_nearest_rank_percentile(ordered, 95.0),
     )
+
+
+def timing_boundaries_from_stages(
+    *,
+    plan_stage_ms: float,
+    resolve_stage_ms: float,
+    validate_stage_ms: float,
+    request_stage_ms: float,
+    verify_stage_ms: float,
+    stt_stage_ms: float = 0.0,
+) -> dict[str, float]:
+    """Map orchestrator stage timings to shared EOS comparison boundaries."""
+    eos_to_plan = stt_stage_ms + plan_stage_ms
+    eos_to_action_request = (
+        eos_to_plan + resolve_stage_ms + validate_stage_ms + request_stage_ms
+    )
+    verified_eos_to_action = eos_to_action_request + verify_stage_ms
+    return {
+        "plan_ms": eos_to_plan,
+        "request_ms": eos_to_action_request,
+        "verify_ms": verified_eos_to_action,
+    }
+
+
+def boundary_ms(row: Mapping[str, Any], boundary: str) -> float | None:
+    """Return one comparison boundary from a JSONL row when present."""
+    if boundary not in LATENCY_BOUNDARY_FIELDS:
+        msg = f"unknown latency boundary: {boundary}"
+        raise ValueError(msg)
+    raw = row.get(boundary)
+    if raw is None:
+        return None
+    return float(raw)
+
+
+def cold_readiness_report(rows: list[Mapping[str, Any]]) -> LatencyFieldStats:
+    """Summarize model readiness on cold-start rows, separate from warm turn latency."""
+    values: list[float] = []
+    for row in rows:
+        if row.get("cold_start") is not True:
+            continue
+        raw = row.get("readiness_ms")
+        if raw is None:
+            continue
+        values.append(float(raw))
+    return _field_stats(values)
 
 
 def _numeric_values(rows: list[Mapping[str, Any]], field: str) -> list[float]:

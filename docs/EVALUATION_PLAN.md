@@ -1,7 +1,7 @@
 # SaySo Evaluation and Benchmark Plan
 
 Status: Approved planning baseline  
-Parent: [MVP Implementation Plan](MVP_PLAN.md)
+Companion: [Architecture](ARCHITECTURE.md)
 
 ## Objective
 
@@ -56,6 +56,10 @@ stable.
 
 Variants are deterministic and tied to an authored expected result. Runtime
 model-generated test data is not counted as reviewed coverage.
+
+Train data is a separate pipeline ([TUNING_PLAN.md](TUNING_PLAN.md)). Eval
+`case_id`s never enter SFT. Home-LLM's generator is allowed as a synthetic
+source for that pipeline; Home-LLM tool-call labels are not.
 
 ## Expected result per case
 

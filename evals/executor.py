@@ -8,22 +8,27 @@ import uuid
 from functools import cache
 from pathlib import Path
 
+from evals.config import HOME_LLM_270M_MODEL_ID
+from evals.latency import timing_boundaries_from_stages
 from evals.ledger import classify_failure
 from evals.metrics import EvalRecord
 from evals.runner import CaseExecutionResult, CaseTiming, mark_non_live_executor
 from evals.schema import EvalCase
 from sayso_server.candidates import retrieve_candidates
 from sayso_server.conversation import ConversationStore
-from sayso_server.control_plan import QueryPlan
+from sayso_server.control_plan import ActionPlan, QueryPlan
 from sayso_server.ha_client import FakeHaClient
 from sayso_server.home_graph import HomeGraphSnapshot
 from sayso_server.orchestrator import execute_control_plan
+from sayso_server.results import ActionResultStatus
 from sayso_server.runtime import FakeModelRuntime, ModelRuntime, compose_plan_generation
+from sayso_server.telemetry import InteractionTelemetry
 
 _HOME_GRAPH_PATH = Path(__file__).resolve().parent / "fixtures" / "home_graph.json"
 _SATELLITE_ID = "macbook"
 _CANDIDATE_LIMIT = 8
 _resident_fake_runtime: ModelRuntime | None = None
+_resident_comparison_runtime: ModelRuntime | None = None
 
 
 @cache
@@ -32,16 +37,106 @@ def _load_home_graph() -> HomeGraphSnapshot:
     return HomeGraphSnapshot.model_validate(data)
 
 
-def _resident_fake_runtime_instance() -> ModelRuntime:
+def _ensure_runtime(
+    runtime: ModelRuntime | None,
+    *,
+    factory: type[FakeModelRuntime] | None = None,
+) -> tuple[ModelRuntime, float | None]:
+    if runtime is not None:
+        return runtime, None
+    load_started = time.perf_counter()
+    created = (factory or FakeModelRuntime)()
+    created.load()
+    readiness_ms = (time.perf_counter() - load_started) * 1000.0
+    return created, readiness_ms
+
+
+def _resident_fake_runtime_instance() -> tuple[ModelRuntime, float | None]:
     global _resident_fake_runtime
+    runtime, readiness_ms = _ensure_runtime(_resident_fake_runtime)
     if _resident_fake_runtime is None:
-        runtime = FakeModelRuntime()
-        runtime.load()
         _resident_fake_runtime = runtime
-    return _resident_fake_runtime
+    return runtime, readiness_ms
 
 
-def execute_controller_dry_run(case: EvalCase, runtime: ModelRuntime) -> CaseExecutionResult:
+def _comparison_fake_runtime_instance() -> tuple[ModelRuntime, float | None]:
+    global _resident_comparison_runtime
+    runtime, readiness_ms = _ensure_runtime(
+        _resident_comparison_runtime,
+        factory=_ComparisonFakeRuntime,
+    )
+    if _resident_comparison_runtime is None:
+        _resident_comparison_runtime = runtime
+    return runtime, readiness_ms
+
+
+class _ComparisonFakeRuntime(FakeModelRuntime):
+    """In-tree stand-in for the Home-LLM 270M comparison slot (no model download)."""
+
+    def __init__(self) -> None:
+        super().__init__(model_id=HOME_LLM_270M_MODEL_ID, revision="comparison-fixture")
+
+    def generate(self, prompt: str):
+        from evals.config import COMPARISON_BASELINE_RUNTIME
+
+        raw = super().generate(prompt)
+        return raw.model_copy(
+            update={
+                "metadata": raw.metadata.model_copy(
+                    update={"runtime": COMPARISON_BASELINE_RUNTIME},
+                ),
+            },
+        )
+
+
+def _case_timing_from_telemetry(
+    *,
+    telemetry: InteractionTelemetry,
+    outcome_category: str,
+    outcome_reason: str | None,
+    request_id: str | None,
+    retrieve_ms: float,
+    readiness_ms: float | None,
+    wall_total_ms: float,
+    generation: object,
+) -> CaseTiming:
+    record = telemetry.finish(
+        category=outcome_category,
+        reason=outcome_reason,
+        request_id=request_id,
+    )
+    stages = record.stages
+    boundaries = timing_boundaries_from_stages(
+        stt_stage_ms=stages.stt_ms,
+        plan_stage_ms=stages.plan_ms,
+        resolve_stage_ms=stages.resolve_ms,
+        validate_stage_ms=stages.validate_ms,
+        request_stage_ms=stages.request_ms,
+        verify_stage_ms=stages.verify_ms,
+    )
+    gen = generation  # PlanGenerationResult
+    return CaseTiming(
+        total_ms=wall_total_ms,
+        stt_ms=stages.stt_ms,
+        retrieve_ms=retrieve_ms,
+        plan_ms=boundaries["plan_ms"],
+        resolve_ms=stages.resolve_ms,
+        validate_ms=stages.validate_ms,
+        request_ms=boundaries["request_ms"],
+        verify_ms=boundaries["verify_ms"],
+        readiness_ms=readiness_ms,
+        prompt_tokens=gen.prompt_tokens,
+        completion_tokens=gen.completion_tokens,
+        model_id=gen.metadata.model_id,
+    )
+
+
+def execute_controller_dry_run(
+    case: EvalCase,
+    runtime: ModelRuntime,
+    *,
+    readiness_ms: float | None = None,
+) -> CaseExecutionResult:
     """Run the controller pipeline with ``runtime`` without live Home Assistant actuation."""
     start = time.perf_counter()
     snapshot = _load_home_graph()
@@ -82,19 +177,35 @@ def execute_controller_dry_run(case: EvalCase, runtime: ModelRuntime) -> CaseExe
     retrieve_ms = (time.perf_counter() - retrieve_started) * 1000.0
     recorded_candidate_entities = [candidate.item.entity_id for candidate in scored_candidates]
 
-    generation = compose_plan_generation(
-        runtime=runtime,
-        snapshot=snapshot,
+    telemetry = InteractionTelemetry(
+        correlation_id=str(uuid.uuid4()),
         satellite_id=_SATELLITE_ID,
         area_id=case.origin,
-        text=last_text,
-        conversation=conversation,
     )
+    with telemetry.time_stage("plan"):
+        generation = compose_plan_generation(
+            runtime=runtime,
+            snapshot=snapshot,
+            satellite_id=_SATELLITE_ID,
+            area_id=case.origin,
+            text=last_text,
+            conversation=conversation,
+        )
+    telemetry.set_model_from_generation(generation)
     plan_dump = generation.plan.model_dump(mode="json")
     schema_failure = (
         plan_dump.get("outcome") == "no-action"
         and plan_dump.get("reason") == "model_output_invalid"
     )
+
+    request_id = str(uuid.uuid4())
+    if isinstance(generation.plan, ActionPlan):
+        ha_client.queue_results(
+            [
+                (request_id, ActionResultStatus.ACCEPTED, None),
+                (request_id, ActionResultStatus.COMPLETED, "state_changed"),
+            ],
+        )
 
     prior_request_count = len(ha_client.action_requests)
     outcome = execute_control_plan(
@@ -102,9 +213,10 @@ def execute_controller_dry_run(case: EvalCase, runtime: ModelRuntime) -> CaseExe
         snapshot,
         origin_area_id=case.origin,
         ha_client=ha_client,
-        request_id=str(uuid.uuid4()),
+        request_id=request_id,
         conversation_store=conversation_store,
         satellite_id=_SATELLITE_ID,
+        telemetry=telemetry,
     )
 
     new_requests = ha_client.action_requests[prior_request_count:]
@@ -135,22 +247,30 @@ def execute_controller_dry_run(case: EvalCase, runtime: ModelRuntime) -> CaseExe
         )
 
     elapsed_ms = (time.perf_counter() - start) * 1000.0
-    return CaseExecutionResult(
-        record=record,
-        timing=CaseTiming(
-            total_ms=elapsed_ms,
-            retrieve_ms=retrieve_ms,
-            plan_ms=generation.latency_ms,
-            prompt_tokens=generation.prompt_tokens,
-            completion_tokens=generation.completion_tokens,
-            model_id=generation.metadata.model_id,
-        ),
+    timing = _case_timing_from_telemetry(
+        telemetry=telemetry,
+        outcome_category=outcome.category.value,
+        outcome_reason=outcome.reason,
+        request_id=outcome.request_id,
+        retrieve_ms=retrieve_ms,
+        readiness_ms=readiness_ms,
+        wall_total_ms=elapsed_ms,
+        generation=generation,
     )
+    return CaseExecutionResult(record=record, timing=timing)
 
 
 def controller_dry_run_executor(case: EvalCase) -> CaseExecutionResult:
     """Run the deterministic controller pipeline with FakeModelRuntime."""
-    return execute_controller_dry_run(case, _resident_fake_runtime_instance())
+    runtime, readiness_ms = _resident_fake_runtime_instance()
+    return execute_controller_dry_run(case, runtime, readiness_ms=readiness_ms)
+
+
+def comparison_baseline_executor(case: EvalCase) -> CaseExecutionResult:
+    """Run the same controller timing path for the Home-LLM 270M comparison slot."""
+    runtime, readiness_ms = _comparison_fake_runtime_instance()
+    return execute_controller_dry_run(case, runtime, readiness_ms=readiness_ms)
 
 
 mark_non_live_executor(controller_dry_run_executor)
+mark_non_live_executor(comparison_baseline_executor)
