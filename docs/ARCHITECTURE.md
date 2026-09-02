@@ -1,68 +1,75 @@
 # SaySo architecture
 
-Status: the Assist-to-WebSocket control path is implemented in code. The first
-physical Mac demo and a live Home-LLM 270M bake-off are still outstanding.
+Status: rebuild baseline. The production path is implemented; the physical
+Mac demo has not been run. The numbered close-out is
+[CLEAN_REBUILD_PLAN.md](CLEAN_REBUILD_PLAN.md).
 
-SaySo is a Home Assistant conversation agent for a local voice assistant. Home
-Assistant owns the voice session, device state, permissions, tool execution,
-and response delivery. A resident SaySo server owns the tuned model and the
-deterministic ControlPlan path. A Mac satellite is the temporary smart speaker.
+SaySo is a Home Assistant conversation agent. Home Assistant owns the voice
+session, entity truth, permissions, service execution, and state verification.
+A resident SaySo server owns the model and the deterministic ControlPlan path.
+A Mac satellite is the temporary smart speaker.
+
+The repository already has the intended architecture. A rebuild assembles and
+proves that path from a clean environment. It does not rewrite the validated
+ControlPlan, resolution, safety, execution, verification, or evaluation
+boundaries.
 
 The complete path is:
 
 ```text
-Mac satellite (wake → live capture)
-        ↓
-Home Assistant Assist (STT, conversation routing, TTS)
-        ↓
-SaySo ConversationEntity (prepare + one correlated WebSocket turn)
-        ↓
-SaySo server (ControlPlan → resolve/validate/safety)
-        ↓
-action_request on the same WebSocket
-        ↓
-HA caller-context execute + state verification
-        ↓
-conversation_response → Assist TTS or local earcon → Mac playback
+wake -> capture -> Home Assistant Assist STT -> SaySo ConversationEntity
+     -> persistent WebSocket -> ControlPlan -> resolve/validate/safety
+     -> caller-context HA execution -> state verification
+     -> Assist TTS or local earcon -> Mac playback
 ```
+
+The architecture is complete for the MVP only when this path controls an
+allowlisted physical device and the core, safety, follow-up, and basic
+evaluation gates remain green.
 
 ## Design goals
 
-- Make a Mac or other supported device behave like a temporary Home Assistant
-  voice satellite.
-- Keep wake-word detection replaceable without changing conversation logic.
+- Make a Mac behave like a temporary Home Assistant voice satellite.
+- Keep the wake-word engine replaceable without changing conversation logic.
 - Use the native Assist pipeline for STT, conversation routing, and TTS.
-- Tune SaySo for the small, typed smart-home control vocabulary that it must
-  handle well.
-- Prevent model output from becoming an arbitrary Home Assistant service call.
-- Make every mutating action explainable, permissioned, and state-verified.
-- Keep the first physical-device demo local and small: one home, one pipeline,
-  and one dependable control path.
+- Keep the model on a small, typed smart-home control vocabulary.
+- Prevent model output from becoming a Home Assistant service call or an
+  entity-ID authorization decision.
+- Make every mutating action permissioned, explainable, and state-verified.
+- Keep the first physical demo local and small: one home, one pipeline, one
+  control path.
 
 ## Architectural invariants
 
 1. Home Assistant is the source of truth for entities, areas, capabilities,
-   permissions, and live state.
+   exposure, permissions, caller context, service execution, and live state.
 2. The satellite and wake-word engine never choose or execute Home Assistant
    services.
 3. Assist owns STT, conversation routing, and TTS. SaySo receives a transcript
    and returns spoken response content; it does not run an independent audio
    protocol.
-4. The model emits a strict semantic `ControlPlan`. It does not emit raw
-   Home Assistant service calls or use entity IDs as semantic targets.
+4. The model emits a typed semantic `ControlPlan`. It does not emit raw Home
+   Assistant service calls or use entity IDs as semantic targets.
 5. Deterministic code parses, resolves, validates, and authorizes a plan before
-   creating any HA tool call.
-6. Ambiguous, unsupported, unresolved, hidden, incapable, malformed, or unsafe
-   requests produce clarification or no-action and cannot mutate state.
-7. Home Assistant remains the final execution boundary. It checks the tool
-   call again, performs the service call, and verifies the resulting state.
+   any mutating request leaves the server.
+6. Invalid, ambiguous, hidden, incapable, unsupported, or unsafe plans cannot
+   mutate state. Validation is atomic: one invalid target blocks the whole
+   plan.
+7. Home Assistant remains the final execution boundary. It rechecks the
+   request, performs the service call with the initiating Assist caller
+   context, and verifies the resulting state.
 8. Queries and clarifications do not invoke mutating tools.
-9. The model is replaceable behind one narrow adapter; changing the model does
+9. The model is replaceable behind one narrow adapter. Changing the model does
    not change safety or execution rules.
 10. Production conversation turns use one authenticated persistent WebSocket.
     `POST /api/v1/text` remains evaluation and compatibility only.
 11. The server never receives serialized Home Assistant authorization context.
-    Execution uses the Assist caller context on the Home Assistant side.
+    The integration keeps the initiating HA `Context` locally.
+12. Action success requires observed state verification. Unchanged, timed-out,
+    rejected, or failed actions are not success.
+13. The production Assist path has no implicit Mac or living-room origin.
+    Missing source IDs stay missing; area-relative commands without an origin
+    clarify instead of acting.
 
 ## Component boundaries
 
@@ -71,9 +78,9 @@ conversation_response → Assist TTS or local earcon → Mac playback
 | Mac satellite | Mic capture, replaceable wake engine, Assist PCM upload, local TTS/earcon playback | Intent parsing, entity selection, HA service calls |
 | Wake-word engine | Detecting the configured wake threshold and starting a turn | Transcription, conversation decisions, device control |
 | Assist pipeline | STT, conversation ID, TTS generation | SaySo-specific planning or direct model tool execution |
-| SaySo `ConversationEntity` | `async_prepare()`, forwarding the transcript over WebSocket, mapping the response to Assist speech | Loading the model, resolving entities, or calling HA services |
+| SaySo `ConversationEntity` | `async_prepare()`, one correlated WebSocket turn, mapping the response to Assist speech | Loading the model, resolving entities, calling HA services, or per-turn HTTP |
 | HA coordinator | Persistent SaySo WebSocket, graph/state push, caller-context action execution and verification | Planning or model inference |
-| Resident SaySo server | Model runtime, ControlPlan parse/resolve/validate/safety, `action_request` / `conversation_response` | HA authorization context or direct HA service calls |
+| Resident SaySo server | Model runtime, ControlPlan parse/resolve/validate/safety, correlated WebSocket messages | HA authorization context or direct HA service calls |
 | Tuned SaySo model | Mapping natural language and supplied context to a typed plan | Inventing tools, choosing arbitrary entity IDs, or executing actions |
 | Home Assistant | Registries, exposure, permissions, services, state changes | Depending on model output being safe |
 | Evaluation and telemetry | Stage timings, outcomes, failure attribution, and regression checks | Live actuation by default |
@@ -81,6 +88,20 @@ conversation_response → Assist TTS or local earcon → Mac playback
 The ConversationEntity is the only SaySo integration boundary exposed to Assist.
 The model and validator run in the resident server. Neither receives authority
 to call Home Assistant directly.
+
+Reuse these packages instead of rebuilding them:
+
+- `sayso-server`: ControlPlan schema/parser, graph, candidate retrieval,
+  resolver, ambiguity, capability, safety, response policy, and telemetry.
+- `custom_components/sayso`: graph snapshot/deltas, exposure, permissions,
+  action mapping, and state verification.
+- `sayso-satellite`: Assist client, PCM capture, wake session, response mapping,
+  and playback adapters.
+- `evals`: schemas, authored basic corpora, dry-run gate, metrics, runner, and
+  reports.
+
+Do not add a second home graph, a parallel authority path, a generic agent
+loop, or model-provided domains, services, or arbitrary service data.
 
 ## Runtime topology
 
@@ -92,8 +113,8 @@ Three processes:
 2. **Home Assistant** with `custom_components/sayso`: registers the conversation
    agent, keeps one WebSocket to the server, executes validated actions with the
    Assist caller context, and verifies state.
-3. **sayso-server**: resident MLX runtime, home graph from HA, ControlPlan path,
-   and correlated WebSocket messages (`conversation_request`, `prepare`,
+3. **sayso-server**: resident model runtime, home graph from HA, ControlPlan
+   path, and correlated WebSocket messages (`conversation_request`, `prepare`,
    `action_request` / `action_result`).
 
 ```text
@@ -114,9 +135,12 @@ Satellite
 
 The satellite listens through a replaceable `WakeWordEngine`. The shipped
 engine is an energy/RMS prototype (`EnergyThresholdWakeEngine`), not a
-phonetic wake-word model. A successful detection captures one utterance with
-pre-roll; no detection produces no Assist turn. Capture or Assist failures do
-not continue a partial loop turn.
+phonetic wake-word model. It is sufficient for the first physical demo.
+
+A successful detection captures one bounded utterance with pre-roll. No
+detection produces no Assist turn. Capture or Assist failures do not continue
+a partial loop turn. After a completed or failed turn the loop returns to
+listening.
 
 The satellite sends PCM to Home Assistant Assist. Assist handles STT.
 
@@ -130,8 +154,11 @@ server model is not reloaded per turn.
 
 The entity then sends one `conversation_request` (transcript, optional
 `device_id` / `satellite_id` / `area_id` resolved from HA registries). It does
-not default those to `macbook` or living room. Missing IDs stay `None`;
-area-relative plans without an origin return clarification.
+not default those to `macbook` or living room. A known Mac device supplies its
+real HA area. A missing or unknown source stays missing.
+
+There is one request and one matching response. No action request is emitted
+for a query. The entity does not use per-turn HTTP.
 
 ### 3. SaySo planning
 
@@ -145,22 +172,23 @@ There is no generic agent loop and no speculative JSON repair.
 The validator is the trust boundary between model output and Home Assistant.
 For an action plan it validates schema and intent, resolves names/aliases/
 areas against the exposed graph, applies ambiguity and capability rules, and
-maps an approved semantic operation to a bounded `action_request`. Validation
-is atomic: one invalid target blocks the whole plan.
+maps an approved semantic operation to a bounded `action_request`. Hidden
+entities remain absent from the planning graph. Validation is atomic.
 
 Queries are read-only. Clarifications store only a short-lived referent.
 
 ### 5. HA execution and verification
 
 Only validated `action_request` messages cross back into Home Assistant. The
-coordinator executes with the Assist caller context, never a reconstructed
-token. Action results use correlated futures (`asyncio.wait_for`), not busy
-polling. State verification must observe the expected change or the turn is
-not success.
+coordinator executes with the exact initiating Assist caller context. No
+service is called without it. Action results use correlated futures
+(`asyncio.wait_for`), not busy polling. Every terminal path empties retained
+context and pending futures.
 
-The server turns the result into speech via response policy. Assist generates
-TTS, or the satellite plays a local earcon for completed actions that do not
-need spoken text.
+State verification must observe the expected change or the turn is not
+success. The server turns the result into speech via response policy. Assist
+generates TTS, or the satellite plays a local earcon for completed actions
+that do not need spoken text.
 
 ## State and authority
 
@@ -173,9 +201,11 @@ need spoken text.
 | ControlPlan | SaySo model output after strict parsing | Never treated as authorization |
 | Tool call | Server validator output, rechecked by HA | No direct service authority |
 | Physical state change | Home Assistant and the device | Observed by verification |
+| Assist caller `Context` | Home Assistant | Kept locally in the integration; never serialized to the server |
 
 SaySo does not maintain an authoritative shadow graph. If cached planning
 context is stale or unavailable, it fails closed or asks for clarification.
+Reconnect rebuilds the graph from one snapshot plus deltas.
 
 ## Replaceable interfaces
 
@@ -205,9 +235,14 @@ configuration.
 | Ambiguous target | Clarification; no tool call |
 | Unsupported or incapable request | No-action or clarification; no tool call |
 | Hidden/disallowed entity | Rejection at validation or HA execution; no mutation |
+| Missing/unknown source on an area-relative command | Clarification; no tool call |
 | HA service failure | Failed response; never claim success |
 | Verification timeout/unchanged state | Failed or unconfirmed response |
 | Restart or lost connection | Fail pending turns; rebuild graph; fail closed until ready |
+
+Server readiness requires connection, graph, and resident model readiness.
+Liveness is separate from readiness. Readiness fails closed until both the
+graph and the model are ready.
 
 ## Observability and evaluation
 
@@ -218,45 +253,60 @@ validation reason, execution result, and stage timings.
 Measure:
 
 ```text
-wake → capture → Assist/STT → prepare → retrieve → plan → parse/validate
-     → resolve → authorize → HA tool → verify → TTS/earcon → playback
+wake -> capture -> Assist/STT -> prepare -> retrieve -> plan -> parse/validate
+     -> resolve -> authorize -> HA tool -> verify -> TTS/earcon -> playback
 ```
-
-Comparison records use shared EOS boundaries: EOS-to-plan, EOS-to-action-request,
-and verified EOS-to-action. Cold model readiness is separate from warm turn
-latency.
 
 The evaluation harness uses authored cases and dry-run execution by default.
 Live execution requires an explicit mode and entity allowlist. Core, safety,
-follow-up, language-noise, and comparison corpora are runnable. The Home-LLM
-270M comparison slot is pinned as an external fixture (`runtime=external`); it
-is not a live downloaded bake-off.
+follow-up, and language-noise corpora plus the dry-run execution safety gate
+stay intact. False-execution cases remain zero-action.
 
 See [EVALUATION_PLAN.md](EVALUATION_PLAN.md). When the model is tuned, follow
-[TUNING_PLAN.md](TUNING_PLAN.md). Do not SFT on Home-LLM tool-call labels.
+[TUNING_PLAN.md](TUNING_PLAN.md). Do not SFT on Home-LLM tool-call labels or on
+`evals/datasets/` case IDs. Do not commit `context.json` or local eval report
+output.
 
-## Implementation map
+## Explicitly deferred
 
-| Concern | Status |
-|---|---|
-| Conversation WebSocket (`conversation_request` / `conversation_response`) | Implemented |
-| `ConversationEntity` off per-turn HTTP | Implemented |
-| HA-supplied area/device; no implicit `macbook` origin on the Assist path | Implemented |
-| Caller-context HA execute; no serialized authorization | Implemented |
-| Action-result futures (no busy polling) | Implemented |
-| Satellite Assist through TTS, local earcon, Mac playback | Implemented |
-| Live mic, energy wake engine, `--loop` | Implemented (fakes; physical demo not run) |
-| `prepare` / `async_prepare()` before transcripts | Implemented |
-| Comparison corpus, EOS timings, comparison report | Implemented (fixture Home-LLM, not live 270M) |
-| Phonetic wake-word model | Not implemented (RMS energy prototype) |
-| Live Home-LLM 270M bake-off | Not implemented |
-| Physical Mac wake → speaker demo | Not run |
-| Generalized multi-satellite support | Deferred |
-| Default `macbook` satellite registration on the server | Compatibility leftover; Assist WS path does not use it as origin |
+These are out of the rebuild and out of the first physical demo:
 
-The primary production path is Assist → ConversationEntity → one correlated
-WebSocket turn → ControlPlan → HA execute/verify → TTS/earcon. Direct text HTTP
-and the default satellite registry are compatibility or evaluation surfaces,
-not alternate authorities.
+- Phonetic wake-word replacement. Add it after the energy detector proves the
+  loop and false wakes become the measured bottleneck.
+- Fine-tuning. Follow `TUNING_PLAN.md` only after the physical voice path and
+  frozen eval gate work.
+- Live Home-LLM 270M bake-off, broader model benchmarking, larger corpora,
+  generalized multi-satellite support, streaming optimization, and polished
+  diagnostics.
+- New frameworks, dependency changes, parallel authority paths, or a second
+  home graph.
 
-The numbered close-out plan is [WEBSOCKET_CONVERSATION_PLAN.md](WEBSOCKET_CONVERSATION_PLAN.md).
+The primary production path is Assist -> ConversationEntity -> one correlated
+WebSocket turn -> ControlPlan -> HA execute/verify -> TTS/earcon. Direct text
+HTTP and any leftover default satellite registry are compatibility or
+evaluation surfaces, not alternate authorities.
+
+## Rebuild completeness
+
+The rebuild is the current close-out. It restores a reproducible baseline,
+then reassembles the server, caller-authorized execution, and Mac voice
+boundary without rewriting the validated core. Numbered units and stop points
+live in [CLEAN_REBUILD_PLAN.md](CLEAN_REBUILD_PLAN.md).
+
+The architecture is accepted when:
+
+- Frozen dependency sync and package imports work from a clean environment.
+- Main and eval test suites are green.
+- Server readiness requires connection, graph, and resident model readiness.
+- `ConversationEntity` uses the persistent WebSocket, not per-turn HTTP.
+- No implicit Mac/living-room origin exists in the production Assist path.
+- HA caller context stays inside HA and is required for execution.
+- ControlPlan validation, ambiguity, capability, exposure, permission, and
+  atomic multi-target barriers remain intact.
+- Action-result waits are bounded/correlated and terminal state is cleaned.
+- Successful actions are state-verified before success speech/earcon.
+- Mac wake -> capture -> Assist -> action -> playback repeats after errors.
+- One reversible real device succeeds; physical refusal cases do not act.
+- Basic authored evals and dry-run safety gates remain runnable.
+- No tuning, broad benchmark, new framework, or generalized satellite work
+  entered the rebuild.
