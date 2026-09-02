@@ -1,0 +1,10 @@
+# Training pipeline dependencies (install in a dedicated venv)
+axolotl>=0.7.0
+datasets>=3.0.0
+jsonschema>=4.23.0
+numpy>=1.26.0
+pandas>=2.2.0
+pyyaml>=6.0.0
+requests>=2.32.0
+torch>=2.1.0
+transformers>=4.46.0

@@ -1,0 +1,70 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "HassTurnOn",
+      "description": "Turns on/opens/unlocks a device or entity",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Name of the device or entity"},
+          "area": {"type": "string", "description": "Name of the area"},
+          "floor": {"type": "string", "description": "Name of the floor"},
+          "domain": {"type": "array", "items": {"type": "string"}, "description": "Device domain(s)"},
+          "device_class": {"type": "array", "items": {"type": "string"}, "description": "Device class(es)"}
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "HassTurnOff",
+      "description": "Turns off/closes/locks a device or entity",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Name of the device or entity"},
+          "area": {"type": "string", "description": "Name of the area"},
+          "floor": {"type": "string", "description": "Name of the floor"},
+          "domain": {"type": "array", "items": {"type": "string"}, "description": "Device domain(s)"},
+          "device_class": {"type": "array", "items": {"type": "string"}, "description": "Device class(es)"}
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "HassLightSet",
+      "description": "Sets the brightness or color of a light",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Name of the light"},
+          "area": {"type": "string", "description": "Name of the area"},
+          "brightness": {"type": "integer", "description": "Brightness percentage (0-100)", "minimum": 0, "maximum": 100},
+          "color": {"type": "string", "description": "Color name"}
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "HassClimateSetTemperature",
+      "description": "Sets the target temperature of a climate device",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Name of the climate device"},
+          "temperature": {"type": "number", "description": "Target temperature"}
+        },
+        "required": ["temperature"]
+      }
+    }
+  }
+]

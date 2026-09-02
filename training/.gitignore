@@ -1,0 +1,35 @@
+# Checkpoints and training runs
+checkpoints/
+runs/
+output/
+prepared/
+training-runs/
+
+# Generated datasets (keep README and .gitkeep)
+datasets/*.jsonl
+datasets/*/
+!datasets/README.md
+!datasets/.gitkeep
+
+# Model weights and exports
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.ckpt
+
+# Hugging Face cache
+.cache/
+hf_cache/
+.huggingface/
+
+# TensorBoard
+events.out.tfevents.*
+
+# Local venv
+.venv/
+venv/
+
+# Artifacts (keep .gitkeep)
+artifacts/*
+!artifacts/.gitkeep

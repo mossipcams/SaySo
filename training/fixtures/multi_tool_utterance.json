@@ -1,0 +1,20 @@
+{
+  "utterance": "Turn off the kitchen lights and lock the front door.",
+  "expected_structure": [
+    "system",
+    "user",
+    "assistant_tool_calls_batch",
+    "tool_result_1",
+    "tool_result_2",
+    "assistant_final"
+  ],
+  "initial_tool_calls": [
+    {"name": "HassTurnOff", "arguments": {"name": "Kitchen", "domain": ["light"], "area": "Kitchen"}},
+    {"name": "HassTurnOn", "arguments": {"name": "Front Door", "domain": ["lock"]}}
+  ],
+  "follow_up_must_include": {
+    "assistant_batches": 1,
+    "tool_results_before_final": 2,
+    "tool_call_content_empty": true
+  }
+}
