@@ -25,6 +25,85 @@ class CompiledToolSchema:
     fingerprint: str
 
 
+@dataclass(frozen=True, slots=True)
+class ToolRoutingMetadata:
+    """Domain applicability metadata extracted from one HA tool."""
+
+    declared_domains: frozenset[str] | None = None
+    retain_always: bool = False
+
+
+def _vol_in_allowed_values(validator: Any) -> frozenset[str] | None:
+    """Return allowed values when a validator is or contains vol.In."""
+    if isinstance(validator, vol.In):
+        container = validator.container
+        if isinstance(container, dict):
+            return frozenset(str(key) for key in container)
+        return frozenset(str(value) for value in container)
+
+    if isinstance(validator, vol.All):
+        for sub_validator in validator.validators:
+            allowed = _vol_in_allowed_values(sub_validator)
+            if allowed is not None:
+                return allowed
+
+    if isinstance(validator, list):
+        for sub_validator in validator:
+            allowed = _vol_in_allowed_values(sub_validator)
+            if allowed is not None:
+                return allowed
+
+    return None
+
+
+def _declared_domains_from_parameters(parameters: vol.Schema) -> frozenset[str] | None:
+    """Read explicit domain restrictions from a tool's Voluptuous schema."""
+    for marker, validator in parameters.schema.items():
+        if _schema_marker_name(marker) != "domain":
+            continue
+        allowed = _vol_in_allowed_values(validator)
+        if allowed is not None:
+            return allowed
+    return None
+
+
+def _unwrap_source_tool(tool: llm.Tool) -> llm.Tool:
+    """Return the inner HA tool for namespaced wrappers."""
+    while isinstance(tool, llm.NamespacedTool):
+        tool = tool.tool
+    return tool
+
+
+def _is_query_tool(tool: llm.Tool) -> bool:
+    """Return True for HA query/context tools that must always remain available."""
+    module = type(tool).__module__
+    class_name = type(tool).__name__
+    if class_name == "GetLiveContextTool" and module.endswith("homeassistant.llm"):
+        return True
+    if class_name == "GetDateTimeTool" and module.endswith("llm.llm"):
+        return True
+    if class_name == "TodoGetItemsTool" and module.endswith("todo.llm"):
+        return True
+    return False
+
+
+def extract_tool_routing_metadata(tool: llm.Tool) -> ToolRoutingMetadata:
+    """Extract domain metadata from an HA tool without inferring from its name."""
+    source = _unwrap_source_tool(tool)
+
+    if _is_query_tool(source):
+        return ToolRoutingMetadata(retain_always=True)
+
+    if isinstance(source, llm.ActionTool):
+        domain = source._domain
+        if domain == "script":
+            return ToolRoutingMetadata(retain_always=True)
+        return ToolRoutingMetadata(declared_domains=frozenset({domain}))
+
+    declared_domains = _declared_domains_from_parameters(source.parameters)
+    return ToolRoutingMetadata(declared_domains=declared_domains)
+
+
 def clear_compile_cache() -> None:
     """Clear the bounded compile cache. Intended for tests."""
     _cached_compile_tools.cache_clear()

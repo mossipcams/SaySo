@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compat:
+    name: HA ${{ matrix.ha }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: minimum
+            ha: "2024.12.0"
+            python: "3.12"
+          - id: current
+            ha: "2026.8.3"
+            python: "3.14"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Validate matrix metadata
+        run: python scripts/compat_matrix.py matrix-json | tee matrix.json
+
+      - name: Create isolated virtualenv
+        env:
+          SAYSO_COMPAT_VENV_ROOT: ${{ runner.temp }}
+        run: python scripts/compat_matrix.py setup ${{ matrix.id }}
+
+      - name: Run compatibility tests
+        env:
+          SAYSO_COMPAT_VENV_ROOT: ${{ runner.temp }}
+        run: python scripts/compat_matrix.py run-tests ${{ matrix.id }}
+
+  live-llama:
+    name: Live llama.cpp latency (manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: minimum
+            ha: "2024.12.0"
+            python: "3.12"
+          - id: current
+            ha: "2026.8.3"
+            python: "3.14"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Create isolated virtualenv
+        env:
+          SAYSO_COMPAT_VENV_ROOT: ${{ runner.temp }}
+        run: python scripts/compat_matrix.py setup ${{ matrix.id }}
+
+      - name: Run live llama.cpp benchmark
+        env:
+          SAYSO_COMPAT_VENV_ROOT: ${{ runner.temp }}
+          LLAMA_BASE_URL: ${{ vars.LLAMA_BASE_URL }}
+          LLAMA_MODEL: ${{ vars.LLAMA_MODEL }}
+        run: |
+          if [ -z "${LLAMA_BASE_URL}" ] || [ -z "${LLAMA_MODEL}" ]; then
+            echo "Set repository variables LLAMA_BASE_URL and LLAMA_MODEL to run live latency."
+            exit 1
+          fi
+          VENV="${RUNNER_TEMP}/sayso-compat-${{ matrix.id }}"
+          "$VENV/bin/pytest" tests/test_eval.py -k "live_latency" -v

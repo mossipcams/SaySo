@@ -15,6 +15,7 @@ from custom_components.sayso.client import (
     LlamaCppClient,
     ToolCall,
     normalize_base_url,
+    serialize_chat_completions_payload,
 )
 from custom_components.sayso.const import (
     DEFAULT_MAX_OUTPUT_TOKENS,
@@ -68,7 +69,18 @@ async def test_successful_text_response(
         model="test-model",
     )
 
-    assert result == ChatCompletionResult(content="The lamp is on.", tool_calls=[])
+    assert result.content == "The lamp is on."
+    assert result.tool_calls == []
+    assert result.request_payload == {
+        "model": "test-model",
+        "messages": [{"role": "user", "content": "Is the lamp on?"}],
+        "temperature": 0,
+        "max_tokens": 160,
+    }
+    assert result.request_bytes == len(
+        serialize_chat_completions_payload(result.request_payload)
+    )
+    assert result.prompt_tokens is None
 
 
 async def test_tool_calls_with_json_arguments(
@@ -158,6 +170,59 @@ async def test_request_includes_bearer_and_payload(
         "tools": tools,
     }
     assert call_kwargs["timeout"] == ClientTimeout(total=30)
+
+
+async def test_chat_completion_prefers_usage_prompt_tokens(
+    llama_client: LlamaCppClient,
+    configure_post: Any,
+) -> None:
+    configure_post(
+        json_body={
+            "choices": [{"message": {"content": "Done.", "role": "assistant"}}],
+            "usage": {"prompt_tokens": 512, "completion_tokens": 8},
+        }
+    )
+
+    result = await llama_client.chat_completion(
+        [{"role": "user", "content": "Hello"}],
+        model="test-model",
+    )
+
+    assert result.prompt_tokens == 512
+    assert result.request_bytes == len(
+        serialize_chat_completions_payload(result.request_payload or {})
+    )
+
+
+async def test_chat_completion_records_exact_payload_bytes_without_usage(
+    llama_client: LlamaCppClient,
+    configure_post: Any,
+) -> None:
+    configure_post(
+        json_body={
+            "choices": [{"message": {"content": "Done.", "role": "assistant"}}]
+        }
+    )
+    messages = [{"role": "user", "content": "Hello"}]
+    tools = [{"type": "function", "function": {"name": "turn_on", "parameters": {}}}]
+
+    result = await llama_client.chat_completion(
+        messages,
+        model="test-model",
+        tools=tools,
+    )
+
+    assert result.request_payload == {
+        "model": "test-model",
+        "messages": messages,
+        "temperature": 0,
+        "max_tokens": 160,
+        "tools": tools,
+    }
+    assert result.request_bytes == len(
+        serialize_chat_completions_payload(result.request_payload)
+    )
+    assert result.prompt_tokens is None
 
 
 async def test_no_api_key_omits_authorization_header(

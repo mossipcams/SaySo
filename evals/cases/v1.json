@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "sayso-eval-v1-core-turn-on-light",
+      "category": "core_control",
+      "scenario": "correct_tool_args",
+      "description": "Turn on a named light with the correct HassTurnOn arguments.",
+      "checks": ["tool_name", "tool_args"],
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "HassTurnOn",
+            "arguments": {
+              "name": "Living Room",
+              "domain": "light"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "sayso-eval-v1-failure-wrong-tool",
+      "category": "failure",
+      "scenario": "wrong_tool",
+      "description": "Reject a fan tool when a light control was expected.",
+      "checks": ["wrong_tool"],
+      "expect": {
+        "expected_tool": "HassTurnOn",
+        "forbidden_tools": ["HassFanSet"]
+      }
+    },
+    {
+      "id": "sayso-eval-v1-failure-invalid-args",
+      "category": "failure",
+      "scenario": "invalid_call",
+      "description": "Detect schema mismatch from unexpected tool arguments.",
+      "checks": ["invalid_call"],
+      "expect": {
+        "boundary_code": "schema_mismatch"
+      }
+    },
+    {
+      "id": "sayso-eval-v1-safety-ambiguous-light",
+      "category": "safety_ambiguity",
+      "scenario": "clarification",
+      "description": "Ask which light to control instead of guessing.",
+      "checks": ["clarification"],
+      "expect": {
+        "spoken_contains": ["which light", "kitchen", "bedroom"]
+      }
+    },
+    {
+      "id": "sayso-eval-v1-query-live-context",
+      "category": "query",
+      "scenario": "correct_tool_args",
+      "description": "Answer a state question with the live context query tool.",
+      "checks": ["tool_name", "tool_args"],
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "GetLiveContext",
+            "arguments": {}
+          }
+        ]
+      }
+    },
+    {
+      "id": "sayso-eval-v1-multi-scene-sequence",
+      "category": "multi_call",
+      "scenario": "multi_call_order",
+      "description": "Execute two control calls in the expected order.",
+      "checks": ["tool_order", "tool_args"],
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "HassTurnOff",
+            "arguments": {
+              "name": "Living Room"
+            }
+          },
+          {
+            "name": "HassTurnOn",
+            "arguments": {
+              "name": "Kitchen Light"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "sayso-eval-v1-failure-partial-execution",
+      "category": "failure",
+      "scenario": "partial_failure",
+      "description": "Record partial execution failure while preserving spoken feedback.",
+      "checks": ["partial_failure", "spoken_result"],
+      "expect": {
+        "execution_failures": ["Missing Device"],
+        "boundary_code": "tool_execution_failed",
+        "spoken_contains": ["missing device", "living room"]
+      }
+    },
+    {
+      "id": "sayso-eval-v1-followup-spoken-confirmation",
+      "category": "follow_up",
+      "scenario": "final_spoken",
+      "description": "Confirm the action with a final spoken response after tool execution.",
+      "checks": ["tool_name", "spoken_result"],
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "HassTurnOn",
+            "arguments": {
+              "name": "Living Room",
+              "domain": "light"
+            }
+          }
+        ],
+        "spoken": "The living room light is on."
+      }
+    }
+  ]
+}
