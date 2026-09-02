@@ -33,6 +33,7 @@
     "step": {
       "init": {
         "title": "SaySo options",
+        "description": "Adjust model, timeout, Home Assistant LLM API, and generation settings.",
         "data": {
           "model": "Model",
           "timeout": "Request timeout (seconds)",
