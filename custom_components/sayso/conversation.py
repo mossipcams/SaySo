@@ -27,6 +27,7 @@ from .exceptions import (
     SaySoError,
     SaySoHttpError,
     SaySoInvalidResponseError,
+    SaySoInvalidToolEnvelopeError,
     SaySoTimeoutError,
 )
 from .diagnostics import (
@@ -39,7 +40,7 @@ from .routing import (
     build_routing_preferences,
     build_routing_registries,
     identify_command_domain,
-    select_tools_for_domain,
+    select_schema_for_domain,
 )
 from .schema import (
     CompiledToolSchema,
@@ -126,7 +127,10 @@ class SaySoConversationEntity(
         except conversation.ConverseError as err:
             return err.as_conversation_result()
 
-        compiled_schema = compile_llm_tools(chat_log.llm_api)
+        try:
+            complete_schema = compile_llm_tools(chat_log.llm_api)
+        except SaySoInvalidToolEnvelopeError:
+            return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
         llm_context = user_input.as_llm_context(DOMAIN)
         domain_hint = identify_command_domain(
             user_input.text,
@@ -134,13 +138,13 @@ class SaySoConversationEntity(
             registries=build_routing_registries(self.hass),
             preferences=build_routing_preferences(self.hass, llm_context),
         )
-        active_tools = (
-            select_tools_for_domain(
-                compiled_schema.tools,
+        active_schema = (
+            select_schema_for_domain(
+                complete_schema,
                 chat_log.llm_api.tools,
                 domain_hint,
             )
-            if compiled_schema is not None
+            if complete_schema is not None
             else None
         )
         messages = _chat_log_to_messages(chat_log.content)
@@ -149,7 +153,7 @@ class SaySoConversationEntity(
             result = await runtime.client.chat_completion(
                 messages,
                 model=runtime.model,
-                tools=active_tools,
+                tools=active_schema.tools if active_schema is not None else None,
                 temperature=runtime.temperature,
                 max_tokens=runtime.max_output_tokens,
             )
@@ -163,7 +167,8 @@ class SaySoConversationEntity(
             return _client_exception_result(
                 self._entry.entry_id,
                 BoundaryPhase.INITIAL,
-                compiled_schema,
+                complete_schema,
+                active_schema,
                 user_input,
                 chat_log,
                 err,
@@ -175,8 +180,8 @@ class SaySoConversationEntity(
                 chat_log,
                 runtime,
                 result.tool_calls,
-                compiled_schema,
-                active_tools,
+                complete_schema,
+                active_schema,
             )
 
         error_message = _validate_text_completion(result)
@@ -197,8 +202,8 @@ class SaySoConversationEntity(
         chat_log: conversation.ChatLog,
         runtime: SaySoRuntimeData,
         tool_calls: list[ToolCall],
-        compiled_schema: CompiledToolSchema | None,
-        active_tools: tuple[dict[str, Any], ...] | None,
+        complete_schema: CompiledToolSchema | None,
+        active_schema: CompiledToolSchema | None,
     ) -> conversation.ConversationResult:
         """Execute tool calls sequentially until final text or iteration limit."""
         if chat_log.llm_api is None:
@@ -206,11 +211,11 @@ class SaySoConversationEntity(
 
         complete_allowed_tools = {tool.name for tool in chat_log.llm_api.tools}
         validation_tool_names = (
-            {tool["function"]["name"] for tool in active_tools}
-            if active_tools is not None
+            {tool["function"]["name"] for tool in active_schema.tools}
+            if active_schema is not None
             else complete_allowed_tools
         )
-        request_tools = active_tools
+        request_schema = active_schema
         tool_map = build_tool_map(chat_log.llm_api.tools)
         iteration = 1
         correction_used = False
@@ -224,7 +229,12 @@ class SaySoConversationEntity(
                     self._entry.entry_id,
                     BoundaryFailureCode.INVALID_ARGUMENTS,
                     phase,
-                    compiled_schema,
+                    _boundary_schema(
+                        phase,
+                        active_schema=active_schema,
+                        complete_schema=complete_schema,
+                        correction_used=correction_used,
+                    ),
                 )
                 return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -238,7 +248,12 @@ class SaySoConversationEntity(
                     self._entry.entry_id,
                     BoundaryFailureCode.UNAVAILABLE_TOOL,
                     phase,
-                    compiled_schema,
+                    _boundary_schema(
+                        phase,
+                        active_schema=active_schema,
+                        complete_schema=complete_schema,
+                        correction_used=correction_used,
+                    ),
                 )
                 return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -248,12 +263,17 @@ class SaySoConversationEntity(
                 if tool_call.name not in validation_tool_names
             ]
             if filtered_misses:
-                if correction_used or tools_executed or compiled_schema is None:
+                if correction_used or tools_executed or complete_schema is None:
                     _record_boundary(
                         self._entry.entry_id,
                         BoundaryFailureCode.SCHEMA_MISMATCH,
                         phase,
-                        compiled_schema,
+                        _boundary_schema(
+                            phase,
+                            active_schema=active_schema,
+                            complete_schema=complete_schema,
+                            correction_used=correction_used,
+                        ),
                     )
                     return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -262,13 +282,13 @@ class SaySoConversationEntity(
                     _chat_log_to_messages(chat_log.content),
                     filtered_misses,
                     complete_allowed_tools,
-                    compiled_schema.fingerprint,
+                    complete_schema.fingerprint,
                 )
                 try:
                     correction_response = await runtime.client.chat_completion(
                         correction_messages,
                         model=runtime.model,
-                        tools=compiled_schema.tools,
+                        tools=complete_schema.tools,
                         temperature=runtime.temperature,
                         max_tokens=runtime.max_output_tokens,
                     )
@@ -282,7 +302,8 @@ class SaySoConversationEntity(
                     return _client_exception_result(
                         self._entry.entry_id,
                         BoundaryPhase.CORRECTION,
-                        compiled_schema,
+                        complete_schema,
+                        active_schema,
                         user_input,
                         chat_log,
                         err,
@@ -322,13 +343,18 @@ class SaySoConversationEntity(
                     validated_tool_calls
                     or correction_used
                     or tools_executed
-                    or compiled_schema is None
+                    or complete_schema is None
                 ):
                     _record_boundary(
                         self._entry.entry_id,
                         _validation_failure_code(validation_failures[0][1]),
                         phase,
-                        compiled_schema,
+                        _boundary_schema(
+                            phase,
+                            active_schema=active_schema,
+                            complete_schema=complete_schema,
+                            correction_used=correction_used,
+                        ),
                     )
                     return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -337,13 +363,13 @@ class SaySoConversationEntity(
                     _chat_log_to_messages(chat_log.content),
                     validation_failures,
                     complete_allowed_tools,
-                    compiled_schema.fingerprint,
+                    complete_schema.fingerprint,
                 )
                 try:
                     correction_response = await runtime.client.chat_completion(
                         correction_messages,
                         model=runtime.model,
-                        tools=compiled_schema.tools,
+                        tools=complete_schema.tools,
                         temperature=runtime.temperature,
                         max_tokens=runtime.max_output_tokens,
                     )
@@ -357,7 +383,8 @@ class SaySoConversationEntity(
                     return _client_exception_result(
                         self._entry.entry_id,
                         BoundaryPhase.CORRECTION,
-                        compiled_schema,
+                        complete_schema,
+                        active_schema,
                         user_input,
                         chat_log,
                         err,
@@ -395,7 +422,12 @@ class SaySoConversationEntity(
                     self._entry.entry_id,
                     BoundaryFailureCode.TOOL_EXECUTION_FAILED,
                     BoundaryPhase.EXECUTION,
-                    compiled_schema,
+                    _boundary_schema(
+                        BoundaryPhase.EXECUTION,
+                        active_schema=active_schema,
+                        complete_schema=complete_schema,
+                        correction_used=correction_used,
+                    ),
                 )
                 return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -407,7 +439,7 @@ class SaySoConversationEntity(
                 follow_up = await runtime.client.chat_completion(
                     messages,
                     model=runtime.model,
-                    tools=request_tools,
+                    tools=request_schema.tools if request_schema is not None else None,
                     temperature=runtime.temperature,
                     max_tokens=runtime.max_output_tokens,
                 )
@@ -421,7 +453,8 @@ class SaySoConversationEntity(
                 return _client_exception_result(
                     self._entry.entry_id,
                     BoundaryPhase.FOLLOW_UP,
-                    compiled_schema,
+                    complete_schema,
+                    active_schema,
                     user_input,
                     chat_log,
                     err,
@@ -434,7 +467,12 @@ class SaySoConversationEntity(
                         self._entry.entry_id,
                         BoundaryFailureCode.ITERATION_LIMIT,
                         BoundaryPhase.FOLLOW_UP,
-                        compiled_schema,
+                        _boundary_schema(
+                            BoundaryPhase.FOLLOW_UP,
+                            active_schema=active_schema,
+                            complete_schema=complete_schema,
+                            correction_used=correction_used,
+                        ),
                     )
                     return _error_result(
                         user_input, chat_log, ERROR_TOOL_ITERATION_LIMIT
@@ -456,14 +494,31 @@ class SaySoConversationEntity(
             return conversation.async_get_result_from_chat_log(user_input, chat_log)
 
 
+def _boundary_schema(
+    phase: BoundaryPhase,
+    *,
+    active_schema: CompiledToolSchema | None,
+    complete_schema: CompiledToolSchema | None,
+    correction_used: bool = False,
+) -> CompiledToolSchema | None:
+    """Return the schema whose fingerprint matches the tools sent in this phase."""
+    if phase == BoundaryPhase.CORRECTION:
+        return complete_schema
+    if phase == BoundaryPhase.EXECUTION and correction_used:
+        return complete_schema
+    if active_schema is not None:
+        return active_schema
+    return complete_schema
+
+
 def _record_boundary(
     entry_id: str,
     code: BoundaryFailureCode,
     phase: BoundaryPhase,
-    compiled_schema: CompiledToolSchema | None,
+    schema: CompiledToolSchema | None,
 ) -> None:
     """Record one boundary failure and log its stable code and phase."""
-    fingerprint = compiled_schema.fingerprint if compiled_schema else None
+    fingerprint = schema.fingerprint if schema else None
     record_boundary_failure(
         entry_id,
         code,
@@ -476,7 +531,8 @@ def _record_boundary(
 def _client_exception_result(
     entry_id: str,
     phase: BoundaryPhase,
-    compiled_schema: CompiledToolSchema | None,
+    complete_schema: CompiledToolSchema | None,
+    active_schema: CompiledToolSchema | None,
     user_input: conversation.ConversationInput,
     chat_log: conversation.ChatLog,
     err: BaseException,
@@ -489,7 +545,11 @@ def _client_exception_result(
             entry_id,
             BoundaryFailureCode.REQUEST_TIMEOUT,
             phase,
-            compiled_schema,
+            _boundary_schema(
+                phase,
+                active_schema=active_schema,
+                complete_schema=complete_schema,
+            ),
         )
         return _error_result(user_input, chat_log, ERROR_REQUEST_TIMEOUT)
     if isinstance(err, SaySoConnectionError):
