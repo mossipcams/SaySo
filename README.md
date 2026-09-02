@@ -6,7 +6,7 @@ SaySo does not run audio, wake-word, STT, TTS, satellite, or model-hosting softw
 
 ## Requirements
 
-- Home Assistant 2024.8 or newer
+- Home Assistant 2026.8.3 or newer
 - A running `llama-server` instance reachable from Home Assistant
 - A model and chat template that support reliable OpenAI-style tool calling
 

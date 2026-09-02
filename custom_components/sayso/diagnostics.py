@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -12,6 +15,103 @@ from . import SaySoConfigEntry
 from .exceptions import SaySoError
 
 TO_REDACT = {CONF_API_KEY}
+
+
+class BoundaryFailureCode(StrEnum):
+    """Stable diagnostic codes for model-boundary failures."""
+
+    SCHEMA_MISMATCH = "schema_mismatch"
+    INVALID_ARGUMENTS = "invalid_arguments"
+    UNAVAILABLE_TOOL = "unavailable_tool"
+    REQUEST_TIMEOUT = "request_timeout"
+    ITERATION_LIMIT = "iteration_limit"
+    TOOL_EXECUTION_FAILED = "tool_execution_failed"
+
+
+class BoundaryPhase(StrEnum):
+    """Phase within a model turn when a boundary failure occurred."""
+
+    INITIAL = "initial"
+    CORRECTION = "correction"
+    FOLLOW_UP = "follow_up"
+    EXECUTION = "execution"
+
+
+@dataclass
+class _LastBoundaryFailure:
+    code: BoundaryFailureCode
+    phase: BoundaryPhase
+    fingerprint: str | None
+    timestamp: str
+
+
+@dataclass
+class BoundaryDiagnosticsState:
+    """Runtime counters and last failure metadata for one config entry."""
+
+    counts: dict[str, int] = field(default_factory=dict)
+    last: _LastBoundaryFailure | None = None
+
+    def record(
+        self,
+        code: BoundaryFailureCode,
+        phase: BoundaryPhase,
+        *,
+        fingerprint: str | None = None,
+    ) -> None:
+        """Increment a boundary counter and store safe last-failure metadata."""
+        code_key = code.value
+        self.counts[code_key] = self.counts.get(code_key, 0) + 1
+        self.last = _LastBoundaryFailure(
+            code=code,
+            phase=phase,
+            fingerprint=fingerprint,
+            timestamp=datetime.now(tz=UTC).isoformat(),
+        )
+
+
+_ENTRY_BOUNDARY_DIAGNOSTICS: dict[str, BoundaryDiagnosticsState] = {}
+
+
+def clear_boundary_diagnostics(entry_id: str | None = None) -> None:
+    """Clear boundary diagnostics. Intended for tests."""
+    if entry_id is None:
+        _ENTRY_BOUNDARY_DIAGNOSTICS.clear()
+        return
+    _ENTRY_BOUNDARY_DIAGNOSTICS.pop(entry_id, None)
+
+
+def record_boundary_failure(
+    entry_id: str,
+    code: BoundaryFailureCode,
+    phase: BoundaryPhase,
+    *,
+    fingerprint: str | None = None,
+) -> None:
+    """Record one boundary failure for a config entry."""
+    state = _ENTRY_BOUNDARY_DIAGNOSTICS.setdefault(entry_id, BoundaryDiagnosticsState())
+    state.record(code, phase, fingerprint=fingerprint)
+
+
+def boundary_diagnostics_snapshot(entry_id: str) -> dict[str, Any]:
+    """Return a redacted boundary diagnostics snapshot for export."""
+    state = _ENTRY_BOUNDARY_DIAGNOSTICS.get(entry_id)
+    if state is None:
+        return {"counts": {}, "last": None}
+
+    last_payload: dict[str, Any] | None = None
+    if state.last is not None:
+        last_payload = {
+            "code": state.last.code.value,
+            "phase": state.last.phase.value,
+            "fingerprint": state.last.fingerprint,
+            "timestamp": state.last.timestamp,
+        }
+
+    return {
+        "counts": dict(state.counts),
+        "last": last_payload,
+    }
 
 
 async def async_get_config_entry_diagnostics(
@@ -60,4 +160,5 @@ async def async_get_config_entry_diagnostics(
         },
         "runtime": runtime_data,
         "connectivity": connectivity,
+        "boundary": boundary_diagnostics_snapshot(entry.entry_id),
     }
