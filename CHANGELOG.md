@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/mossipcams/SaySo/compare/0.4.0...0.5.0) (2026-09-03)
+
+
+### Features
+
+* **satellite:** add trained Sayso ONNX wake model ([d10377f](https://github.com/mossipcams/SaySo/commit/d10377f7677985fcc3700aed5037d121655ec948))
+* **satellite:** detect wake on LVA processed PCM ([3a05d34](https://github.com/mossipcams/SaySo/commit/3a05d3421039120ab9479f18ae35917505ffa51b))
+* **training:** lock v1 tool schema and add label-first generation ([f8fdf82](https://github.com/mossipcams/SaySo/commit/f8fdf82fa0d07ff4341a903ba80ca5ea27f9d130))
+
+
+### Documentation
+
+* align architecture and agent guidance ([ca594a3](https://github.com/mossipcams/SaySo/commit/ca594a346f7960d16415d6f6850db84454dc5fb4))
+
 ## [0.4.0](https://github.com/mossipcams/SaySo/compare/0.3.0...0.4.0) (2026-09-03)
 
 
