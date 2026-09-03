@@ -4,26 +4,16 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import jsonschema
 from jsonschema import Draft202012Validator
 
-# Native HA Assist intent tools allowed in the first SaySo training run.
-ALLOWED_HASS_TOOLS: frozenset[str] = frozenset(
-    {
-        "HassTurnOn",
-        "HassTurnOff",
-        "HassToggle",
-        "HassLightSet",
-        "HassSetPosition",
-        "HassClimateSetTemperature",
-        "HassSetVolume",
-        "HassStartTimer",
-        "HassListAddItem",
-        "GetLiveContext",
-    }
-)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+V1_SCHEMA_ARTIFACT = REPO_ROOT / "schemas" / "sayso-tool-schema-v1.json"
+TRAINING_V1_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sayso_tool_schema_v1.json"
 
 # Legacy Home-LLM / service-call argument keys that must be rejected.
 LEGACY_ARGUMENT_KEYS: frozenset[str] = frozenset(
@@ -48,6 +38,84 @@ LEGACY_TOOL_PREFIXES: tuple[str, ...] = (
     "timer.",
     "todo.",
 )
+
+HOME_LLM_LABEL_MARKERS: frozenset[str] = frozenset(
+    {
+        "<tool_call>",
+        "</tool_call>",
+    }
+)
+
+
+@lru_cache(maxsize=1)
+def load_v1_schema() -> dict[str, Any]:
+    """Load the locked SaySo tool schema artifact (read-only source of truth)."""
+    if not V1_SCHEMA_ARTIFACT.is_file():
+        raise FileNotFoundError(f"Missing locked schema artifact: {V1_SCHEMA_ARTIFACT}")
+    return json.loads(V1_SCHEMA_ARTIFACT.read_text(encoding="utf-8"))
+
+
+@lru_cache(maxsize=1)
+def load_v1_tools() -> tuple[dict[str, Any], ...]:
+    """Return immutable OpenAI-style tools from the locked v1 artifact."""
+    schema = load_v1_schema()
+    tools = schema.get("tools")
+    if not isinstance(tools, list) or not tools:
+        raise ValueError("Locked v1 schema must contain a non-empty tools list")
+    for index, tool in enumerate(tools):
+        if not isinstance(tool, dict) or tool.get("type") != "function":
+            raise ValueError(f"Tool at index {index} must be type:function")
+        fn = tool.get("function")
+        if not isinstance(fn, dict) or not isinstance(fn.get("name"), str):
+            raise ValueError(f"Tool at index {index} must declare function.name")
+    return tuple(tools)
+
+
+def v1_tool_names() -> frozenset[str]:
+    """Tool names declared in the locked v1 artifact."""
+    return frozenset(tool["function"]["name"] for tool in load_v1_tools())
+
+
+ALLOWED_HASS_TOOLS: frozenset[str] = v1_tool_names()
+
+
+def v1_openai_tools() -> list[dict[str, Any]]:
+    """Full v1 catalog in the OpenAI type:function envelope SaySo sends at runtime."""
+    return [dict(tool) for tool in load_v1_tools()]
+
+
+def v1_tool_by_name() -> dict[str, dict[str, Any]]:
+    """Map tool name -> canonical OpenAI tool definition from v1."""
+    return {tool["function"]["name"]: dict(tool) for tool in load_v1_tools()}
+
+
+def assert_openai_tool_envelope(tool: dict[str, Any]) -> None:
+    """Validate one tools[] entry matches the runtime llama.cpp envelope."""
+    if tool.get("type") != "function":
+        raise ValueError("tool entry must have type 'function'")
+    fn = tool.get("function")
+    if not isinstance(fn, dict):
+        raise ValueError("tool entry must include function object")
+    if not isinstance(fn.get("name"), str):
+        raise ValueError("tool.function.name must be a string")
+    params = fn.get("parameters")
+    if not isinstance(params, dict):
+        raise ValueError("tool.function.parameters must be an object")
+
+
+def assert_tools_subset_of_v1(tools: list[dict[str, Any]]) -> None:
+    """Ensure every tool name is declared in the locked v1 catalog."""
+    allowed = ALLOWED_HASS_TOOLS
+    for tool in tools:
+        assert_openai_tool_envelope(tool)
+        name = tool["function"]["name"]
+        if name not in allowed:
+            raise ValueError(f"tool {name!r} is not in locked v1 catalog")
+
+
+def contains_home_llm_label_markers(text: str) -> bool:
+    """Return True when text uses forbidden Home-LLM ChatML tool-call labels."""
+    return any(marker in text for marker in HOME_LLM_LABEL_MARKERS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,13 +150,13 @@ class TrainingExample:
         """Serialize to JSONL.
 
         view="sayso" keeps OpenAI-style function.arguments as JSON strings
-        (runtime / SaySo compatibility). view="axolotl" parses argument strings
-        into dicts so the FunctionGemma jinja template renders native key:value
-        calls, and is the default written by adapt_dataset for training.
+        (runtime / SaySo compatibility). view="lfm" is an alias of sayso.
+        view="axolotl" parses argument strings into dicts so the FunctionGemma
+        jinja template renders native key:value calls.
         """
         if view == "axolotl":
             messages = _axolotl_messages(self.messages)
-        elif view == "sayso":
+        elif view in {"sayso", "lfm"}:
             messages = self.messages
         else:
             raise ValueError(f"unknown view: {view}")

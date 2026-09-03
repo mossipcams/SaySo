@@ -33,7 +33,7 @@ def test_brightness_out_of_range_rejected() -> None:
     assert err == "schema_validation_failed"
 
 
-def test_required_temperature_missing() -> None:
+def test_non_v1_climate_tool_rejected() -> None:
     entry = {
         "messages": [
             {"role": "user", "content": "Set thermostat"},
@@ -67,4 +67,4 @@ def test_required_temperature_missing() -> None:
     }
     stats = RejectionStats()
     assert convert_entry(entry, stats=stats) is None
-    assert stats.counts.get("missing_required_argument", 0) == 1
+    assert stats.counts.get("unknown_tool", 0) >= 1

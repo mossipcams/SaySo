@@ -50,6 +50,9 @@ Defer until the voice path works end to end:
 - Offline eval cases and runners live in `evals/` (`evals/cases/`,
   `evals/runner.py`, `evals/scorer.py`, `evals/metrics.py`). Do not train on
   Home-LLM tool-call labels or on eval case IDs from `evals/cases/`.
+- Training design lives in `docs/TRAINING_PLAN.md` (schema-conditioned function
+  calling over changing HA tool menus; label-first generation). `ALLOWED_HASS_TOOLS`
+  validates the pinned training contract only — it does not define runtime support.
 - Python throughout. Extend the existing test suite: `tests/` and colocated
   `custom_components/sayso/test_*.py`. Do not add another `tests/` tree or a new
   test framework.
