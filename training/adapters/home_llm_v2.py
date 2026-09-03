@@ -16,6 +16,7 @@ from .schema import (
     normalize_tool_arguments,
     shorten_response,
     tool_schema_map,
+    v1_openai_tools,
     validate_tool_arguments,
 )
 
@@ -196,8 +197,8 @@ def convert_entry(
         _reject(stats, "invalid_entry_shape")
         return None
 
-    schemas = tool_schema_map(raw_tools)
-    sayso_tools: list[dict[str, Any]] = []
+    schemas = tool_schema_map(v1_openai_tools())
+    declared_names: set[str] = set()
     for tool in raw_tools:
         fn = tool.get("function")
         if not isinstance(fn, dict):
@@ -213,16 +214,14 @@ def convert_entry(
         if name not in ALLOWED_HASS_TOOLS:
             _reject(stats, "unknown_tool")
             return None
-        sayso_tools.append(
-            {
-                "type": "function",
-                "function": {
-                    "name": name,
-                    "description": fn.get("description", ""),
-                    "parameters": fn.get("parameters", {"type": "object", "properties": {}}),
-                },
-            }
-        )
+        declared_names.add(name)
+
+    if not declared_names:
+        _reject(stats, "empty_tool_catalog")
+        return None
+
+    # Runtime llama.cpp always receives the full locked v1 catalog.
+    sayso_tools = v1_openai_tools()
 
     sayso_messages: list[dict[str, Any]] = []
     call_counter = 0

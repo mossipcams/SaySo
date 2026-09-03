@@ -75,4 +75,5 @@ pip install -e ".[test]"
 pytest -q
 ```
 
-See [docs/PLAN.md](docs/PLAN.md) for the full product specification.
+See [docs/PLAN.md](docs/PLAN.md) for the full product specification and
+[docs/TRAINING_PLAN.md](docs/TRAINING_PLAN.md) for SaySo model training design.

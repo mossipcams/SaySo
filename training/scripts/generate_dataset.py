@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Generate SaySo training dataset from pinned Home-LLM upstream and local generator."""
+"""Generate SaySo LFM training dataset from the pile-based SaySo example generator."""
 
 from __future__ import annotations
 
 import argparse
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,74 +18,59 @@ def _run(cmd: list[str], *, cwd: Path | None = None) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--language", default="english")
-    parser.add_argument("--size", default="small", choices=["small", "medium", "large", "xl"])
+    parser.add_argument("--language", default="english", help="Language tag for output filenames")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--sayso-count", type=int, default=200, help="Local SaySo examples")
+    parser.add_argument(
+        "--small",
+        action="store_true",
+        help="Use Home-LLM-small pile multipliers (thousands of v1 examples)",
+    )
+    parser.add_argument("--sample", action="store_true", help="Minimal pile multipliers for smoke tests")
+    parser.add_argument(
+        "--sayso-count",
+        type=int,
+        default=None,
+        help="Optional cap on generated examples (default: full pile run)",
+    )
+    parser.add_argument(
+        "--view",
+        choices=("lfm", "sayso", "axolotl"),
+        default="lfm",
+        help="Adapter output view (default: lfm for LFM / llama.cpp training)",
+    )
     parser.add_argument("--out-dir", type=Path, default=ROOT / "datasets")
     args = parser.parse_args()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    mixed_raw = args.out_dir / f"sayso_mixed_raw_{args.language}.jsonl"
+    raw = args.out_dir / f"sayso_raw_{args.language}.jsonl"
     adapted = args.out_dir / f"sayso_adapted_{args.language}.jsonl"
 
-    with tempfile.TemporaryDirectory(prefix="sayso-gen-") as tmp:
-        tmp_dir = Path(tmp)
-        parts: list[Path] = []
+    gen_cmd = [
+        sys.executable,
+        str(ROOT / "scripts" / "generate_sayso_examples.py"),
+        str(raw),
+        "--seed",
+        str(args.seed),
+    ]
+    if args.small:
+        gen_cmd.append("--small")
+    if args.sample:
+        gen_cmd.append("--sample")
+    if args.sayso_count is not None:
+        gen_cmd.extend(["--count", str(args.sayso_count)])
 
-        sayso_gen = tmp_dir / "sayso_generated.jsonl"
-        _run(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "generate_sayso_examples.py"),
-                str(sayso_gen),
-                "--count",
-                str(args.sayso_count),
-                "--seed",
-                str(args.seed),
-            ]
-        )
-        parts.append(sayso_gen)
-
-        upstream = ROOT / ".upstream" / "home-llm" / "data"
-        if upstream.exists():
-            cmd = [
-                sys.executable,
-                str(upstream / "generate_data.py"),
-                "--train",
-                f"--{args.size}",
-                "--language",
-                args.language,
-                "--seed",
-                str(args.seed),
-            ]
-            try:
-                _run(cmd, cwd=upstream)
-                raw_output = upstream / "output" / f"home_assistant_train_{args.language}.jsonl"
-                if not raw_output.exists():
-                    candidates = list((upstream / "output").glob("*.jsonl"))
-                    raw_output = candidates[0] if candidates else None
-                if raw_output and raw_output.exists():
-                    parts.append(raw_output)
-            except subprocess.CalledProcessError:
-                print("Home-LLM generate failed; continuing with SaySo-only mix", file=sys.stderr)
-        else:
-            print("Upstream not pinned; using SaySo generator only", file=sys.stderr)
-
-        with mixed_raw.open("w", encoding="utf-8") as out:
-            for part in parts:
-                out.write(part.read_text(encoding="utf-8"))
+    _run(gen_cmd)
 
     _run(
         [
             sys.executable,
             str(ROOT / "scripts" / "adapt_dataset.py"),
-            str(mixed_raw),
+            str(raw),
             str(adapted),
             "--seed",
             str(args.seed),
             "--view",
-            "axolotl",
+            args.view,
         ]
     )
 
