@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Optional
 
-from .buffer import WakeAudioBuffer
+from .buffer import WakeAudioBuffer, WakePrerollLookback
 from .detection import Detection
 from .livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES, LiveKitWakeWordProvider
 from .worker import WakeInferenceWorker
@@ -25,9 +25,17 @@ class _WakePhrase:
 class SaySoExternalWakeHook:
     """Receive post-WebRTC PCM from LVA and run LiveKit inference off-thread."""
 
-    def __init__(self, provider: LiveKitWakeWordProvider) -> None:
+    def __init__(
+        self,
+        provider: LiveKitWakeWordProvider,
+        *,
+        preroll_ms: int = 0,
+        wake_skip_ms: int = 500,
+    ) -> None:
         self._provider = provider
         self._buffer = WakeAudioBuffer(WINDOW_SAMPLES, HOP_SAMPLES)
+        self._lookback = WakePrerollLookback(preroll_ms, SAMPLE_RATE)
+        self._wake_skip_ms = wake_skip_ms
         self._worker = WakeInferenceWorker(provider.predict_window)
         self._suspended = False
         self._get_satellite: Callable[[], Any] | None = None
@@ -54,12 +62,22 @@ class SaySoExternalWakeHook:
     def rearm(self) -> None:
         """One controlled reset after TTS; do not clear on every capture block."""
         self._buffer.rearm_with_silence()
+        self._lookback.clear()
         self._provider.reset()
         self.resume()
+
+    def flush_preroll(self, satellite: Any) -> bytes:
+        """Send post-wake_skip_ms lookback to the satellite STT path."""
+        pcm = self._lookback.flush_bytes(self._wake_skip_ms)
+        if pcm and satellite is not None and hasattr(satellite, "handle_audio"):
+            satellite.handle_audio(pcm, None)
+        return pcm
 
     def feed_pcm(self, state: Any, pcm_s16le: bytes) -> None:
         if state is not None and self._get_satellite is None:
             self.bind_satellite(lambda: getattr(state, "satellite", None))
+        if not self._suspended and pcm_s16le:
+            self._lookback.feed(pcm_s16le)
         if self._suspended or not pcm_s16le:
             return
         if self._buffer.feed(pcm_s16le):

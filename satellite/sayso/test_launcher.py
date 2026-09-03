@@ -208,6 +208,8 @@ def test_launcher_passes_device_name_separate_from_friendly_name(
             threshold=0.5,
             refractory_seconds=2.0,
             post_tts_cooldown_ms=500,
+            preroll_ms=500,
+            wake_skip_ms=500,
         ),
         sounds=SimpleNamespace(wake="ack.wav", failure="failure.wav", unavailable="unavailable.wav"),
     )
@@ -264,6 +266,7 @@ def test_launcher_rejects_unavailable_wake_provider(monkeypatch: pytest.MonkeyPa
             refractory_seconds=2.0,
             post_tts_cooldown_ms=500,
             preroll_ms=500,
+            wake_skip_ms=500,
         ),
         sounds=SimpleNamespace(wake="wake.wav"),
     )
@@ -312,6 +315,8 @@ def test_launcher_keeps_wakeup_sound_out_of_stt(
             threshold=0.5,
             refractory_seconds=2.0,
             post_tts_cooldown_ms=500,
+            preroll_ms=500,
+            wake_skip_ms=500,
         ),
         sounds=SimpleNamespace(wake="ack.wav", failure="failure.wav", unavailable="unavailable.wav"),
     )

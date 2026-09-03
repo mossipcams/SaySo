@@ -75,7 +75,11 @@ def main() -> None:
     import linux_voice_assistant.__main__ as lva_main
     from linux_voice_assistant.satellite import VoiceSatelliteProtocol
 
-    wake_hook = SaySoExternalWakeHook(provider)
+    wake_hook = SaySoExternalWakeHook(
+        provider,
+        preroll_ms=cfg.wake_word.preroll_ms,
+        wake_skip_ms=cfg.wake_word.wake_skip_ms,
+    )
     install_wake_audio_path(lva_main, wake_hook)
     install_voice_handlers(VoiceSatelliteProtocol, cfg.sounds, wake_hook)
     _configure_mpv()

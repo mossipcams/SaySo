@@ -7,9 +7,11 @@ import sys
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
+import numpy as np
 import pytest
 
 from satellite.sayso.config import SoundsCfg
+from satellite.sayso.wake.hook import SaySoExternalWakeHook
 
 
 class _EventType:
@@ -138,6 +140,52 @@ def test_wakeup_starts_streaming_without_wake_chime(
 
     satellite.duck.assert_called_once_with()
     satellite._start_audio_streaming.assert_called_once_with("SaySo")
+
+
+def test_wakeup_flushes_preroll_after_streaming_starts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    sounds = _sounds(tmp_path)
+    provider = MagicMock(available=True, predict_window=MagicMock(return_value=None))
+    hook = SaySoExternalWakeHook(provider, preroll_ms=1000, wake_skip_ms=500)
+    protocol = _install_test_handlers(monkeypatch, sounds, hook)
+
+    wake_samples = np.zeros(8000, dtype="<i2")
+    command_samples = np.full(8000, 7, dtype="<i2")
+    hook.feed_pcm(SimpleNamespace(satellite=None), wake_samples.tobytes())
+    hook.feed_pcm(SimpleNamespace(satellite=None), command_samples.tobytes())
+
+    streaming_order: list[str] = []
+    handle_audio_calls: list[bytes] = []
+
+    def _start_streaming(_phrase: str) -> None:
+        streaming_order.append("start")
+
+    def _handle_audio(chunk: bytes, _chunk2: bytes | None = None) -> None:
+        streaming_order.append("audio")
+        handle_audio_calls.append(chunk)
+
+    satellite = SimpleNamespace(
+        state=SimpleNamespace(muted=False),
+        _pipeline_active=False,
+        _timer_finished=False,
+        _timer_ring_start=None,
+        duck=Mock(),
+        _emit=Mock(),
+        _start_audio_streaming=Mock(side_effect=_start_streaming),
+        handle_audio=_handle_audio,
+    )
+    wake_word = SimpleNamespace(wake_word="SaySo")
+
+    protocol.wakeup(satellite, wake_word)  # type: ignore[attr-defined]
+
+    assert streaming_order == ["start", "audio"]
+    assert len(handle_audio_calls) == 1
+    flushed = np.frombuffer(handle_audio_calls[0], dtype="<i2")
+    assert flushed.size == 8000
+    assert np.all(flushed == 7)
+    assert not np.any(flushed == 0)
 
 
 def test_stt_end_defers_chime_until_after_handle_voice_event_returns(
