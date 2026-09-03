@@ -46,8 +46,10 @@ from .schema import (
     CompiledToolSchema,
     ToolArgumentFailureCode,
     ToolArgumentValidationError,
+    build_tool_availability_names,
     build_tool_map,
     compile_llm_tools,
+    expand_compiled_tool_name_aliases,
     format_synthetic_validation_error,
     validate_tool_arguments,
 )
@@ -209,9 +211,11 @@ class SaySoConversationEntity(
         if chat_log.llm_api is None:
             return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
-        complete_allowed_tools = {tool.name for tool in chat_log.llm_api.tools}
+        complete_allowed_tools = build_tool_availability_names(chat_log.llm_api.tools)
         validation_tool_names = (
-            {tool["function"]["name"] for tool in active_schema.tools}
+            expand_compiled_tool_name_aliases(
+                {tool["function"]["name"] for tool in active_schema.tools}
+            )
             if active_schema is not None
             else complete_allowed_tools
         )
@@ -404,7 +408,7 @@ class SaySoConversationEntity(
                 tool_calls=[
                     llm.ToolInput(
                         id=tool_call.id,
-                        tool_name=tool_call.name,
+                        tool_name=tool_map[tool_call.name].name,
                         tool_args=normalized_args,
                     )
                     for tool_call, normalized_args in validated_tool_calls
