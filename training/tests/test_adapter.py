@@ -22,6 +22,7 @@ def test_converts_home_llm_v2_single_action() -> None:
     entry = _load_jsonl("home_llm_v2_example.jsonl")[0]
     converted = convert_entry(entry, seed=42)
     assert converted is not None
+    assert len(converted.tools) == len(ALLOWED_HASS_TOOLS)
     assistant_tool = next(
         m for m in converted.messages if m.get("role") == "assistant" and m.get("tool_calls")
     )
@@ -84,7 +85,9 @@ def test_deduplication_is_deterministic() -> None:
 def test_allowed_tools_subset() -> None:
     assert "HassTurnOn" in ALLOWED_HASS_TOOLS
     assert "GetLiveContext" in ALLOWED_HASS_TOOLS
+    assert "HassFanSetSpeed" in ALLOWED_HASS_TOOLS
     assert "HassVacuumStart" not in ALLOWED_HASS_TOOLS
+    assert "HassClimateSetTemperature" not in ALLOWED_HASS_TOOLS
 
 
 def test_tool_result_linkage() -> None:

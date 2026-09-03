@@ -188,6 +188,10 @@ processing remains on the local network; SaySo does not require a cloud service.
 | `tests/` | Integration-level regression tests |
 
 Training and evaluation code is not part of the production request path.
+Training design is documented in `docs/TRAINING_PLAN.md`. The model learns from
+schemas Home Assistant supplies per request; `ALLOWED_HASS_TOOLS` in training
+code validates examples against the pinned contract only and is not the
+definition of runtime tool support.
 
 ## Architectural invariants
 
