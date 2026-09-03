@@ -1,0 +1,184 @@
+"""Evaluation metrics for SaySo tool-call training."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from typing import Any
+
+
+def normalize_json_value(value: Any) -> Any:
+    """Recursively normalize JSON for stable comparison."""
+    if isinstance(value, dict):
+        return {k: normalize_json_value(value[k]) for k in sorted(value)}
+    if isinstance(value, list):
+        return [normalize_json_value(item) for item in value]
+    if isinstance(value, str):
+        stripped = value.strip()
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            return stripped
+        return normalize_json_value(parsed)
+    return value
+
+
+def parse_tool_arguments(raw: Any) -> dict[str, Any] | None:
+    """Parse tool call arguments to a dict."""
+    if isinstance(raw, dict):
+        return normalize_json_value(raw)
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(parsed, dict):
+            return normalize_json_value(parsed)
+    return None
+
+
+def extract_assistant_tool_calls(
+    messages: list[dict[str, Any]],
+) -> list[list[dict[str, Any]]]:
+    """Return tool call batches from assistant messages."""
+    batches: list[list[dict[str, Any]]] = []
+    for message in messages:
+        if message.get("role") != "assistant":
+            continue
+        calls = message.get("tool_calls")
+        if calls:
+            batches.append(calls)
+    return batches
+
+
+def tool_call_signature(call: dict[str, Any]) -> tuple[str, str]:
+    """Return (name, canonical_args_json) for one tool call."""
+    fn = call.get("function") or {}
+    name = str(fn.get("name", ""))
+    args = parse_tool_arguments(fn.get("arguments")) or {}
+    return name, json.dumps(args, sort_keys=True, separators=(",", ":"))
+
+
+@dataclass
+class ExampleScore:
+    """Per-example evaluation result."""
+
+    expected: dict[str, Any]
+    actual: dict[str, Any]
+    failure_category: str | None = None
+    latency_ms: float | None = None
+    checkpoint_id: str | None = None
+
+
+@dataclass
+class MetricSummary:
+    """Aggregate metric scores."""
+
+    total: int = 0
+    protocol_valid: int = 0
+    tool_name_exact: int = 0
+    args_exact: int = 0
+    schema_valid_args: int = 0
+    single_action_success: int = 0
+    multi_action_exact: int = 0
+    no_tool_correct: int = 0
+    unsupported_correct: int = 0
+    final_response_present: int = 0
+    per_example: list[ExampleScore] = field(default_factory=list)
+
+    def rates(self) -> dict[str, float]:
+        if self.total == 0:
+            return {key: 0.0 for key in [
+                "protocol", "tool_name", "args_exact", "schema_valid",
+                "single_action", "multi_action", "no_tool", "unsupported",
+                "final_response",
+            ]}
+        return {
+            "protocol": self.protocol_valid / self.total,
+            "tool_name": self.tool_name_exact / self.total,
+            "args_exact": self.args_exact / self.total,
+            "schema_valid": self.schema_valid_args / self.total,
+            "single_action": self.single_action_success / self.total,
+            "multi_action": self.multi_action_exact / self.total,
+            "no_tool": self.no_tool_correct / self.total,
+            "unsupported": self.unsupported_correct / self.total,
+            "final_response": self.final_response_present / self.total,
+        }
+
+
+def score_tool_call_protocol(messages: list[dict[str, Any]]) -> bool:
+    """Return True when assistant tool-call turns use empty content."""
+    for message in messages:
+        if message.get("role") != "assistant":
+            continue
+        if message.get("tool_calls"):
+            content = message.get("content")
+            if content not in ("", None):
+                return False
+    return True
+
+
+def score_expected_vs_actual(
+    expected_messages: list[dict[str, Any]],
+    actual_messages: list[dict[str, Any]],
+    *,
+    schemas: dict[str, dict[str, Any]] | None = None,
+) -> tuple[bool, bool, bool, str | None]:
+    """Score tool name, args, and multi-action match. Returns (name_ok, args_ok, multi_ok, category)."""
+    expected_batches = extract_assistant_tool_calls(expected_messages)
+    actual_batches = extract_assistant_tool_calls(actual_messages)
+
+    if not expected_batches and not actual_batches:
+        return True, True, True, None
+
+    expected_calls = [call for batch in expected_batches for call in batch]
+    actual_calls = [call for batch in actual_batches for call in batch]
+
+    if len(expected_calls) != len(actual_calls):
+        return False, False, False, "tool_count_mismatch"
+
+    expected_sigs = {tool_call_signature(c) for c in expected_calls}
+    actual_sigs = {tool_call_signature(c) for c in actual_calls}
+
+    name_ok = {s[0] for s in expected_sigs} == {s[0] for s in actual_sigs}
+    args_ok = expected_sigs == actual_sigs
+    multi_ok = args_ok
+
+    category = None
+    if not name_ok:
+        category = "tool_name_mismatch"
+    elif not args_ok:
+        category = "args_mismatch"
+
+    if schemas:
+        for call in actual_calls:
+            fn = call.get("function") or {}
+            name = fn.get("name")
+            args = parse_tool_arguments(fn.get("arguments"))
+            if not isinstance(name, str) or args is None:
+                return name_ok, False, False, "schema_invalid"
+            schema = schemas.get(name) or {}
+            props = schema.get("properties") or {}
+            if isinstance(props, dict):
+                for key in args:
+                    if key not in props:
+                        return name_ok, False, False, "extra_argument"
+
+    return name_ok, args_ok, multi_ok, category
+
+
+def summarize_scores(scores: list[ExampleScore]) -> MetricSummary:
+    """Build aggregate summary from per-example scores."""
+    summary = MetricSummary(total=len(scores), per_example=scores)
+    for item in scores:
+        if item.failure_category is None:
+            summary.protocol_valid += 1
+            summary.tool_name_exact += 1
+            summary.args_exact += 1
+            summary.schema_valid_args += 1
+        elif item.failure_category == "tool_name_mismatch":
+            summary.protocol_valid += 1
+        elif item.failure_category == "args_mismatch":
+            summary.protocol_valid += 1
+            summary.tool_name_exact += 1
+    return summary

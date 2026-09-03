@@ -1,0 +1,48 @@
+{
+  "model": "functiongemma-270m",
+  "temperature": 0,
+  "max_tokens": 160,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a voice assistant for Home Assistant.\n\nCurrent device states:\n- light.kitchen 'Kitchen' = off\n- lock.front_door 'Front Door' = unlocked"
+    },
+    {
+      "role": "user",
+      "content": "Turn off the kitchen lights and lock the front door."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "HassTurnOff",
+        "description": "Turns off/closes/locks a device or entity",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string", "description": "Name of the device or entity"},
+            "area": {"type": "string", "description": "Name of the area"},
+            "domain": {"type": "array", "items": {"type": "string"}, "description": "Device domain(s)"}
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "HassTurnOn",
+        "description": "Turns on/opens/unlocks a device or entity",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string", "description": "Name of the device or entity"},
+            "domain": {"type": "array", "items": {"type": "string"}, "description": "Device domain(s)"}
+          },
+          "required": []
+        }
+      }
+    }
+  ]
+}
