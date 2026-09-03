@@ -43,6 +43,7 @@ class _LastBoundaryFailure:
     phase: BoundaryPhase
     fingerprint: str | None
     timestamp: str
+    ha_error: str | None = None
 
 
 @dataclass
@@ -58,6 +59,7 @@ class BoundaryDiagnosticsState:
         phase: BoundaryPhase,
         *,
         fingerprint: str | None = None,
+        ha_error: str | None = None,
     ) -> None:
         """Increment a boundary counter and store safe last-failure metadata."""
         code_key = code.value
@@ -67,6 +69,7 @@ class BoundaryDiagnosticsState:
             phase=phase,
             fingerprint=fingerprint,
             timestamp=datetime.now(tz=UTC).isoformat(),
+            ha_error=ha_error,
         )
 
 
@@ -87,10 +90,11 @@ def record_boundary_failure(
     phase: BoundaryPhase,
     *,
     fingerprint: str | None = None,
+    ha_error: str | None = None,
 ) -> None:
     """Record one boundary failure for a config entry."""
     state = _ENTRY_BOUNDARY_DIAGNOSTICS.setdefault(entry_id, BoundaryDiagnosticsState())
-    state.record(code, phase, fingerprint=fingerprint)
+    state.record(code, phase, fingerprint=fingerprint, ha_error=ha_error)
 
 
 def boundary_diagnostics_snapshot(entry_id: str) -> dict[str, Any]:
@@ -107,6 +111,8 @@ def boundary_diagnostics_snapshot(entry_id: str) -> dict[str, Any]:
             "fingerprint": state.last.fingerprint,
             "timestamp": state.last.timestamp,
         }
+        if state.last.ha_error is not None:
+            last_payload["ha_error"] = state.last.ha_error
 
     return {
         "counts": dict(state.counts),

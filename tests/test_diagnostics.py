@@ -175,6 +175,9 @@ def _assert_safe_boundary_diagnostics(
     assert isinstance(last["timestamp"], str) and last["timestamp"]
     if last.get("fingerprint") is not None:
         assert isinstance(last["fingerprint"], str)
+    if expected_code == "tool_execution_failed":
+        assert isinstance(last.get("ha_error"), str) and last["ha_error"]
+        assert "error_text" not in last
 
     serialized = json.dumps(boundary).lower()
     for forbidden in (
