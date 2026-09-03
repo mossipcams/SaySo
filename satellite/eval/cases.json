@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "description": "Recorded-audio wake-word evaluation corpus for SaySo satellite",
+  "categories": {
+    "positive_sayso": "Isolated SaySo wake utterance",
+    "continuous_command": "SaySo followed by a command in one breath (e.g. SaySo turn off the kitchen)",
+    "negative_natural_say_so": "Natural speech containing say so without an intentional wake",
+    "negative_tv_conversation": "TV or conversation background without an intentional wake",
+    "negative_distance_noise": "SaySo at distance or with background noise"
+  },
+  "cases": [
+    {
+      "id": "pos_sayso_near",
+      "category": "positive_sayso",
+      "audio": "audio/positive_sayso_near.wav",
+      "expect_detection": true
+    },
+    {
+      "id": "pos_continuous_kitchen",
+      "category": "continuous_command",
+      "audio": "audio/continuous_kitchen.wav",
+      "expect_detection": true,
+      "command_transcript": "turn off the kitchen",
+      "expected_transcript": "turn off the kitchen",
+      "transcript_fixture": "fixtures/stt/continuous_kitchen.json",
+      "expect_missing_first_word": false
+    },
+    {
+      "id": "neg_natural_say_so",
+      "category": "negative_natural_say_so",
+      "audio": "audio/negative_say_so_phrase.wav",
+      "expect_detection": false
+    },
+    {
+      "id": "neg_tv_conversation",
+      "category": "negative_tv_conversation",
+      "audio": "audio/negative_tv_conversation.wav",
+      "expect_detection": false
+    },
+    {
+      "id": "neg_distance_noise",
+      "category": "negative_distance_noise",
+      "audio": "audio/negative_distance_noise.wav",
+      "expect_detection": false
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "case_file": "cases.json",
+  "audio_dir": "audio",
+  "fixture_dir": "fixtures",
+  "notes": "Place reviewed WAV fixtures under audio/. Missing files are skipped by default unit tests and offline eval."
+}

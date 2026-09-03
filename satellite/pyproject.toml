@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sayso-satellite"
+version = "0.1.0"
+description = "SaySo overlay for OHF-Voice/linux-voice-assistant"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "linux-voice-assistant @ git+https://github.com/OHF-Voice/linux-voice-assistant.git@99ee08f7b136f5a57a3da59d5f7c73e7ed62ed68",
+    "livekit-wakeword==0.2.1",
+    "numpy>=2,<3",
+    "onnxruntime==1.29.0",
+    "python-mpv>=1,<2",
+    "PyYAML>=6,<7",
+    "soundcard<1",
+    "webrtc-noise-gain>=1,<2",
+]
+
+[tool.uv]
+package = false
