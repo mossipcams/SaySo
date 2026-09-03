@@ -1,0 +1,266 @@
+{
+  "contract_version": "sayso-tool-schema/v1",
+  "home_assistant_llm_api_identifier": "assist",
+  "home_assistant_version": "2026.8.3",
+  "sayso_source_commit": "0647e59a08e8460d7fcc3c252dc023e2694bad1d",
+  "schema_fingerprint": "sha256:6d7f3e505198239fa60d68906b1d554d49daf2847d44ddb0e9f840a55cab04f8",
+  "tools": [
+    {
+      "function": {
+        "description": "Provides the current date and time.",
+        "name": "GetDateTime",
+        "parameters": {
+          "properties": {},
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Provides real-time information about the CURRENT state, value, or mode of devices, sensors, entities, or areas. Use this tool for: 1. Answering questions about current conditions (e.g., 'Is the light on?'). 2. As the first step in conditional actions (e.g., 'If the weather is rainy, turn off sprinklers' requires checking the weather first). You may filter for devices by name, domain, and area, including combining those filters. Prefer filtering by domain when searching for multiple devices of the same type.",
+        "name": "GetLiveContext",
+        "parameters": {
+          "properties": {
+            "area": {
+              "description": "Filter entities by area name or alias (case-insensitive).",
+              "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              ],
+              "description": "Filter entities by domain (e.g. 'light', 'sensor'). Accepts a single domain or a list."
+            },
+            "name": {
+              "description": "Filter entities by name or alias (case-insensitive).",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Cancels all timers",
+        "name": "HassCancelAllTimers",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Sets a fan's speed by percentage",
+        "name": "HassFanSetSpeed",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "fan"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "percentage": {
+              "description": "The speed percentage of the fan",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "percentage"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Sets the brightness percentage or color of a light",
+        "name": "HassLightSet",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "brightness": {
+              "description": "The brightness percentage of the light between 0 and 100, where 0 is off and 100 is fully lit",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "color": {
+              "type": "string"
+            },
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "temperature": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Turns off/closes a device or entity. For locks, this performs an 'unlock' action. Use for requests like 'turn off', 'deactivate', 'disable', or 'unlock'.",
+        "name": "HassTurnOff",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "water",
+                  "gas",
+                  "identify",
+                  "restart",
+                  "update",
+                  "outlet",
+                  "switch",
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector",
+                  "awning",
+                  "blind",
+                  "curtain",
+                  "damper",
+                  "door",
+                  "garage",
+                  "gate",
+                  "shade",
+                  "shutter",
+                  "window"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Turns on/opens/presses a device or entity. For locks, this performs a 'lock' action. Use for requests like 'turn on', 'activate', 'enable', or 'lock'.",
+        "name": "HassTurnOn",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "water",
+                  "gas",
+                  "identify",
+                  "restart",
+                  "update",
+                  "outlet",
+                  "switch",
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector",
+                  "awning",
+                  "blind",
+                  "curtain",
+                  "damper",
+                  "door",
+                  "garage",
+                  "gate",
+                  "shade",
+                  "shutter",
+                  "window"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    }
+  ]
+}

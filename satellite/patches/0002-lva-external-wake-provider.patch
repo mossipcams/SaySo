@@ -1,0 +1,172 @@
+--- /dev/null
++++ b/linux_voice_assistant/external_wake.py
+@@ -0,0 +1,20 @@
++"""Optional external wake-word feed for SaySo and other overlays."""
++
++from __future__ import annotations
++
++from typing import Callable, Optional, TYPE_CHECKING
++
++if TYPE_CHECKING:
++    from .models import ServerState
++
++ExternalWakeCallback = Callable[["ServerState", bytes], None]
++_provider: Optional[ExternalWakeCallback] = None
++
++
++def set_provider(callback: Optional[ExternalWakeCallback]) -> None:
++    global _provider
++    _provider = callback
++
++
++def feed(state: "ServerState", audio_chunk: bytes) -> None:
++    if _provider is not None:
++        _provider(state, audio_chunk)
+--- a/linux_voice_assistant/__main__.py
++++ b/linux_voice_assistant/__main__.py
+@@ -28,6 +28,7 @@ from .webrtc import WebRTCProcessor
+ from .wake_word import find_available_wake_words, load_stop_model, load_wake_models
+ from .wake_word.micro import MicroWakeWord, MicroWakeWordFeatures
+ from .wake_word.openwakeword import OpenWakeWord, OpenWakeWordFeatures
++from .external_wake import feed as external_wake_feed
+ 
+ _LOGGER = logging.getLogger(__name__)
+ 
+@@ -208,6 +209,11 @@ async def main() -> None:
+         action="store_true",
+         help="Disable the peripheral API",
+     )
++    parser.add_argument(
++        "--disable-built-in-wake-word",
++        action="store_true",
++        help="Disable MicroWakeWord/OpenWakeWord detection; use external_wake provider instead",
++    )
+     parser.add_argument(
+         "--debug",
+         action="store_true",
+@@ -458,6 +464,7 @@ async def main() -> None:
+     state.wake_words = wake_models
+     state.active_wake_words = active_wake_words
+     state.refractory_seconds = args.refractory_seconds
++    state.disable_builtin_wake_word = args.disable_builtin_wake_word
+ 
+     if not args.disable_peripheral_api:
+         from .peripheral import PeripheralApi
+@@ -670,6 +677,8 @@ def process_audio(state: ServerState, mic, block_size: int):
+                 if not audio_chunk:
+                     continue
+ 
++            external_wake_feed(state, audio_chunk)
++
+             if state.satellite is None or not hasattr(state.satellite, "_is_streaming_audio"):
+                 continue
+ 
+@@ -760,44 +769,46 @@ def process_audio(state: ServerState, mic, block_size: int):
+             try:
+                 # Both channels travel in one message: data=ch0 (enhanced), data2=ch1 (raw reference)
+                 audio_chunk_2 = channel_chunks[1] if n_channels >= 2 else None
+                 state.satellite.handle_audio(audio_chunk, audio_chunk_2)
+ 
+                 assert micro_features is not None
+                 micro_inputs.clear()
+                 micro_inputs.extend(micro_features.process_streaming(audio_chunk))
+ 
+-                if has_oww:
+-                    assert oww_features is not None
+-                    oww_inputs.clear()
+-                    oww_inputs.extend(oww_features.process_streaming(audio_chunk))
+-
+-                for wake_word_index, wake_word in enumerate(wake_words):
+-                    activated = False
+-
+-                    # Set dynamic threshold depending on wake word index
+-                    if wake_word_index == 0:
+-                        threshold = state.wake_word_1_threshold
+-                        # _LOGGER.debug("Set wake word %d probability cutoff to %.3f", wake_word_index+1, state.wake_word_1_threshold)
+-                    elif wake_word_index == 1:
+-                        threshold = state.wake_word_2_threshold
+-                        # _LOGGER.debug("Set wake word %d probability cutoff to %.3f", wake_word_index+1, state.wake_word_2_threshold)
+-                    else:
+-                        threshold = 0.7
+-                        # _LOGGER.debug("Set wake word %d probability cutoff to fallback value 0.7", wake_word_index+1)
+-
+-                    if isinstance(wake_word, MicroWakeWord):
+-                        # No debugging when no detection
+-                        wake_word.debug_probabilities = False
+-
+-                        # set microWakeWord cutoff
+-                        wake_word.probability_cutoff = threshold
+-
+-                        for micro_input in micro_inputs:
+-                            if wake_word.process_streaming(micro_input):
+-                                wake_word.debug_probabilities = True
+-                                activated = True
+-                    elif isinstance(wake_word, OpenWakeWord):
+-                        for oww_input in oww_inputs:
+-                            for prob in wake_word.process_streaming(oww_input):
+-                                if prob > threshold:
+-                                    _LOGGER.debug("Wake word '%s' activated (probability %.3f exceeded threshold %.3f)", wake_word.wake_word, prob, threshold) # type: ignore[attr-defined]
++                if not state.disable_builtin_wake_word:
++                    if has_oww:
++                        assert oww_features is not None
++                        oww_inputs.clear()
++                        oww_inputs.extend(oww_features.process_streaming(audio_chunk))
++
++                    for wake_word_index, wake_word in enumerate(wake_words):
++                        activated = False
++
++                        # Set dynamic threshold depending on wake word index
++                        if wake_word_index == 0:
++                            threshold = state.wake_word_1_threshold
++                            # _LOGGER.debug("Set wake word %d probability cutoff to %.3f", wake_word_index+1, state.wake_word_1_threshold)
++                        elif wake_word_index == 1:
++                            threshold = state.wake_word_2_threshold
++                            # _LOGGER.debug("Set wake word %d probability cutoff to %.3f", wake_word_index+1, state.wake_word_2_threshold)
++                        else:
++                            threshold = 0.7
++                            # _LOGGER.debug("Set wake word %d probability cutoff to fallback value 0.7", wake_word_index+1)
++
++                        if isinstance(wake_word, MicroWakeWord):
++                            # No debugging when no detection
++                            wake_word.debug_probabilities = False
++
++                            # set microWakeWord cutoff
++                            wake_word.probability_cutoff = threshold
++
++                            for micro_input in micro_inputs:
++                                if wake_word.process_streaming(micro_input):
++                                    wake_word.debug_probabilities = True
+                                     activated = True
+-
+-                    if activated and not state.muted:
+-                        # Check refractory
+-                        now = time.monotonic()
+-                        if (last_active is None) or ((now - last_active) > state.refractory_seconds):
+-                            state.satellite.wakeup(wake_word)
+-                            last_active = now
++                        elif isinstance(wake_word, OpenWakeWord):
++                            for oww_input in oww_inputs:
++                                for prob in wake_word.process_streaming(oww_input):
++                                    if prob > threshold:
++                                        _LOGGER.debug("Wake word '%s' activated (probability %.3f exceeded threshold %.3f)", wake_word.wake_word, prob, threshold) # type: ignore[attr-defined]
++                                        activated = True
++
++                        if activated and not state.muted:
++                            # Check refractory
++                            now = time.monotonic()
++                            if (last_active is None) or ((now - last_active) > state.refractory_seconds):
++                                state.satellite.wakeup(wake_word)
++                                last_active = now
+ 
+                 # Always process to keep state correct
+                 stopped = False
+--- a/linux_voice_assistant/models.py
++++ b/linux_voice_assistant/models.py
+@@ -200,6 +200,7 @@ class ServerState:
+     wake_words_changed: bool = False
+     refractory_seconds: float = 2.0
+     continue_conversation_delay: float = 0.5
++    disable_builtin_wake_word: bool = False
+ 
+     # Playback
+     tts_player: Any = None

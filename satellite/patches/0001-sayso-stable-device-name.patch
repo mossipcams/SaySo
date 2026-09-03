@@ -1,19 +1,21 @@
 --- a/linux_voice_assistant/__main__.py
 +++ b/linux_voice_assistant/__main__.py
-@@ -4,6 +4,7 @@ import argparse
- import asyncio
- import errno
- import json
-+import os
- import logging
- import sys
- import threading
-@@ -314,6 +315,9 @@ async def main() -> None:
+@@ -46,6 +46,10 @@ async def main() -> None:
+         "--name",
+         help="Real name for the device",
+     )
++    parser.add_argument(
++        "--device-name",
++        help="Stable device identifier for Home Assistant (default: lva-<mac>)",
++    )
+     parser.add_argument(
+         "--audio-input-device",
+         help="Name for the audio input device (see --list-input-devices)",
+@@ -314,6 +318,8 @@ async def main() -> None:
          friendly_name = args.name
  
      device_name = f"lva-{mac_address_clean}"
-+    stable = os.environ.get("SAYSO_STABLE_NAME")
-+    if stable:
-+        device_name = stable
++    if args.device_name:
++        device_name = args.device_name
  
      print(f"Device name: {device_name}")

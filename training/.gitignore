@@ -30,6 +30,9 @@ events.out.tfevents.*
 .venv/
 venv/
 
+# pin_upstream.py clones (nested git repos)
+.upstream/
+
 # Artifacts (keep .gitkeep)
 artifacts/*
 !artifacts/.gitkeep

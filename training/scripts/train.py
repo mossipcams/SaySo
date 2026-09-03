@@ -13,9 +13,20 @@ sys.path.insert(0, str(ROOT / "configs"))
 
 from detect_gpu import detect_gpu  # noqa: E402
 
+BACKENDS = {
+    "lfm": "lfm25-230m",
+    "functiongemma": "functiongemma-270m",
+}
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--backend",
+        choices=sorted(BACKENDS),
+        default="lfm",
+        help="lfm=LFM2.5-230M SaySo envelope (default), functiongemma=FunctionGemma path",
+    )
     parser.add_argument(
         "--config",
         choices=["smoke", "prod"],
@@ -26,13 +37,15 @@ def main() -> int:
     args = parser.parse_args()
 
     profile = detect_gpu()
-    config_name = f"functiongemma-270m-{args.config}.yml"
+    prefix = BACKENDS[args.backend]
+    config_name = f"{prefix}-{args.config}.yml"
     config_path = ROOT / "configs" / config_name
 
     if not config_path.exists():
         print(f"Missing config: {config_path}", file=sys.stderr)
         return 1
 
+    print(f"Backend: {args.backend}")
     print(f"GPU profile: {profile.name} ({profile.notes})")
     print(f"Config: {config_path}")
 

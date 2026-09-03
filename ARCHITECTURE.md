@@ -2,30 +2,33 @@
 
 SaySo is a fully local voice assistant built around Home Assistant. Home
 Assistant is the authoritative smart-home runtime. SaySo adds language-model
-tool selection and an optional voice satellite with local wake-word detection.
+tool selection through a Home Assistant conversation agent.
 
 SaySo consists of two independently deployable components:
 
 1. A Home Assistant conversation agent that connects Home Assistant’s native
    LLM tools to a user-managed llama.cpp server.
-2. A Linux voice satellite overlay that adds local detection of the `SaySo`
-   wake word to OHF Voice’s Linux Voice Assistant.
+2. An optional reference voice satellite under `satellite/` that adds local
+   detection of the `SaySo` wake word to OHF Voice’s Linux Voice Assistant
+   (LVA) using Home Assistant’s standard voice pipeline.
 
-There is no central SaySo server, broker, add-on, or custom action API. The Home
-Assistant integration can be used with any compatible Home Assistant voice
-satellite. The SaySo satellite is optional.
+There is no central SaySo server, broker, add-on, or custom action API. The
+SaySo Home Assistant integration does not manage or require the bundled
+satellite; any compatible Home Assistant voice satellite works.
 
 ## Runtime topology
 
 ```mermaid
 flowchart TD
     User["User"]
-    subgraph Satellite["Voice satellite"]
+    subgraph Satellite["Voice satellite (optional reference)"]
         Mic["Microphone"]
-        Wake["SaySo wake detector"]
-        Transport["Linux Voice Assistant"]
+        LVA["Linux Voice Assistant: capture, normalization, WebRTC, HA transport"]
+        Wake["SaySo wake detector (external wake hook)"]
         Speaker["Speaker"]
-        Mic --> Wake --> Transport --> Speaker
+        Mic --> LVA
+        LVA -->|Processed PCM| Wake
+        LVA --> Speaker
     end
     subgraph HA["Home Assistant"]
         Pipeline["Voice pipeline: STT and TTS"]
@@ -37,8 +40,8 @@ flowchart TD
     end
     Model["User-managed llama.cpp"]
     User --> Mic
-    Transport -->|Command audio| Pipeline
-    Pipeline -->|Response audio| Transport
+    LVA -->|Command audio| Pipeline
+    Pipeline -->|Response audio| LVA
     Agent <-->|OpenAI-compatible HTTP| Model
 ```
 
@@ -49,9 +52,10 @@ follow the same path beginning at the SaySo conversation agent.
 
 | Responsibility | Owner |
 |---|---|
-| Microphone capture and speaker playback | Voice satellite |
-| `SaySo` wake-word detection | SaySo satellite overlay |
-| Satellite audio processing and Home Assistant transport | Linux Voice Assistant |
+| Microphone capture and speaker playback | Linux Voice Assistant (voice satellite) |
+| Volume normalization and WebRTC audio processing | Linux Voice Assistant |
+| Home Assistant satellite transport | Linux Voice Assistant |
+| `SaySo` wake-word detection on processed PCM | SaySo satellite overlay (external wake hook) |
 | Voice pipeline orchestration | Home Assistant |
 | Speech-to-text and text-to-speech | Home Assistant pipeline providers |
 | Conversation history and request context | Home Assistant |
@@ -124,27 +128,34 @@ of truth.
 
 ## Voice satellite
 
-The satellite lives under `satellite/` and is a thin overlay on the pinned OHF
-Voice Linux Voice Assistant dependency.
+The bundled satellite under `satellite/` is an optional SaySo reference
+satellite. It is a thin overlay on the pinned OHF Voice Linux Voice Assistant
+(LVA) dependency and uses Home Assistant’s standard voice pipeline. The SaySo
+Home Assistant integration does not manage or require it; any compatible Home
+Assistant voice satellite works.
+
+Linux Voice Assistant owns microphone capture, volume normalization, WebRTC
+audio processing, connection to Home Assistant, command-audio transport, and
+response playback. After LVA processes each audio block, it forwards the same
+processed PCM to registered external wake providers. The SaySo overlay registers
+an external wake hook for that feed; it does not wrap or replace LVA’s
+`record()` path and does not create a second capture path.
 
 The SaySo overlay owns:
 
-- Loading and running the local LiveKit-compatible ONNX wake-word model.
+- Loading and running the local LiveKit-compatible ONNX wake-word model on the
+  processed PCM feed from LVA’s external wake hook.
 - Converting a successful detection into an upstream satellite wake event.
 - SaySo-specific configuration, lifecycle commands, sounds, and diagnostics.
-- The smallest compatibility patches required for the supported hardware path.
-
-Linux Voice Assistant continues to own the main audio loop, audio processing,
-connection to Home Assistant, command-audio transport, and response playback.
-The overlay wraps the upstream microphone stream rather than creating a second
-capture path.
+- The smallest compatibility patches required for the supported hardware path
+  (including the external wake provider and `--disable-built-in-wake-word`).
 
 The satellite does not perform speech-to-text, text-to-speech, language
 understanding, model inference, or Home Assistant action execution. It never
 communicates directly with llama.cpp.
 
-Wake detection runs locally and does not retain audio. It must not start another
-request while the current voice pipeline is active.
+Wake detection runs locally on processed PCM and does not retain audio. It must
+not start another request while the current voice pipeline is active.
 
 ## Failure and trust boundaries
 
@@ -166,8 +177,8 @@ request while the current voice pipeline is active.
 
 A complete voice deployment contains Home Assistant running the voice pipeline
 and SaySo custom integration, a llama.cpp server reachable on the local network,
-and a Home Assistant-compatible voice satellite, optionally using the SaySo
-satellite overlay.
+and a Home Assistant-compatible voice satellite. The bundled SaySo reference
+satellite under `satellite/` is optional.
 
 Only Home Assistant communicates with llama.cpp. Satellites communicate with
 Home Assistant through the standard Linux Voice Assistant path. SaySo introduces
@@ -179,7 +190,7 @@ processing remains on the local network; SaySo does not require a cloud service.
 | Path | Responsibility |
 |---|---|
 | `custom_components/sayso/` | Home Assistant conversation integration |
-| `satellite/sayso/` | SaySo satellite overlay |
+| `satellite/sayso/` | Optional SaySo reference satellite overlay |
 | `satellite/patches/` | Minimal upstream compatibility patches |
 | `satellite/systemd/` | Satellite process lifecycle |
 | `schemas/` | Reference schema artifacts |
@@ -188,6 +199,10 @@ processing remains on the local network; SaySo does not require a cloud service.
 | `tests/` | Integration-level regression tests |
 
 Training and evaluation code is not part of the production request path.
+Training design is documented in `docs/TRAINING_PLAN.md`. The model learns from
+schemas Home Assistant supplies per request; `ALLOWED_HASS_TOOLS` in training
+code validates examples against the pinned contract only and is not the
+definition of runtime tool support.
 
 ## Architectural invariants
 
@@ -203,9 +218,13 @@ Training and evaluation code is not part of the production request path.
 7. Model-generated tool calls never execute without validation against current
    Home Assistant tools and schemas.
 8. Tool-schema filtering is an optimization and cannot grant capabilities.
-9. The satellite remains a thin overlay on upstream Linux Voice Assistant.
+9. The bundled satellite remains a thin overlay on upstream Linux Voice
+   Assistant and uses Home Assistant’s standard voice pipeline.
 10. Speech-to-text and text-to-speech remain Home Assistant pipeline concerns.
-11. The Home Assistant integration remains usable without the bundled satellite.
+11. The SaySo Home Assistant integration does not manage or require the bundled
+    satellite; any compatible Home Assistant voice satellite works.
+12. Wake detection on the reference satellite consumes processed PCM from LVA’s
+    external wake hook, not a second microphone capture path.
 
 Update this document only when component ownership, runtime communication, trust
 boundaries, or an architectural invariant changes. Releases, implementation

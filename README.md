@@ -2,7 +2,7 @@
 
 SaySo is a fully local [Home Assistant](https://www.home-assistant.io/) voice assistant. Home Assistant is authoritative for the voice pipeline, entities, context, tools, and action execution. SaySo connects its conversation agent to your user-managed [llama.cpp](https://github.com/ggerganov/llama.cpp) server for language understanding and tool selection, then executes validated actions through Home Assistant’s native LLM tool API.
 
-SaySo has two independently deployable components: the Home Assistant conversation integration and an optional Linux Voice Assistant satellite overlay for local `SaySo` wake-word detection. The satellite remains a thin overlay; Home Assistant owns STT, TTS, pipeline orchestration, and smart-home actions. See [ARCHITECTURE.md](ARCHITECTURE.md) for runtime boundaries.
+SaySo has two independently deployable components: the Home Assistant conversation integration and an optional reference satellite under `satellite/` for local `SaySo` wake-word detection on OHF Voice’s Linux Voice Assistant. The SaySo integration does not manage or require the bundled satellite; any compatible Home Assistant voice satellite works. Home Assistant owns STT, TTS, pipeline orchestration, and smart-home actions. See [ARCHITECTURE.md](ARCHITECTURE.md) for runtime boundaries.
 
 ## Requirements
 
@@ -60,7 +60,7 @@ Use a model whose template supports tool/function calling. SaySo sends requests 
 
 With a standard Home Assistant voice pipeline, wake word → STT → SaySo → TTS → satellite playback stays entirely inside Home Assistant except for the HTTP call to llama.cpp.
 
-The optional satellite overlay lives under `satellite/`. It detects the wake word locally and hands control to the upstream Linux Voice Assistant. It does not perform speech recognition, language understanding, model inference, or Home Assistant actions, and it never connects directly to llama.cpp.
+The optional reference satellite under `satellite/` uses Home Assistant’s standard voice pipeline. Linux Voice Assistant owns capture, volume normalization, WebRTC processing, and HA transport; the SaySo overlay receives the same processed PCM for LiveKit wake detection via LVA’s external wake hook. It does not perform speech recognition, language understanding, model inference, or Home Assistant actions, and it never connects directly to llama.cpp.
 
 ## Diagnostics
 
@@ -75,4 +75,5 @@ pip install -e ".[test]"
 pytest -q
 ```
 
-See [docs/PLAN.md](docs/PLAN.md) for the full product specification.
+See [docs/PLAN.md](docs/PLAN.md) for the full product specification and
+[docs/TRAINING_PLAN.md](docs/TRAINING_PLAN.md) for SaySo model training design.
