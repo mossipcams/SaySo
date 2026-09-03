@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import importlib
+import inspect
+import json
 import sys
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from unittest.mock import Mock, call
+from unittest.mock import MagicMock, Mock, call
 
 import pytest
 
@@ -64,7 +68,8 @@ def test_play_sound_uses_repaired_mpv_and_reports_errors(
     expected: int,
 ) -> None:
     configured = Mock()
-    monkeypatch.setattr("satellite.sayso.launcher._configure_mpv", configured)
+    monkeypatch.setattr("satellite.sayso.playback.configure_pulse_mpv", configured)
+    monkeypatch.setattr("satellite.sayso.playback.install_playback_recovery", Mock())
 
     class FakeLibMpvPlayer:
         def _on_end_file(self, _event) -> None:
@@ -95,7 +100,8 @@ def test_play_sound_uses_repaired_mpv_and_reports_errors(
 
 
 def test_play_sound_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("satellite.sayso.launcher._configure_mpv", Mock())
+    monkeypatch.setattr("satellite.sayso.playback.configure_pulse_mpv", Mock())
+    monkeypatch.setattr("satellite.sayso.playback.install_playback_recovery", Mock())
 
     class FakeLibMpvPlayer:
         def _on_end_file(self, _event) -> None:
@@ -136,3 +142,84 @@ def test_speaker_check_and_device_listing_use_runtime_paths(
     assert cli.cmd_devices(SimpleNamespace()) == 0
     assert call([sys.executable, "-m", "linux_voice_assistant", "--list-input-devices"]) in call_process.call_args_list
     assert call([sys.executable, "-m", "linux_voice_assistant", "--list-output-devices"]) in call_process.call_args_list
+
+
+def test_cmd_test_wake_runs_recorded_eval(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    eval_root = tmp_path / "eval"
+    eval_root.mkdir()
+    (eval_root / "cases.json").write_text(
+        json.dumps({"version": 1, "cases": []}),
+        encoding="utf-8",
+    )
+
+    cfg = _config(tmp_path)
+    cfg.wake_word = SimpleNamespace(
+        model=model_path,
+        phrase="SaySo",
+        threshold=0.65,
+    )
+    monkeypatch.setattr(cli, "load_config", lambda: cfg)
+    monkeypatch.setattr(
+        "satellite.sayso.wake.eval.satellite_eval_root",
+        lambda: eval_root,
+    )
+
+    mock_model = MagicMock()
+    mock_model.predict.return_value = {"sayso": 0.0}
+    fake_wakeword = MagicMock(WakeWordModel=MagicMock(return_value=mock_model))
+    monkeypatch.setitem(sys.modules, "livekit", MagicMock(wakeword=fake_wakeword))
+    monkeypatch.setitem(sys.modules, "livekit.wakeword", fake_wakeword)
+
+    assert cli.cmd_test_wake(SimpleNamespace()) == 0
+
+
+def test_cmd_test_wake_does_not_import_satellite_sayso() -> None:
+    source = inspect.getsource(cli.cmd_test_wake)
+    assert "satellite.sayso" not in source
+    assert "from .wake.eval import" in source
+
+
+def test_cmd_test_wake_importable_with_satellite_on_pythonpath(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    eval_root = tmp_path / "eval"
+    eval_root.mkdir()
+    (eval_root / "cases.json").write_text(
+        json.dumps({"version": 1, "cases": []}),
+        encoding="utf-8",
+    )
+
+    cfg = _config(tmp_path)
+    cfg.wake_word = SimpleNamespace(
+        model=model_path,
+        phrase="SaySo",
+        threshold=0.65,
+    )
+
+    satellite_root = Path(__file__).resolve().parents[1]
+    if str(satellite_root) not in sys.path:
+        sys.path.insert(0, str(satellite_root))
+
+    deployed_cli = importlib.import_module("sayso.cli")
+
+    monkeypatch.setattr(deployed_cli, "load_config", lambda: cfg)
+    monkeypatch.setattr(
+        "sayso.wake.eval.satellite_eval_root",
+        lambda: eval_root,
+    )
+
+    mock_model = MagicMock()
+    mock_model.predict.return_value = {"sayso": 0.0}
+    fake_wakeword = MagicMock(WakeWordModel=MagicMock(return_value=mock_model))
+    monkeypatch.setitem(sys.modules, "livekit", MagicMock(wakeword=fake_wakeword))
+    monkeypatch.setitem(sys.modules, "livekit.wakeword", fake_wakeword)
+
+    assert deployed_cli.cmd_test_wake(SimpleNamespace()) == 0

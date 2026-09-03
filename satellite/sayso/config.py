@@ -14,6 +14,7 @@ SECRETS_PATH = Path("/etc/sayso-satellite/secrets.yaml")
 @dataclass
 class SatelliteCfg:
     name: str
+    device_name: str
     area: str
 
 
@@ -108,6 +109,7 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
     cfg = AppConfig(
         satellite=SatelliteCfg(
             name=str(_req(raw, "satellite", "name")),
+            device_name=str(_req(raw, "satellite", "device_name")),
             area=str(_req(raw, "satellite", "area")),
         ),
         home_assistant=HomeAssistantCfg(port=int(_req(raw, "home_assistant", "port"))),
@@ -124,6 +126,8 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
     errors: list[str] = []
     if not cfg.satellite.name.strip():
         errors.append("satellite.name is empty")
+    if not cfg.satellite.device_name.strip():
+        errors.append("satellite.device_name is empty")
     if cfg.home_assistant.port < 1 or cfg.home_assistant.port > 65535:
         errors.append(f"home_assistant.port {cfg.home_assistant.port} is not a valid TCP port")
     if cfg.audio.sample_rate != 16000:
