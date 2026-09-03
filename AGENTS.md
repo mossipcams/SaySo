@@ -56,3 +56,13 @@ Defer until the voice path works end to end:
 - One numbered TDD unit at a time unless the user already authorized
   continuing.
 - Do not commit `context.json`.
+
+## Architecture alignment
+
+- Read `ARCHITECTURE.md` at the repo root before changing runtime wiring or assuming topology.
+- Treat Home Assistant as authoritative for entities, exposure, context, tools, and action execution.
+- Keep llama.cpp inference-only; model-generated tool calls must validate against current Home Assistant schemas before execution.
+- Keep the SaySo integration as the only bridge between model output and Home Assistant tools.
+- Keep the satellite as an optional thin overlay for local wake detection and edge audio; it must not perform language understanding, model inference, or actions.
+- Do not introduce a central SaySo server, broker, custom action protocol, or direct satellite-to-llama.cpp connection.
+- Update `ARCHITECTURE.md` only when ownership, runtime communication, trust boundaries, or an architectural invariant changes.

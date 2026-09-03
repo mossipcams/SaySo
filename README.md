@@ -1,8 +1,8 @@
 # SaySo
 
-SaySo is a fully local [Home Assistant](https://www.home-assistant.io/) conversation agent. Home Assistant routes transcribed voice or text to SaySo; SaySo calls your user-managed [llama.cpp](https://github.com/ggerganov/llama.cpp) server for language understanding and tool selection, then executes allowed actions through Home Assistant’s native LLM tool API.
+SaySo is a fully local [Home Assistant](https://www.home-assistant.io/) voice assistant. Home Assistant is authoritative for the voice pipeline, entities, context, tools, and action execution. SaySo connects its conversation agent to your user-managed [llama.cpp](https://github.com/ggerganov/llama.cpp) server for language understanding and tool selection, then executes validated actions through Home Assistant’s native LLM tool API.
 
-SaySo does not run audio, wake-word, STT, TTS, satellite, or model-hosting software. See [ARCHITECTURE.md](ARCHITECTURE.md) for runtime boundaries.
+SaySo has two independently deployable components: the Home Assistant conversation integration and an optional Linux Voice Assistant satellite overlay for local `SaySo` wake-word detection. The satellite remains a thin overlay; Home Assistant owns STT, TTS, pipeline orchestration, and smart-home actions. See [ARCHITECTURE.md](ARCHITECTURE.md) for runtime boundaries.
 
 ## Requirements
 
@@ -59,6 +59,8 @@ Use a model whose template supports tool/function calling. SaySo sends requests 
 4. Expose only the entities that assistant should control.
 
 With a standard Home Assistant voice pipeline, wake word → STT → SaySo → TTS → satellite playback stays entirely inside Home Assistant except for the HTTP call to llama.cpp.
+
+The optional satellite overlay lives under `satellite/`. It detects the wake word locally and hands control to the upstream Linux Voice Assistant. It does not perform speech recognition, language understanding, model inference, or Home Assistant actions, and it never connects directly to llama.cpp.
 
 ## Diagnostics
 
