@@ -1,0 +1,265 @@
+device_type,service,phrase,multiplier
+blinds,close_cover,Close the <device_name>,1
+blinds,close_cover,Lower the <device_name>,1
+blinds,close_cover,Shut the <device_name>,1
+blinds,open_cover,Lift the <device_name> blinds,1
+blinds,open_cover,Open the <device_name>,1
+blinds,open_cover,Raise the <device_name>,1
+blinds,stop_cover,Freeze the <device_name>,1
+blinds,stop_cover,Halt the <device_name>,1
+blinds,stop_cover,Stop the <device_name>,1
+blinds,toggle,Flip the <device_name> state,1
+blinds,toggle,Switch the <device_name> state,1
+blinds,toggle,Toggle the <device_name>,1
+blinds|fan,close_cover|turn_off,Close <device_name1> and deactivate <device_name2>,1
+blinds|fan,open_cover|increase_speed,Raise the <device_name1> and speed up the <device_name2>,1
+blinds|light,open_cover|turn_on,Raise <device_name1> and activate <device_name2>,1
+fan,decrease_speed,Decrease the <device_name> speed,1
+fan,decrease_speed,Lower the <device_name> speed,1
+fan,decrease_speed,Slow down the <device_name>,1
+fan,increase_speed,Increase the <device_name> speed,1
+fan,increase_speed,Ramp up the <device_name> speed,1
+fan,increase_speed,Speed up the <device_name>,1
+fan,toggle,Flip the <device_name> on or off,1
+fan,toggle,Switch the <device_name> state,1
+fan,toggle,Toggle the <device_name>,1
+fan,turn_off,Deactivate the <device_name>,1
+fan,turn_off,Stop the <device_name> please,1
+fan,turn_off,Turn off the <device_name>,1
+fan,turn_on,Activate the <device_name>,1
+fan,turn_on,Please start the <device_name>,1
+fan,turn_on,Turn on the <device_name>,1
+fan|blinds,turn_off|open_cover,Turn off <device_name1> and open <device_name2>,1
+fan|blinds|garage_door,increase_speed|open_cover|open_cover,Speed up <device_name1> open <device_name2> and <device_name3>,1
+fan|blinds|light,decrease_speed|open_cover|turn_off,Slow down <device_name1> open <device_name2> and turn off <device_name3>,1
+fan|blinds|light,turn_off|close_cover|turn_on,Turn off <device_name1> close <device_name2> and turn on <device_name3>,1
+fan|fan,increase_speed|decrease_speed,Speed up <device_name1> and slow down <device_name2>,1
+fan|fan,turn_on|turn_off,Turn on <device_name1> and turn off <device_name2>,1
+fan|garage_door,increase_speed|close_cover,Increase speed of <device_name1> and close <device_name2>,1
+fan|garage_door|blinds,increase_speed|close_cover|open_cover,Speed up <device_name1> close <device_name2> and open <device_name3>,1
+fan|garage_door|blinds,turn_on|close_cover|close_cover,Turn on <device_name1> close <device_name2> and <device_name3>,1
+fan|garage_door|light,turn_off|close_cover|turn_off,Turn off <device_name1> and <device_name3> and close <device_name2>,1
+fan|garage_door|lock,turn_off|close_cover|lock,Turn off <device_name1> close <device_name2> and lock <device_name3>,1
+fan|garage_door|lock,turn_on|open_cover|unlock,Turn on <device_name1> open <device_name2> and unlock <device_name3>,1
+fan|light,turn_on|turn_off,Activate <device_name1> and deactivate <device_name2>,1
+fan|light|lock,decrease_speed|toggle|lock,Slow down <device_name1> toggle <device_name2> and lock <device_name3>,1
+fan|lock,decrease_speed|unlock,Slow down the <device_name1> and unlock the <device_name2>,1
+garage_door,close_cover,Close the <device_name>,1
+garage_door,close_cover,Lower the <device_name>,1
+garage_door,close_cover,Shut the <device_name>,1
+garage_door,open_cover,Lift the <device_name>,1
+garage_door,open_cover,Open the <device_name>,1
+garage_door,open_cover,Raise the <device_name>,1
+garage_door,stop_cover,Freeze the <device_name>,1
+garage_door,stop_cover,Halt the <device_name>,1
+garage_door,stop_cover,Stop the <device_name>,1
+garage_door,toggle,Flip the <device_name> state,1
+garage_door,toggle,Switch the <device_name> state,1
+garage_door,toggle,Toggle the <device_name>,1
+garage_door|blinds,open_cover|open_cover,Open the <device_name1> and lift the <device_name2>,1
+garage_door|fan,close_cover|turn_off,Close <device_name1> and deactivate <device_name2>,1
+garage_door|light,open_cover|turn_on,Open <device_name1> and activate <device_name2>,1
+garage_door|lock,open_cover|unlock,Open <device_name1> and unlock <device_name2>,1
+light,toggle,Flip the <device_name> on or off,1
+light,toggle,Switch the <device_name> state,1
+light,toggle,Toggle the <device_name> state,1
+light,turn_off,Deactivate the <device_name>,1
+light,turn_off,Please switch off the <device_name>,1
+light,turn_off,Turn off the <device_name>,1
+light,turn_on,Activate the <device_name>,1
+light,turn_on,Can you turn on the <device_name>?,1
+light,turn_on,Please switch on the <device_name>,1
+light|blinds,turn_off|close_cover,Turn off <device_name1> and close <device_name2>,1
+light|blinds|fan,turn_on|close_cover|decrease_speed,Turn on <device_name1> close <device_name2> and slow down <device_name3>,1
+light|blinds|garage_door,turn_on|open_cover|close_cover,Turn on <device_name1> open <device_name2> and close <device_name3>,1
+light|blinds|lock,turn_off|close_cover|lock,"Turn off the <device_name1> close the <device_name2> and lock the <device_name3>",1
+light|blinds|lock,turn_off|close_cover|unlock,Turn off <device_name1> close <device_name2> and unlock <device_name3>,1
+light|fan,toggle|decrease_speed,Toggle <device_name1> and slow down <device_name2>,1
+light|fan,toggle|increase_speed,Toggle <device_name1> and speed up <device_name2>,1
+light|fan,turn_off|turn_on,Turn off the <device_name1> and turn on <device_name2>,1
+light|fan,turn_on|toggle,Switch on <device_name1> and toggle <device_name2>,1
+light|fan,turn_on|turn_off,Turn on the <device_name1> and turn off the <device_name2>,1
+light|fan,turn_on|turn_on,Turn on both the <device_name1> and <device_name2>,1
+light|fan,turn_on|turn_on,Turn on the <device_name1> and <device_name2>,1
+light|fan|blinds,toggle|increase_speed|open_cover,Toggle <device_name1> speed up <device_name2> and open <device_name3>,1
+light|fan|blinds,turn_off|decrease_speed|close_cover,Turn off <device_name1> slow down <device_name2> and close <device_name3>,1
+light|fan|blinds,turn_off|turn_off|close_cover,Turn off <device_name1> and <device_name2> and close <device_name3>,1
+light|fan|garage_door,toggle|decrease_speed|open_cover,Toggle <device_name1> slow down <device_name2> and open <device_name3>,1
+light|fan|garage_door,turn_off|turn_on|close_cover,Turn off <device_name1> turn on <device_name2> and close <device_name3>,1
+light|fan|garage_door,turn_on|toggle|open_cover,"Switch on the <device_name1> flip the <device_name2> and lift the <device_name3>",1
+light|fan|garage_door,turn_on|turn_on|open_cover,Turn on <device_name1> and <device_name2> and open <device_name3>,1
+light|fan|lock,toggle|toggle|lock,Toggle both <device_name1> and <device_name2> and lock <device_name3>,1
+light|fan|lock,turn_off|turn_off|unlock,Turn off <device_name1> and <device_name2> and unlock <device_name3>,1
+light|fan|lock,turn_on|increase_speed|lock,Turn on <device_name1> speed up <device_name2> and lock <device_name3>,1
+light|fan|lock,turn_on|turn_on|unlock,Turn on both <device_name1> and <device_name2> and unlock <device_name3>,1
+light|garage_door,toggle|stop_cover,Toggle the <device_name1> and stop the <device_name2>,1
+light|garage_door,turn_on|open_cover,Switch on <device_name1> and open <device_name2>,1
+light|garage_door,turn_on|open_cover,Switch on the <device_name1> and open the <device_name2>,1
+light|garage_door|lock,turn_on|open_cover|lock,Turn on <device_name1> open <device_name2> and lock <device_name3>,1
+light|light,toggle|toggle,Toggle both <device_name1> and <device_name2>,1
+light|light,turn_on|turn_off,Turn on <device_name1> and turn off <device_name2>,1
+light|light|fan,toggle|toggle|decrease_speed,Toggle both <device_name1> and <device_name2> and slow down <device_name3>,1
+light|light|fan,toggle|turn_on|increase_speed,Toggle <device_name1> turn on <device_name2> and speed up <device_name3>,1
+light|light|fan,turn_on|turn_off|toggle,Turn on <device_name1> turn off <device_name2> and toggle <device_name3>,1
+light|lock,turn_on|lock,Turn on <device_name1> and lock <device_name2>,1
+lock,lock,Engage the <device_name> lock,1
+lock,lock,Lock the <device_name>,1
+lock,lock,Secure the <device_name>,1
+lock,unlock,Disengage the <device_name> lock,1
+lock,unlock,Unlock the <device_name>,1
+lock,unlock,Unsecure the <device_name>,1
+lock|blinds,lock|close_cover,Lock the <device_name1> and lower the <device_name2>,1
+lock|garage_door,lock|close_cover,Secure the <device_name1> and shut the <device_name2>,1
+light,turn_on,Make sure the <device_name> is on,1
+fan,turn_on,Make sure the <device_name> is on,1
+lock|lock|garage_door,lock|lock|close_cover,Make sure <device_name1> and <device_name2> are locked and the <device_name3> is closed,1
+light,turn_off,Ensure the <device_name> is off,1
+fan,turn_off,Ensure the <device_name> is off,1
+garage_door,close_cover,Make certain the <device_name> is closed,1
+blinds,open_cover,See to it that the <device_name> are open,1
+lock,lock,Ensure <device_name> is secure,1
+light,toggle,Can you flip the <device_name>,1
+fan,increase_speed,Step up the speed of the <device_name>,1
+garage_door,open_cover,Make certain the <device_name> is open,1
+blinds,close_cover,See to it that the <device_name> are closed,1
+lock,unlock,Make sure <device_name> is unlocked,1
+fan,decrease_speed,Slow down the <device_name>,1
+light,turn_on,Confirm that the <device_name> is on,1
+garage_door,stop_cover,Stop the <device_name> right now,1
+light,turn_off,Confirm that the <device_name> is off,1
+garage_door,toggle,Toggle the <device_name> position,1
+blinds,toggle,Switch the state of the <device_name>,1
+lock,lock,Lock down the <device_name>,1
+fan,turn_on,Make certain the <device_name> is running,1
+switch,turn_on,"Can you turn on <device_name>?",1
+switch,turn_off,"Please switch off <device_name>.",1
+switch,toggle,"Could you toggle <device_name>?",1
+switch,turn_on,"I need <device_name> on",1
+switch,turn_off,"Turn off <device_name>",1
+switch,toggle,"Can <device_name> be toggled?",1
+switch,turn_on,"Activate <device_name>.",1
+switch,turn_off,"Deactivate <device_name>.",1
+switch,toggle,"Is it possible to toggle the <device_name>?",1
+switch,turn_on,"Let's have <device_name> on.",1
+switch,turn_off,"We don't need <device_name> on anymore.",1
+switch,toggle,"Toggle <device_name> for me.",1
+switch,turn_on,"Switch on <device_name>",1
+switch,turn_off,"I'd like <device_name> off now.",1
+switch,toggle,"Can you change the state of <device_name>?",1
+switch,turn_on,"Please turn on <device_name>.",1
+switch,turn_off,"Shut off <device_name>",1
+switch,toggle,"A quick toggle of <device_name>",1
+switch,turn_on,"<device_name> needs to be on.",1
+switch,turn_off,"Time to turn <device_name> off.",1
+media_player,volume_up,"Increase the volume on <device_name>.",1
+media_player,volume_up,"Turn up <device_name> a bit.",1
+media_player,volume_up,"Louder on <device_name>",1
+media_player,volume_down,"Can you lower <device_name>'s volume?",1
+media_player,volume_down,"Decrease the volume on <device_name>.",1
+media_player,volume_down,"Turn down <device_name>",1
+media_player,volume_mute,"Mute <device_name>",1
+media_player,volume_mute,"Silence <device_name> for a moment.",1
+media_player,volume_mute,"Can you mute <device_name>?",1
+media_player,media_play,"Start playing on <device_name>.",1
+media_player,media_play,"Can you play <device_name>?",1
+media_player,media_play,"Play the media on <device_name>",1
+media_player,media_pause,"Pause <device_name>.",1
+media_player,media_pause,"Can you pause <device_name>?",1
+media_player,media_pause,"Hold the playback on <device_name>",1
+media_player,media_stop,"Stop <device_name> completely.",1
+media_player,media_stop,"Can you stop playback on <device_name>?",1
+media_player,media_stop,"End the session on <device_name>",1
+media_player,media_next_track,"Next track on <device_name>",1
+media_player,media_next_track,"Advance <device_name> to the next song.",1
+media_player,media_next_track,"Skip this track on <device_name>.",1
+media_player,media_previous_track,"Previous track on <device_name>",1
+media_player,media_previous_track,"Rewind to the previous song on <device_name>.",1
+media_player,media_previous_track,"Can we go back a track on <device_name>?",1
+climate,set_temperature,"Set the temperature to <temp_f> degrees.",8
+climate,set_temperature,"Can you change the temperature to <temp_c> Celsius?",8
+climate,set_temperature,"I'd like the room at <temp_f> degrees Fahrenheit",8
+climate,set_temperature,"Please adjust the temperature to <temp_f> degrees.",8
+climate,set_temperature,"Can you lower the temperature to <temp_c>?",8
+climate,set_temperature,"Raise the temperature to <temp_f> degrees",8
+climate,set_humidity,"Increase the humidity to <humidity>.",8
+climate,set_humidity,"Set the humidity level to <humidity> percent.",8
+climate,set_humidity,"Can you adjust the humidity to <humidity> percent?",8
+climate,set_fan_mode,"Set the climate fan to <fan_mode> speed.",8
+climate,set_fan_mode,"Please put the climate fan on <fan_mode>.",8
+climate,set_fan_mode,"Change the air conditioning fan to <fan_mode>.",8
+climate,set_hvac_mode,"Switch the system to <hvac_mode> mode.",8
+climate,set_hvac_mode,"Can we set the HVAC to <hvac_mode>?",8
+climate,set_hvac_mode,"Change the HVAC to <hvac_mode>.",8
+light,turn_on,"Set the brightness of <device_name> to <brightness>%.",8
+light,turn_on,"Dim <device_name> to <brightness> percent brightness.",8
+light,turn_on,"Brighten <device_name> to <brightness>.",8
+light,turn_on,"Adjust <device_name> brightness to <brightness>.",8
+light,turn_on,"Increase <device_name>'s brightness to <brightness>.",8
+light,turn_on,"Lower the brightness of <device_name> to <brightness>.",8
+light,turn_on,"Can you set <device_name>'s brightness level to <brightness> percent?",8
+light,turn_on,"I'd like <device_name> at <brightness> percent brightness",8
+light,turn_on,"Can you make <device_name> <color>?",8
+light,turn_on,"Change the color of <device_name> to <color>.",8
+light,turn_on,"Change <device_name> to a <color> hue.",8
+light,turn_on,"Set <device_name> to be <color>.",8
+light,turn_on,"I want <device_name> to be <color>",8
+light,turn_on,"Can you make <device_name> shine in <color>?",8
+light,turn_on,"Turn <device_name> to a <color> shade.",8
+light,turn_on,"Turn <device_name> <color>.",8
+light,turn_on,"I want <device_name> at a <color> setting.",8
+light,turn_on,"Set <device_name> to a <color> color.",8
+light,turn_on,"Please set <device_name> to a <color> color.",8
+light,turn_on,"Make <device_name> glow <color>.",8
+light,turn_on,"Could you turn <device_name> to <color>?",8
+light,turn_on,"Please change <device_name> to <color>.",8
+light,turn_on,"Adjust <device_name> to <color> color.",8
+light,turn_on,"Switch <device_name> color to <color>.",8
+light,turn_on,"Can <device_name> be <color> now?",8
+light,turn_on,"Let's have <device_name> in <color>.",8
+light,turn_on,"I'd like <device_name> to change to <color>.",8
+light,turn_on,"Can <device_name> display a <color> light?",8
+light,turn_on,"Set <device_name> color to <color>",8
+vacuum,start,"Start cleaning with <device_name>.",2
+vacuum,start,"Begin vacuuming with <device_name>.",2
+vacuum,start,"Activate <device_name> to clean.",2
+vacuum,start,"Could you please start <device_name>?",2
+vacuum,start,"Hey, get <device_name> going, would you?",2
+vacuum,stop,"Stop <device_name>'s operation.",2
+vacuum,stop,"Please halt <device_name>'s current task",2
+vacuum,stop,"Please stop <device_name>",2
+vacuum,stop,"Can you make <device_name> stop?",2
+vacuum,stop,"Stop <device_name> from cleaning.",2
+vacuum,pause,"Freeze <device_name>'s current task.",2
+vacuum,pause,"Would you mind pausing <device_name> for a moment?",2
+vacuum,pause,"Hey, can we put <device_name> on pause, please?",2
+vacuum,pause,"Pause the <device_name> cleaning.",2
+vacuum,pause,"Pause <device_name>",2
+vacuum,return_to_base,"Send <device_name> back to its base.",2
+vacuum,return_to_base,"Please send <device_name> back to its base, if you would.",2
+vacuum,return_to_base,"Time to head home, <device_name>. Can you call it back?",2
+vacuum,return_to_base,"Direct <device_name> to dock.",2
+vacuum,return_to_base,"Return <device_name> to its charging station.",2
+todo,add_item,"Please add <todo> to my <device_name>.",8
+todo,add_item,"Can you add <todo> to the <device_name>?",8
+todo,add_item,"I need <todo> added to my <device_name>.",8
+todo,add_item,"Go ahead and add <todo> to the <device_name>.",8
+todo,add_item,"Could you please input <todo> into my <device_name>?",8
+todo,add_item,"Kindly insert <todo> onto the <device_name>.",8
+todo,add_item,"May I request that <todo> be included in the <device_name>?",8
+todo,add_item,"It would be much appreciated if <todo> could be put on the <device_name>.",8
+todo,add_item,"Shall we append <todo> to my <device_name>?",8
+todo,add_item,""Let's add <todo> to the <device_name>",8
+todo,add_item,"Could you place <todo> onto my <device_name>?",8
+todo,add_item,"Will you be so kind as to incorporate <todo> into the <device_name>?",8
+todo,add_item,"Is it possible to include <todo> in the <device_name>?",8
+todo,add_item,"Could we add <todo> to my <device_name>?",8
+timer,start,"Please set my <device_name> for <duration>.",8
+timer,start,"Turn on the <device_name> timer for <duration>.",8
+timer,start,"Set the <device_name> for <duration>.",8
+timer,start,"Start the <device_name> timer for <duration>.",8
+timer,start,"Set a <duration> <device_name>.",8
+timer,cancel,"Cancel the <device_name> timer.",8
+timer,cancel,"Please stop my <device_name>.",8
+timer,cancel,"Turn off the <device_name>.",8
+timer,cancel,"Please shut off the <device_name> timer.",8
+timer,cancel,"The <device_name> is no longer needed.",8

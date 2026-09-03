@@ -21,9 +21,9 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--view",
-        choices=("axolotl", "sayso"),
+        choices=("axolotl", "sayso", "lfm"),
         default="axolotl",
-        help="axolotl: dict arguments for FunctionGemma template; sayso: JSON strings",
+        help="axolotl: dict arguments for FunctionGemma; sayso/lfm: JSON strings for runtime",
     )
     parser.add_argument("--stats", type=Path, help="Write rejection stats JSON")
     args = parser.parse_args()

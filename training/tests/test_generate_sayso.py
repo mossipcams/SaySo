@@ -10,11 +10,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.generate_sayso_examples import MIX, generate_examples  # noqa: E402
+from generators.home_llm_piles import SAMPLE_FACTORS, generate_pile_examples  # noqa: E402
+
+
+def _examples(count: int, seed: int = 42):
+    produced = 0
+    for example in generate_pile_examples(seed=seed, factors=SAMPLE_FACTORS):
+        yield example
+        produced += 1
+        if produced >= count:
+            break
 
 
 def test_generator_emits_valid_jsonl_shape() -> None:
-    example = next(generate_examples(1, seed=7))
+    example = next(_examples(1, seed=7))
     assert "messages" in example
     assert "tools" in example
     assert "metadata" in example
@@ -28,14 +37,13 @@ def test_generator_emits_valid_jsonl_shape() -> None:
 
 
 def test_generator_mix_categories() -> None:
-    examples = list(generate_examples(200, seed=123))
-    assert len(examples) == 200
+    examples = list(generate_pile_examples(seed=123, factors=SAMPLE_FACTORS))
     templates = Counter(ex["metadata"]["template_family"] for ex in examples)
     assert len(templates) >= 5
 
 
 def test_no_entity_id_in_tool_arguments() -> None:
-    for example in generate_examples(50, seed=99):
+    for example in _examples(50, seed=99):
         for message in example["messages"]:
             for tc in message.get("tool_calls") or []:
                 args = tc["function"]["arguments"]
@@ -49,13 +57,38 @@ def test_no_entity_id_in_tool_arguments() -> None:
 def test_multi_example_adapts() -> None:
     from adapters.home_llm_v2 import convert_entry
 
-    for example in generate_examples(30, seed=55):
-        if example["metadata"]["template_family"] == "multi_off_on":
+    for example in generate_pile_examples(seed=55, factors=SAMPLE_FACTORS):
+        if example["metadata"]["template_family"] == "pile_templated_multi":
             assert convert_entry(example, seed=1) is not None
             return
-    raise AssertionError("no multi_off_on example in sample")
+    raise AssertionError("no pile_templated_multi example in sample")
 
 
-def test_mix_weights_documented() -> None:
-    total = sum(weight for _cat, weight in MIX)
-    assert total == 100
+def test_generated_examples_adapt_without_schema_validation_failures() -> None:
+    from adapters.home_llm_v2 import convert_entry
+    from adapters.schema import RejectionStats
+
+    stats = RejectionStats()
+    converted = 0
+    for example in _examples(200, seed=42):
+        if convert_entry(example, seed=42, stats=stats) is not None:
+            converted += 1
+    assert stats.counts.get("schema_validation_failed", 0) == 0
+    assert converted > 0
+
+
+def test_generated_tools_are_v1_subset_with_function_envelope() -> None:
+    allowed = {
+        "GetDateTime",
+        "GetLiveContext",
+        "HassCancelAllTimers",
+        "HassFanSetSpeed",
+        "HassLightSet",
+        "HassTurnOff",
+        "HassTurnOn",
+    }
+    for example in _examples(40, seed=11):
+        names = {tool["function"]["name"] for tool in example["tools"]}
+        assert names == allowed
+        for tool in example["tools"]:
+            assert tool["type"] == "function"
