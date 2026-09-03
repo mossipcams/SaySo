@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Callable, Dict, Type
 
@@ -23,6 +24,20 @@ def _chain_chime_play(player: Any, path: str, done_callback: Callable[[], None] 
         player._done_callback = chained
         return
     player.play(str(path), done_callback=done_callback)
+
+
+def _schedule_chime_play(
+    player: Any,
+    path: str,
+    done_callback: Callable[[], None] | None,
+) -> None:
+    """Defer chime play until after the ESPHome packet handler returns."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _chain_chime_play(player, path, done_callback)
+        return
+    loop.call_soon(_chain_chime_play, player, path, done_callback)
 
 
 def install_voice_handlers(
@@ -68,7 +83,7 @@ def install_voice_handlers(
         if event_type == VoiceAssistantEventType.VOICE_ASSISTANT_STT_END:
             if data.get("text", "").strip():
                 _LOGGER.debug("Playing acknowledgement sound after successful STT")
-                _chain_chime_play(self.state.tts_player, str(sounds.wake), None)
+                _schedule_chime_play(self.state.tts_player, str(sounds.wake), None)
             else:
                 _LOGGER.debug("Playing failure sound after empty STT transcript")
                 self._chime_rearm_pending = True
@@ -78,7 +93,7 @@ def install_voice_handlers(
                     if wake_hook is not None:
                         wake_hook.rearm()
 
-                _chain_chime_play(
+                _schedule_chime_play(
                     self.state.tts_player,
                     str(sounds.failure),
                     _failure_chime_done,
@@ -92,7 +107,7 @@ def install_voice_handlers(
                 if wake_hook is not None:
                     wake_hook.rearm()
 
-            _chain_chime_play(
+            _schedule_chime_play(
                 self.state.tts_player,
                 str(sounds.failure),
                 _error_chime_done,
