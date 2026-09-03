@@ -5,7 +5,6 @@ import logging
 import os
 import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 
@@ -101,40 +100,9 @@ def _pulse_device(device: str) -> str:
 
 def _play_sound(path: Path | str, device: str, timeout: float = 15.0) -> int:
     """Play through the same repaired mpv path used by the satellite."""
-    from .launcher import _configure_mpv
+    from .playback import play_sound
 
-    try:
-        _configure_mpv()
-        from linux_voice_assistant.mpv_player import MpvMediaPlayer
-        from linux_voice_assistant.player.libmpv import LibMpvPlayer
-
-        done = threading.Event()
-        failed = threading.Event()
-        original_end_file = LibMpvPlayer._on_end_file
-
-        def observe_end_file(player, event) -> None:
-            if getattr(getattr(event, "data", None), "reason", -1) == 4:
-                failed.set()
-            original_end_file(player, event)
-
-        LibMpvPlayer._on_end_file = observe_end_file
-        try:
-            player = MpvMediaPlayer(device=device)
-        finally:
-            LibMpvPlayer._on_end_file = original_end_file
-        player.play(str(path), done_callback=done.set)
-    except Exception:
-        logging.exception("Audio playback failed")
-        return 1
-
-    if not done.wait(timeout):
-        logging.error("Audio playback timed out after %.1f seconds", timeout)
-        try:
-            player.stop()
-        except Exception:
-            logging.exception("Could not stop timed-out audio playback")
-        return 1
-    return int(failed.is_set())
+    return play_sound(path, device, timeout=timeout)
 
 
 def cmd_test_mic(_: argparse.Namespace) -> int:
@@ -188,18 +156,59 @@ def cmd_test_wake(_: argparse.Namespace) -> int:
             "Do not substitute hey_livekit, hey_jarvis, or another phrase."
         )
         return 2
-    import numpy as np
-    from livekit.wakeword import WakeWordModel
 
-    model = WakeWordModel(models=[str(path)])
-    silence = np.zeros(16000 * 2, dtype=np.int16)
-    scores = model.predict(silence)
-    print(f"silence_scores={scores}")
-    print(
-        "Model loaded. Positive/negative sample detection is NOT claimed "
-        "without recorded SaySo utterances. Wake is only operational after "
-        "those samples pass."
-    )
+    from .wake.eval import run_wake_eval, satellite_eval_root
+
+    eval_root = satellite_eval_root()
+    print(f"eval_root={eval_root}")
+    try:
+        report = run_wake_eval(
+            model_path=path,
+            eval_root=eval_root,
+            phrase=cfg.wake_word.phrase,
+            threshold=cfg.wake_word.threshold,
+            refractory_seconds=0.0,
+        )
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    summary = report.get("summary", {})
+    aggregate = report.get("aggregate", {})
+    print(f"summary={summary}")
+    pi_inference = aggregate.get("pi_inference_ms")
+    if pi_inference:
+        print(f"pi_inference_ms={pi_inference}")
+
+    for entry in report.get("results", []):
+        case_id = entry.get("case_id")
+        status = entry.get("status")
+        parts = [f"case={case_id}", f"status={status}"]
+        if entry.get("detected") is not None:
+            parts.append(f"detected={entry['detected']}")
+        if entry.get("missing_first_word") is not None:
+            parts.append(f"missing_first_word={entry['missing_first_word']}")
+        if entry.get("stt_transcript_success") is not None:
+            parts.append(f"stt_ok={entry['stt_transcript_success']}")
+        if entry.get("speech_end_to_ack_ms") is not None:
+            parts.append(f"speech_end_to_ack_ms={entry['speech_end_to_ack_ms']}")
+        if entry.get("pi_inference_ms") is not None:
+            parts.append(f"pi_inference_ms={entry['pi_inference_ms']}")
+        print(" ".join(parts))
+
+    failed = int(summary.get("failed", 0))
+    errors = int(summary.get("errors", 0))
+    if failed > 0 or errors > 0:
+        return 1
+
+    passed = int(summary.get("passed", 0))
+    skipped = int(summary.get("skipped", 0))
+    if passed == 0 and skipped > 0:
+        print(
+            "No recorded fixtures evaluated; model loaded. "
+            "Add WAV files under satellite/eval/audio/ and optional STT stubs "
+            "under satellite/eval/fixtures/stt/."
+        )
     return 0
 
 

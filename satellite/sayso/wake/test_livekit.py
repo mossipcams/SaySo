@@ -1,4 +1,4 @@
-"""LiveKitWakeWordProvider: hop accumulation must survive resume()."""
+"""LiveKitWakeWordProvider: hop accumulation and worker-friendly predict."""
 
 from __future__ import annotations
 
@@ -9,14 +9,13 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-# ponytail: pytest file-path mode puts wake/ on sys.path; satellite/ is the sayso root
 _SATELLITE_ROOT = Path(__file__).resolve().parents[2]
 if str(_SATELLITE_ROOT) not in sys.path:
     sys.path.insert(0, str(_SATELLITE_ROOT))
 
 from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES, LiveKitWakeWordProvider  # noqa: E402
 
-CHUNK_SAMPLES = 512  # deliberately below HOP_SAMPLES (2560)
+CHUNK_SAMPLES = 512
 
 
 def _silence_pcm(n_samples: int) -> bytes:
@@ -34,11 +33,10 @@ def mock_wake_model(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     return mock_model
 
 
-def test_predict_runs_across_resume_with_sub_hop_chunks(
+def test_predict_window_uses_numpy_buffer_without_tolist(
     mock_wake_model: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Idle overlay resume() between mic chunks must not zero the hop counter."""
     model_path = tmp_path / "hey_ferra.onnx"
     model_path.write_bytes(b"fake-onnx")
 
@@ -50,13 +48,30 @@ def test_predict_runs_across_resume_with_sub_hop_chunks(
     assert provider.available
     provider.start()
 
-    chunk = _silence_pcm(CHUNK_SAMPLES)
-    samples_fed = 0
-    while samples_fed < WINDOW_SAMPLES:
-        provider.suspend()
-        provider.resume()
-        provider.process_pcm(chunk)
-        samples_fed += CHUNK_SAMPLES
+    window = np.zeros(WINDOW_SAMPLES, dtype=np.int16)
+    provider.predict_window(window)
+
+    mock_wake_model.predict.assert_called_once()
+    passed = mock_wake_model.predict.call_args.args[0]
+    assert isinstance(passed, np.ndarray)
+    assert passed.dtype == np.int16
+
+
+def test_process_pcm_runs_predict_after_window_and_hop(
+    mock_wake_model: MagicMock,
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "hey_ferra.onnx"
+    model_path.write_bytes(b"fake-onnx")
+
+    provider = LiveKitWakeWordProvider(
+        model_path=model_path,
+        phrase="hey ferra",
+        threshold=0.99,
+    )
+    provider.start()
+
+    chunk = _silence_pcm(WINDOW_SAMPLES + HOP_SAMPLES)
+    provider.process_pcm(chunk)
 
     mock_wake_model.predict.assert_called()
-    assert CHUNK_SAMPLES < HOP_SAMPLES

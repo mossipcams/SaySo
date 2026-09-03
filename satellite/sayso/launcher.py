@@ -5,34 +5,21 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from types import SimpleNamespace
 
 from .config import load_config
-from .process_audio import make_process_audio
+from .events import install_voice_handlers
+from .playback import configure_pulse_mpv, install_playback_recovery
+from .process_audio import install_wake_audio_path
+from .wake.hook import SaySoExternalWakeHook
 from .wake.livekit import LiveKitWakeWordProvider
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def _configure_mpv() -> None:
-    """Use PulseAudio and recover the pinned player from playback errors."""
-    from linux_voice_assistant.player import libmpv
-
-    original_mpv = libmpv.mpv.MPV
-    original_end_file = libmpv.LibMpvPlayer._on_end_file
-
-    def pulse_mpv(*args, **kwargs):
-        kwargs.setdefault("ao", "pulse")
-        return original_mpv(*args, **kwargs)
-
-    def end_file(player, event) -> None:
-        reason = getattr(getattr(event, "data", None), "reason", -1)
-        if reason == 4:
-            event = SimpleNamespace(data=SimpleNamespace(reason=0))
-        original_end_file(player, event)
-
-    libmpv.mpv.MPV = pulse_mpv
-    libmpv.LibMpvPlayer._on_end_file = end_file
+    """Configure PulseAudio output and explicit mpv playback recovery."""
+    configure_pulse_mpv()
+    install_playback_recovery()
 
 
 def main() -> None:
@@ -44,6 +31,8 @@ def main() -> None:
         "linux-voice-assistant",
         "--name",
         cfg.satellite.name,
+        "--device-name",
+        cfg.satellite.device_name,
         "--port",
         str(cfg.home_assistant.port),
         "--audio-input-device",
@@ -58,11 +47,10 @@ def main() -> None:
         str(cfg.audio.auto_gain),
         "--refractory-seconds",
         str(cfg.wake_word.refractory_seconds),
-        "--wakeup-sound",
-        str(cfg.sounds.wake),
         "--continue-conversation-delay",
         str(cfg.wake_word.post_tts_cooldown_ms / 1000.0),
         "--disable-peripheral-api",
+        "--disable-built-in-wake-word",
     ]
     if os.environ.get("SAYSO_DEBUG") == "1":
         argv.append("--debug")
@@ -84,10 +72,12 @@ def main() -> None:
             "Run: sayso-satellite test-wake-word"
         )
 
-    os.environ["SAYSO_STABLE_NAME"] = cfg.satellite.name
     import linux_voice_assistant.__main__ as lva_main
+    from linux_voice_assistant.satellite import VoiceSatelliteProtocol
 
-    lva_main.process_audio = make_process_audio(lva_main.process_audio, provider)
+    wake_hook = SaySoExternalWakeHook(provider)
+    install_wake_audio_path(lva_main, wake_hook)
+    install_voice_handlers(VoiceSatelliteProtocol, cfg.sounds, wake_hook)
     _configure_mpv()
     lva_main.run()
 
