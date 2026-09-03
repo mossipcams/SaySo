@@ -9,6 +9,7 @@ description = "Fully local Home Assistant conversation agent using llama.cpp"
 requires-python = ">=3.12"
 dependencies = [
     "homeassistant>=2026.8.3",
+    "voluptuous-openapi==0.4.1",
 ]
 
 [project.optional-dependencies]

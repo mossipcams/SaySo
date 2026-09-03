@@ -11,5 +11,8 @@
   "integration_type": "service",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/sayso/sayso/issues",
+  "requirements": [
+    "voluptuous-openapi==0.4.1"
+  ],
   "version": "0.5.0"
 }
