@@ -131,6 +131,54 @@ class _KitchenFan(FanEntity):
         self.async_write_ha_state()
 
 
+class _MultiKitchenLight(LightEntity):
+    """Kitchen light dedicated to multi-tool payload tests."""
+
+    _attr_name = "Kitchen Light"
+    _attr_unique_id = "multi_kitchen_light"
+    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_color_mode = ColorMode.ONOFF
+
+    def __init__(self) -> None:
+        self._is_on = True
+
+    @property
+    def is_on(self) -> bool:
+        return self._is_on
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        self._is_on = True
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        self._is_on = False
+        self.async_write_ha_state()
+
+
+class _MultiPorchLight(LightEntity):
+    """Porch light for multi-tool follow-up integration tests."""
+
+    _attr_name = "Porch Light"
+    _attr_unique_id = "multi_porch_light"
+    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_color_mode = ColorMode.ONOFF
+
+    def __init__(self) -> None:
+        self._is_on = True
+
+    @property
+    def is_on(self) -> bool:
+        return self._is_on
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        self._is_on = True
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        self._is_on = False
+        self.async_write_ha_state()
+
+
 class _BedroomFan(FanEntity):
     """Fan used for confident light routing with a filtered fan tool."""
 
@@ -208,6 +256,15 @@ async def assist_ambiguous_kitchen(hass: HomeAssistant) -> None:
     setup_test_component_platform(hass, "fan", [_KitchenFan()])
     assert await async_setup_component(hass, "light", {"light": {"platform": "test"}})
     assert await async_setup_component(hass, "fan", {"fan": {"platform": "test"}})
+    assert await async_setup_component(hass, "intent", {})
+    await hass.async_block_till_done()
+
+
+@pytest.fixture
+async def assist_kitchen_and_lock(hass: HomeAssistant) -> None:
+    """Register kitchen and porch lights for multi-tool follow-up tests."""
+    setup_test_component_platform(hass, "light", [_MultiKitchenLight(), _MultiPorchLight()])
+    assert await async_setup_component(hass, "light", {"light": {"platform": "test"}})
     assert await async_setup_component(hass, "intent", {})
     await hass.async_block_till_done()
 
@@ -364,6 +421,53 @@ async def test_empty_model_response(
 
     assert result.response.response_type == intent.IntentResponseType.ERROR
     assert _speech(result) == ERROR_EMPTY_RESPONSE
+
+
+def test_chat_log_serializes_multi_tool_kitchen_and_lock() -> None:
+    """Test batched HassTurnOff + HassTurnOn transcript for kitchen/lock utterance."""
+    content: list[conversation.Content] = [
+        conversation.AssistantContent(
+            agent_id="conversation.sayso",
+            tool_calls=[
+                llm.ToolInput(
+                    id="call_lights",
+                    tool_name="HassTurnOff",
+                    tool_args={"name": "Kitchen Light"},
+                ),
+                llm.ToolInput(
+                    id="call_lock",
+                    tool_name="HassTurnOn",
+                    tool_args={"name": "Front Door"},
+                ),
+            ],
+        ),
+        conversation.ToolResultContent(
+            agent_id="conversation.sayso",
+            tool_call_id="call_lights",
+            tool_name="HassTurnOff",
+            tool_result={"success": True},
+        ),
+        conversation.ToolResultContent(
+            agent_id="conversation.sayso",
+            tool_call_id="call_lock",
+            tool_name="HassTurnOn",
+            tool_result={"success": True},
+        ),
+    ]
+
+    messages = _chat_log_to_messages(content)
+    batches = _assistant_tool_batches(messages)
+    assert len(batches) == 1
+    assert len(batches[0]) == 2
+    assert batches[0][0]["function"]["name"] == "HassTurnOff"
+    assert batches[0][1]["function"]["name"] == "HassTurnOn"
+    assert all(
+        message.get("content") == ""
+        for message in messages
+        if message.get("role") == "assistant" and message.get("tool_calls")
+    )
+    tool_ids = [message["tool_call_id"] for message in messages if message.get("role") == "tool"]
+    assert tool_ids == ["call_lights", "call_lock"]
 
 
 def test_chat_log_serializes_batched_tool_calls_deterministically() -> None:
@@ -626,6 +730,56 @@ async def test_batched_tool_calls_transcript_and_follow_up(
     else:
         assert result.response.response_type == intent.IntentResponseType.ERROR
         assert _speech(result) == ERROR_ACTION_FAILED
+
+
+async def test_multi_tool_follow_up_inference_payload(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+    assist_kitchen_and_lock: None,
+) -> None:
+    """Follow-up request carries one assistant batch and ordered tool results."""
+    entry = await _create_entry(hass)
+    tool_calls = [
+        ToolCall(
+            id="call_lights",
+            name="HassTurnOff",
+            arguments={"name": "Kitchen Light"},
+        ),
+        ToolCall(
+            id="call_porch",
+            name="HassTurnOff",
+            arguments={"name": "Porch Light"},
+        ),
+    ]
+
+    with patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(
+            side_effect=[
+                ChatCompletionResult(content=None, tool_calls=tool_calls),
+                ChatCompletionResult(
+                    content="Both lights are off.",
+                    tool_calls=[],
+                ),
+            ]
+        ),
+    ) as mock_chat:
+        result = await _converse(
+            hass,
+            entry,
+            "Turn off the kitchen lights and the porch light.",
+        )
+
+    assert mock_chat.await_count == 2
+    follow_up_messages = mock_chat.await_args_list[1].args[0]
+    _assert_batch_transcript(
+        follow_up_messages,
+        expected_call_ids=["call_lights", "call_porch"],
+        expected_errors={"call_lights": False, "call_porch": False},
+    )
+    assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
+    assert _speech(result) == "Both lights are off."
 
 
 _ORIGINAL_PROVIDE_LLM_DATA = conversation.ChatLog.async_provide_llm_data
