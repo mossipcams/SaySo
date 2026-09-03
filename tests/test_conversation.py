@@ -666,6 +666,50 @@ async def test_successful_light_tool_call(
     assert _speech(result) == "The living room light is on."
 
 
+async def test_get_live_context_negative_result_requests_follow_up(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+    assist_light: None,
+) -> None:
+    """GetLiveContext success:false is a completed result, not a boundary failure."""
+    entry = await _create_entry(hass)
+
+    with patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(
+            side_effect=[
+                ChatCompletionResult(
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call_ctx",
+                            name="GetLiveContext",
+                            arguments={"name": "Nonexistent Room"},
+                        )
+                    ],
+                ),
+                ChatCompletionResult(
+                    content="I couldn't find a device named Nonexistent Room.",
+                    tool_calls=[],
+                ),
+            ]
+        ),
+    ) as mock_chat:
+        result = await _converse(hass, entry, "Is the nonexistent room light on?")
+
+    assert mock_chat.await_count == 2
+    follow_up_messages = mock_chat.await_args_list[1].args[0]
+    tool_result_message = next(
+        message for message in follow_up_messages if message.get("role") == "tool"
+    )
+    parsed_result = json.loads(tool_result_message["content"])
+    assert parsed_result["success"] is False
+    assert "error" in parsed_result
+    assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
+    assert _speech(result) == "I couldn't find a device named Nonexistent Room."
+
+
 async def test_entity_state_query_tool_call(
     hass: HomeAssistant,
     mock_llama_client: None,

@@ -414,7 +414,7 @@ class SaySoConversationEntity(
             async for _tool_result in chat_log.async_add_assistant_content(
                 assistant_content
             ):
-                if "error" in _tool_result.tool_result:
+                if _is_tool_execution_failure(_tool_result.tool_result):
                     batch_failed = True
 
             if batch_failed:
@@ -654,6 +654,11 @@ def _build_pre_execution_correction_messages(
             }
         )
     return messages
+
+
+def _is_tool_execution_failure(tool_result: dict[str, Any]) -> bool:
+    """Return whether HA reported a tool execution exception, not a negative result."""
+    return "error" in tool_result and "success" not in tool_result
 
 
 def _validate_tool_call_batch_structure(tool_calls: list[ToolCall]) -> bool:
