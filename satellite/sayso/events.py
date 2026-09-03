@@ -72,6 +72,8 @@ def install_voice_handlers(
         self._emit(LVAEvent.WAKE_WORD_DETECTED)
         self.duck()
         self._start_audio_streaming(wake_word_phrase)
+        if wake_hook is not None:
+            wake_hook.flush_preroll(self)
 
     def handle_voice_event(
         self,

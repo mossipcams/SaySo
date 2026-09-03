@@ -44,3 +44,35 @@ class WakeAudioBuffer:
 
     def window(self) -> np.ndarray:
         return self._ring.view()
+
+
+class WakePrerollLookback:
+    """Rolling PCM lookback for post-wake STT preroll flush."""
+
+    def __init__(self, preroll_ms: int, sample_rate: int = 16000) -> None:
+        capacity = max(0, preroll_ms * sample_rate // 1000)
+        self._ring = Int16RingBuffer(capacity) if capacity > 0 else None
+        self._sample_rate = sample_rate
+
+    def clear(self) -> None:
+        if self._ring is not None:
+            self._ring.clear()
+
+    def feed(self, pcm_s16le: bytes) -> None:
+        if self._ring is None or not pcm_s16le:
+            return
+        samples = np.frombuffer(pcm_s16le, dtype="<i2")
+        self._ring.extend(samples)
+
+    def flush_bytes(self, wake_skip_ms: int) -> bytes:
+        if self._ring is None or self._ring.size == 0:
+            return b""
+        skip_samples = wake_skip_ms * self._sample_rate // 1000
+        window = self._ring.view()
+        if skip_samples >= window.size:
+            trail_samples = min(
+                250 * self._sample_rate // 1000,
+                window.size,
+            )
+            return window[-trail_samples:].astype("<i2", copy=False).tobytes()
+        return window[skip_samples:].astype("<i2", copy=False).tobytes()
