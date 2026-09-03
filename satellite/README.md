@@ -12,3 +12,5 @@ Operational commands (also /usr/local/bin/sayso-satellite):
   sayso-satellite test-mic
   sayso-satellite test-speaker
   sayso-satellite test-wake-word
+
+Copy `models/sayso.onnx` to `/opt/sayso-satellite/models/sayso.onnx` before start.
