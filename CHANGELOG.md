@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/mossipcams/SaySo/compare/0.5.2...0.5.3) (2026-09-03)
+
+
+### Bug Fixes
+
+* flush wake preroll into STT and record HA tool error class ([401f42c](https://github.com/mossipcams/SaySo/commit/401f42cbe2cb7e2e97027cec898031877487df78))
+
 ## [0.5.2](https://github.com/mossipcams/SaySo/compare/0.5.1...0.5.2) (2026-09-03)
 
 
