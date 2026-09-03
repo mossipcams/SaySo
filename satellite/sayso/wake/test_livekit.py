@@ -14,7 +14,7 @@ _SATELLITE_ROOT = Path(__file__).resolve().parents[2]
 if str(_SATELLITE_ROOT) not in sys.path:
     sys.path.insert(0, str(_SATELLITE_ROOT))
 
-from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES, LiveKitWakeWordProvider
+from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES, LiveKitWakeWordProvider  # noqa: E402
 
 CHUNK_SAMPLES = 512  # deliberately below HOP_SAMPLES (2560)
 

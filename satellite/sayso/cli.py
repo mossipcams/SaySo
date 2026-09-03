@@ -5,14 +5,13 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
 from .config import CONFIG_PATH, load_config, validate_config
 
 USER_UNIT = "sayso-satellite.service"
-PULSE_SOURCE = "alsa_input.usb-BLUE_MICROPHONE_Blue_Snowball_201301-00.mono-fallback"
-PULSE_SINK = "alsa_output.platform-fe00b840.mailbox.stereo-fallback"
 CHECK_DIR = Path("/var/tmp/sayso-satellite")
 
 
@@ -48,12 +47,6 @@ def cmd_validate(_: argparse.Namespace) -> int:
     cfg = load_config()
     validate_config(cfg, check_port_bind=True)
     print(f"OK {CONFIG_PATH}")
-    if not cfg.wake_word.model.is_file():
-        print(
-            f"WARNING: wake model missing at {cfg.wake_word.model}. "
-            "Service may start but wake detection is disabled. "
-            "sayso-satellite test-wake-word"
-        )
     return 0
 
 
@@ -66,18 +59,10 @@ def cmd_devices(_: argparse.Namespace) -> int:
     subprocess.call(["arecord", "-l"])
     print("\nALSA playback:")
     subprocess.call(["aplay", "-l"])
-    venv_python = Path("/opt/sayso-satellite/.venv/bin/python")
-    if venv_python.is_file():
-        print("\nLinux Voice Assistant input devices:")
-        subprocess.call(
-            [str(venv_python), "-m", "linux_voice_assistant", "--list-input-devices"],
-            cwd="/opt/sayso-satellite/linux-voice-assistant",
-        )
-        print("\nLinux Voice Assistant output devices:")
-        subprocess.call(
-            [str(venv_python), "-m", "linux_voice_assistant", "--list-output-devices"],
-            cwd="/opt/sayso-satellite/linux-voice-assistant",
-        )
+    print("\nLinux Voice Assistant input devices:")
+    subprocess.call([sys.executable, "-m", "linux_voice_assistant", "--list-input-devices"])
+    print("\nLinux Voice Assistant output devices:")
+    subprocess.call([sys.executable, "-m", "linux_voice_assistant", "--list-output-devices"])
     return 0
 
 
@@ -105,25 +90,70 @@ def _level_report(wav_path: Path) -> None:
     print(f"file={wav_path} rate={rate} samples={data.size}")
     print(f"peak={peak}/32767  rms={rms:.1f}  rms_dbfs={db:.1f}  clipped={clip_count} ({clip_pct:.2f}%)")
     if clip_pct > 1:
-        print("WARNING: clipping detected — move the Snowball back or lower analog gain")
+        print("WARNING: clipping detected — move the configured microphone back or lower analog gain")
     elif peak < 1000:
-        print("WARNING: input is very quiet — speak closer to the Snowball")
+        print("WARNING: input is very quiet — speak closer to the configured microphone")
+
+
+def _pulse_device(device: str) -> str:
+    return device.removeprefix("pulse/")
+
+
+def _play_sound(path: Path | str, device: str, timeout: float = 15.0) -> int:
+    """Play through the same repaired mpv path used by the satellite."""
+    from .launcher import _configure_mpv
+
+    try:
+        _configure_mpv()
+        from linux_voice_assistant.mpv_player import MpvMediaPlayer
+        from linux_voice_assistant.player.libmpv import LibMpvPlayer
+
+        done = threading.Event()
+        failed = threading.Event()
+        original_end_file = LibMpvPlayer._on_end_file
+
+        def observe_end_file(player, event) -> None:
+            if getattr(getattr(event, "data", None), "reason", -1) == 4:
+                failed.set()
+            original_end_file(player, event)
+
+        LibMpvPlayer._on_end_file = observe_end_file
+        try:
+            player = MpvMediaPlayer(device=device)
+        finally:
+            LibMpvPlayer._on_end_file = original_end_file
+        player.play(str(path), done_callback=done.set)
+    except Exception:
+        logging.exception("Audio playback failed")
+        return 1
+
+    if not done.wait(timeout):
+        logging.error("Audio playback timed out after %.1f seconds", timeout)
+        try:
+            player.stop()
+        except Exception:
+            logging.exception("Could not stop timed-out audio playback")
+        return 1
+    return int(failed.is_set())
 
 
 def cmd_test_mic(_: argparse.Namespace) -> int:
+    cfg = load_config()
     CHECK_DIR.mkdir(parents=True, exist_ok=True)
     wav = CHECK_DIR / "mic-check.wav"
-    print("Recording 5 seconds from the Snowball…")
+    print("Recording 5 seconds from the configured microphone…")
     rc = subprocess.call(
         [
             "timeout",
             "5",
             "parecord",
             "--device",
-            PULSE_SOURCE,
+            _pulse_device(cfg.audio.input_device),
             "--file-format=wav",
-            "--rate=16000",
-            "--channels=1",
+            "--rate",
+            str(cfg.audio.sample_rate),
+            "--channels",
+            str(cfg.audio.channels),
             "--format=s16le",
             str(wav),
         ]
@@ -132,17 +162,18 @@ def cmd_test_mic(_: argparse.Namespace) -> int:
         print("parecord failed", rc)
         return rc or 1
     _level_report(wav)
-    print("Playing recording on the wired speaker…")
-    return subprocess.call(["paplay", "--device", PULSE_SINK, str(wav)])
+    print("Playing recording on the configured speaker…")
+    return _play_sound(wav, cfg.audio.output_device)
 
 
 def cmd_test_speaker(_: argparse.Namespace) -> int:
-    tone = Path("/opt/sayso-satellite/sounds/wake.wav")
+    cfg = load_config()
+    tone = cfg.sounds.wake
     if not tone.is_file():
         print(f"missing {tone}")
         return 1
     print("Playing local notification tone…")
-    return subprocess.call(["paplay", "--device", PULSE_SINK, str(tone)])
+    return _play_sound(tone, cfg.audio.output_device)
 
 
 def cmd_test_wake(_: argparse.Namespace) -> int:
@@ -173,16 +204,17 @@ def cmd_test_wake(_: argparse.Namespace) -> int:
 
 
 def wait_for_audio(timeout: float = 60.0) -> int:
+    cfg = load_config()
+    source = _pulse_device(cfg.audio.input_device)
+    sink = _pulse_device(cfg.audio.output_device)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         src = subprocess.run(["pactl", "list", "short", "sources"], capture_output=True, text=True)
         snk = subprocess.run(["pactl", "list", "short", "sinks"], capture_output=True, text=True)
-        if PULSE_SOURCE in src.stdout and PULSE_SINK in snk.stdout:
-            subprocess.call(["pactl", "set-default-source", PULSE_SOURCE])
-            subprocess.call(["pactl", "set-default-sink", PULSE_SINK])
+        if source in src.stdout and sink in snk.stdout:
             return 0
         time.sleep(0.5)
-    print("Audio devices not ready:", PULSE_SOURCE, PULSE_SINK, file=sys.stderr)
+    print("Audio devices not ready:", source, sink, file=sys.stderr)
     return 1
 
 
