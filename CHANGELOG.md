@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/mossipcams/SaySo/compare/0.5.0...0.5.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* **sayso:** declare voluptuous-openapi so the conversation agent can load ([2ad2f68](https://github.com/mossipcams/SaySo/commit/2ad2f68ecccaba9014e1c6cd5148365330c9cd28))
+
 ## [0.5.0](https://github.com/mossipcams/SaySo/compare/0.4.0...0.5.0) (2026-09-03)
 
 
