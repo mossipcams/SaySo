@@ -32,8 +32,19 @@ def test_classify_end_file_reason() -> None:
 
 def test_configure_pulse_mpv_sets_pulse_audio(monkeypatch: pytest.MonkeyPatch) -> None:
     mpv_instance: dict[str, object] = {}
-    mpv_constructor = Mock(return_value=mpv_instance)
-    fake_mpv = SimpleNamespace(MPV=mpv_constructor)
+
+    class OriginalMPV:
+        @staticmethod
+        def _encode_options(options: dict[str, object]) -> dict[str, object]:
+            return options
+
+        def __init__(self, **kwargs: object) -> None:
+            mpv_instance.update(kwargs)
+
+        def __setitem__(self, key: str, value: object) -> None:
+            mpv_instance[key] = value
+
+    fake_mpv = SimpleNamespace(MPV=OriginalMPV)
 
     class FakeLibMpvPlayer:
         def __init__(self, device: str | None = None) -> None:
@@ -53,9 +64,13 @@ def test_configure_pulse_mpv_sets_pulse_audio(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player.libmpv", libmpv)
 
     configure_pulse_mpv()
+
+    assert isinstance(libmpv.mpv.MPV, type)
+    assert issubclass(libmpv.mpv.MPV, OriginalMPV)
+    assert libmpv.mpv.MPV._encode_options({"cache": "yes"}) == {"cache": "yes"}
+
     player = FakeLibMpvPlayer(device="pulse/speaker")
-    mpv_constructor.assert_called_once_with(cache="yes", ao="pulse")
-    assert mpv_instance["audio-device"] == "pulse/speaker"
+    assert mpv_instance == {"cache": "yes", "ao": "pulse", "audio-device": "pulse/speaker"}
 
 
 def test_playback_recovery_invokes_cleanup_on_error_not_on_interrupt(

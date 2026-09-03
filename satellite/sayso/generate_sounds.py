@@ -7,8 +7,16 @@ import struct
 import wave
 from pathlib import Path
 
+NOTIFICATION_VOLUME = 0.6
+WAKE_FREQS = [880.0, 1320.0]
+WAKE_DURATION = 0.75
+FAILURE_FREQS = [220.0, 180.0]
+FAILURE_DURATION = 0.8
+UNAVAILABLE_FREQS = [330.0]
+UNAVAILABLE_DURATION = 0.71
 
-def write_tone(path: Path, freqs: list[float], duration: float, volume: float = 0.25) -> None:
+
+def write_tone(path: Path, freqs: list[float], duration: float, volume: float = NOTIFICATION_VOLUME) -> None:
     rate = 22050
     n = int(rate * duration)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -26,9 +34,9 @@ def write_tone(path: Path, freqs: list[float], duration: float, volume: float = 
 
 def main() -> None:
     root = Path("/opt/sayso-satellite/sounds")
-    write_tone(root / "wake.wav", [880, 1320], 0.18)
-    write_tone(root / "failure.wav", [220, 180], 0.25)
-    write_tone(root / "unavailable.wav", [330], 0.22)
+    write_tone(root / "wake.wav", WAKE_FREQS, WAKE_DURATION)
+    write_tone(root / "failure.wav", FAILURE_FREQS, FAILURE_DURATION)
+    write_tone(root / "unavailable.wav", UNAVAILABLE_FREQS, UNAVAILABLE_DURATION)
     print("wrote", root)
 
 

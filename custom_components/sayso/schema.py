@@ -13,13 +13,23 @@ from typing import Any, Literal
 
 import voluptuous as vol
 from homeassistant.helpers import llm
-from voluptuous_openapi import convert
+from voluptuous_openapi import UNSUPPORTED, convert
 
 from .exceptions import SaySoInvalidToolEnvelopeError
 
 COMPILE_CACHE_MAXSIZE = 32
 
 _FUNCTION_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+
+_UNSUPPORTED_OPENAPI_FALLBACK: dict[str, str] = {"type": "string"}
+_PARAMETERS_ROOT_FALLBACK: dict[str, Any] = {"type": "object", "properties": {}}
+
+
+def _is_unsupported_node(node: Any) -> bool:
+    """Return True for voluptuous_openapi or Home Assistant unsupported markers."""
+    if node is UNSUPPORTED:
+        return True
+    return type(node).__name__ == "_Unsupported"
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +122,37 @@ def extract_tool_routing_metadata(tool: llm.Tool) -> ToolRoutingMetadata:
 def clear_compile_cache() -> None:
     """Clear the bounded compile cache. Intended for tests."""
     _cached_compile_tools.cache_clear()
+
+
+def sanitize_openapi_schema(node: Any) -> Any:
+    """Replace UNSUPPORTED and other non-JSON nodes with serializable OpenAPI."""
+    if _is_unsupported_node(node):
+        return dict(_UNSUPPORTED_OPENAPI_FALLBACK)
+
+    if isinstance(node, dict):
+        return {
+            key: sanitize_openapi_schema(value) for key, value in node.items()
+        }
+
+    if isinstance(node, list):
+        return [sanitize_openapi_schema(item) for item in node]
+
+    if isinstance(node, (str, int, float, bool)) or node is None:
+        return node
+
+    return dict(_UNSUPPORTED_OPENAPI_FALLBACK)
+
+
+def _sanitize_convert_output(converted: Any) -> dict[str, Any]:
+    """Sanitize convert() output for tool parameter schemas."""
+    if _is_unsupported_node(converted):
+        return dict(_PARAMETERS_ROOT_FALLBACK)
+    if not isinstance(converted, dict):
+        return dict(_PARAMETERS_ROOT_FALLBACK)
+    sanitized = sanitize_openapi_schema(converted)
+    if not isinstance(sanitized, dict):
+        return dict(_PARAMETERS_ROOT_FALLBACK)
+    return sanitized
 
 
 def normalize_schema(
@@ -252,7 +293,9 @@ def compile_parameters(
 ) -> dict[str, Any]:
     """Compile a Voluptuous schema to OpenAPI parameters."""
     normalized = normalize_schema(
-        convert(schema, custom_serializer=custom_serializer),
+        _sanitize_convert_output(
+            convert(schema, custom_serializer=custom_serializer),
+        ),
         top_level=True,
     )
     return canonicalize_schema(normalized)
@@ -288,9 +331,11 @@ def _emit_tool_source_entry(
     custom_serializer: Callable[[Any], Any] | None = None,
 ) -> dict[str, Any]:
     """Return one tool's canonical source payload for cache keys."""
-    converted = convert(
-        tool.parameters,
-        custom_serializer=custom_serializer,
+    converted = _sanitize_convert_output(
+        convert(
+            tool.parameters,
+            custom_serializer=custom_serializer,
+        ),
     )
     return {
         "description": tool.description or "",
@@ -310,12 +355,17 @@ def emit_tools_source_json(
         for tool in tools
     ]
     entries.sort(key=lambda entry: entry["name"])
-    return json.dumps(
-        entries,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        sort_keys=True,
-    )
+    try:
+        return json.dumps(
+            entries,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    except TypeError as err:
+        raise SaySoInvalidToolEnvelopeError(
+            "Compiled tool source is not JSON-serializable"
+        ) from err
 
 
 def _build_compiled_tools_from_source(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, Mock
@@ -137,6 +138,43 @@ def test_wakeup_starts_streaming_without_wake_chime(
 
     satellite.duck.assert_called_once_with()
     satellite._start_audio_streaming.assert_called_once_with("SaySo")
+
+
+def test_stt_end_defers_chime_until_after_handle_voice_event_returns(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    sounds = _sounds(tmp_path)
+    tts_player = _FakeMpvMediaPlayer()
+    protocol = _install_test_handlers(monkeypatch, sounds)
+    satellite = SimpleNamespace(state=SimpleNamespace(tts_player=tts_player))
+
+    played_during_handler: list[bool] = []
+    original_play = tts_player.play
+    inside_handler = False
+
+    def tracking_play(path: str, done_callback=None) -> None:
+        if inside_handler:
+            played_during_handler.append(True)
+        original_play(path, done_callback)
+
+    tts_player.play = tracking_play  # type: ignore[method-assign]
+
+    async def _invoke_under_running_loop() -> None:
+        nonlocal inside_handler
+        inside_handler = True
+        protocol.handle_voice_event(  # type: ignore[attr-defined]
+            satellite,
+            _EventType.VOICE_ASSISTANT_STT_END,
+            {"text": "turn on the lights"},
+        )
+        inside_handler = False
+        assert played_during_handler == []
+        assert len(tts_player.play_calls) == 0
+
+    asyncio.run(_invoke_under_running_loop())
+    assert len(tts_player.play_calls) == 1
+    assert tts_player.play_calls[0] == (str(sounds.wake), None)
 
 
 def test_stt_end_with_text_plays_acknowledgement(
