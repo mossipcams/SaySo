@@ -1,0 +1,19 @@
+--- a/linux_voice_assistant/__main__.py
++++ b/linux_voice_assistant/__main__.py
+@@ -4,6 +4,7 @@ import argparse
+ import asyncio
+ import errno
+ import json
++import os
+ import logging
+ import sys
+ import threading
+@@ -314,6 +315,9 @@ async def main() -> None:
+         friendly_name = args.name
+ 
+     device_name = f"lva-{mac_address_clean}"
++    stable = os.environ.get("SAYSO_STABLE_NAME")
++    if stable:
++        device_name = stable
+ 
+     print(f"Device name: {device_name}")

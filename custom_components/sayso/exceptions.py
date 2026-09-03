@@ -33,3 +33,7 @@ class SaySoHttpError(SaySoError):
 
 class SaySoModelNotFoundError(SaySoError):
     """Raised when the configured model is not available on llama.cpp."""
+
+
+class SaySoInvalidToolEnvelopeError(SaySoError):
+    """Raised when a compiled tool envelope fails the outer transport contract."""

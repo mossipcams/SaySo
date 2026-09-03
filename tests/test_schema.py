@@ -493,6 +493,28 @@ def test_build_tool_map_indexes_tools_by_name() -> None:
     assert tool_map["BetaTool"] is beta
 
 
+def test_build_tool_map_indexes_namespaced_tools_by_suffix_alias() -> None:
+    """build_tool_map also indexes HA 2026.9 namespaced tools by their suffix."""
+    inner = _FakeTool(name="HassTurnOn")
+    namespaced = llm.NamespacedTool("intent", inner)
+
+    tool_map = build_tool_map([namespaced])
+
+    assert tool_map["intent__HassTurnOn"] is namespaced
+    assert tool_map["HassTurnOn"] is namespaced
+
+
+def test_build_tool_map_exact_name_wins_over_suffix_alias_collision() -> None:
+    """Exact tool names are never replaced by a suffix alias from another tool."""
+    alias_source = _FakeTool(name="custom__HassTurnOn")
+    exact = _FakeTool(name="HassTurnOn")
+
+    tool_map = build_tool_map([alias_source, exact])
+
+    assert tool_map["custom__HassTurnOn"] is alias_source
+    assert tool_map["HassTurnOn"] is exact
+
+
 def test_validate_tool_arguments_normalizes_coerced_values() -> None:
     """Valid arguments are normalized by the HA Voluptuous schema."""
     tool = _FakeTool()

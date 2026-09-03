@@ -17,7 +17,11 @@ from homeassistant.helpers import (
     llm,
 )
 
-from custom_components.sayso.schema import extract_tool_routing_metadata
+from custom_components.sayso.schema import (
+    CompiledToolSchema,
+    extract_tool_routing_metadata,
+    schema_fingerprint,
+)
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
@@ -414,15 +418,12 @@ def identify_command_domain(
     )
 
 
-def select_tools_for_domain(
+def _filter_compiled_tools(
     compiled_tools: tuple[dict[str, Any], ...],
     source_tools: list[llm.Tool],
-    domain_hint: str | None,
+    domain_hint: str,
 ) -> tuple[dict[str, Any], ...]:
-    """Return a safe compiled subset for a confident domain hint."""
-    if domain_hint is None:
-        return compiled_tools
-
+    """Return compiled tools compatible with a confident domain hint."""
     metadata_by_name = {
         tool.name: extract_tool_routing_metadata(tool) for tool in source_tools
     }
@@ -442,6 +443,49 @@ def select_tools_for_domain(
             selected.append(compiled_tool)
 
     return tuple(selected)
+
+
+def select_schema_for_domain(
+    complete_schema: CompiledToolSchema,
+    source_tools: list[llm.Tool],
+    domain_hint: str | None,
+) -> CompiledToolSchema:
+    """Return the active schema for a domain hint, or the complete schema unchanged."""
+    if domain_hint is None:
+        return complete_schema
+
+    selected_tools = _filter_compiled_tools(
+        complete_schema.tools,
+        source_tools,
+        domain_hint,
+    )
+    if selected_tools == complete_schema.tools:
+        return complete_schema
+
+    return CompiledToolSchema(
+        tools=selected_tools,
+        fingerprint=schema_fingerprint(list(selected_tools)),
+    )
+
+
+def select_tools_for_domain(
+    compiled_tools: tuple[dict[str, Any], ...],
+    source_tools: list[llm.Tool],
+    domain_hint: str | None,
+) -> tuple[dict[str, Any], ...]:
+    """Return a safe compiled subset for a confident domain hint."""
+    if domain_hint is None:
+        return compiled_tools
+
+    selected_tools = _filter_compiled_tools(
+        compiled_tools,
+        source_tools,
+        domain_hint,
+    )
+    if selected_tools == compiled_tools:
+        return compiled_tools
+
+    return selected_tools
 
 
 @callback
