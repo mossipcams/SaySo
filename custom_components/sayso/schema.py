@@ -378,8 +378,34 @@ class ToolArgumentValidationError:
 
 
 def build_tool_map(tools: list[llm.Tool]) -> dict[str, llm.Tool]:
-    """Map tool name to the HA tool definition."""
-    return {tool.name: tool for tool in tools}
+    """Map tool name to the HA tool definition.
+
+    Indexes each tool by its canonical HA name. When the name contains ``__``,
+    also indexes the suffix after the first delimiter so unprefixed model calls
+    (for example ``HassTurnOn``) resolve to namespaced HA tools
+    (for example ``intent__HassTurnOn``). Exact names win; suffix aliases use
+    ``setdefault``.
+    """
+    tool_map: dict[str, llm.Tool] = {}
+    for tool in tools:
+        tool_map[tool.name] = tool
+        if "__" in tool.name:
+            tool_map.setdefault(tool.name.split("__", 1)[1], tool)
+    return tool_map
+
+
+def build_tool_availability_names(tools: list[llm.Tool]) -> set[str]:
+    """Return canonical tool names plus unprefixed suffix aliases."""
+    return set(build_tool_map(tools))
+
+
+def expand_compiled_tool_name_aliases(names: set[str]) -> set[str]:
+    """Add unprefixed suffix aliases for namespaced compiled tool names."""
+    expanded = set(names)
+    for name in names:
+        if "__" in name:
+            expanded.add(name.split("__", 1)[1])
+    return expanded
 
 
 def _schema_marker_name(marker: Any) -> str | None:
