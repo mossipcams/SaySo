@@ -1,222 +1,145 @@
-# SaySo training plan
+# SaySo LFM training plan
 
-**Status:** authoritative design for SaySo supervised fine-tuning (SFT).
+**Status:** minimal MVP plan for supervised fine-tuning.
 
-This document is the **single source of truth** for how SaySo trains a Home
-Assistant tool-calling model. Operational scripts under `training/` implement
-this plan incrementally; when code and this document disagree, update the code
-to match this plan.
+SaySo trains `LiquidAI/LFM2.5-230M` to select and emit Home Assistant tools in
+the same OpenAI-compatible shape used by the integration. Home Assistant still
+owns the entities, schemas, permissions, execution, and final voice pipeline.
+llama.cpp only hosts inference.
 
-Related but separate: [SCHEMA_LOCK_PLAN.md](SCHEMA_LOCK_PLAN.md) covers the
-**runtime** llama.cpp tool-schema compiler and reference artifact lock. It does
-not define training data design.
+Start with a prompt-only/base-model baseline. Train only when it improves the
+held-out SaySo evaluation; a baseline that already passes the gate needs no
+fine-tune.
 
-## Design principle: schema-conditioned function calling
+## 1. Training contract
 
-SaySo must **not** train by memorizing a flat list of Home Assistant tool names.
-At runtime, Home Assistant supplies the exact tool menu for each request; the
-model must:
+Use `schemas/sayso-tool-schema-v1.json` as the pinned training contract. It is a
+snapshot of the Home Assistant Assist LLM API and defines the tool names,
+descriptions, parameters, required fields, and constraints used to validate
+examples.
 
-1. Read the provided tool schemas (name, description, parameters, required
-   fields, enums, ranges, result shape).
-2. Select the correct tool, produce valid arguments, issue independent parallel
-   calls when appropriate, or make **no call** when the request is ambiguous,
-   unsupported, or already satisfied.
+Every expected tool call must pass the pinned schema before it enters a
+dataset. When the Home Assistant contract changes, update the pinned artifact
+and regenerate data. Do not hand-maintain a second tool catalog.
 
-This matches SaySo architecture (Home Assistant is authoritative for tools and
-validation) and FunctionGemma strengths (reliable single and parallel tool
-calls; not long multi-step chains).
+`ALLOWED_HASS_TOOLS` is a dataset-build gate for the pinned contract. It is not
+the runtime capability boundary: runtime support follows the tools Home
+Assistant supplies for that request.
 
-Training teaches **conditional selection over changing menus**, not rote recall
-of a fixed catalog.
+## 2. Training examples
 
-## 1. Training contract from Home Assistant
+Store each example as structured `messages` plus OpenAI-style `tools`:
 
-Generate the training contract from a **pinned real Home Assistant 2026.8.3
-Assist API** snapshot. For each tool exposed by that API, capture:
+- tool entries use `{"type":"function","function":...}`;
+- assistant tool calls contain the validated name and arguments;
+- tool results represent the Home Assistant response before a final spoken
+  answer when a follow-up is needed;
+- `train_on_turn` is true only for assistant tool-call and final-response
+  messages.
 
-| Field | Source |
-|-------|--------|
-| Tool name | HA `Tool` name |
-| Description | HA tool description |
-| Parameters | JSON Schema from `voluptuous_openapi.convert()` |
-| Required fields | Schema `required` array |
-| Enums and ranges | Schema constraints (enums, min/max, patterns) |
-| Result shape | Documented or observed tool-result structure |
+Labels are deterministic and schema-validated. The dataset may vary household
+names, phrasing, direct actions, queries, ambiguity, no-call requests,
+multi-call requests, and tool failures. Keep the expected call authoritative;
+paraphrasing must never change the tool, arguments, or call/no-call decision.
 
-**Pin** the snapshot as a versioned artifact (aligned with
-`schemas/sayso-tool-schema-v1.json` once the runtime schema lock completes).
-**Diff** the contract when Home Assistant or the Assist API changes; regenerate
-training data against the new pin rather than editing tool definitions by hand.
+Use the current locked v1 contract first. Add tools or broader data only when a
+held-out evaluation identifies a concrete gap.
 
-**Do not** manually maintain Home-LLM tool definitions or copy Assist dumps
-from third-party projects. Home Assistant installations vary available tools per
-request, assistant, and exposure; training must reflect schema-conditioned
-behavior, not a static Home-LLM subset.
+Do not train on:
 
-## 2. Changing tool menus per example
+- Home-LLM ChatML `<tool_call>` labels;
+- eval case IDs or examples from `evals/cases/`;
+- unsupported tools or arguments;
+- model-generated labels that have not passed SaySo schema validation.
 
-Each training example includes:
+Home-LLM fixture data may provide utterance diversity, but SaySo-generated
+tool-call labels and schema validation remain authoritative.
 
-- The **correct** tool (and arguments).
-- **2–6 plausible distractor tools** drawn from the same contract (same domain,
-  similar names, or commonly confused alternatives).
-- Realistic **household context**: entities, areas, floors, aliases, satellite
-  areas, and exposure-relevant names.
-- The **expected tool call** (name + arguments validated against the real HA
-  schema).
-- A **realistic HA tool result** (success, partial, or failure as appropriate).
-- A brief **confirmation or failure** assistant turn (TTS-style).
+## 3. LFM format and training configuration
 
-Use the **full tool catalog in only ~15–20%** of examples (uncertain-routing /
-fallback scenarios). Do **not** attach every tool to every example; the model
-must learn to route from the menu it is given.
+LFM uses its tokenizer chat template. Keep the runtime-compatible JSON-string
+form for `function.arguments`; do not convert arguments to native dictionaries
+or add a custom Jinja function-call template.
 
-## 3. FunctionGemma native format
+Use the checked-in Axolotl configurations:
 
-Store examples as **structured messages and tools**, then render through the
-**exact FunctionGemma chat template** used by llama.cpp at inference:
+| Run | Config | Purpose |
+|---|---|---|
+| Smoke | `training/configs/lfm25-230m-smoke.yml` | Fixture-only pipeline check |
+| Production | `training/configs/lfm25-230m-prod.yml` | Train on generated data |
 
-- `<start_function_declaration>` … tool schemas …
-- `<start_function_call>` … expected call …
-- `<start_function_response>` … HA result …
+The production configuration currently uses:
 
-OpenAI-compatible `/v1/chat/completions` JSON is **transport only** at runtime.
-**Do not** train on literal chat-completions response JSON blobs.
+- base model `LiquidAI/LFM2.5-230M`;
+- full-parameter SFT;
+- three epochs and learning rate `2e-4`;
+- FP16 enabled, BF16 and Flash Attention disabled;
+- assistant-only loss masking through `train_on_turn`.
 
-The Axolotl conversion path that parses `function.arguments` strings into
-argument **dictionaries** for the FunctionGemma Jinja template is the correct
-direction. Each message carries `train_on_turn`: train only on assistant tool-call
-and final spoken-response turns.
+The smoke configuration is a one-epoch, smaller-sequence test. Treat the
+checked-in configs as the executable source for values; tune only from held-out
+results, one change at a time.
 
-## 4. Label-first example generation
+## 4. Splits and evaluation
 
-Generation is **label-first**: deterministic code owns the label. Do not ask a larger
-model to decide the correct tool or arguments.
+Generate deterministic train, validation, and test splits. Keep related
+template, phrasing, and seed families in one split so paraphrase variants do
+not leak across evaluation boundaries.
 
-Generation order:
+Use validation for checkpoint selection and tuning. Keep the test set and
+`training/evals/adversarial.jsonl` untouched until the final comparison.
 
-1. **Choose** a valid HA tool and arguments from the pinned contract (respecting
-   enums, required fields, and ranges).
-2. **Create** a synthetic household and context (entities, areas, state).
-3. **Generate** several natural user utterances for that label.
-4. **Add** ASR-corrupted variants (~20–25% of examples across categories).
-5. **Validate** the expected call against the real HA schema before emitting the
-   row.
+Evaluate the base model and candidate checkpoints on the same cases. Record:
 
-A larger model may **paraphrase** utterances or confirmations only; it must not
-change tool name, arguments, or whether a call is required.
+- protocol-valid tool calls;
+- correct tool names and arguments;
+- schema-valid arguments;
+- correct no-call and unsupported-request behavior;
+- multi-call behavior;
+- final spoken response presence;
+- latency and inference failures where available.
 
-## 5. Dataset mixture
+Promote a checkpoint only when it improves the target SaySo behavior without
+regressing safety, schema validity, or the basic offline eval. Then export GGUF
+and verify structured tool calls with llama.cpp before using it in Home
+Assistant.
 
-Target distribution across the full dataset:
+## 5. Runtime safety boundary
 
-| Category | Share | Notes |
-|----------|-------|-------|
-| Single tool calls | 50% | Core on/off, brightness, fan speed, etc. |
-| Parameterized controls and confusing alternatives | 15% | Same intent, different entity/area/parameter |
-| Independent parallel calls | 10% | Two+ tools with no ordering dependency |
-| State and context queries | 10% | `GetLiveContext`, status questions |
-| Ambiguity, unsupported, no-call | 10% | Refusals, already-in-state, out-of-scope |
-| Tool failure and malformed-result recovery | 5% | Retry, clarify, or safe failure speech |
+Training does not replace runtime controls. The SaySo integration must continue
+to:
 
-**ASR corruption:** apply to ~20–25% of examples, spread across categories (not
-only single-call).
+1. compile the tools supplied by Home Assistant;
+2. treat model output as untrusted;
+3. validate every call and every argument before execution;
+4. validate every call in a batch before executing any call;
+5. fail closed on ambiguity, unsupported tools, malformed output, and schema
+   mismatch;
+6. allow only the existing bounded correction path before execution;
+7. execute through Home Assistant and use its result for the spoken response;
+8. never retry an already executed action because of a later invalid response.
 
-**Tool frequency:** ~70% drawn from realistic household frequency (lights,
-switches, common rooms dominate); ~30% balanced sampling so rare timer, vacuum,
-media, climate, list, and query tools still appear often enough to learn.
+## 6. Non-goals for the MVP
 
-**Do not** fine-tune on Home-LLM ChatML `<tool_call>{"name","arguments"}</tool_call>`
-labels or on eval case IDs from `evals/cases/`.
+- model bake-offs;
+- a multi-stage curriculum;
+- fixed dataset-percentage or ASR-corruption quotas;
+- fine-tuning on Home-LLM tool-call labels;
+- long autonomous chains;
+- replacing Home Assistant validation with model trust;
+- a SaySo server, broker, custom action protocol, or direct satellite-to-model
+  connection.
 
-## 6. Curriculum and tool scope
-
-Train in stages; reach convergence on each stage before expanding:
-
-1. **Core tools** — turn on/off, lights, fans, locks, covers basics, live context.
-2. **Media controls** — play, pause, volume, source selection.
-3. **Full timer lifecycle** — start, pause, cancel, query.
-4. **Lists and queries** — shopping lists, todo, calendar-style queries exposed
-   by Assist.
-5. **Vacuums and covers** — start, dock, open/close, position.
-6. **Broadcast and date/time** — announce, reminders, time queries.
-7. **Dynamic scripts and contributed tools** — only schemas HA Assist actually
-   exposes for the pinned API.
-
-**Do not** add Home-LLM-only tools (e.g. humidifier-specific helpers) unless the
-targeted HA Assist API snapshot includes those schemas. If HA does not expose a
-tool, SaySo does not train it.
-
-## 7. Model and hyperparameters
-
-**Base model:** `google/functiongemma-270m` (FunctionGemma 270M).
-
-**Method:** full-parameter SFT. LoRA is optional only when experiment turnaround
-matters more than final accuracy.
-
-| Setting | Value | Rationale |
-|---------|-------|-----------|
-| Learning rate | ~**5e-5** | Google-documented starting point; 2e-4 is too aggressive for full FT |
-| Epochs | 2–3 | Avoid overfitting small menus |
-| Checkpoint selection | Held-out **tool accuracy** | Not training loss |
-| Precision | FP16 | GTX 1070 / Pascal |
-| BF16 | Off | Unsupported on Pascal |
-| Flash Attention | Off | Unsupported on GTX 1070 |
-
-Export to GGUF and verify tool calling with llama.cpp `--jinja` before
-promoting a checkpoint.
-
-## 8. `ALLOWED_HASS_TOOLS` and the pinned contract
-
-`ALLOWED_HASS_TOOLS` in `training/adapters/schema.py` validates examples against
-the **pinned training contract** during dataset build and CI. It is a **gate**,
-not the permanent definition of what SaySo supports at runtime.
-
-At inference, the model learns from **whatever schemas Home Assistant provides**
-for that request. Runtime support follows HA exposure and Assist API tools, not
-the training allowlist alone. When the HA contract changes, update the pin and
-regenerate data; do not treat the allowlist as product capability documentation.
-
-## 9. Evaluation and quality gates
-
-- Hold out adversarial and validation sets from training and hyperparameter
-  selection (`training/evals/adversarial.jsonl`, split val).
-- Measure protocol-valid tool calls, schema-valid arguments, correct tool name
-  on single-action turns, no-tool decisions, and parallel-call exact match.
-- Basic behavioral eval remains under `evals/`; do not train on those case IDs.
-
-Initial targets (adjust as the pipeline matures):
-
-| Metric | Target |
-|--------|--------|
-| Protocol-valid tool calls | ≥99% |
-| Single-action tool name | ≥95% |
-| Schema-valid arguments | ≥98% |
-| No-tool decision | ≥95% |
-| Multi-action exact match | ≥90% |
-| Unsupported-tool hallucination | <1% |
-
-## 10. Explicit non-goals
-
-- Memorizing a flat HA tool list without per-request schemas.
-- Training on Home-LLM tool-call label format or vendored pile labels as ground
-  truth.
-- Hand-maintaining tool definitions parallel to Home Assistant.
-- Complex multi-step chains beyond what FunctionGemma handles reliably.
-- Replacing runtime Voluptuous validation or SaySo fail-closed barriers with
-  model trust.
-
-## 11. Implementation map (reference)
+## Implementation map
 
 | Concern | Location |
-|---------|----------|
+|---|---|
 | Dataset generation | `training/scripts/generate_dataset.py`, `training/generators/` |
+| LFM adapter | `training/adapters/lfm.py` |
 | Schema validation | `training/adapters/schema.py` |
-| Axolotl / FunctionGemma views | `training/adapters/`, `training/scripts/adapt_dataset.py` |
-| Training configs | `training/configs/functiongemma-270m*.yml` |
-| Pinned contract artifact | `schemas/sayso-tool-schema-v1.json` (runtime lock; training pin) |
-| Runtime schema compiler | `custom_components/sayso/` (see SCHEMA_LOCK_PLAN.md) |
+| LFM configs | `training/configs/lfm25-230m*.yml` |
+| Evaluation | `evals/`, `training/evals/` |
+| Pinned contract | `schemas/sayso-tool-schema-v1.json` |
 
-When adding or changing training code, update this document only if the **design**
-changes; operational tweaks belong in `training/README.md` command tables.
+Operational commands belong in `training/README.md`; update this document only
+when the training design or its safety boundary changes.
