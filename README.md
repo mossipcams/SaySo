@@ -70,7 +70,7 @@ Download config entry diagnostics from the SaySo integration page. API keys and 
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[test]"
-pytest tests/ -q
+pytest -q
 ```
 
 See [docs/PLAN.md](docs/PLAN.md) for the full product specification.

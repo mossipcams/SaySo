@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import os
 import socket
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -149,6 +148,8 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append("wake_word.refractory_seconds must be >= 0")
     if cfg.wake_word.preroll_ms < 0:
         errors.append("wake_word.preroll_ms must be >= 0")
+    if not cfg.wake_word.model.is_file():
+        errors.append(f"wake_word.model file missing: {cfg.wake_word.model}")
     for label, path in (
         ("sounds.wake", cfg.sounds.wake),
         ("sounds.failure", cfg.sounds.failure),
@@ -162,7 +163,6 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind(("0.0.0.0", cfg.home_assistant.port))
         except OSError as exc:
-            pid = os.environ.get("SAYSO_OWN_PORT", "")
             errors.append(
                 f"Port {cfg.home_assistant.port} is unavailable ({exc}). "
                 "Stop the other process or change home_assistant.port."
