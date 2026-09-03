@@ -1,0 +1,25 @@
+[Unit]
+Description=SaySo Linux Voice Assistant satellite
+StartLimitBurst=5
+StartLimitIntervalSec=120
+After=pipewire.service pipewire-pulse.service wireplumber.service network-online.target
+Wants=pipewire.service pipewire-pulse.service wireplumber.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/sayso-satellite/linux-voice-assistant
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PULSE_SERVER=/run/user/1000/pulse/native
+Environment=PYTHONPATH=/opt/sayso-satellite
+Environment=PREFERENCES_FILE=/var/lib/sayso-satellite/preferences.json
+ExecStartPre=/opt/sayso-satellite/.venv/bin/python -m sayso.cli wait-audio
+ExecStart=/opt/sayso-satellite/.venv/bin/python -m sayso.launcher
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=90
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sayso-satellite
+
+[Install]
+WantedBy=default.target
