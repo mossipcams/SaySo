@@ -415,11 +415,16 @@ class SaySoConversationEntity(
                 ],
             )
             batch_failed = False
+            ha_error: str | None = None
             async for _tool_result in chat_log.async_add_assistant_content(
                 assistant_content
             ):
                 if _is_tool_execution_failure(_tool_result.tool_result):
                     batch_failed = True
+                    if ha_error is None:
+                        error = _tool_result.tool_result.get("error")
+                        if isinstance(error, str) and error:
+                            ha_error = error
 
             if batch_failed:
                 _record_boundary(
@@ -432,6 +437,7 @@ class SaySoConversationEntity(
                         complete_schema=complete_schema,
                         correction_used=correction_used,
                     ),
+                    ha_error=ha_error,
                 )
                 return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -520,6 +526,8 @@ def _record_boundary(
     code: BoundaryFailureCode,
     phase: BoundaryPhase,
     schema: CompiledToolSchema | None,
+    *,
+    ha_error: str | None = None,
 ) -> None:
     """Record one boundary failure and log its stable code and phase."""
     fingerprint = schema.fingerprint if schema else None
@@ -528,8 +536,11 @@ def _record_boundary(
         code,
         phase,
         fingerprint=fingerprint,
+        ha_error=ha_error,
     )
     _LOGGER.debug("SaySo boundary failure: code=%s phase=%s", code.value, phase.value)
+    if code == BoundaryFailureCode.TOOL_EXECUTION_FAILED and ha_error:
+        _LOGGER.warning("SaySo tool execution failed: ha_error=%s", ha_error)
 
 
 def _client_exception_result(
