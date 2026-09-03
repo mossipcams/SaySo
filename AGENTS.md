@@ -1,44 +1,58 @@
 # Agent notes
 
-Prioritize completing the end-to-end voice path over future-proofing. Do not
-cut ControlPlan validation, ambiguity handling, integration execution,
-verification, metrics, or basic evals. Defer extensive model benchmarking,
-large eval datasets, generalized satellite support, a tuning launch,
-streaming optimizations, and polished diagnostics if they threaten completion.
-When tuning is in scope, follow `docs/TUNING_PLAN.md`.
+Prioritize completing the end-to-end voice path over future-proofing. Do not cut
+pre-execution tool validation, fail-closed safety/ambiguity/capability barriers,
+HA tool execution, state verification, metric scoring, or the existing basic eval
+path. Defer extra model bake-offs, expanding eval corpora, generalized satellite
+support, a fine-tuning launch, streaming optimizations, and polished diagnostics
+if they threaten completion.
 
 ## How to apply that
 
-The MVP succeeds when a Mac can act as a temporary smart speaker and control
-real Home Assistant devices. Prefer the next increment that unblocks
-wake → capture → STT → ControlPlan → resolve/validate → HA execute → verify →
-response.
+The MVP succeeds when a standard Home Assistant voice pipeline can reach SaySo,
+call user-managed llama.cpp, execute real device actions, and return speech
+through Home Assistant TTS. Prefer the next increment that unblocks a real Home
+Assistant device demo.
+
+End-to-end path (Home Assistant owns everything except the llama.cpp HTTP call):
+
+```text
+wake word -> STT -> SaySo ConversationEntity -> llama.cpp -> HA LLM tools ->
+HA intent/action execution -> ConversationResult -> TTS -> satellite
+```
+
+SaySo is a Home Assistant conversation agent (`custom_components/sayso`). It
+does not own audio transport, wake word, STT, TTS, satellites, or model
+hosting. llama.cpp is user-managed inference only.
 
 Keep (do not skip to “save time”):
 
-- ControlPlan validation and the existing safety/ambiguity/capability barriers
-- Integration execution and state verification
-- Metric scoring and a runnable basic eval path
-- Core/safety/follow-up eval coverage already in the plan
+- Pre-execution tool validation and the existing fail-closed
+  safety/ambiguity/capability barriers (schema routing, argument validation,
+  boundary diagnostics, correction retries)
+- HA LLM tool execution and post-action verification where the integration
+  already checks outcomes
+- Metric scoring and the runnable offline eval path under `evals/`
+- Core/safety/follow-up coverage already represented in `evals/cases/`
 
 Defer until the voice path works end to end:
 
 - Extra model bake-offs (LFM vs Home-FunctionGemma, Home-LLM, Alexa+)
-- Expanding corpora past the basic reviewed sets
-- Generalized multi-satellite support beyond the Mac living-room satellite
-- Fine-tuning launch (when in scope, follow `docs/TUNING_PLAN.md`; never SFT
-  on Home-LLM tool-call labels), streaming optimizations, and polished
-  diagnostics
+- Expanding corpora past the basic reviewed sets in `evals/cases/`
+- Generalized multi-satellite support beyond standard HA voice pipelines
+- Fine-tuning launch (never SFT on Home-LLM tool-call labels), streaming
+  optimizations, and polished diagnostics
 
 ## Workflow
 
-- Read `docs/ARCHITECTURE.md` before changing runtime wiring or assuming the
-  MVP topology is already assembled. It documents what is implemented,
-  partial, planned, conflicting, and unresolved.
-- Eval tasks: `docs/EVALUATION_PLAN.md`. Prefer the next increment that
-  `docs/ARCHITECTURE.md` lists as required for the first physical-device demo.
-- Tuning data and SFT: `docs/TUNING_PLAN.md`. Do not train on Home-LLM
-  tool-call labels or on `evals/datasets/` case IDs.
-- Python throughout. Colocated `test_*.py`. Never create a `tests/` directory.
-- One numbered TDD unit at a time unless the user already authorized continuing.
-- Do not start a `tests/` directory. Do not commit `context.json`.
+- Read `ARCHITECTURE.md` at the repo root before changing runtime wiring or
+  assuming topology. It documents boundaries and the integration shape.
+- Offline eval cases and runners live in `evals/` (`evals/cases/`,
+  `evals/runner.py`, `evals/scorer.py`, `evals/metrics.py`). Do not train on
+  Home-LLM tool-call labels or on eval case IDs from `evals/cases/`.
+- Python throughout. Extend the existing test suite: `tests/` and colocated
+  `custom_components/sayso/test_*.py`. Do not add another `tests/` tree or a new
+  test framework.
+- One numbered TDD unit at a time unless the user already authorized
+  continuing.
+- Do not commit `context.json`.
