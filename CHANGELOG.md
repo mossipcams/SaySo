@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.2](https://github.com/mossipcams/SaySo/compare/0.5.1...0.5.2) (2026-09-03)
+
+
+### Bug Fixes
+
+* keep live voice ack and Assist tool compile working ([a2e05e5](https://github.com/mossipcams/SaySo/commit/a2e05e5c6fb1efc08d6c86e4a9a3e7cab5467196))
+
+
+### Documentation
+
+* **training:** align plan with LFM ([6d2137f](https://github.com/mossipcams/SaySo/commit/6d2137f2cb5493ae6dec69e472a862096406a276))
+
 ## [0.5.1](https://github.com/mossipcams/SaySo/compare/0.5.0...0.5.1) (2026-09-03)
 
 
