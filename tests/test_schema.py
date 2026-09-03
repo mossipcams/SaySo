@@ -209,6 +209,29 @@ def test_compile_parameters_applies_schema_normalization(monkeypatch: Any) -> No
     assert parameters["properties"]["mode"]["enum"] == ["auto", "manual", "off"]
 
 
+def test_compile_tools_sanitizes_unsupported_convert_nodes(monkeypatch: Any) -> None:
+    """UNSUPPORTED nodes from convert() do not break compile_tools JSON emission."""
+    schema_with_unsupported = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "minLength": 1},
+            "mode": {"type": "string", "enum": ["auto", "manual", "off"]},
+            "unsupported_field": UNSUPPORTED,
+        },
+        "required": ["name", "mode"],
+    }
+    monkeypatch.setattr(
+        "custom_components.sayso.schema.convert",
+        lambda *_args, **_kwargs: schema_with_unsupported,
+    )
+
+    compiled = compile_tools([_FakeTool()])
+
+    json.dumps(compiled, ensure_ascii=False)
+    parameters = compiled[0]["function"]["parameters"]
+    assert parameters["properties"]["unsupported_field"] == {"type": "string"}
+
+
 def test_compile_tool_strips_duplicate_function_title(monkeypatch: Any) -> None:
     """Function-level titles matching the tool name are removed."""
     noisy = {
