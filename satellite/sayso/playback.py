@@ -37,11 +37,12 @@ def configure_pulse_mpv() -> None:
 
     original_mpv = libmpv.mpv.MPV
 
-    def pulse_mpv(*args, **kwargs):
-        kwargs.setdefault("ao", "pulse")
-        return original_mpv(*args, **kwargs)
+    class PulseMPV(original_mpv):
+        def __init__(self, *args, **kwargs):
+            kwargs.setdefault("ao", "pulse")
+            super().__init__(*args, **kwargs)
 
-    libmpv.mpv.MPV = pulse_mpv
+    libmpv.mpv.MPV = PulseMPV
 
 
 def install_playback_recovery() -> None:

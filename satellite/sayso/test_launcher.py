@@ -351,8 +351,19 @@ def test_configure_mpv_uses_pulse_and_recovers_from_playback_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mpv_instance: dict[str, object] = {}
-    mpv_constructor = Mock(return_value=mpv_instance)
-    fake_mpv = SimpleNamespace(MPV=mpv_constructor)
+
+    class OriginalMPV:
+        @staticmethod
+        def _encode_options(options: dict[str, object]) -> dict[str, object]:
+            return options
+
+        def __init__(self, **kwargs: object) -> None:
+            mpv_instance.update(kwargs)
+
+        def __setitem__(self, key: str, value: object) -> None:
+            mpv_instance[key] = value
+
+    fake_mpv = SimpleNamespace(MPV=OriginalMPV)
 
     class FakeLibMpvPlayer:
         def __init__(self, device: str | None = None) -> None:
@@ -386,8 +397,7 @@ def test_configure_mpv_uses_pulse_and_recovers_from_playback_errors(
     launcher._configure_mpv()
 
     player = FakeLibMpvPlayer(device="pulse/speaker")
-    mpv_constructor.assert_called_once_with(cache="yes", ao="pulse")
-    assert mpv_instance["audio-device"] == "pulse/speaker"
+    assert mpv_instance == {"cache": "yes", "ao": "pulse", "audio-device": "pulse/speaker"}
 
     pipeline = SimpleNamespace(active=True)
     completed = Mock(side_effect=lambda: setattr(pipeline, "active", False))
