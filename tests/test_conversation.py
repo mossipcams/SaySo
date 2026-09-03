@@ -628,6 +628,82 @@ async def test_batched_tool_calls_transcript_and_follow_up(
         assert _speech(result) == ERROR_ACTION_FAILED
 
 
+_ORIGINAL_PROVIDE_LLM_DATA = conversation.ChatLog.async_provide_llm_data
+
+
+async def _wrap_assist_tools_with_intent_namespace(
+    chat_log: conversation.ChatLog,
+    llm_context: llm.LLMContext,
+    user_llm_hass_api: str | list[str] | llm.API | None = None,
+    user_llm_prompt: str | None = None,
+    user_extra_system_prompt: str | None = None,
+) -> None:
+    """Simulate HA 2026.9 intent tool namespacing on the active Assist tool list."""
+    await _ORIGINAL_PROVIDE_LLM_DATA(
+        chat_log,
+        llm_context,
+        user_llm_hass_api,
+        user_llm_prompt,
+        user_extra_system_prompt,
+    )
+    if chat_log.llm_api is None:
+        return
+
+    chat_log.llm_api.tools = [
+        llm.NamespacedTool("intent", tool)
+        if tool.name in {"HassTurnOn", "HassTurnOff"}
+        else tool
+        for tool in chat_log.llm_api.tools
+    ]
+
+
+async def test_successful_light_tool_call_with_namespaced_ha_tools(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+    assist_light: None,
+) -> None:
+    """Model may return unprefixed HassTurnOn while HA exposes intent__HassTurnOn."""
+    entry = await _create_entry(hass)
+
+    with patch.object(
+        conversation.ChatLog,
+        "async_provide_llm_data",
+        new=_wrap_assist_tools_with_intent_namespace,
+    ), patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(
+            side_effect=[
+                ChatCompletionResult(
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            name="HassTurnOn",
+                            arguments={"name": "Living Room"},
+                        )
+                    ],
+                ),
+                ChatCompletionResult(
+                    content="The living room light is on.",
+                    tool_calls=[],
+                ),
+            ]
+        ),
+    ) as mock_chat:
+        result = await _converse(hass, entry, "Turn on the living room light")
+
+    initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
+    initial_names = {tool["function"]["name"] for tool in initial_tools}
+    assert "intent__HassTurnOn" in initial_names
+    assert "HassTurnOn" not in initial_names
+
+    assert mock_chat.await_count == 2
+    assert hass.states.get("light.living_room").state == "on"
+    assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
+    assert _speech(result) == "The living room light is on."
+
+
 async def test_successful_light_tool_call(
     hass: HomeAssistant,
     mock_llama_client: None,
@@ -664,6 +740,50 @@ async def test_successful_light_tool_call(
     assert hass.states.get("light.living_room").state == "on"
     assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
     assert _speech(result) == "The living room light is on."
+
+
+async def test_get_live_context_negative_result_requests_follow_up(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+    assist_light: None,
+) -> None:
+    """GetLiveContext success:false is a completed result, not a boundary failure."""
+    entry = await _create_entry(hass)
+
+    with patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(
+            side_effect=[
+                ChatCompletionResult(
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call_ctx",
+                            name="GetLiveContext",
+                            arguments={"name": "Nonexistent Room"},
+                        )
+                    ],
+                ),
+                ChatCompletionResult(
+                    content="I couldn't find a device named Nonexistent Room.",
+                    tool_calls=[],
+                ),
+            ]
+        ),
+    ) as mock_chat:
+        result = await _converse(hass, entry, "Is the nonexistent room light on?")
+
+    assert mock_chat.await_count == 2
+    follow_up_messages = mock_chat.await_args_list[1].args[0]
+    tool_result_message = next(
+        message for message in follow_up_messages if message.get("role") == "tool"
+    )
+    parsed_result = json.loads(tool_result_message["content"])
+    assert parsed_result["success"] is False
+    assert "error" in parsed_result
+    assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
+    assert _speech(result) == "I couldn't find a device named Nonexistent Room."
 
 
 async def test_entity_state_query_tool_call(
