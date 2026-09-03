@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import logging
 import time
-from collections import deque
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
+from .buffer import WakeAudioBuffer
 from .detection import Detection
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,8 +41,6 @@ class LiveKitWakeWordProvider:
         self._available = False
         self._model = None
         self._score_key: Optional[str] = None
-        self._buffer = deque(maxlen=WINDOW_SAMPLES)
-        self._since_predict = 0
         self._last_fire = 0.0
         self._logged_keys = False
         self._last_score_log = 0.0
@@ -88,29 +86,20 @@ class LiveKitWakeWordProvider:
         self._suspended = False
 
     def reset(self) -> None:
-        self._buffer.clear()
-        self._since_predict = 0
+        self._last_fire = 0.0
 
     def shutdown(self) -> None:
         self.stop()
         self._model = None
 
-    def process_pcm(self, pcm_s16le: bytes, sample_rate: int = 16000) -> Optional[Detection]:
+    def predict_window(self, window: np.ndarray) -> Optional[Detection]:
         if not self._available or self._model is None:
             return None
         if not self._enabled or self._suspended:
             return None
-        if sample_rate != SAMPLE_RATE or not pcm_s16le:
+        if window.size < WINDOW_SAMPLES:
             return None
 
-        samples = np.frombuffer(pcm_s16le, dtype="<i2")
-        self._buffer.extend(samples.tolist())
-        self._since_predict += int(samples.size)
-        if len(self._buffer) < WINDOW_SAMPLES or self._since_predict < HOP_SAMPLES:
-            return None
-        self._since_predict = 0
-
-        window = np.fromiter(self._buffer, dtype=np.int16, count=len(self._buffer))
         scores = self._model.predict(window)
         if not self._logged_keys:
             _LOGGER.info(
@@ -128,7 +117,6 @@ class LiveKitWakeWordProvider:
             score = float(next(iter(scores.values())))
 
         now = time.monotonic()
-        # ponytail: test-only 1 Hz score log (max in window); remove after diagnosis
         self._max_score_window = max(self._max_score_window, score)
         if now - self._last_score_log >= 1.0:
             _LOGGER.info(
@@ -148,3 +136,12 @@ class LiveKitWakeWordProvider:
         self._last_fire = now
         _LOGGER.info("Wake phrase detected phrase=%r confidence=%.3f (no audio retained)", self._phrase, score)
         return Detection(phrase=self._phrase, confidence=score, timestamp=now)
+
+    def process_pcm(self, pcm_s16le: bytes, sample_rate: int = 16000) -> Optional[Detection]:
+        """Synchronous helper retained for tests and diagnostics."""
+        if sample_rate != SAMPLE_RATE or not pcm_s16le:
+            return None
+        buffer = WakeAudioBuffer(WINDOW_SAMPLES, HOP_SAMPLES)
+        if not buffer.feed(pcm_s16le):
+            return None
+        return self.predict_window(buffer.window())
