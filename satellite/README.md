@@ -24,6 +24,12 @@ code is only under `sayso/` plus patches:
 `satellite.device_name` is the stable Home Assistant device id passed to LVA `--device-name`
 (for example `sayso-living-room`).
 
+## Wake model
+
+Copy `models/sayso.onnx` to `/opt/sayso-satellite/models/sayso.onnx` before start.
+That classifier detects the spoken phrase **Sayso** only. See `models/README.md`
+and `models/sayso_eval.json` for the operating point (threshold 0.19).
+
 ## Commands
 
 Operational commands (also `/usr/local/bin/sayso-satellite`):
