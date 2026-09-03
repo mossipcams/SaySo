@@ -1,0 +1,49 @@
+base_model: LiquidAI/LFM2.5-230M
+model_type: Lfm2ForCausalLM
+trust_remote_code: true
+
+chat_template: tokenizer
+
+datasets:
+- path: training/fixtures/sayso_lfm_smoke.jsonl
+  ds_type: json
+  type: chat_template
+  roles_to_train: []
+  message_field_training: train_on_turn
+
+dataset_prepared_path: training/datasets/prepared-lfm-smoke/
+
+val_set_size: 0.0
+
+output_dir: training/runs/smoke-LFM2.5-230M
+
+sequence_len: 2048
+sample_packing: false
+eval_sample_packing: false
+
+use_tensorboard: true
+
+gradient_accumulation_steps: 4
+micro_batch_size: 1
+num_epochs: 1
+optimizer: adamw_bnb_8bit
+lr_scheduler: cosine
+learning_rate: 0.0002
+
+fp16: true
+bf16: false
+
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+resume_from_checkpoint:
+logging_steps: 1
+flash_attention: false
+
+warmup_ratio: 0.05
+evals_per_epoch: 1
+saves_per_epoch: 1
+save_total_limit: 2
+weight_decay: 0.0
+
+seed: 42
