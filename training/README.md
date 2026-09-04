@@ -25,6 +25,9 @@ python -m pytest training/tests -q
 |------|---------|
 | Pin upstream (legacy Home-LLM ref) | `python training/scripts/pin_upstream.py` |
 | Generate + adapt | `python training/scripts/generate_dataset.py --language english --small` |
+| Generate balanced held-out test set | `python training/scripts/generate_balanced_test_data.py` |
+| Build first synthetic train set (10k) | `python training/scripts/build_synthetic_dataset.py --generator-model MODEL --judge-model MODEL` |
+| Generate recipe-lock quality eval + deterministic 10k train | `python training/scripts/generate_recipe_lock_eval.py` |
 | Adapt only | `python training/scripts/adapt_dataset.py INPUT.jsonl OUTPUT.jsonl --seed 42` |
 | Split 80/10/10 | `python training/scripts/split_dataset.py INPUT.jsonl --out-dir training/datasets` |
 | Detect GPU | `python training/scripts/detect_gpu.py` |
@@ -35,7 +38,7 @@ python -m pytest training/tests -q
 
 Target model and tuning defaults are defined in
 [TRAINING_PLAN.md](../docs/TRAINING_PLAN.md) (LFM2.5-230M full SFT, 3 production
-epochs, `2e-4` learning rate, FP16, no BF16, no Flash Attention).
+epochs, `2e-4` learning rate, no BF16, no Flash Attention).
 
 ## Dataset views
 
@@ -67,9 +70,10 @@ training/
 
 ## GPU notes (GTX 1070 / Pascal)
 
-Run `python training/scripts/detect_gpu.py` before training. Use FP16; disable
-BF16 and flash-attn. If no GPU is present, `train.py` exits 0 with a documented
-skip message.
+Run `python training/scripts/detect_gpu.py` before training. Disable BF16 and
+flash-attn on Pascal. Use FP16 only after the exact stack passes the smoke gate;
+the tested GTX 1070 smoke run required FP32. If no GPU is present, `train.py`
+exits 0 with a documented skip message.
 
 ## Adversarial eval
 

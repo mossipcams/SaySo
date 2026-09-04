@@ -2,7 +2,9 @@
 
 **Status:** minimal MVP plan for supervised fine-tuning.
 
-SaySo trains `LiquidAI/LFM2.5-230M` to select and emit Home Assistant tools in
+The first Base run is [FIRST_TRAINING.md](FIRST_TRAINING.md) (`LiquidAI/LFM2.5-230M-Base`, rsLoRA). This document remains the dataset and safety contract.
+
+SaySo trains `LiquidAI/LFM2.5-230M-Base` to select and emit Home Assistant tools in
 the same OpenAI-compatible shape used by the integration. Home Assistant still
 owns the entities, schemas, permissions, execution, and final voice pipeline.
 llama.cpp only hosts inference.
@@ -57,9 +59,31 @@ tool-call labels and schema validation remain authoritative.
 
 ## 3. LFM format and training configuration
 
-LFM uses its tokenizer chat template. Keep the runtime-compatible JSON-string
-form for `function.arguments`; do not convert arguments to native dictionaries
-or add a custom Jinja function-call template.
+Keep two representations separate:
+
+- The canonical SaySo dataset keeps OpenAI-compatible
+  `function.arguments` as validated JSON strings. This is the runtime contract
+  and the format checked by the LFM adapter.
+- The tokenizer-rendering view may parse those strings into native objects only
+  while applying the LFM2.5 chat template. This view is transient; do not
+  replace the canonical dataset or call the converted objects training labels.
+
+The current LFM2.5 checkpoint ships a `TokenizersBackend` tokenizer and a
+separate `chat_template.jinja` containing `{% generation %}` markers. The
+initial GTX 1070 setup showed that an older Axolotl stack could not consume
+those files directly, and its Jinja parser could not process the markers. Use a
+version-pinned Transformers/Axolotl combination that supports the exact
+checkpoint, or a tested SaySo-owned rendering compatibility layer. Do not
+silently patch downloaded model files or vendor packages.
+
+Before production training, the smoke gate must prove all of the following on
+the target host:
+
+1. the exact LFM2.5 tokenizer and model load;
+2. a string-argument SaySo example renders successfully;
+3. one forward/backward/update step completes; and
+4. the saved checkpoint reloads and produces output through the planned
+   llama.cpp verification path.
 
 Use the checked-in Axolotl configurations:
 
@@ -68,17 +92,33 @@ Use the checked-in Axolotl configurations:
 | Smoke | `training/configs/lfm25-230m-smoke.yml` | Fixture-only pipeline check |
 | Production | `training/configs/lfm25-230m-prod.yml` | Train on generated data |
 
-The production configuration currently uses:
+The production configuration currently declares:
 
 - base model `LiquidAI/LFM2.5-230M`;
 - full-parameter SFT;
 - three epochs and learning rate `2e-4`;
-- FP16 enabled, BF16 and Flash Attention disabled;
+- BF16 and Flash Attention disabled for Pascal;
 - assistant-only loss masking through `train_on_turn`.
 
-The smoke configuration is a one-epoch, smaller-sequence test. Treat the
-checked-in configs as the executable source for values; tune only from held-out
-results, one change at a time.
+The GTX 1070 has 8 GiB VRAM and supports neither BF16 nor Flash Attention. In
+the tested Axolotl/Accelerate environment, FP16 backpropagation failed with
+`Attempting to unscale FP16 gradients`, so the successful one-step smoke run
+used FP32. Treat precision as a host compatibility result, not an assumption:
+keep FP16 only after the exact production stack passes the smoke gate; otherwise
+set the host config to FP32 before training.
+
+The smoke configuration is a one-epoch, smaller-sequence test. The current
+floating-point `training/requirements.txt` is not a reproducible GPU lock: an
+unconstrained install resolved a newer Torch/CUDA stack than this Pascal host
+can safely use. Pin the complete environment, including Axolotl, Transformers,
+tokenizers, Accelerate, Torch, and CUDA-compatible packages, before a
+production run. Treat the checked-in configs as the executable source for
+training values; tune only from held-out results, one change at a time.
+
+Budget storage before training. The smoke run produced about 0.9 GB for the
+final model and about 1.7 GB for a resumable optimizer checkpoint. Keep an
+intermediate checkpoint only when resumption is needed; do not fill a nearly
+full host with duplicate model copies.
 
 ## 4. Splits and evaluation
 
@@ -88,6 +128,15 @@ not leak across evaluation boundaries.
 
 Use validation for checkpoint selection and tuning. Keep the test set and
 `training/evals/adversarial.jsonl` untouched until the final comparison.
+
+`training/scripts/generate_balanced_test_data.py` builds the deterministic
+2,500-example final test set. It excludes exact prompts found in the generated
+train and validation files and never consumes IDs or labels from `evals/cases/`.
+
+The first supervised train set is 10,000 curated examples from
+`training/scripts/build_synthetic_dataset.py` (see [FIRST_TRAINING.md](FIRST_TRAINING.md)
+for the locked category mix). Held-out eval stays separate; do not train on
+`sayso_test_balanced.jsonl` prompts.
 
 Evaluate the base model and candidate checkpoints on the same cases. Record:
 
@@ -102,7 +151,7 @@ Evaluate the base model and candidate checkpoints on the same cases. Record:
 Promote a checkpoint only when it improves the target SaySo behavior without
 regressing safety, schema validity, or the basic offline eval. Then export GGUF
 and verify structured tool calls with llama.cpp before using it in Home
-Assistant.
+Assistant. A successful trainer smoke run alone is not a promotion signal.
 
 ## 5. Runtime safety boundary
 
@@ -123,7 +172,7 @@ to:
 
 - model bake-offs;
 - a multi-stage curriculum;
-- fixed dataset-percentage or ASR-corruption quotas;
+- fixed training-corpus percentage or ASR-corruption quotas;
 - fine-tuning on Home-LLM tool-call labels;
 - long autonomous chains;
 - replacing Home Assistant validation with model trust;
@@ -134,7 +183,7 @@ to:
 
 | Concern | Location |
 |---|---|
-| Dataset generation | `training/scripts/generate_dataset.py`, `training/generators/` |
+| Dataset generation | `training/scripts/generate_dataset.py`, `training/scripts/build_synthetic_dataset.py`, `training/generators/` |
 | LFM adapter | `training/adapters/lfm.py` |
 | Schema validation | `training/adapters/schema.py` |
 | LFM configs | `training/configs/lfm25-230m*.yml` |
