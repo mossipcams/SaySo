@@ -96,7 +96,7 @@ class MetricSummary:
     protocol_valid: int = 0
     tool_name_exact: int = 0
     args_exact: int = 0
-    schema_valid_args: int = 0
+    args_parse_as_json: int = 0
     single_action_success: int = 0
     multi_action_exact: int = 0
     no_tool_correct: int = 0
@@ -111,15 +111,15 @@ class MetricSummary:
     def rates(self) -> dict[str, float]:
         if self.total == 0:
             return {key: 0.0 for key in [
-                "protocol", "tool_name", "args_exact", "schema_valid",
-                "single_action", "multi_action", "no_tool", "no_call_when_expected",
+                "protocol", "tool_name", "args_exact", "args_parse_as_json",
+                "single_action", "multi_action", "no_tool", "call_no_call_agreement",
                 "unsupported", "final_response",
             ]}
         return {
             "protocol": self.protocol_valid / self.total,
             "tool_name": self.tool_name_exact / self.total,
             "args_exact": self.args_exact / self.total,
-            "schema_valid": self.schema_valid_args / self.total,
+            "args_parse_as_json": self.args_parse_as_json / self.total,
             "single_action": (
                 self.single_action_success / self.expected_single_action
                 if self.expected_single_action
@@ -135,7 +135,7 @@ class MetricSummary:
                 if self.expected_no_tool
                 else 0.0
             ),
-            "no_call_when_expected": self.no_call_agreement / self.total,
+            "call_no_call_agreement": self.no_call_agreement / self.total,
             "unsupported": self.unsupported_correct / self.total,
             "final_response": self.final_response_present / self.total,
         }
@@ -211,7 +211,7 @@ def _tool_call_count(messages: list[dict[str, Any]]) -> int:
     return sum(len(batch) for batch in extract_assistant_tool_calls(messages))
 
 
-def _actual_args_schema_valid(messages: list[dict[str, Any]]) -> bool:
+def _actual_args_parse_as_json(messages: list[dict[str, Any]]) -> bool:
     """Return True when every actual tool call has parseable JSON object arguments."""
     calls = [call for batch in extract_assistant_tool_calls(messages) for call in batch]
     if not calls:
@@ -236,6 +236,14 @@ def _example_messages(item: ExampleScore, *, side: str) -> list[dict[str, Any]]:
     return []
 
 
+def _actual_is_inference_error(item: ExampleScore) -> bool:
+    """Return True when the actual payload is an inference failure, not a model turn."""
+    if item.failure_category == "inference_error":
+        return True
+    actual = item.actual
+    return isinstance(actual, dict) and actual.get("error") is not None
+
+
 def summarize_scores(scores: list[ExampleScore]) -> MetricSummary:
     """Build aggregate summary from per-example scores."""
     summary = MetricSummary(total=len(scores), per_example=scores)
@@ -253,11 +261,12 @@ def summarize_scores(scores: list[ExampleScore]) -> MetricSummary:
         else:
             summary.expected_multi_action += 1
 
-        if (expected_count == 0) == (actual_count == 0):
-            summary.no_call_agreement += 1
+        if not _actual_is_inference_error(item):
+            if (expected_count == 0) == (actual_count == 0):
+                summary.no_call_agreement += 1
 
-        if _actual_args_schema_valid(actual_messages):
-            summary.schema_valid_args += 1
+            if _actual_args_parse_as_json(actual_messages):
+                summary.args_parse_as_json += 1
 
         if category not in {"inference_error", "protocol_invalid"}:
             summary.protocol_valid += 1
