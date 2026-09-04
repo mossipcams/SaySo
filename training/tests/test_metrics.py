@@ -100,6 +100,95 @@ def test_summarize_scores_counts_pass_single_action_and_no_tool() -> None:
     assert summary.single_action_success == 1
     assert summary.no_tool_correct == 1
     assert summary.multi_action_exact == 0
+    rates = summary.rates()
+    assert rates["single_action"] == 1.0
+    assert rates["no_tool"] == 1.0
+    assert rates["no_call_when_expected"] == 1.0
+
+
+def test_summarize_scores_category_rates_use_expected_category_denominators() -> None:
+    scores = [
+        ExampleScore(
+            expected={"messages": _assistant_with_calls("HassTurnOn")},
+            actual=_assistant_with_calls("HassTurnOn")[0],
+            failure_category=None,
+        )
+        for _ in range(9)
+    ] + [
+        ExampleScore(
+            expected={"messages": [{"role": "assistant", "content": "clarify"}]},
+            actual={"role": "assistant", "content": "clarify"},
+            failure_category=None,
+        )
+    ]
+    rates = summarize_scores(scores).rates()
+    assert rates["single_action"] == 1.0
+    assert rates["no_tool"] == 1.0
+    assert rates["multi_action"] == 0.0
+
+
+def test_summarize_scores_zero_eligible_category_rate_is_zero() -> None:
+    scores = [
+        ExampleScore(
+            expected={"messages": _assistant_with_calls("HassTurnOn")},
+            actual=_assistant_with_calls("HassTurnOn")[0],
+            failure_category=None,
+        )
+    ]
+    rates = summarize_scores(scores).rates()
+    assert rates["single_action"] == 1.0
+    assert rates["multi_action"] == 0.0
+    assert rates["no_tool"] == 0.0
+
+
+def test_summarize_scores_malformed_json_not_schema_valid() -> None:
+    malformed = ExampleScore(
+        expected={"messages": _assistant_with_calls("HassTurnOn")},
+        actual={
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "HassTurnOn",
+                        "arguments": "{not valid json",
+                    }
+                }
+            ],
+        },
+        failure_category="args_mismatch",
+    )
+    summary = summarize_scores([malformed])
+    assert summary.schema_valid_args == 0
+    assert summary.rates()["schema_valid"] == 0.0
+
+
+def test_summarize_scores_no_call_when_expected_overall_agreement() -> None:
+    agree_no_call = ExampleScore(
+        expected={"messages": [{"role": "assistant", "content": "clarify"}]},
+        actual={"role": "assistant", "content": "clarify"},
+        failure_category=None,
+    )
+    agree_with_call = ExampleScore(
+        expected={"messages": _assistant_with_calls("HassTurnOn")},
+        actual=_assistant_with_calls("HassTurnOn")[0],
+        failure_category=None,
+    )
+    disagree_unexpected = ExampleScore(
+        expected={"messages": [{"role": "assistant", "content": "clarify"}]},
+        actual=_assistant_with_calls("HassTurnOn")[0],
+        failure_category="unexpected_tool_call",
+    )
+    disagree_missing = ExampleScore(
+        expected={"messages": _assistant_with_calls("HassTurnOn")},
+        actual={"role": "assistant", "content": ""},
+        failure_category="missing_tool_call",
+    )
+    summary = summarize_scores(
+        [agree_no_call, agree_with_call, disagree_unexpected, disagree_missing]
+    )
+    assert summary.no_call_agreement == 2
+    assert summary.rates()["no_call_when_expected"] == 0.5
 
 
 def test_summarize_scores_counts_unexpected_missing_and_args_mismatch() -> None:
@@ -154,7 +243,10 @@ def test_summarize_scores_counts_unexpected_missing_and_args_mismatch() -> None:
     assert summary.protocol_valid == 3
     assert summary.tool_name_exact == 1
     assert summary.args_exact == 0
-    assert summary.schema_valid_args == 1
+    assert summary.schema_valid_args == 4
     assert summary.single_action_success == 0
     assert summary.multi_action_exact == 0
     assert summary.no_tool_correct == 0
+    rates = summary.rates()
+    assert rates["no_tool"] == 0.0
+    assert rates["single_action"] == 0.0
