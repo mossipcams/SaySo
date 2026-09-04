@@ -72,6 +72,58 @@ def test_quality_eval_labels_match_locked_tool_and_no_call_behavior() -> None:
             assert not any(message.get("tool_calls") for message in example["messages"])
 
 
+def _example_with_tool_calls() -> tuple[dict, list[dict]]:
+    example = next(row for row in build_quality_eval_examples() if expected_tool_calls(row))
+    calls = expected_tool_calls(example)
+    actual = [{"role": "assistant", "content": "", "tool_calls": calls}]
+    return example, actual
+
+
+def test_score_quality_gold_passes_identical_tool_call_prediction() -> None:
+    """Regression: actual must not be concatenated with expected before compare."""
+    example, actual = _example_with_tool_calls()
+    scored = score_quality_gold(example, actual)
+    assert scored["pass"]
+    assert scored["tool_name_exact"]
+    assert scored["args_exact"]
+    assert scored["failure_category"] is None
+
+
+def test_score_quality_gold_fails_on_extra_tool_call() -> None:
+    example, actual = _example_with_tool_calls()
+    extra = {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+            {
+                "function": {
+                    "name": "HassTurnOff",
+                    "arguments": json.dumps({"name": "Kitchen North Light", "domain": ["light"]}),
+                }
+            }
+        ],
+    }
+    scored = score_quality_gold(example, [*actual, extra])
+    assert not scored["pass"]
+    assert scored["failure_category"] == "tool_count_mismatch"
+
+
+def test_score_quality_gold_fails_on_missing_tool_call() -> None:
+    example, _actual = _example_with_tool_calls()
+    scored = score_quality_gold(example, [])
+    assert not scored["pass"]
+    assert scored["failure_category"] == "missing_tool_call"
+
+
+def test_score_quality_gold_fails_on_wrong_tool_name() -> None:
+    example, actual = _example_with_tool_calls()
+    wrong = json.loads(json.dumps(actual))
+    wrong[0]["tool_calls"][0]["function"]["name"] = "HassTurnOff"
+    scored = score_quality_gold(example, wrong)
+    assert not scored["pass"]
+    assert scored["failure_category"] == "tool_name_mismatch"
+
+
 def test_score_quality_gold_checks_no_call_when_expected() -> None:
     clarify = next(
         row

@@ -567,7 +567,7 @@ def score_quality_gold(example: dict[str, Any], actual_messages: list[dict[str, 
     actual_calls = expected_tool_calls({"messages": actual_messages})
     name_ok, args_ok, _multi_ok, category = score_expected_vs_actual(
         expected_messages,
-        [*expected_messages, *actual_messages],
+        actual_messages,
     )
     no_call_expected = not expected_calls
     no_call_actual = not actual_calls

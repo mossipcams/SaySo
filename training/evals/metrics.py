@@ -6,6 +6,24 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+# Fold common apostrophe-like characters to ASCII U+0027 for arg comparison.
+_APOSTROPHE_LIKE = str.maketrans(
+    {
+        "\u2018": "'",  # LEFT SINGLE QUOTATION MARK
+        "\u2019": "'",  # RIGHT SINGLE QUOTATION MARK
+        "\u201a": "'",  # SINGLE LOW-9 QUOTATION MARK
+        "\u201b": "'",  # SINGLE HIGH-REVERSED-9 QUOTATION MARK
+        "\u02bc": "'",  # MODIFIER LETTER APOSTROPHE
+        "\u2032": "'",  # PRIME
+        "\uff07": "'",  # FULLWIDTH APOSTROPHE
+    }
+)
+
+
+def fold_apostrophes(text: str) -> str:
+    """Normalize apostrophe-like characters for stable string comparison."""
+    return text.translate(_APOSTROPHE_LIKE)
+
 
 def normalize_json_value(value: Any) -> Any:
     """Recursively normalize JSON for stable comparison."""
@@ -14,7 +32,7 @@ def normalize_json_value(value: Any) -> Any:
     if isinstance(value, list):
         return [normalize_json_value(item) for item in value]
     if isinstance(value, str):
-        stripped = value.strip()
+        stripped = fold_apostrophes(value.strip())
         try:
             parsed = json.loads(stripped)
         except json.JSONDecodeError:
@@ -135,6 +153,10 @@ def score_expected_vs_actual(
     actual_calls = [call for batch in actual_batches for call in batch]
 
     if len(expected_calls) != len(actual_calls):
+        if not expected_calls and actual_calls:
+            return False, False, False, "unexpected_tool_call"
+        if expected_calls and not actual_calls:
+            return False, False, False, "missing_tool_call"
         return False, False, False, "tool_count_mismatch"
 
     expected_sigs = {tool_call_signature(c) for c in expected_calls}
@@ -167,18 +189,47 @@ def score_expected_vs_actual(
     return name_ok, args_ok, multi_ok, category
 
 
+def _tool_call_count(messages: list[dict[str, Any]]) -> int:
+    """Count assistant tool calls across message batches."""
+    return sum(len(batch) for batch in extract_assistant_tool_calls(messages))
+
+
+def _example_messages(item: ExampleScore, *, side: str) -> list[dict[str, Any]]:
+    if side == "expected":
+        return item.expected.get("messages") or []
+    actual = item.actual
+    if isinstance(actual, dict) and actual.get("error") is not None:
+        return []
+    if isinstance(actual, dict) and actual.get("role"):
+        return [actual]
+    if isinstance(actual, list):
+        return actual
+    return []
+
+
 def summarize_scores(scores: list[ExampleScore]) -> MetricSummary:
     """Build aggregate summary from per-example scores."""
     summary = MetricSummary(total=len(scores), per_example=scores)
     for item in scores:
-        if item.failure_category is None:
+        category = item.failure_category
+        expected_count = _tool_call_count(_example_messages(item, side="expected"))
+
+        if category not in {"inference_error", "protocol_invalid"}:
             summary.protocol_valid += 1
+
+        if category is None:
             summary.tool_name_exact += 1
             summary.args_exact += 1
             summary.schema_valid_args += 1
-        elif item.failure_category == "tool_name_mismatch":
-            summary.protocol_valid += 1
-        elif item.failure_category == "args_mismatch":
-            summary.protocol_valid += 1
+            if expected_count == 0:
+                summary.no_tool_correct += 1
+            elif expected_count == 1:
+                summary.single_action_success += 1
+            else:
+                summary.multi_action_exact += 1
+        elif category == "tool_name_mismatch":
+            summary.schema_valid_args += 1
+        elif category == "args_mismatch":
             summary.tool_name_exact += 1
+            summary.schema_valid_args += 1
     return summary
