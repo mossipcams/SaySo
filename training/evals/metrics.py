@@ -100,6 +100,10 @@ class MetricSummary:
     single_action_success: int = 0
     multi_action_exact: int = 0
     no_tool_correct: int = 0
+    expected_single_action: int = 0
+    expected_multi_action: int = 0
+    expected_no_tool: int = 0
+    no_call_agreement: int = 0
     unsupported_correct: int = 0
     final_response_present: int = 0
     per_example: list[ExampleScore] = field(default_factory=list)
@@ -108,17 +112,30 @@ class MetricSummary:
         if self.total == 0:
             return {key: 0.0 for key in [
                 "protocol", "tool_name", "args_exact", "schema_valid",
-                "single_action", "multi_action", "no_tool", "unsupported",
-                "final_response",
+                "single_action", "multi_action", "no_tool", "no_call_when_expected",
+                "unsupported", "final_response",
             ]}
         return {
             "protocol": self.protocol_valid / self.total,
             "tool_name": self.tool_name_exact / self.total,
             "args_exact": self.args_exact / self.total,
             "schema_valid": self.schema_valid_args / self.total,
-            "single_action": self.single_action_success / self.total,
-            "multi_action": self.multi_action_exact / self.total,
-            "no_tool": self.no_tool_correct / self.total,
+            "single_action": (
+                self.single_action_success / self.expected_single_action
+                if self.expected_single_action
+                else 0.0
+            ),
+            "multi_action": (
+                self.multi_action_exact / self.expected_multi_action
+                if self.expected_multi_action
+                else 0.0
+            ),
+            "no_tool": (
+                self.no_tool_correct / self.expected_no_tool
+                if self.expected_no_tool
+                else 0.0
+            ),
+            "no_call_when_expected": self.no_call_agreement / self.total,
             "unsupported": self.unsupported_correct / self.total,
             "final_response": self.final_response_present / self.total,
         }
@@ -194,6 +211,18 @@ def _tool_call_count(messages: list[dict[str, Any]]) -> int:
     return sum(len(batch) for batch in extract_assistant_tool_calls(messages))
 
 
+def _actual_args_schema_valid(messages: list[dict[str, Any]]) -> bool:
+    """Return True when every actual tool call has parseable JSON object arguments."""
+    calls = [call for batch in extract_assistant_tool_calls(messages) for call in batch]
+    if not calls:
+        return True
+    for call in calls:
+        fn = call.get("function") or {}
+        if parse_tool_arguments(fn.get("arguments")) is None:
+            return False
+    return True
+
+
 def _example_messages(item: ExampleScore, *, side: str) -> list[dict[str, Any]]:
     if side == "expected":
         return item.expected.get("messages") or []
@@ -212,7 +241,23 @@ def summarize_scores(scores: list[ExampleScore]) -> MetricSummary:
     summary = MetricSummary(total=len(scores), per_example=scores)
     for item in scores:
         category = item.failure_category
-        expected_count = _tool_call_count(_example_messages(item, side="expected"))
+        expected_messages = _example_messages(item, side="expected")
+        actual_messages = _example_messages(item, side="actual")
+        expected_count = _tool_call_count(expected_messages)
+        actual_count = _tool_call_count(actual_messages)
+
+        if expected_count == 0:
+            summary.expected_no_tool += 1
+        elif expected_count == 1:
+            summary.expected_single_action += 1
+        else:
+            summary.expected_multi_action += 1
+
+        if (expected_count == 0) == (actual_count == 0):
+            summary.no_call_agreement += 1
+
+        if _actual_args_schema_valid(actual_messages):
+            summary.schema_valid_args += 1
 
         if category not in {"inference_error", "protocol_invalid"}:
             summary.protocol_valid += 1
@@ -220,16 +265,12 @@ def summarize_scores(scores: list[ExampleScore]) -> MetricSummary:
         if category is None:
             summary.tool_name_exact += 1
             summary.args_exact += 1
-            summary.schema_valid_args += 1
             if expected_count == 0:
                 summary.no_tool_correct += 1
             elif expected_count == 1:
                 summary.single_action_success += 1
             else:
                 summary.multi_action_exact += 1
-        elif category == "tool_name_mismatch":
-            summary.schema_valid_args += 1
         elif category == "args_mismatch":
             summary.tool_name_exact += 1
-            summary.schema_valid_args += 1
     return summary
