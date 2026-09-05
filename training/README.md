@@ -24,7 +24,8 @@ python -m pytest training/tests training/evals -q
 | Generate recipe-lock quality eval + deterministic 10k train | `python training/scripts/generate_recipe_lock_eval.py` |
 | Generate corrective SFT + shadow eval | `python training/scripts/generate_training_supplement.py` |
 | Generate balanced held-out test set | `python training/scripts/generate_balanced_test_data.py` |
-| Build synthetic train JSONL | `python training/scripts/build_synthetic_dataset.py` |
+| Build synthetic train JSONL (legacy 10k) | `python training/scripts/build_synthetic_dataset.py --generator-model ... --judge-model ...` |
+| Build synthetic v3 train (~40k, deterministic) | `python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 --out-dir training/datasets/synthetic_v3_train.jsonl` |
 | Split 80/10/10 | `python training/scripts/split_dataset.py INPUT.jsonl --out-dir training/datasets` |
 | Detect GPU | `python training/scripts/detect_gpu.py` |
 | Evaluate | `python training/scripts/evaluate.py training/evals/adversarial.jsonl` |
