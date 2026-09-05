@@ -108,7 +108,7 @@ def _cover_ops() -> tuple[OperationSpec, ...]:
     return (
         OperationSpec("open", SupportLevel.SUPPORTED, "HassTurnOn"),
         OperationSpec("close", SupportLevel.SUPPORTED, "HassTurnOff"),
-        OperationSpec("set_position", SupportLevel.UNAVAILABLE, blocker="no position tool in v1 schema"),
+        OperationSpec("set_position", SupportLevel.UNAVAILABLE, blocker="no position tool in Assist schema"),
         OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
     )
 
@@ -123,13 +123,13 @@ def _lock_ops() -> tuple[OperationSpec, ...]:
 
 def _media_ops() -> tuple[OperationSpec, ...]:
     return (
-        OperationSpec("turn_on", SupportLevel.PARTIAL, "HassTurnOn"),
-        OperationSpec("turn_off", SupportLevel.PARTIAL, "HassTurnOff"),
-        OperationSpec("play", SupportLevel.UNAVAILABLE, blocker="no media play tool in v1 schema"),
-        OperationSpec("pause", SupportLevel.UNAVAILABLE, blocker="no media pause tool in v1 schema"),
-        OperationSpec("volume_set", SupportLevel.UNAVAILABLE, blocker="no volume tool in v1 schema"),
-        OperationSpec("volume_up", SupportLevel.UNAVAILABLE, blocker="no volume tool in v1 schema"),
-        OperationSpec("mute", SupportLevel.UNAVAILABLE, blocker="no mute tool in v1 schema"),
+        OperationSpec("turn_on", SupportLevel.SUPPORTED, "HassTurnOn"),
+        OperationSpec("turn_off", SupportLevel.SUPPORTED, "HassTurnOff"),
+        OperationSpec("play", SupportLevel.SUPPORTED, "HassMediaUnpause"),
+        OperationSpec("pause", SupportLevel.SUPPORTED, "HassMediaPause"),
+        OperationSpec("volume_set", SupportLevel.SUPPORTED, "HassSetVolume"),
+        OperationSpec("volume_up", SupportLevel.SUPPORTED, "HassSetVolumeRelative"),
+        OperationSpec("mute", SupportLevel.SUPPORTED, "HassMediaPlayerMute"),
         OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
     )
 
@@ -137,17 +137,40 @@ def _media_ops() -> tuple[OperationSpec, ...]:
 def _timer_ops() -> tuple[OperationSpec, ...]:
     return (
         OperationSpec("cancel_all", SupportLevel.SUPPORTED, "HassCancelAllTimers"),
-        OperationSpec("start", SupportLevel.UNAVAILABLE, blocker="no timer start tool in v1 schema"),
-        OperationSpec("pause", SupportLevel.UNAVAILABLE, blocker="no timer pause tool in v1 schema"),
-        OperationSpec("status", SupportLevel.UNAVAILABLE, blocker="no timer status tool in v1 schema"),
+        OperationSpec("start", SupportLevel.SUPPORTED, "HassStartTimer"),
+        OperationSpec("pause", SupportLevel.SUPPORTED, "HassPauseTimer"),
+        OperationSpec("status", SupportLevel.SUPPORTED, "HassTimerStatus"),
     )
 
 
 def _climate_ops() -> tuple[OperationSpec, ...]:
     return (
-        OperationSpec("set_temperature", SupportLevel.UNAVAILABLE, blocker="no climate tool in v1 schema"),
-        OperationSpec("turn_on", SupportLevel.UNAVAILABLE, blocker="no climate tool in v1 schema"),
-        OperationSpec("turn_off", SupportLevel.UNAVAILABLE, blocker="no climate tool in v1 schema"),
+        OperationSpec("set_temperature", SupportLevel.SUPPORTED, "HassClimateSetTemperature"),
+        OperationSpec("turn_on", SupportLevel.SUPPORTED, "HassTurnOn"),
+        OperationSpec("turn_off", SupportLevel.SUPPORTED, "HassTurnOff"),
+        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
+    )
+
+
+def _vacuum_ops() -> tuple[OperationSpec, ...]:
+    return (
+        OperationSpec("start", SupportLevel.SUPPORTED, "HassVacuumStart"),
+        OperationSpec("return_home", SupportLevel.SUPPORTED, "HassVacuumReturnToBase"),
+        OperationSpec("clean_area", SupportLevel.SUPPORTED, "HassVacuumCleanArea"),
+        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
+    )
+
+
+def _scene_ops() -> tuple[OperationSpec, ...]:
+    return (
+        OperationSpec("activate", SupportLevel.SUPPORTED, "HassTurnOn"),
+        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
+    )
+
+
+def _script_ops() -> tuple[OperationSpec, ...]:
+    return (
+        OperationSpec("run", SupportLevel.SUPPORTED, "HassTurnOn"),
         OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
     )
 
@@ -175,9 +198,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         domain="media_player",
         device_class="tv",
         sampling_weight=TIER1_CAPABILITY_WEIGHTS["media_players"],
-        support=SupportLevel.PARTIAL,
+        support=SupportLevel.SUPPORTED,
         operations=_media_ops(),
-        blocker="volume/play/pause not exposed in v1 Assist schema",
     ),
     "timers": CapabilitySpec(
         name="timers",
@@ -185,10 +207,9 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         domain="timer",
         device_class=None,
         sampling_weight=TIER1_CAPABILITY_WEIGHTS["timers"],
-        support=SupportLevel.PARTIAL,
+        support=SupportLevel.SUPPORTED,
         operations=_timer_ops(),
         targeting_modes=("context",),
-        blocker="only HassCancelAllTimers in v1 schema",
     ),
     "climate": CapabilitySpec(
         name="climate",
@@ -196,9 +217,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         domain="climate",
         device_class=None,
         sampling_weight=TIER1_CAPABILITY_WEIGHTS["climate"],
-        support=SupportLevel.UNAVAILABLE,
+        support=SupportLevel.SUPPORTED,
         operations=_climate_ops(),
-        blocker="no climate control tools in v1 schema",
     ),
     "switches": CapabilitySpec(
         name="switches",
@@ -242,9 +262,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         domain="vacuum",
         device_class=None,
         sampling_weight=1,
-        support=SupportLevel.UNAVAILABLE,
-        operations=_unavailable_ops("vacuums", "no vacuum tool in v1 schema"),
-        blocker="no vacuum tool in v1 schema",
+        support=SupportLevel.SUPPORTED,
+        operations=_vacuum_ops(),
     ),
     "scenes": CapabilitySpec(
         name="scenes",
@@ -252,9 +271,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         domain="scene",
         device_class=None,
         sampling_weight=1,
-        support=SupportLevel.UNAVAILABLE,
-        operations=_unavailable_ops("scenes", "no scene activation tool in v1 schema"),
-        blocker="no scene tool in v1 schema",
+        support=SupportLevel.SUPPORTED,
+        operations=_scene_ops(),
     ),
     "scripts": CapabilitySpec(
         name="scripts",
@@ -262,9 +280,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         domain="script",
         device_class=None,
         sampling_weight=1,
-        support=SupportLevel.UNAVAILABLE,
-        operations=_unavailable_ops("scripts", "no script run tool in v1 schema"),
-        blocker="no script tool in v1 schema",
+        support=SupportLevel.SUPPORTED,
+        operations=_script_ops(),
     ),
     "lawn_mowers": CapabilitySpec(
         name="lawn_mowers",
@@ -273,8 +290,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         device_class=None,
         sampling_weight=1,
         support=SupportLevel.UNAVAILABLE,
-        operations=_unavailable_ops("lawn_mowers", "no lawn mower tool in v1 schema"),
-        blocker="no lawn mower tool in v1 schema",
+        operations=_unavailable_ops("lawn_mowers", "no lawn mower tool in Assist schema"),
+        blocker="no lawn mower tool in Assist schema",
     ),
     "todo_lists": CapabilitySpec(
         name="todo_lists",
@@ -283,8 +300,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         device_class=None,
         sampling_weight=1,
         support=SupportLevel.UNAVAILABLE,
-        operations=_unavailable_ops("todo_lists", "no todo list tool in v1 schema"),
-        blocker="no todo tool in v1 schema",
+        operations=_unavailable_ops("todo_lists", "no todo list tool in Assist schema"),
+        blocker="no todo tool in Assist schema",
     ),
     "buttons": CapabilitySpec(
         name="buttons",
@@ -293,8 +310,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         device_class=None,
         sampling_weight=1,
         support=SupportLevel.UNAVAILABLE,
-        operations=_unavailable_ops("buttons", "no button press tool in v1 schema"),
-        blocker="no button tool in v1 schema",
+        operations=_unavailable_ops("buttons", "no button press tool in Assist schema"),
+        blocker="no button tool in Assist schema",
     ),
 }
 

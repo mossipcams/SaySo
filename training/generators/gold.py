@@ -65,7 +65,7 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
             return expected_no_action("clarify")
         return expected_status(entity)
 
-    if operation == "cancel_all":
+    if operation == "cancel_all" or (capability == "timers" and operation in {"start", "pause", "status"}):
         area = scenario.get("area")
         call = build_call_for_operation(None, capability, operation, rng, area=area)
         return {"kind": "action", "calls": [call]}
