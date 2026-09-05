@@ -51,10 +51,9 @@ def evaluate_checkpoint(
 
         latency_ms = (time.perf_counter() - started) * 1000.0
         expected_messages = example.get("messages") or []
-        actual_messages = [*expected_messages, actual_message]
 
         protocol_ok = score_tool_call_protocol([actual_message])
-        _, _, _, category = score_expected_vs_actual(expected_messages, actual_messages)
+        _, _, _, category = score_expected_vs_actual(expected_messages, [actual_message])
 
         if not protocol_ok:
             category = category or "protocol_invalid"
