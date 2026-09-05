@@ -10,8 +10,10 @@ import pytest
 from adapters.schema import (
     ALLOWED_HASS_TOOLS,
     assert_openai_tool_envelope,
+    assert_v1_tiers_cover_catalog,
     load_v1_schema,
     load_v1_tools,
+    v1_tool_device_type_tiers,
     v1_tool_names,
 )
 
@@ -22,15 +24,26 @@ LOCKED_ARTIFACT = ROOT.parent / "schemas" / "sayso-tool-schema-v1.json"
 
 def test_allowed_tools_match_locked_v1_names() -> None:
     assert ALLOWED_HASS_TOOLS == v1_tool_names()
-    assert ALLOWED_HASS_TOOLS == {
-        "GetDateTime",
-        "GetLiveContext",
-        "HassCancelAllTimers",
-        "HassFanSetSpeed",
-        "HassLightSet",
-        "HassTurnOff",
-        "HassTurnOn",
+    assert "HassClimateSetTemperature" in ALLOWED_HASS_TOOLS
+    assert "HassMediaPause" in ALLOWED_HASS_TOOLS
+    assert "HassStartTimer" in ALLOWED_HASS_TOOLS
+    assert "HassVacuumStart" in ALLOWED_HASS_TOOLS
+    assert_v1_tiers_cover_catalog()
+
+
+def test_v1_device_type_tiers_partition_catalog() -> None:
+    tiers = v1_tool_device_type_tiers()
+    assert set(tiers) == {
+        "query",
+        "generic",
+        "light",
+        "fan",
+        "climate",
+        "media_player",
+        "vacuum",
+        "timer",
     }
+    assert_v1_tiers_cover_catalog()
 
 
 def test_ha_assist_tools_match_locked_v1_tools() -> None:
