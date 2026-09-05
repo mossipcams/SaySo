@@ -7,7 +7,7 @@ the same OpenAI-compatible shape used by the integration. Home Assistant still
 owns the entities, schemas, permissions, execution, and final voice pipeline.
 llama.cpp only hosts inference.
 
-Do not revive Instruct-checkpoint, FunctionGemma, Home-LLM, or Axolotl full-SFT
+Do not revive Instruct-checkpoint, FunctionGemma, or Axolotl full-SFT
 plans. Checked-in `training/configs/lfm25-230m*.yml` and `functiongemma-270m*.yml`
 Axolotl files are leftovers, not the training path.
 
@@ -43,14 +43,14 @@ call/no-call decision.
 
 Do not train on:
 
-- Home-LLM ChatML `<tool_call>` labels;
+- ChatML `<tool_call>` labels;
 - eval case IDs or examples from `evals/cases/`;
 - variants of the 38 recipe-lock golden utterances;
 - unsupported tools or arguments;
 - model-generated labels that have not passed SaySo schema validation.
 
-Home-LLM fixture data may provide utterance diversity, but SaySo-generated
-tool-call labels and schema validation remain authoritative.
+Synthetic generation in `training/scripts/build_synthetic_dataset.py` owns
+utterance diversity; schema validation remains authoritative for every label.
 
 ## 3. Format and trainer
 
@@ -138,10 +138,10 @@ to:
 
 ## 6. Non-goals
 
-- model bake-offs (Instruct LFM, FunctionGemma, Home-LLM, Alexa+)
+- model bake-offs (Instruct LFM, FunctionGemma, Alexa+)
 - Axolotl full-parameter SFT
 - another 10k generation or Epoch 3 on the corrective mix
-- fine-tuning on Home-LLM tool-call labels
+- fine-tuning on ChatML `<tool_call>` labels
 - long autonomous chains
 - replacing Home Assistant validation with model trust
 - a SaySo server, broker, custom action protocol, or direct satellite-to-model
@@ -151,7 +151,7 @@ to:
 
 | Concern | Location |
 |---|---|
-| Dataset generation | `training/scripts/build_synthetic_dataset.py`, `training/scripts/generate_training_supplement.py`, `training/generators/` |
+| Dataset generation | `training/scripts/build_synthetic_dataset.py`, `training/scripts/generate_training_supplement.py`, `training/scripts/generate_balanced_test_data.py` |
 | Recipe-lock gold | `training/evals/recipe_lock.py`, `training/scripts/generate_recipe_lock_eval.py` |
 | Raw tool-call parse | `training/evals/lfm_python_parse.py` |
 | LFM adapter | `training/adapters/lfm.py` |

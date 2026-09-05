@@ -47,7 +47,7 @@ Defer if they threaten the voice path:
   assuming topology. It documents boundaries and the integration shape.
 - Offline eval cases and runners live in `evals/` (`evals/cases/`,
   `evals/runner.py`, `evals/scorer.py`, `evals/metrics.py`). Do not train on
-  Home-LLM tool-call labels or on eval case IDs from `evals/cases/`.
+  ChatML `<tool_call>` labels or on eval case IDs from `evals/cases/`.
 - Training design lives only in `docs/TRAINING_PLAN.md`. The target is
   `LFM2.5-230M-Base` with schema-conditioned function calling. `ALLOWED_HASS_TOOLS`
   validates the pinned training contract only — it does not define runtime support.

@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 V1_SCHEMA_ARTIFACT = REPO_ROOT / "schemas" / "sayso-tool-schema-v1.json"
 TRAINING_V1_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sayso_tool_schema_v1.json"
 
-# Legacy Home-LLM / service-call argument keys that must be rejected.
+# Legacy service-call argument keys that must be rejected.
 LEGACY_ARGUMENT_KEYS: frozenset[str] = frozenset(
     {
         "entity_id",
@@ -39,7 +39,7 @@ LEGACY_TOOL_PREFIXES: tuple[str, ...] = (
     "todo.",
 )
 
-HOME_LLM_LABEL_MARKERS: frozenset[str] = frozenset(
+CHATML_TOOL_CALL_MARKERS: frozenset[str] = frozenset(
     {
         "<tool_call>",
         "</tool_call>",
@@ -113,9 +113,9 @@ def assert_tools_subset_of_v1(tools: list[dict[str, Any]]) -> None:
             raise ValueError(f"tool {name!r} is not in locked v1 catalog")
 
 
-def contains_home_llm_label_markers(text: str) -> bool:
-    """Return True when text uses forbidden Home-LLM ChatML tool-call labels."""
-    return any(marker in text for marker in HOME_LLM_LABEL_MARKERS)
+def contains_chatml_tool_call_markers(text: str) -> bool:
+    """Return True when text uses forbidden ChatML tool-call labels."""
+    return any(marker in text for marker in CHATML_TOOL_CALL_MARKERS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,7 +189,7 @@ def _axolotl_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def extract_text_content(content: Any) -> str:
-    """Normalize message content from Home-LLM or SaySo formats."""
+    """Normalize message content from list or string payloads."""
     if content is None:
         return ""
     if isinstance(content, str):
