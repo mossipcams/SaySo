@@ -1,0 +1,46 @@
+# 40k v3 supervised train set: render sayso_train_v3_40k_render.jsonl before training.
+model_name_or_path: /srv/models/LFM2.5-230M-Base
+trust_remote_code: true
+dtype: float16
+attn_implementation: sdpa
+
+datasets:
+  - path: json
+    data_files: /srv/datasets/sayso_v3/sayso_train_v3_40k_render.jsonl
+    split: train
+
+output_dir: /srv/training-runs/SaySo-LFM2.5-230M-v3-40k
+num_train_epochs: 2
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 16
+learning_rate: 0.0002
+lr_scheduler_type: cosine
+warmup_steps: 20
+max_length: 8192
+packing: false
+assistant_only_loss: true
+
+use_peft: true
+use_rslora: true
+lora_r: 32
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - all-linear
+lora_task_type: CAUSAL_LM
+
+fp16: true
+bf16: false
+gradient_checkpointing: true
+use_cache: false
+optim: adamw_torch_fused
+max_grad_norm: 1.0
+dataloader_num_workers: 2
+dataloader_pin_memory: true
+
+logging_steps: 10
+logging_first_step: true
+save_strategy: epoch
+save_total_limit: 2
+report_to: tensorboard
+seed: 42
