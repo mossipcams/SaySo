@@ -22,6 +22,7 @@ python -m pytest training/tests training/evals -q
 | Step | Command |
 |------|---------|
 | Generate recipe-lock quality eval + deterministic 10k train | `python training/scripts/generate_recipe_lock_eval.py` |
+| Generate v3 quality eval (gold + shadow) | `python training/scripts/generate_v3_quality_eval.py` |
 | Generate corrective SFT + shadow eval | `python training/scripts/generate_training_supplement.py` |
 | Generate balanced held-out test set | `python training/scripts/generate_balanced_test_data.py` |
 | Build synthetic train JSONL (legacy 10k) | `python training/scripts/build_synthetic_dataset.py --generator-model ... --judge-model ...` |
@@ -32,10 +33,10 @@ python -m pytest training/tests training/evals -q
 | Export GGUF | `python training/scripts/export_gguf.py --checkpoint PATH --dry-run` |
 | Verify llama.cpp | `python training/scripts/verify_llamacpp.py --dry-run` |
 
-Host TRL runs copy `training/configs/lfm25-230m-synthetic-v2-trl.yml` and point
-`data_files` / `output_dir` at the current mix. Train from Base, not from a
-champion checkpoint. Defaults: rsLoRA rank 32, FP16, accum 16, `2e-4`, cosine,
-assistant-only loss.
+Host TRL runs copy `training/configs/lfm25-230m-synthetic-v3-40k-trl.yml` and
+point `data_files` / `output_dir` at the current mix. Train from Base, not from
+the corrective epoch-2 champion checkpoint. Defaults: rsLoRA rank 32, FP16, accum
+16, `2e-4`, cosine, assistant-only loss, 2 epochs for the 40k v3 run.
 
 ## Dataset views
 
@@ -68,4 +69,5 @@ exits 0 with a documented skip message.
 ## Adversarial eval
 
 `evals/adversarial.jsonl` is held out from training and checkpoint selection.
-The working quality gate is the 38 recipe-lock cases plus the shadow eval.
+The working quality gate is the 38 recipe-lock cases plus the v3 gold/shadow
+eval.
