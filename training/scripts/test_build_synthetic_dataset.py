@@ -1051,7 +1051,7 @@ def test_system_context_includes_sayso_conversation_entity_area() -> None:
     assert spec["home"]["sayso_entity_area"] in system
 
 
-def test_banned_please_what_status_and_home_llm_labels_rejected() -> None:
+def test_banned_please_what_status_and_chatml_labels_rejected() -> None:
     status = next(spec for spec in build_specs(100, seed=12) if spec["category"] == "status")
     status["utterance"] = f"Could you please what is the status of {status['target_names'][0]}"
     assert validate_utterance(status) == "unnatural_framing"

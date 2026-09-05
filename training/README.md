@@ -24,7 +24,7 @@ python -m pytest training/tests training/evals -q
 | Generate recipe-lock quality eval + deterministic 10k train | `python training/scripts/generate_recipe_lock_eval.py` |
 | Generate corrective SFT + shadow eval | `python training/scripts/generate_training_supplement.py` |
 | Generate balanced held-out test set | `python training/scripts/generate_balanced_test_data.py` |
-| Adapt only | `python training/scripts/adapt_dataset.py INPUT.jsonl OUTPUT.jsonl --seed 42` |
+| Build synthetic train JSONL | `python training/scripts/build_synthetic_dataset.py` |
 | Split 80/10/10 | `python training/scripts/split_dataset.py INPUT.jsonl --out-dir training/datasets` |
 | Detect GPU | `python training/scripts/detect_gpu.py` |
 | Evaluate | `python training/scripts/evaluate.py training/evals/adversarial.jsonl` |
@@ -48,14 +48,13 @@ the apostrophe-safe eval parser.
 
 ```
 training/
-  adapters/          Example conversion and schema validation
+  adapters/          Schema validation and LFM helpers
   artifacts/         Checkpoints, eval outputs (gitignored)
   configs/           Trainer YAML (TRL recipe is the live path)
   datasets/          Generated JSONL (gitignored)
   evals/             Metrics, harness, recipe lock, adversarial set
   fixtures/          Test fixtures
-  generators/        Label-first example generation
-  scripts/           Pipeline operations
+  scripts/           Pipeline operations (synthetic builder, supplements, eval)
   tests/             Unit tests (no model downloads)
 ```
 

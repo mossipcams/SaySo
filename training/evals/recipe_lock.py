@@ -589,7 +589,7 @@ def assert_quality_eval_contract(example: dict[str, Any]) -> None:
     """Validate one rendered gold row against the first-training contract."""
     blob = json.dumps(example, ensure_ascii=False)
     if _BANNED.search(blob):
-        raise ValueError("quality eval contains banned eval/Home-LLM markers")
+        raise ValueError("quality eval contains banned eval or ChatML tool-call markers")
     metadata = example.get("metadata") or {}
     if str(metadata.get("candidate_id", "")).startswith("evals/cases"):
         raise ValueError("quality eval must not use evals/cases IDs")
