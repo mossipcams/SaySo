@@ -45,7 +45,7 @@ def test_smoke_config_uses_fixture_dataset() -> None:
 
 def test_smoke_fixture_assistant_only_training() -> None:
     smoke_path = FIXTURES / "sayso_axolotl_smoke.jsonl"
-    assert smoke_path.exists(), "run adapt_dataset to create smoke fixture"
+    assert smoke_path.exists(), "sayso_axolotl_smoke.jsonl fixture must exist under training/fixtures"
     assert _fixture_has_train_on_turn(smoke_path)
 
 

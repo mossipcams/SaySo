@@ -45,7 +45,7 @@ def test_lfm_prod_config_has_eval_dataset() -> None:
     assert any("sayso_val" in entry.get("path", "") for entry in test_sets)
 
 
-def test_lfm_configs_do_not_embed_home_llm_tool_call_labels() -> None:
+def test_lfm_configs_do_not_embed_chatml_tool_call_labels() -> None:
     for name in ("lfm25-230m.yml", "lfm25-230m-smoke.yml", "lfm25-230m-prod.yml"):
         text = (CONFIGS / name).read_text(encoding="utf-8")
         validate_lfm_config_text(text)

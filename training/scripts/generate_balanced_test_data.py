@@ -11,12 +11,13 @@ import re
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
-from generators.home_llm_piles import SMALL_FACTORS, generate_pile_examples  # noqa: E402
+from build_synthetic_dataset import build_specs, expand_utterance, render_example  # noqa: E402
 
 DEFAULT_COUNT = 2_500
 MIX = {
@@ -105,19 +106,15 @@ def _first_user_text(example: dict) -> str:
 
 def _set_first_user_text(example: dict, text: str) -> None:
     message = next(message for message in example["messages"] if message.get("role") == "user")
-    message["content"] = [{"type": "text", "text": text}]
+    message["content"] = text
 
 
 def _replace_dialogue(example: dict, user: str, assistant: str) -> None:
     system = next(message for message in example["messages"] if message.get("role") == "system")
     example["messages"] = [
         system,
-        {"role": "user", "content": [{"type": "text", "text": user}], "train_on_turn": False},
-        {
-            "role": "assistant",
-            "content": [{"type": "text", "text": assistant}],
-            "train_on_turn": True,
-        },
+        {"role": "user", "content": user, "train_on_turn": False},
+        {"role": "assistant", "content": assistant, "train_on_turn": True},
     ]
 
 
@@ -135,6 +132,8 @@ def _mark(example: dict, category: str, subcategory: str, seed: int) -> dict:
 def _plain_command(text: str) -> str:
     command = text.strip().rstrip(".?!")
     command = re.sub(r"^(please|can you|could you|would you)\s+", "", command, flags=re.I)
+    if not command:
+        return command
     return command[:1].lower() + command[1:]
 
 
@@ -169,6 +168,16 @@ def _tool_names(example: dict) -> set[str]:
                 if isinstance(value, str):
                     names.add(value)
     return names
+
+
+def _render_spec(spec: dict[str, Any], utterance: str | None = None) -> dict[str, Any]:
+    rendered = copy.deepcopy(spec)
+    rendered["utterance"] = utterance or expand_utterance(rendered)
+    return render_example(rendered)
+
+
+def _spec_pool_size(count: int) -> int:
+    return ((max(count * 10, 2_500) + 99) // 100) * 100
 
 
 def _take(
@@ -253,14 +262,30 @@ def build_balanced_test_set(
         raise ValueError("count must be a positive multiple of 20")
     counts = {name: count * percent // 100 for name, percent in MIX.items()}
     rng = random.Random(seed)
-    source = list(generate_pile_examples(seed=seed, factors=SMALL_FACTORS))
-    by_family: dict[str, list[dict]] = {}
-    for example in source:
-        by_family.setdefault(example["metadata"]["template_family"], []).append(example)
+    specs = build_specs(_spec_pool_size(count), seed=seed)
+    by_category: dict[str, list[dict[str, Any]]] = {}
+    for spec in specs:
+        by_category.setdefault(spec["category"], []).append(spec)
+
+    singles = [
+        _render_spec(spec)
+        for spec in by_category.get("clean_direct", []) + by_category.get("entity_identity", [])
+    ]
+    multi_examples = [_render_spec(spec) for spec in by_category.get("multi_action_exclusion", [])]
+    status_examples = [_render_spec(spec) for spec in by_category.get("status", [])]
+    refusal_specs = [
+        spec
+        for spec in by_category.get("unsupported_no_action", [])
+        if spec["expected"].get("response") == "refuse"
+    ]
+    refusal_examples = [_render_spec(spec) for spec in refusal_specs]
+    prototype = _render_spec(
+        next(spec for spec in by_category.get("ambiguity", []) if spec["expected"].get("response") == "clarify")
+    )
+
     used = {prompt.casefold().strip() for prompt in excluded_prompts or set()}
     result: list[dict] = []
 
-    singles = by_family["pile_specific"] + by_family["pile_templated"]
     result += _take(
         singles,
         counts["normal_household"],
@@ -285,7 +310,7 @@ def build_balanced_test_set(
 
     multi_count = counts["multi_action_exclusion"] // 2
     result += _take(
-        by_family["pile_templated_multi"],
+        multi_examples,
         multi_count,
         category="multi_action_exclusion",
         subcategory="multi_action",
@@ -302,7 +327,7 @@ def build_balanced_test_set(
         _set_first_user_text(example, f"{text}, but leave {excluded} alone.")
 
     result += _take(
-        by_family["pile_templated_multi"],
+        multi_examples,
         counts["multi_action_exclusion"] - multi_count,
         category="multi_action_exclusion",
         subcategory="exclusion",
@@ -313,7 +338,6 @@ def build_balanced_test_set(
     )
 
     ambiguity_count = counts["ambiguity_context"] // 2
-    prototype = by_family["pile_ambiguity"][0]
     result += _manual_no_tool(
         prototype,
         _ambiguity_pairs(),
@@ -324,7 +348,7 @@ def build_balanced_test_set(
         used_prompts=used,
     )
     result += _take(
-        by_family["pile_status"],
+        status_examples,
         counts["ambiguity_context"] - ambiguity_count,
         category="ambiguity_context",
         subcategory="context_resolution",
@@ -353,7 +377,7 @@ def build_balanced_test_set(
     refusal_count = edge_count * 2 // 5
     unsupported_count = edge_count * 2 // 5
     result += _take(
-        by_family["pile_refusal"],
+        refusal_examples,
         refusal_count,
         category="refusal_unsupported_clarification",
         subcategory="refusal",
