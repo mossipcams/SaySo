@@ -13,7 +13,51 @@ from jsonschema import Draft202012Validator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 V1_SCHEMA_ARTIFACT = REPO_ROOT / "schemas" / "sayso-tool-schema-v1.json"
+V2_SCHEMA_ARTIFACT = REPO_ROOT / "schemas" / "sayso-tool-schema-v2.json"
 TRAINING_V1_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sayso_tool_schema_v1.json"
+TRAINING_V2_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sayso_tool_schema_v2.json"
+
+# Device-type tiers mirror synthetic generator kinds plus Assist domain tools.
+# HassTurnOn/HassTurnOff remain the on/off path for scene, script, vacuum, and climate.
+V1_TOOL_DEVICE_TYPE_TIERS: dict[str, frozenset[str]] = {
+    "query": frozenset({"GetDateTime", "GetLiveContext"}),
+    "generic": frozenset({"HassTurnOff", "HassTurnOn"}),
+    "light": frozenset({"HassLightSet"}),
+    "fan": frozenset({"HassFanSetSpeed"}),
+    "climate": frozenset({"HassClimateSetTemperature"}),
+    "media_player": frozenset(
+        {
+            "HassMediaNext",
+            "HassMediaPause",
+            "HassMediaPlayerMute",
+            "HassMediaPlayerUnmute",
+            "HassMediaPrevious",
+            "HassMediaSearchAndPlay",
+            "HassMediaUnpause",
+            "HassSetVolume",
+            "HassSetVolumeRelative",
+        }
+    ),
+    "vacuum": frozenset(
+        {
+            "HassVacuumCleanArea",
+            "HassVacuumReturnToBase",
+            "HassVacuumStart",
+        }
+    ),
+    "timer": frozenset(
+        {
+            "HassCancelAllTimers",
+            "HassCancelTimer",
+            "HassDecreaseTimer",
+            "HassIncreaseTimer",
+            "HassPauseTimer",
+            "HassStartTimer",
+            "HassTimerStatus",
+            "HassUnpauseTimer",
+        }
+    ),
+}
 
 # Legacy service-call argument keys that must be rejected.
 LEGACY_ARGUMENT_KEYS: frozenset[str] = frozenset(
@@ -48,6 +92,23 @@ CHATML_TOOL_CALL_MARKERS: frozenset[str] = frozenset(
 
 
 @lru_cache(maxsize=1)
+def load_v2_schema() -> dict[str, Any]:
+    """Load the device-type-tiered SaySo tool schema artifact."""
+    if not V2_SCHEMA_ARTIFACT.is_file():
+        raise FileNotFoundError(f"Missing tiered schema artifact: {V2_SCHEMA_ARTIFACT}")
+    return json.loads(V2_SCHEMA_ARTIFACT.read_text(encoding="utf-8"))
+
+
+def v2_tool_catalog_by_device_type() -> dict[str, list[dict[str, Any]]]:
+    """Return v2 tool groups keyed by device-type tier."""
+    schema = load_v2_schema()
+    catalog = schema.get("tool_catalog_by_device_type")
+    if not isinstance(catalog, dict):
+        raise ValueError("v2 schema must contain tool_catalog_by_device_type")
+    return {str(key): list(value) for key, value in catalog.items()}
+
+
+@lru_cache(maxsize=1)
 def load_v1_schema() -> dict[str, Any]:
     """Load the locked SaySo tool schema artifact (read-only source of truth)."""
     if not V1_SCHEMA_ARTIFACT.is_file():
@@ -77,6 +138,26 @@ def v1_tool_names() -> frozenset[str]:
 
 
 ALLOWED_HASS_TOOLS: frozenset[str] = v1_tool_names()
+
+
+def v1_tool_device_type_tiers() -> dict[str, frozenset[str]]:
+    """Return the locked v1 catalog grouped by device-type tier."""
+    return V1_TOOL_DEVICE_TYPE_TIERS
+
+
+def assert_v1_tiers_cover_catalog() -> None:
+    """Ensure tier metadata partitions the locked v1 catalog without drift."""
+    tiered: set[str] = set()
+    for names in V1_TOOL_DEVICE_TYPE_TIERS.values():
+        overlap = tiered & set(names)
+        if overlap:
+            raise ValueError(f"tool tier overlap: {sorted(overlap)}")
+        tiered.update(names)
+    allowed = ALLOWED_HASS_TOOLS
+    if tiered != set(allowed):
+        missing = sorted(set(allowed) - tiered)
+        extra = sorted(tiered - set(allowed))
+        raise ValueError(f"tier/catalog mismatch: missing={missing!r} extra={extra!r}")
 
 
 def v1_openai_tools() -> list[dict[str, Any]]:

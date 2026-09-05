@@ -1,0 +1,2129 @@
+{
+  "contract_version": "sayso-tool-schema/v2",
+  "home_assistant_llm_api_identifier": "assist",
+  "home_assistant_version": "2026.8.3",
+  "sayso_source_commit": "b28a94e5a8af0e7e1429f34fb7d6508e1738c2a8",
+  "schema_fingerprint": "sha256:61bdafb650a1a1c54ea66ea44fdb6e30cfa89e67e832b3e1193807df34f31423",
+  "tool_catalog_by_device_type": {
+    "query": [
+      {
+        "function": {
+          "description": "Provides the current date and time.",
+          "name": "GetDateTime",
+          "parameters": {
+            "properties": {},
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Provides real-time information about the CURRENT state, value, or mode of devices, sensors, entities, or areas. Use this tool for: 1. Answering questions about current conditions (e.g., 'Is the light on?'). 2. As the first step in conditional actions (e.g., 'If the weather is rainy, turn off sprinklers' requires checking the weather first). You may filter for devices by name, domain, and area, including combining those filters. Prefer filtering by domain when searching for multiple devices of the same type.",
+          "name": "GetLiveContext",
+          "parameters": {
+            "properties": {
+              "area": {
+                "description": "Filter entities by area name or alias (case-insensitive).",
+                "type": "string"
+              },
+              "domain": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                ],
+                "description": "Filter entities by domain (e.g. 'light', 'sensor'). Accepts a single domain or a list."
+              },
+              "name": {
+                "description": "Filter entities by name or alias (case-insensitive).",
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      }
+    ],
+    "generic": [
+      {
+        "function": {
+          "description": "Turns off/closes a device or entity. For locks, this performs an 'unlock' action. Use for requests like 'turn off', 'deactivate', 'disable', or 'unlock'.",
+          "name": "HassTurnOff",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "device_class": {
+                "items": {
+                  "enum": [
+                    "water",
+                    "gas",
+                    "identify",
+                    "restart",
+                    "update",
+                    "outlet",
+                    "switch",
+                    "tv",
+                    "speaker",
+                    "receiver",
+                    "projector",
+                    "awning",
+                    "blind",
+                    "curtain",
+                    "damper",
+                    "door",
+                    "garage",
+                    "gate",
+                    "shade",
+                    "shutter",
+                    "window"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domain": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Turns on/opens/presses a device or entity. For locks, this performs a 'lock' action. Use for requests like 'turn on', 'activate', 'enable', or 'lock'.",
+          "name": "HassTurnOn",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "device_class": {
+                "items": {
+                  "enum": [
+                    "water",
+                    "gas",
+                    "identify",
+                    "restart",
+                    "update",
+                    "outlet",
+                    "switch",
+                    "tv",
+                    "speaker",
+                    "receiver",
+                    "projector",
+                    "awning",
+                    "blind",
+                    "curtain",
+                    "damper",
+                    "door",
+                    "garage",
+                    "gate",
+                    "shade",
+                    "shutter",
+                    "window"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domain": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      }
+    ],
+    "light": [
+      {
+        "function": {
+          "description": "Sets the brightness percentage or color of a light",
+          "name": "HassLightSet",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "brightness": {
+                "description": "The brightness percentage of the light between 0 and 100, where 0 is off and 100 is fully lit",
+                "maximum": 100,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "color": {
+                "type": "string"
+              },
+              "domain": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "temperature": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      }
+    ],
+    "fan": [
+      {
+        "function": {
+          "description": "Sets a fan's speed by percentage",
+          "name": "HassFanSetSpeed",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "domain": {
+                "items": {
+                  "enum": [
+                    "fan"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "percentage": {
+                "description": "The speed percentage of the fan",
+                "maximum": 100,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "percentage"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      }
+    ],
+    "climate": [
+      {
+        "function": {
+          "description": "Sets the target temperature of a climate device or entity",
+          "name": "HassClimateSetTemperature",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "temperature": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "temperature"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      }
+    ],
+    "media_player": [
+      {
+        "function": {
+          "description": "Skips a media player to the next item",
+          "name": "HassMediaNext",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "device_class": {
+                "items": {
+                  "enum": [
+                    "tv",
+                    "speaker",
+                    "receiver",
+                    "projector"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domain": {
+                "items": {
+                  "enum": [
+                    "media_player"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Pauses a media player",
+          "name": "HassMediaPause",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "device_class": {
+                "items": {
+                  "enum": [
+                    "tv",
+                    "speaker",
+                    "receiver",
+                    "projector"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domain": {
+                "items": {
+                  "enum": [
+                    "media_player"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Mutes a media player",
+          "name": "HassMediaPlayerMute",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "device_class": {
+                "items": {
+                  "enum": [
+                    "tv",
+                    "speaker",
+                    "receiver",
+                    "projector"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domain": {
+                "items": {
+                  "enum": [
+                    "media_player"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "is_volume_muted": {
+                "description": "Whether the media player should be muted or unmuted",
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Unmutes a media player",
+          "name": "HassMediaPlayerUnmute",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "device_class": {
+                "items": {
+                  "enum": [
+                    "tv",
+                    "speaker",
+                    "receiver",
+                    "projector"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domain": {
+                "items": {
+                  "enum": [
+                    "media_player"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "is_volume_muted": {
+                "description": "Whether the media player should be muted or unmuted",
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Replays the previous item for a media player",
+          "name": "HassMediaPrevious",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "device_class": {
+                "items": {
+                  "enum": [
+                    "tv",
+                    "speaker",
+                    "receiver",
+                    "projector"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domain": {
+                "items": {
+                  "enum": [
+                    "media_player"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Searches for media and plays the first result",
+          "name": "HassMediaSearchAndPlay",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "media_class": {
+                "enum": [
+                  "album",
+                  "app",
+                  "artist",
+                  "channel",
+                  "composer",
+                  "contributing_artist",
+                  "directory",
+                  "episode",
+                  "game",
+                  "genre",
+                  "image",
+                  "movie",
+                  "music",
+                  "playlist",
+                  "podcast",
+                  "season",
+                  "track",
+                  "tv_show",
+                  "url",
+                  "video"
+                ],
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "search_query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "search_query"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Resumes a media player",
+          "name": "HassMediaUnpause",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "device_class": {
+                "items": {
+                  "enum": [
+                    "tv",
+                    "speaker",
+                    "receiver",
+                    "projector"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domain": {
+                "items": {
+                  "enum": [
+                    "media_player"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Sets the volume percentage of a media player",
+          "name": "HassSetVolume",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "device_class": {
+                "items": {
+                  "enum": [
+                    "tv",
+                    "speaker",
+                    "receiver",
+                    "projector"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domain": {
+                "items": {
+                  "enum": [
+                    "media_player"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "volume_level": {
+                "description": "The volume percentage of the media player",
+                "maximum": 100,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "volume_level"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Increases or decreases the volume of a media player",
+          "name": "HassSetVolumeRelative",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "volume_step": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "up",
+                      "down"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "maximum": 100,
+                    "minimum": -100,
+                    "type": "integer"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "volume_step"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      }
+    ],
+    "vacuum": [
+      {
+        "function": {
+          "description": "Tells a vacuum to clean a specific area",
+          "name": "HassVacuumCleanArea",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "area"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Returns a vacuum to base",
+          "name": "HassVacuumReturnToBase",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "domain": {
+                "items": {
+                  "enum": [
+                    "vacuum"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Starts a vacuum",
+          "name": "HassVacuumStart",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "domain": {
+                "items": {
+                  "enum": [
+                    "vacuum"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "floor": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      }
+    ],
+    "timer": [
+      {
+        "function": {
+          "description": "Cancels all timers",
+          "name": "HassCancelAllTimers",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Cancels a timer",
+          "name": "HassCancelTimer",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "start_hours": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_minutes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_seconds": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Removes time from a timer",
+          "name": "HassDecreaseTimer",
+          "parameters": {
+            "anyOf": [
+              {
+                "required": [
+                  "hours"
+                ]
+              },
+              {
+                "required": [
+                  "minutes"
+                ]
+              },
+              {
+                "required": [
+                  "seconds"
+                ]
+              }
+            ],
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "hours": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "minutes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "seconds": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_hours": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_minutes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_seconds": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Adds more time to a timer",
+          "name": "HassIncreaseTimer",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "hours": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "minutes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "seconds": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_hours": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_minutes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_seconds": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Pauses a running timer",
+          "name": "HassPauseTimer",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "start_hours": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_minutes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_seconds": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Starts a new timer",
+          "name": "HassStartTimer",
+          "parameters": {
+            "anyOf": [
+              {
+                "required": [
+                  "hours"
+                ]
+              },
+              {
+                "required": [
+                  "minutes"
+                ]
+              },
+              {
+                "required": [
+                  "seconds"
+                ]
+              }
+            ],
+            "properties": {
+              "conversation_command": {
+                "type": "string"
+              },
+              "hours": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "minutes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "seconds": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Reports the current status of timers",
+          "name": "HassTimerStatus",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "start_hours": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_minutes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_seconds": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Resumes a paused timer",
+          "name": "HassUnpauseTimer",
+          "parameters": {
+            "properties": {
+              "area": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "start_hours": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_minutes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_seconds": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      }
+    ]
+  },
+  "tools": [
+    {
+      "function": {
+        "description": "Provides the current date and time.",
+        "name": "GetDateTime",
+        "parameters": {
+          "properties": {},
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Provides real-time information about the CURRENT state, value, or mode of devices, sensors, entities, or areas. Use this tool for: 1. Answering questions about current conditions (e.g., 'Is the light on?'). 2. As the first step in conditional actions (e.g., 'If the weather is rainy, turn off sprinklers' requires checking the weather first). You may filter for devices by name, domain, and area, including combining those filters. Prefer filtering by domain when searching for multiple devices of the same type.",
+        "name": "GetLiveContext",
+        "parameters": {
+          "properties": {
+            "area": {
+              "description": "Filter entities by area name or alias (case-insensitive).",
+              "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              ],
+              "description": "Filter entities by domain (e.g. 'light', 'sensor'). Accepts a single domain or a list."
+            },
+            "name": {
+              "description": "Filter entities by name or alias (case-insensitive).",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Cancels all timers",
+        "name": "HassCancelAllTimers",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Cancels a timer",
+        "name": "HassCancelTimer",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "start_hours": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_minutes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_seconds": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Sets the target temperature of a climate device or entity",
+        "name": "HassClimateSetTemperature",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "temperature": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "temperature"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Removes time from a timer",
+        "name": "HassDecreaseTimer",
+        "parameters": {
+          "anyOf": [
+            {
+              "required": [
+                "hours"
+              ]
+            },
+            {
+              "required": [
+                "minutes"
+              ]
+            },
+            {
+              "required": [
+                "seconds"
+              ]
+            }
+          ],
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "hours": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "minutes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "seconds": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_hours": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_minutes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_seconds": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Sets a fan's speed by percentage",
+        "name": "HassFanSetSpeed",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "fan"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "percentage": {
+              "description": "The speed percentage of the fan",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "percentage"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Adds more time to a timer",
+        "name": "HassIncreaseTimer",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "hours": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "minutes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "seconds": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_hours": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_minutes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_seconds": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Sets the brightness percentage or color of a light",
+        "name": "HassLightSet",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "brightness": {
+              "description": "The brightness percentage of the light between 0 and 100, where 0 is off and 100 is fully lit",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "color": {
+              "type": "string"
+            },
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "temperature": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Skips a media player to the next item",
+        "name": "HassMediaNext",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "media_player"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Pauses a media player",
+        "name": "HassMediaPause",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "media_player"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Mutes a media player",
+        "name": "HassMediaPlayerMute",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "media_player"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "is_volume_muted": {
+              "description": "Whether the media player should be muted or unmuted",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Unmutes a media player",
+        "name": "HassMediaPlayerUnmute",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "media_player"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "is_volume_muted": {
+              "description": "Whether the media player should be muted or unmuted",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Replays the previous item for a media player",
+        "name": "HassMediaPrevious",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "media_player"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Searches for media and plays the first result",
+        "name": "HassMediaSearchAndPlay",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "media_class": {
+              "enum": [
+                "album",
+                "app",
+                "artist",
+                "channel",
+                "composer",
+                "contributing_artist",
+                "directory",
+                "episode",
+                "game",
+                "genre",
+                "image",
+                "movie",
+                "music",
+                "playlist",
+                "podcast",
+                "season",
+                "track",
+                "tv_show",
+                "url",
+                "video"
+              ],
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "search_query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "search_query"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Resumes a media player",
+        "name": "HassMediaUnpause",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "media_player"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Pauses a running timer",
+        "name": "HassPauseTimer",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "start_hours": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_minutes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_seconds": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Sets the volume percentage of a media player",
+        "name": "HassSetVolume",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "media_player"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "volume_level": {
+              "description": "The volume percentage of the media player",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "volume_level"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Increases or decreases the volume of a media player",
+        "name": "HassSetVolumeRelative",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "volume_step": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "up",
+                    "down"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "maximum": 100,
+                  "minimum": -100,
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "required": [
+            "volume_step"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Starts a new timer",
+        "name": "HassStartTimer",
+        "parameters": {
+          "anyOf": [
+            {
+              "required": [
+                "hours"
+              ]
+            },
+            {
+              "required": [
+                "minutes"
+              ]
+            },
+            {
+              "required": [
+                "seconds"
+              ]
+            }
+          ],
+          "properties": {
+            "conversation_command": {
+              "type": "string"
+            },
+            "hours": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "minutes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "seconds": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Reports the current status of timers",
+        "name": "HassTimerStatus",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "start_hours": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_minutes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_seconds": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Turns off/closes a device or entity. For locks, this performs an 'unlock' action. Use for requests like 'turn off', 'deactivate', 'disable', or 'unlock'.",
+        "name": "HassTurnOff",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "water",
+                  "gas",
+                  "identify",
+                  "restart",
+                  "update",
+                  "outlet",
+                  "switch",
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector",
+                  "awning",
+                  "blind",
+                  "curtain",
+                  "damper",
+                  "door",
+                  "garage",
+                  "gate",
+                  "shade",
+                  "shutter",
+                  "window"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Turns on/opens/presses a device or entity. For locks, this performs a 'lock' action. Use for requests like 'turn on', 'activate', 'enable', or 'lock'.",
+        "name": "HassTurnOn",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "device_class": {
+              "items": {
+                "enum": [
+                  "water",
+                  "gas",
+                  "identify",
+                  "restart",
+                  "update",
+                  "outlet",
+                  "switch",
+                  "tv",
+                  "speaker",
+                  "receiver",
+                  "projector",
+                  "awning",
+                  "blind",
+                  "curtain",
+                  "damper",
+                  "door",
+                  "garage",
+                  "gate",
+                  "shade",
+                  "shutter",
+                  "window"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Resumes a paused timer",
+        "name": "HassUnpauseTimer",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "start_hours": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_minutes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_seconds": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Tells a vacuum to clean a specific area",
+        "name": "HassVacuumCleanArea",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "area"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Returns a vacuum to base",
+        "name": "HassVacuumReturnToBase",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "vacuum"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Starts a vacuum",
+        "name": "HassVacuumStart",
+        "parameters": {
+          "properties": {
+            "area": {
+              "type": "string"
+            },
+            "domain": {
+              "items": {
+                "enum": [
+                  "vacuum"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    }
+  ]
+}

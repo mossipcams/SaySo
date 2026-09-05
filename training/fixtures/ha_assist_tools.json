@@ -64,6 +64,124 @@
   },
   {
     "function": {
+      "description": "Cancels a timer",
+      "name": "HassCancelTimer",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "start_hours": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_minutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_seconds": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Sets the target temperature of a climate device or entity",
+      "name": "HassClimateSetTemperature",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "temperature": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "temperature"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Removes time from a timer",
+      "name": "HassDecreaseTimer",
+      "parameters": {
+        "anyOf": [
+          {
+            "required": [
+              "hours"
+            ]
+          },
+          {
+            "required": [
+              "minutes"
+            ]
+          },
+          {
+            "required": [
+              "seconds"
+            ]
+          }
+        ],
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "hours": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "minutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seconds": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_hours": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_minutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_seconds": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
       "description": "Sets a fan's speed by percentage",
       "name": "HassFanSetSpeed",
       "parameters": {
@@ -103,6 +221,49 @@
   },
   {
     "function": {
+      "description": "Adds more time to a timer",
+      "name": "HassIncreaseTimer",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "hours": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "minutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seconds": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_hours": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_minutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_seconds": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
       "description": "Sets the brightness percentage or color of a light",
       "name": "HassLightSet",
       "parameters": {
@@ -132,6 +293,525 @@
             "type": "string"
           },
           "temperature": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Skips a media player to the next item",
+      "name": "HassMediaNext",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "device_class": {
+            "items": {
+              "enum": [
+                "tv",
+                "speaker",
+                "receiver",
+                "projector"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "items": {
+              "enum": [
+                "media_player"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Pauses a media player",
+      "name": "HassMediaPause",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "device_class": {
+            "items": {
+              "enum": [
+                "tv",
+                "speaker",
+                "receiver",
+                "projector"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "items": {
+              "enum": [
+                "media_player"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Mutes a media player",
+      "name": "HassMediaPlayerMute",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "device_class": {
+            "items": {
+              "enum": [
+                "tv",
+                "speaker",
+                "receiver",
+                "projector"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "items": {
+              "enum": [
+                "media_player"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "is_volume_muted": {
+            "description": "Whether the media player should be muted or unmuted",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Unmutes a media player",
+      "name": "HassMediaPlayerUnmute",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "device_class": {
+            "items": {
+              "enum": [
+                "tv",
+                "speaker",
+                "receiver",
+                "projector"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "items": {
+              "enum": [
+                "media_player"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "is_volume_muted": {
+            "description": "Whether the media player should be muted or unmuted",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Replays the previous item for a media player",
+      "name": "HassMediaPrevious",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "device_class": {
+            "items": {
+              "enum": [
+                "tv",
+                "speaker",
+                "receiver",
+                "projector"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "items": {
+              "enum": [
+                "media_player"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Searches for media and plays the first result",
+      "name": "HassMediaSearchAndPlay",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "media_class": {
+            "enum": [
+              "album",
+              "app",
+              "artist",
+              "channel",
+              "composer",
+              "contributing_artist",
+              "directory",
+              "episode",
+              "game",
+              "genre",
+              "image",
+              "movie",
+              "music",
+              "playlist",
+              "podcast",
+              "season",
+              "track",
+              "tv_show",
+              "url",
+              "video"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "search_query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "search_query"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Resumes a media player",
+      "name": "HassMediaUnpause",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "device_class": {
+            "items": {
+              "enum": [
+                "tv",
+                "speaker",
+                "receiver",
+                "projector"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "items": {
+              "enum": [
+                "media_player"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Pauses a running timer",
+      "name": "HassPauseTimer",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "start_hours": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_minutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_seconds": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Sets the volume percentage of a media player",
+      "name": "HassSetVolume",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "device_class": {
+            "items": {
+              "enum": [
+                "tv",
+                "speaker",
+                "receiver",
+                "projector"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "items": {
+              "enum": [
+                "media_player"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "volume_level": {
+            "description": "The volume percentage of the media player",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "volume_level"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Increases or decreases the volume of a media player",
+      "name": "HassSetVolumeRelative",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "volume_step": {
+            "anyOf": [
+              {
+                "enum": [
+                  "up",
+                  "down"
+                ],
+                "type": "string"
+              },
+              {
+                "maximum": 100,
+                "minimum": -100,
+                "type": "integer"
+              }
+            ]
+          }
+        },
+        "required": [
+          "volume_step"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Starts a new timer",
+      "name": "HassStartTimer",
+      "parameters": {
+        "anyOf": [
+          {
+            "required": [
+              "hours"
+            ]
+          },
+          {
+            "required": [
+              "minutes"
+            ]
+          },
+          {
+            "required": [
+              "seconds"
+            ]
+          }
+        ],
+        "properties": {
+          "conversation_command": {
+            "type": "string"
+          },
+          "hours": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "minutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seconds": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Reports the current status of timers",
+      "name": "HassTimerStatus",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "start_hours": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_minutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_seconds": {
             "minimum": 0,
             "type": "integer"
           }
@@ -239,6 +919,120 @@
           },
           "domain": {
             "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Resumes a paused timer",
+      "name": "HassUnpauseTimer",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "start_hours": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_minutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start_seconds": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Tells a vacuum to clean a specific area",
+      "name": "HassVacuumCleanArea",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "area"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Returns a vacuum to base",
+      "name": "HassVacuumReturnToBase",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "domain": {
+            "items": {
+              "enum": [
+                "vacuum"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Starts a vacuum",
+      "name": "HassVacuumStart",
+      "parameters": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "domain": {
+            "items": {
+              "enum": [
+                "vacuum"
+              ],
               "type": "string"
             },
             "type": "array"
