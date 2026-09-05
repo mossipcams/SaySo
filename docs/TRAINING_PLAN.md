@@ -1,17 +1,15 @@
-# SaySo LFM training plan
+# SaySo training plan
 
-**Status:** minimal MVP plan for supervised fine-tuning.
-
-The first Base run is [FIRST_TRAINING.md](FIRST_TRAINING.md) (`LiquidAI/LFM2.5-230M-Base`, rsLoRA). This document remains the dataset and safety contract.
+**Status:** current contract for `LFM2.5-230M-Base` supervised fine-tuning.
 
 SaySo trains `LiquidAI/LFM2.5-230M-Base` to select and emit Home Assistant tools in
 the same OpenAI-compatible shape used by the integration. Home Assistant still
 owns the entities, schemas, permissions, execution, and final voice pipeline.
 llama.cpp only hosts inference.
 
-Start with a prompt-only/base-model baseline. Train only when it improves the
-held-out SaySo evaluation; a baseline that already passes the gate needs no
-fine-tune.
+Do not revive Instruct-checkpoint, FunctionGemma, Home-LLM, or Axolotl full-SFT
+plans. Checked-in `training/configs/lfm25-230m*.yml` and `functiongemma-270m*.yml`
+Axolotl files are leftovers, not the training path.
 
 ## 1. Training contract
 
@@ -39,119 +37,89 @@ Store each example as structured `messages` plus OpenAI-style `tools`:
 - `train_on_turn` is true only for assistant tool-call and final-response
   messages.
 
-Labels are deterministic and schema-validated. The dataset may vary household
-names, phrasing, direct actions, queries, ambiguity, no-call requests,
-multi-call requests, and tool failures. Keep the expected call authoritative;
-paraphrasing must never change the tool, arguments, or call/no-call decision.
-
-Use the current locked v1 contract first. Add tools or broader data only when a
-held-out evaluation identifies a concrete gap.
+Labels are deterministic and schema-validated. Keep the expected call
+authoritative; paraphrasing must never change the tool, arguments, or
+call/no-call decision.
 
 Do not train on:
 
 - Home-LLM ChatML `<tool_call>` labels;
 - eval case IDs or examples from `evals/cases/`;
+- variants of the 38 recipe-lock golden utterances;
 - unsupported tools or arguments;
 - model-generated labels that have not passed SaySo schema validation.
 
 Home-LLM fixture data may provide utterance diversity, but SaySo-generated
 tool-call labels and schema validation remain authoritative.
 
-## 3. LFM format and training configuration
+## 3. Format and trainer
 
 Keep two representations separate:
 
-- The canonical SaySo dataset keeps OpenAI-compatible
-  `function.arguments` as validated JSON strings. This is the runtime contract
-  and the format checked by the LFM adapter.
-- The tokenizer-rendering view may parse those strings into native objects only
-  while applying the LFM2.5 chat template. This view is transient; do not
-  replace the canonical dataset or call the converted objects training labels.
+- The canonical SaySo dataset keeps OpenAI-compatible `function.arguments` as
+  validated JSON strings.
+- The TRL view may parse those strings into native objects only while applying
+  the LFM2.5-Base `chat_template.jinja`. Do not put ChatML in the dataset or in
+  the Home Assistant integration.
 
-The current LFM2.5 checkpoint ships a `TokenizersBackend` tokenizer and a
-separate `chat_template.jinja` containing `{% generation %}` markers. The
-initial GTX 1070 setup showed that an older Axolotl stack could not consume
-those files directly, and its Jinja parser could not process the markers. Use a
-version-pinned Transformers/Axolotl combination that supports the exact
-checkpoint, or a tested SaySo-owned rendering compatibility layer. Do not
-silently patch downloaded model files or vendor packages.
+```text
+canonical JSONL (OpenAI messages, string arguments)
+        ↓ tokenizer.apply_chat_template + tools= (dict arguments)
+ChatML + <|tool_call_start|>[HassTurnOn(name='…')]
+        ↓ rsLoRA SFT on Base (TRL)
+merged FP16 adapter
+        ↓ llama.cpp convert + Q8_0
+GGUF served with --jinja
+        ↓ SaySo HTTP still sends OpenAI messages, not ChatML
+```
 
-Before production training, the smoke gate must prove all of the following on
-the target host:
+Train from Base with TRL rsLoRA, not by continuing a previous merged checkpoint:
 
-1. the exact LFM2.5 tokenizer and model load;
-2. a string-argument SaySo example renders successfully;
-3. one forward/backward/update step completes; and
-4. the saved checkpoint reloads and produces output through the planned
-   llama.cpp verification path.
+- rank 32, alpha 32, `use_rslora: true`, `all-linear`, FP16, no BF16, no Flash Attention
+- microbatch 1, gradient accumulation 16
+- learning rate `2e-4`, cosine, assistant-only loss
+- `save_strategy: epoch`, keep every epoch checkpoint needed for comparison
 
-Use the checked-in Axolotl configurations:
+Smoke one update step on the target host before a full run. Pascal GTX 1070
+(8 GiB) may log an allocator warning and still complete; treat a finished step
+plus a reloadable adapter as the gate.
 
-| Run | Config | Purpose |
-|---|---|---|
-| Smoke | `training/configs/lfm25-230m-smoke.yml` | Fixture-only pipeline check |
-| Production | `training/configs/lfm25-230m-prod.yml` | Train on generated data |
+## 4. Data and eval
 
-The production configuration currently declares:
+Locked gold eval is the 38 recipe-lock cases in `training/evals/recipe_lock.py`
+(recipes 1–8, thermostat omitted). Generic nouns resolve in the SaySo entity
+area. Do not train on those utterances.
 
-- base model `LiquidAI/LFM2.5-230M`;
-- full-parameter SFT;
-- three epochs and learning rate `2e-4`;
-- BF16 and Flash Attention disabled for Pascal;
-- assistant-only loss masking through `train_on_turn`.
+The current mix is:
 
-The GTX 1070 has 8 GiB VRAM and supports neither BF16 nor Flash Attention. In
-the tested Axolotl/Accelerate environment, FP16 backpropagation failed with
-`Attempting to unscale FP16 gradients`, so the successful one-step smoke run
-used FP32. Treat precision as a host compatibility result, not an assumption:
-keep FP16 only after the exact production stack passes the smoke gate; otherwise
-set the host config to FP32 before training.
+- 10k deterministic train from `training/scripts/build_synthetic_dataset.py`
+- plus the existing 10k-plus supplement
+- plus a small corrective set (500–800 rows) from
+  `training/scripts/generate_training_supplement.py`
 
-The smoke configuration is a one-epoch, smaller-sequence test. The current
-floating-point `training/requirements.txt` is not a reproducible GPU lock: an
-unconstrained install resolved a newer Torch/CUDA stack than this Pascal host
-can safely use. Pin the complete environment, including Axolotl, Transformers,
-tokenizers, Accelerate, Torch, and CUDA-compatible packages, before a
-production run. Treat the checked-in configs as the executable source for
-training values; tune only from held-out results, one change at a time.
+Corrective rows must use fresh homes, entities, and wording. Weight the four
+remaining failure classes (light brightness vs fan speed, lock vs unlock,
+apostrophe names, multi-action retention). Do not generate another 10k set and
+do not start a third epoch on a corrective retrain.
 
-Budget storage before training. The smoke run produced about 0.9 GB for the
-final model and about 1.7 GB for a resumable optimizer checkpoint. Keep an
-intermediate checkpoint only when resumption is needed; do not fill a nearly
-full host with duplicate model copies.
+Shadow eval is 100–150 cases covering the same concepts as the 38 gold rows,
+with different entities and phrasing (`sayso_shadow_eval.jsonl`). Promote only
+when golden and shadow both move the right way. If only golden improves, the
+run is overfitting the benchmark.
 
-## 4. Splits and evaluation
+Score generations with the apostrophe-safe parser in
+`training/evals/lfm_python_parse.py` (raw `/completion` text). llama.cpp
+structured `tool_calls` still truncates names such as `O'Malley's` and `Kids'`;
+that is a serving bug, not a training label. Do not retrain to paper over it.
 
-Generate deterministic train, validation, and test splits. Keep related
-template, phrasing, and seed families in one split so paraphrase variants do
-not leak across evaluation boundaries.
+`training/scripts/generate_balanced_test_data.py` builds the 2,500-example
+held-out set. Do not train on those prompts. Use it when asked; the 38 gold
+cases plus shadow are the working quality gate.
 
-Use validation for checkpoint selection and tuning. Keep the test set and
-`training/evals/adversarial.jsonl` untouched until the final comparison.
-
-`training/scripts/generate_balanced_test_data.py` builds the deterministic
-2,500-example final test set. It excludes exact prompts found in the generated
-train and validation files and never consumes IDs or labels from `evals/cases/`.
-
-The first supervised train set is 10,000 curated examples from
-`training/scripts/build_synthetic_dataset.py` (see [FIRST_TRAINING.md](FIRST_TRAINING.md)
-for the locked category mix). Held-out eval stays separate; do not train on
-`sayso_test_balanced.jsonl` prompts.
-
-Evaluate the base model and candidate checkpoints on the same cases. Record:
-
-- protocol-valid tool calls;
-- correct tool names and arguments;
-- schema-valid arguments;
-- correct no-call and unsupported-request behavior;
-- multi-call behavior;
-- final spoken response presence;
-- latency and inference failures where available.
-
-Promote a checkpoint only when it improves the target SaySo behavior without
-regressing safety, schema validity, or the basic offline eval. Then export GGUF
-and verify structured tool calls with llama.cpp before using it in Home
-Assistant. A successful trainer smoke run alone is not a promotion signal.
+Promote a checkpoint only when it improves target behavior without regressing
+STT, status, no-call, multi-action, light/fan, or lock polarity. Then export
+GGUF and verify with llama.cpp `--jinja`. Freeze a promoted champion and do
+not overwrite its GGUF, merged weights, or epoch checkpoint.
 
 ## 5. Runtime safety boundary
 
@@ -168,27 +136,29 @@ to:
 7. execute through Home Assistant and use its result for the spoken response;
 8. never retry an already executed action because of a later invalid response.
 
-## 6. Non-goals for the MVP
+## 6. Non-goals
 
-- model bake-offs;
-- a multi-stage curriculum;
-- fixed training-corpus percentage or ASR-corruption quotas;
-- fine-tuning on Home-LLM tool-call labels;
-- long autonomous chains;
-- replacing Home Assistant validation with model trust;
+- model bake-offs (Instruct LFM, FunctionGemma, Home-LLM, Alexa+)
+- Axolotl full-parameter SFT
+- another 10k generation or Epoch 3 on the corrective mix
+- fine-tuning on Home-LLM tool-call labels
+- long autonomous chains
+- replacing Home Assistant validation with model trust
 - a SaySo server, broker, custom action protocol, or direct satellite-to-model
-  connection.
+  connection
 
 ## Implementation map
 
 | Concern | Location |
 |---|---|
-| Dataset generation | `training/scripts/generate_dataset.py`, `training/scripts/build_synthetic_dataset.py`, `training/generators/` |
+| Dataset generation | `training/scripts/build_synthetic_dataset.py`, `training/scripts/generate_training_supplement.py`, `training/generators/` |
+| Recipe-lock gold | `training/evals/recipe_lock.py`, `training/scripts/generate_recipe_lock_eval.py` |
+| Raw tool-call parse | `training/evals/lfm_python_parse.py` |
 | LFM adapter | `training/adapters/lfm.py` |
 | Schema validation | `training/adapters/schema.py` |
-| LFM configs | `training/configs/lfm25-230m*.yml` |
+| TRL recipe (checked-in) | `training/configs/lfm25-230m-synthetic-v2-trl.yml` |
 | Evaluation | `evals/`, `training/evals/` |
 | Pinned contract | `schemas/sayso-tool-schema-v1.json` |
 
-Operational commands belong in `training/README.md`; update this document only
+Operational commands belong in `training/README.md`. Update this document only
 when the training design or its safety boundary changes.

@@ -1,4 +1,4 @@
-"""Human-locked gold eval rows from docs/FIRST_TRAINING.md (recipes 1–8, no thermostat)."""
+"""Human-locked gold eval rows (recipes 1–8, no thermostat)."""
 
 from __future__ import annotations
 
@@ -146,7 +146,7 @@ def _spec(
 
 
 def locked_specs() -> list[dict[str, Any]]:
-    """Return one authoritative spec per locked yes-row in FIRST_TRAINING.md."""
+    """Return one authoritative spec per locked yes-row (recipes 1–8)."""
     office_main = _entity(name="Office Main Light", kind="light", area="Office", aliases=["office light"])
     kitchen_garage = _entity(name="Kitchen North Garage Door", kind="garage_door", area="Kitchen")
     living_fan = _entity(name="Living Room Ceiling Fan", kind="fan", area="Living Room", aliases=["fan"])

@@ -22,6 +22,7 @@ packing: false
 assistant_only_loss: true
 
 use_peft: true
+use_rslora: true
 lora_r: 32
 lora_alpha: 32
 lora_dropout: 0.05

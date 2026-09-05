@@ -894,6 +894,7 @@ def test_synthetic_v2_trl_config_reuses_the_proven_1070_lora_recipe() -> None:
     assert "data_files: /srv/datasets/sayso_v2/sayso_train_first_10000_render.jsonl" in text
     assert "output_dir: /srv/training-runs/SaySo-LFM2.5-230M-Base-First" in text
     assert "use_peft: true" in text
+    assert "use_rslora: true" in text
     assert "lora_target_modules:\n  - all-linear" in text
     assert "assistant_only_loss: true" in text
     assert "num_train_epochs: 3" in text
