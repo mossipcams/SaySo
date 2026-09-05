@@ -32,8 +32,8 @@ def test_brightness_out_of_range_rejected() -> None:
     assert err == "schema_validation_failed"
 
 
-def test_non_v1_climate_tool_not_in_pinned_catalog() -> None:
-    assert "HassClimateSetTemperature" not in ALLOWED_HASS_TOOLS
+def test_climate_tool_in_pinned_catalog_and_validates() -> None:
+    assert "HassClimateSetTemperature" in ALLOWED_HASS_TOOLS
     tools = json.loads((FIXTURES / "ha_assist_tools.json").read_text(encoding="utf-8"))
     schemas = tool_schema_map(tools)
     err = validate_tool_arguments(
@@ -41,4 +41,4 @@ def test_non_v1_climate_tool_not_in_pinned_catalog() -> None:
         {"name": "Thermostat", "temperature": 72},
         schemas,
     )
-    assert err == "unknown_tool_schema"
+    assert err is None
