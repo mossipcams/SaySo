@@ -6,11 +6,11 @@ import json
 from typing import Any
 
 from .schema import (
-    HOME_LLM_LABEL_MARKERS,
+    CHATML_TOOL_CALL_MARKERS,
     TrainingExample,
     assert_openai_tool_envelope,
     assert_tools_subset_of_v1,
-    contains_home_llm_label_markers,
+    contains_chatml_tool_call_markers,
     v1_openai_tools,
 )
 
@@ -29,8 +29,8 @@ def prepare_lfm_example(example: TrainingExample) -> TrainingExample:
         if message.get("role") != "assistant":
             continue
         content = message.get("content")
-        if isinstance(content, str) and contains_home_llm_label_markers(content):
-            raise ValueError("assistant content must not use Home-LLM <tool_call> labels")
+        if isinstance(content, str) and contains_chatml_tool_call_markers(content):
+            raise ValueError("assistant content must not use ChatML <tool_call> labels")
         for call in message.get("tool_calls") or []:
             if call.get("type") != "function":
                 raise ValueError("tool_calls must use type:function")
@@ -40,8 +40,8 @@ def prepare_lfm_example(example: TrainingExample) -> TrainingExample:
             args = fn.get("arguments")
             if not isinstance(args, str):
                 raise ValueError("LFM/SaySo labels must keep function.arguments as JSON strings")
-            if contains_home_llm_label_markers(args):
-                raise ValueError("tool call arguments must not use Home-LLM <tool_call> labels")
+            if contains_chatml_tool_call_markers(args):
+                raise ValueError("tool call arguments must not use ChatML <tool_call> labels")
     return TrainingExample(
         messages=example.messages,
         tools=lfm_tool_catalog(),
@@ -50,24 +50,24 @@ def prepare_lfm_example(example: TrainingExample) -> TrainingExample:
 
 
 def lfm_jsonl_line(example: TrainingExample) -> str:
-    """Serialize one LFM training record (SaySo runtime envelope, not Home-LLM labels)."""
+    """Serialize one LFM training record (SaySo runtime envelope, not ChatML tool-call labels)."""
     prepared = prepare_lfm_example(example)
     line = prepared.to_jsonl_line(view="lfm")
-    if contains_home_llm_label_markers(line):
-        raise ValueError("serialized example must not contain Home-LLM label markers")
+    if contains_chatml_tool_call_markers(line):
+        raise ValueError("serialized example must not contain ChatML tool-call labels")
     return line
 
 
-def forbidden_home_llm_label_patterns() -> frozenset[str]:
+def forbidden_chatml_tool_call_patterns() -> frozenset[str]:
     """Markers that must never appear in LFM fine-tuning labels."""
-    return HOME_LLM_LABEL_MARKERS
+    return CHATML_TOOL_CALL_MARKERS
 
 
 def validate_lfm_config_text(config_text: str) -> None:
-    """Reject Axolotl configs that embed Home-LLM ChatML tool-call rendering."""
-    for marker in HOME_LLM_LABEL_MARKERS:
+    """Reject Axolotl configs that embed ChatML tool-call rendering."""
+    for marker in CHATML_TOOL_CALL_MARKERS:
         if marker in config_text:
-            raise ValueError(f"LFM config must not render Home-LLM labels ({marker})")
+            raise ValueError(f"LFM config must not render ChatML tool-call labels ({marker})")
 
 
 def summarize_tools(tools: list[dict[str, Any]]) -> list[str]:

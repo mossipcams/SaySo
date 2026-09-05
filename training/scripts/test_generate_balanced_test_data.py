@@ -14,11 +14,14 @@ from generate_balanced_test_data import DEFAULT_COUNT, build_balanced_test_set
 
 
 def _user_text(example: dict) -> str:
-    return next(
-        message["content"][0]["text"]
+    content = next(
+        message["content"]
         for message in example["messages"]
         if message["role"] == "user"
     )
+    if isinstance(content, str):
+        return content
+    return content[0]["text"]
 
 
 def test_balanced_test_set_has_exact_mix_and_canonical_shape() -> None:
