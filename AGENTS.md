@@ -3,9 +3,7 @@
 Prioritize completing the end-to-end voice path over future-proofing. Do not cut
 pre-execution tool validation, fail-closed safety/ambiguity/capability barriers,
 HA tool execution, state verification, metric scoring, or the existing basic eval
-path. Defer extra model bake-offs, expanding eval corpora, generalized satellite
-support, a fine-tuning launch, streaming optimizations, and polished diagnostics
-if they threaten completion.
+path.
 
 ## How to apply that
 
@@ -34,14 +32,14 @@ Keep (do not skip to “save time”):
   already checks outcomes
 - Metric scoring and the runnable offline eval path under `evals/`
 - Core/safety/follow-up coverage already represented in `evals/cases/`
+- The 38 recipe-lock golden cases and the shadow eval in `training/`
 
-Defer until the voice path works end to end:
+Defer if they threaten the voice path:
 
-- Extra model bake-offs (LFM vs Home-FunctionGemma, Home-LLM, Alexa+)
-- Expanding corpora past the basic reviewed sets in `evals/cases/`
+- Extra model bake-offs
+- Expanding corpora past the reviewed `evals/cases/` and training gold sets
 - Generalized multi-satellite support beyond standard HA voice pipelines
-- Fine-tuning launch (never SFT on Home-LLM tool-call labels), streaming
-  optimizations, and polished diagnostics
+- Streaming optimizations and polished diagnostics
 
 ## Workflow
 
@@ -50,8 +48,8 @@ Defer until the voice path works end to end:
 - Offline eval cases and runners live in `evals/` (`evals/cases/`,
   `evals/runner.py`, `evals/scorer.py`, `evals/metrics.py`). Do not train on
   Home-LLM tool-call labels or on eval case IDs from `evals/cases/`.
-- Training design lives in `docs/TRAINING_PLAN.md` (schema-conditioned function
-  calling over changing HA tool menus; label-first generation). `ALLOWED_HASS_TOOLS`
+- Training design lives only in `docs/TRAINING_PLAN.md`. The target is
+  `LFM2.5-230M-Base` with schema-conditioned function calling. `ALLOWED_HASS_TOOLS`
   validates the pinned training contract only — it does not define runtime support.
 - Python throughout. Extend the existing test suite: `tests/` and colocated
   `custom_components/sayso/test_*.py`. Do not add another `tests/` tree or a new
