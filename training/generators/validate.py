@@ -6,19 +6,19 @@ import json
 import re
 from typing import Any
 
-from adapters.schema import tool_schema_map, validate_tool_arguments, v1_openai_tools
+from adapters.schema import tool_schema_map, validate_tool_arguments, v2_openai_tools
 
 _BANNED = re.compile(r"<tool_call>|evals/cases/|tool_call_start", re.I)
 
 
 def validate_spec(spec: dict[str, Any]) -> str | None:
-    """Validate authoritative behavior against home and v1 schema."""
+    """Validate authoritative behavior against home and pinned v2 schema."""
     expected = spec.get("expected") or {}
     calls = expected.get("calls") or []
     if expected.get("kind") == "no_action" and calls:
         return "no_action_has_calls"
     entities = {entity["name"]: entity for entity in spec.get("home", {}).get("entities", [])}
-    schemas = tool_schema_map(v1_openai_tools())
+    schemas = tool_schema_map(v2_openai_tools())
     excluded = set(spec.get("excluded_names") or [])
     for call in calls:
         name = call.get("name")
@@ -54,7 +54,16 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
             isinstance(c.get("arguments"), dict) and c["arguments"].get("area") and not c["arguments"].get("name")
             for c in calls
         )
-        if not has_area_target and calls and calls[0]["name"] != "HassCancelAllTimers":
+        if (
+            calls
+            and not has_area_target
+            and calls[0]["name"] not in {
+                "HassCancelAllTimers",
+                "HassStartTimer",
+                "HassPauseTimer",
+                "HassTimerStatus",
+            }
+        ):
             for name in spec.get("target_names") or []:
                 spoken = spec.get("spoken_targets", {}).get(name, name).casefold()
                 if spoken not in lowered and name.casefold() not in lowered:

@@ -7,11 +7,12 @@ from pathlib import Path
 
 from adapters.schema import (
     ALLOWED_HASS_TOOLS,
-    assert_v1_tiers_cover_catalog,
+    assert_v2_tiers_cover_catalog,
     load_v1_schema,
     load_v2_schema,
-    v1_tool_device_type_tiers,
     v2_tool_catalog_by_device_type,
+    v2_tool_device_type_tiers,
+    v2_tool_names,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,14 +36,10 @@ def test_v2_flat_tools_match_v1_contract() -> None:
 
 def test_v2_catalog_groups_match_device_type_tiers() -> None:
     catalog = v2_tool_catalog_by_device_type()
-    tiers = v1_tool_device_type_tiers()
+    tiers = v2_tool_device_type_tiers()
     assert set(catalog) == set(tiers)
     for device_type, names in tiers.items():
         grouped = {tool["function"]["name"] for tool in catalog[device_type]}
         assert grouped == set(names)
-    assert_v1_tiers_cover_catalog()
-    assert ALLOWED_HASS_TOOLS == {
-        tool["function"]["name"]
-        for tools in catalog.values()
-        for tool in tools
-    }
+    assert_v2_tiers_cover_catalog()
+    assert ALLOWED_HASS_TOOLS == v2_tool_names()
