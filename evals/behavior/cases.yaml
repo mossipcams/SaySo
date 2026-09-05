@@ -1,0 +1,4181 @@
+version: 1
+cases:
+- id: sayso-behavior-v1-001
+  category: core_control
+  scenario: turn on the living room lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: living room
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-002
+  category: core_control
+  scenario: switch on the kitchen lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: kitchen
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-003
+  category: core_control
+  scenario: please turn on the bedroom lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: bedroom
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-004
+  category: core_control
+  scenario: activate the bathroom lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: bathroom
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-005
+  category: core_control
+  scenario: enable the garage lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: garage
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-006
+  category: core_control
+  scenario: power on the hallway lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: hallway
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-007
+  category: core_control
+  scenario: start the office lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: office
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-008
+  category: core_control
+  scenario: flip on the dining room lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: dining room
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-009
+  category: core_control
+  scenario: turn on the basement lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: basement
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-010
+  category: core_control
+  scenario: switch on the patio lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: patio
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-011
+  category: core_control
+  scenario: please turn on the entryway lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: entryway
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-012
+  category: core_control
+  scenario: activate the laundry room lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: laundry room
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-013
+  category: core_control
+  scenario: enable the nursery lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: nursery
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-014
+  category: core_control
+  scenario: power on the guest room lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: guest room
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-015
+  category: core_control
+  scenario: start the sunroom lights
+  description: Turn on lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: sunroom
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-016
+  category: core_control
+  scenario: turn off the living room lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: living room
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-017
+  category: core_control
+  scenario: switch off the kitchen lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: kitchen
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-018
+  category: core_control
+  scenario: please turn off the bedroom lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: bedroom
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-019
+  category: core_control
+  scenario: deactivate the bathroom lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: bathroom
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-020
+  category: core_control
+  scenario: disable the garage lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: garage
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-021
+  category: core_control
+  scenario: power off the hallway lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: hallway
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-022
+  category: core_control
+  scenario: shut off the office lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: office
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-023
+  category: core_control
+  scenario: flip off the dining room lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: dining room
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-024
+  category: core_control
+  scenario: turn off the basement lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: basement
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-025
+  category: core_control
+  scenario: switch off the patio lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: patio
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-026
+  category: core_control
+  scenario: please turn off the entryway lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: entryway
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-027
+  category: core_control
+  scenario: deactivate the laundry room lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: laundry room
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-028
+  category: core_control
+  scenario: disable the nursery lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: nursery
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-029
+  category: core_control
+  scenario: power off the guest room lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: guest room
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-030
+  category: core_control
+  scenario: shut off the sunroom lights
+  description: Turn off lights in a named area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: sunroom
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-031
+  category: core_control
+  scenario: turn on the ceiling light
+  description: Turn on a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: ceiling light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-032
+  category: core_control
+  scenario: switch on the desk lamp
+  description: Turn on a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: desk lamp
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-033
+  category: core_control
+  scenario: please turn on the floor lamp
+  description: Turn on a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: floor lamp
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-034
+  category: core_control
+  scenario: activate the chandelier
+  description: Turn on a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: chandelier
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-035
+  category: core_control
+  scenario: enable the pendant light
+  description: Turn on a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: pendant light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-036
+  category: core_control
+  scenario: power on the reading light
+  description: Turn on a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: reading light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-037
+  category: core_control
+  scenario: start the night light
+  description: Turn on a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: night light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-038
+  category: core_control
+  scenario: flip on the track lights
+  description: Turn on a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: track lights
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-039
+  category: core_control
+  scenario: turn off the ceiling light
+  description: Turn off a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: ceiling light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-040
+  category: core_control
+  scenario: switch off the desk lamp
+  description: Turn off a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: desk lamp
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-041
+  category: core_control
+  scenario: please turn off the floor lamp
+  description: Turn off a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: floor lamp
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-042
+  category: core_control
+  scenario: deactivate the chandelier
+  description: Turn off a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: chandelier
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-043
+  category: core_control
+  scenario: disable the pendant light
+  description: Turn off a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: pendant light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-044
+  category: core_control
+  scenario: power off the reading light
+  description: Turn off a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: reading light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-045
+  category: core_control
+  scenario: shut off the night light
+  description: Turn off a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: night light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-046
+  category: core_control
+  scenario: flip off the track lights
+  description: Turn off a named light without area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: track lights
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-047
+  category: core_control
+  scenario: turn on the lights
+  description: Control all lights without a specific area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-048
+  category: core_control
+  scenario: switch on all lights
+  description: Control all lights without a specific area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-049
+  category: core_control
+  scenario: lights on
+  description: Control all lights without a specific area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-050
+  category: core_control
+  scenario: turn every light on
+  description: Control all lights without a specific area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-051
+  category: core_control
+  scenario: please turn on all the lights
+  description: Control all lights without a specific area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-052
+  category: core_control
+  scenario: turn off the lights
+  description: Control all lights without a specific area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-053
+  category: core_control
+  scenario: switch off all lights
+  description: Control all lights without a specific area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-054
+  category: core_control
+  scenario: lights off
+  description: Control all lights without a specific area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-055
+  category: core_control
+  scenario: turn every light off
+  description: Control all lights without a specific area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-056
+  category: core_control
+  scenario: please turn off all the lights
+  description: Control all lights without a specific area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-057
+  category: core_control
+  scenario: turn on the tv
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-058
+  category: core_control
+  scenario: switch on the television
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-059
+  category: core_control
+  scenario: play the tv
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-060
+  category: core_control
+  scenario: start the tv
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-061
+  category: core_control
+  scenario: turn on the living room tv
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: living room tv
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-062
+  category: core_control
+  scenario: play the living room television
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: living room tv
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-063
+  category: core_control
+  scenario: turn on the bedroom tv
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: bedroom tv
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-064
+  category: core_control
+  scenario: start the projector
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: projector
+        device_class:
+        - projector
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-065
+  category: core_control
+  scenario: turn on the soundbar
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: soundbar
+        device_class:
+        - speaker
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-066
+  category: core_control
+  scenario: play music on the receiver
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: receiver
+        device_class:
+        - receiver
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-067
+  category: core_control
+  scenario: turn off the tv
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-068
+  category: core_control
+  scenario: pause the tv
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-069
+  category: core_control
+  scenario: stop the television
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-070
+  category: core_control
+  scenario: switch off the tv
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-071
+  category: core_control
+  scenario: turn off the living room tv
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: living room tv
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-072
+  category: core_control
+  scenario: pause the living room television
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: living room tv
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-073
+  category: core_control
+  scenario: turn off the bedroom tv
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: bedroom tv
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-074
+  category: core_control
+  scenario: stop the projector
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: projector
+        device_class:
+        - projector
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-075
+  category: core_control
+  scenario: turn off the soundbar
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: soundbar
+        device_class:
+        - speaker
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-076
+  category: core_control
+  scenario: turn off the receiver
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: receiver
+        device_class:
+        - receiver
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-077
+  category: core_control
+  scenario: turn on media in the kitchen
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: kitchen
+        domain:
+        - media_player
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-078
+  category: core_control
+  scenario: pause kitchen media
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: kitchen
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-079
+  category: core_control
+  scenario: play the office speaker
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: office
+        device_class:
+        - speaker
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-080
+  category: core_control
+  scenario: stop the patio speaker
+  description: Control TV or media devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: patio
+        device_class:
+        - speaker
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-081
+  category: core_control
+  scenario: set living room lights to 15 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: living room
+        domain:
+        - light
+        brightness: 15
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-082
+  category: core_control
+  scenario: set kitchen lights to 20 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: kitchen
+        domain:
+        - light
+        brightness: 20
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-083
+  category: core_control
+  scenario: set bedroom lights to 25 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: bedroom
+        domain:
+        - light
+        brightness: 25
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-084
+  category: core_control
+  scenario: set bathroom lights to 30 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: bathroom
+        domain:
+        - light
+        brightness: 30
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-085
+  category: core_control
+  scenario: set garage lights to 35 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: garage
+        domain:
+        - light
+        brightness: 35
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-086
+  category: core_control
+  scenario: set hallway lights to 40 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: hallway
+        domain:
+        - light
+        brightness: 40
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-087
+  category: core_control
+  scenario: set office lights to 45 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: office
+        domain:
+        - light
+        brightness: 45
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-088
+  category: core_control
+  scenario: set dining room lights to 50 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: dining room
+        domain:
+        - light
+        brightness: 50
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-089
+  category: core_control
+  scenario: set basement lights to 55 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: basement
+        domain:
+        - light
+        brightness: 55
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-090
+  category: core_control
+  scenario: set patio lights to 60 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: patio
+        domain:
+        - light
+        brightness: 60
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-091
+  category: core_control
+  scenario: dim the ceiling light to 65 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: ceiling light
+        domain:
+        - light
+        brightness: 65
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-092
+  category: core_control
+  scenario: dim the desk lamp to 70 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: desk lamp
+        domain:
+        - light
+        brightness: 70
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-093
+  category: core_control
+  scenario: dim the floor lamp to 75 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: floor lamp
+        domain:
+        - light
+        brightness: 75
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-094
+  category: core_control
+  scenario: dim the chandelier to 80 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: chandelier
+        domain:
+        - light
+        brightness: 80
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-095
+  category: core_control
+  scenario: dim the pendant light to 85 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: pendant light
+        domain:
+        - light
+        brightness: 85
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-096
+  category: core_control
+  scenario: dim the reading light to 90 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: reading light
+        domain:
+        - light
+        brightness: 90
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-097
+  category: core_control
+  scenario: dim the night light to 95 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: night light
+        domain:
+        - light
+        brightness: 95
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-098
+  category: core_control
+  scenario: dim the track lights to 100 percent
+  description: Set light brightness
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: track lights
+        domain:
+        - light
+        brightness: 100
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-099
+  category: core_control
+  scenario: set the living room lights to red
+  description: Set light color in an area
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: living room
+        domain:
+        - light
+        color: red
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-100
+  category: core_control
+  scenario: set the kitchen lights to blue
+  description: Set light color in an area
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: kitchen
+        domain:
+        - light
+        color: blue
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-101
+  category: core_control
+  scenario: set the bedroom lights to green
+  description: Set light color in an area
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: bedroom
+        domain:
+        - light
+        color: green
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-102
+  category: core_control
+  scenario: set the bathroom lights to warm white
+  description: Set light color in an area
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: bathroom
+        domain:
+        - light
+        color: warm white
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-103
+  category: core_control
+  scenario: set the garage lights to cool white
+  description: Set light color in an area
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: garage
+        domain:
+        - light
+        color: cool white
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-104
+  category: core_control
+  scenario: set the hallway lights to purple
+  description: Set light color in an area
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: hallway
+        domain:
+        - light
+        color: purple
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-105
+  category: core_control
+  scenario: set the office lights to orange
+  description: Set light color in an area
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: office
+        domain:
+        - light
+        color: orange
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-106
+  category: core_control
+  scenario: set the dining room lights to pink
+  description: Set light color in an area
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: dining room
+        domain:
+        - light
+        color: pink
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-107
+  category: core_control
+  scenario: set ceiling light color temperature to 2700
+  description: Set light color temperature
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: ceiling light
+        domain:
+        - light
+        temperature: 2700
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-108
+  category: core_control
+  scenario: set desk lamp color temperature to 3000
+  description: Set light color temperature
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: desk lamp
+        domain:
+        - light
+        temperature: 3000
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-109
+  category: core_control
+  scenario: set floor lamp color temperature to 3500
+  description: Set light color temperature
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: floor lamp
+        domain:
+        - light
+        temperature: 3500
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-110
+  category: core_control
+  scenario: set chandelier color temperature to 4000
+  description: Set light color temperature
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: chandelier
+        domain:
+        - light
+        temperature: 4000
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-111
+  category: core_control
+  scenario: set pendant light color temperature to 4500
+  description: Set light color temperature
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: pendant light
+        domain:
+        - light
+        temperature: 4500
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-112
+  category: core_control
+  scenario: set reading light color temperature to 5000
+  description: Set light color temperature
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: reading light
+        domain:
+        - light
+        temperature: 5000
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-113
+  category: core_control
+  scenario: set night light color temperature to 5500
+  description: Set light color temperature
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        name: night light
+        domain:
+        - light
+        temperature: 5500
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-114
+  category: core_control
+  scenario: open the blinds
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: blinds
+        device_class:
+        - blind
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-115
+  category: core_control
+  scenario: close the blinds
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: blinds
+        device_class:
+        - blind
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-116
+  category: core_control
+  scenario: open the curtains
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: curtains
+        device_class:
+        - curtain
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-117
+  category: core_control
+  scenario: close the curtains
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: curtains
+        device_class:
+        - curtain
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-118
+  category: core_control
+  scenario: open the bedroom shades
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: bedroom shades
+        device_class:
+        - shade
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-119
+  category: core_control
+  scenario: close the bedroom shades
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: bedroom shades
+        device_class:
+        - shade
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-120
+  category: core_control
+  scenario: open the garage door
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: garage door
+        device_class:
+        - garage
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-121
+  category: core_control
+  scenario: close the garage door
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: garage door
+        device_class:
+        - garage
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-122
+  category: core_control
+  scenario: open the front gate
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: front gate
+        device_class:
+        - gate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-123
+  category: core_control
+  scenario: close the front gate
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: front gate
+        device_class:
+        - gate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-124
+  category: core_control
+  scenario: open the patio awning
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: patio awning
+        device_class:
+        - awning
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-125
+  category: core_control
+  scenario: close the patio awning
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: patio awning
+        device_class:
+        - awning
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-126
+  category: core_control
+  scenario: open the kitchen shutters
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: kitchen shutters
+        device_class:
+        - shutter
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-127
+  category: core_control
+  scenario: close the kitchen shutters
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: kitchen shutters
+        device_class:
+        - shutter
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-128
+  category: core_control
+  scenario: open living room blinds
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: living room
+        device_class:
+        - blind
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-129
+  category: core_control
+  scenario: close living room blinds
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: living room
+        device_class:
+        - blind
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-130
+  category: core_control
+  scenario: open the office window shade
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: office window shade
+        device_class:
+        - shade
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-131
+  category: core_control
+  scenario: close the office window shade
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: office window shade
+        device_class:
+        - shade
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-132
+  category: core_control
+  scenario: raise the dining room curtains
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: dining room
+        device_class:
+        - curtain
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-133
+  category: core_control
+  scenario: lower the dining room curtains
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: dining room
+        device_class:
+        - curtain
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-134
+  category: core_control
+  scenario: open the basement window
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: basement
+        device_class:
+        - window
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-135
+  category: core_control
+  scenario: close the basement window
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: basement
+        device_class:
+        - window
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-136
+  category: core_control
+  scenario: open the patio shade
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: patio
+        device_class:
+        - shade
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-137
+  category: core_control
+  scenario: close the patio shade
+  description: Open or close covers
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: patio
+        device_class:
+        - shade
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-138
+  category: core_control
+  scenario: lock the front door
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: front door lock
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-139
+  category: core_control
+  scenario: unlock the front door
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: front door lock
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-140
+  category: core_control
+  scenario: lock the garage
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: garage lock
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-141
+  category: core_control
+  scenario: unlock the garage
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: garage lock
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-142
+  category: core_control
+  scenario: lock the back door
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: back door
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-143
+  category: core_control
+  scenario: unlock the back door
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: back door
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-144
+  category: core_control
+  scenario: lock the side gate
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: side gate
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-145
+  category: core_control
+  scenario: unlock the side gate
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: side gate
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-146
+  category: core_control
+  scenario: lock the kitchen door
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: kitchen
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-147
+  category: core_control
+  scenario: unlock the kitchen door
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: kitchen
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-148
+  category: core_control
+  scenario: secure the entryway
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: entryway
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-149
+  category: core_control
+  scenario: unsecure the entryway
+  description: Lock or unlock doors
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: entryway
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-150
+  category: core_control
+  scenario: turn on the ceiling fan
+  description: Turn on a fan
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: ceiling fan
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-151
+  category: core_control
+  scenario: switch on the bedroom fan
+  description: Turn on a fan
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: bedroom fan
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-152
+  category: core_control
+  scenario: please turn on the office fan
+  description: Turn on a fan
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: office fan
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-153
+  category: core_control
+  scenario: activate the patio fan
+  description: Turn on a fan
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: patio fan
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-154
+  category: core_control
+  scenario: enable the bathroom fan
+  description: Turn on a fan
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: bathroom fan
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-155
+  category: core_control
+  scenario: turn off the ceiling fan
+  description: Turn off a fan
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: ceiling fan
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-156
+  category: core_control
+  scenario: switch off the bedroom fan
+  description: Turn off a fan
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: bedroom fan
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-157
+  category: core_control
+  scenario: please turn off the office fan
+  description: Turn off a fan
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: office fan
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-158
+  category: core_control
+  scenario: deactivate the patio fan
+  description: Turn off a fan
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: patio fan
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-159
+  category: core_control
+  scenario: disable the bathroom fan
+  description: Turn off a fan
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: bathroom fan
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-160
+  category: core_control
+  scenario: set the living room fan to 10 percent
+  description: Set fan speed in an area
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: living room
+        domain:
+        - fan
+        percentage: 10
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-161
+  category: core_control
+  scenario: set the kitchen fan to 15 percent
+  description: Set fan speed in an area
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: kitchen
+        domain:
+        - fan
+        percentage: 15
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-162
+  category: core_control
+  scenario: set the bedroom fan to 20 percent
+  description: Set fan speed in an area
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: bedroom
+        domain:
+        - fan
+        percentage: 20
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-163
+  category: core_control
+  scenario: set the bathroom fan to 25 percent
+  description: Set fan speed in an area
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: bathroom
+        domain:
+        - fan
+        percentage: 25
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-164
+  category: core_control
+  scenario: set the garage fan to 30 percent
+  description: Set fan speed in an area
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: garage
+        domain:
+        - fan
+        percentage: 30
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-165
+  category: core_control
+  scenario: set the hallway fan to 35 percent
+  description: Set fan speed in an area
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: hallway
+        domain:
+        - fan
+        percentage: 35
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-166
+  category: core_control
+  scenario: set the office fan to 40 percent
+  description: Set fan speed in an area
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: office
+        domain:
+        - fan
+        percentage: 40
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-167
+  category: core_control
+  scenario: set the dining room fan to 45 percent
+  description: Set fan speed in an area
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: dining room
+        domain:
+        - fan
+        percentage: 45
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-168
+  category: core_control
+  scenario: set the basement fan to 50 percent
+  description: Set fan speed in an area
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: basement
+        domain:
+        - fan
+        percentage: 50
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-169
+  category: core_control
+  scenario: set the patio fan to 55 percent
+  description: Set fan speed in an area
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: patio
+        domain:
+        - fan
+        percentage: 55
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-170
+  category: core_control
+  scenario: set ceiling fan speed to 60
+  description: Set named fan speed
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        name: ceiling fan
+        domain:
+        - fan
+        percentage: 60
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-171
+  category: core_control
+  scenario: set bedroom fan speed to 65
+  description: Set named fan speed
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        name: bedroom fan
+        domain:
+        - fan
+        percentage: 65
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-172
+  category: core_control
+  scenario: set office fan speed to 70
+  description: Set named fan speed
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        name: office fan
+        domain:
+        - fan
+        percentage: 70
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-173
+  category: core_control
+  scenario: set patio fan speed to 75
+  description: Set named fan speed
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        name: patio fan
+        domain:
+        - fan
+        percentage: 75
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-174
+  category: core_control
+  scenario: set bathroom fan speed to 80
+  description: Set named fan speed
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        name: bathroom fan
+        domain:
+        - fan
+        percentage: 80
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-175
+  category: core_control
+  scenario: set upstairs fans to 85 percent
+  description: Set fan speed on a floor
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        floor: upstairs
+        domain:
+        - fan
+        percentage: 85
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-176
+  category: core_control
+  scenario: set downstairs fans to 90 percent
+  description: Set fan speed on a floor
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        floor: downstairs
+        domain:
+        - fan
+        percentage: 90
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-177
+  category: core_control
+  scenario: set first floor fans to 95 percent
+  description: Set fan speed on a floor
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        floor: first floor
+        domain:
+        - fan
+        percentage: 95
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-178
+  category: core_control
+  scenario: set second floor fans to 100 percent
+  description: Set fan speed on a floor
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        floor: second floor
+        domain:
+        - fan
+        percentage: 100
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-179
+  category: core_control
+  scenario: start the robot vacuum
+  description: Control vacuum cleaners
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: robot vacuum
+        domain:
+        - vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-180
+  category: core_control
+  scenario: stop the robot vacuum
+  description: Control vacuum cleaners
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: robot vacuum
+        domain:
+        - vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-181
+  category: core_control
+  scenario: start the roomba
+  description: Control vacuum cleaners
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: roomba
+        domain:
+        - vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-182
+  category: core_control
+  scenario: send the roomba home
+  description: Control vacuum cleaners
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: roomba
+        domain:
+        - vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-183
+  category: core_control
+  scenario: vacuum the kitchen
+  description: Control vacuum cleaners
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: kitchen
+        domain:
+        - vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-184
+  category: core_control
+  scenario: stop vacuuming the kitchen
+  description: Control vacuum cleaners
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: kitchen
+        domain:
+        - vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-185
+  category: core_control
+  scenario: vacuum upstairs
+  description: Control vacuum cleaners
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: upstairs vacuum
+        domain:
+        - vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-186
+  category: core_control
+  scenario: stop the upstairs vacuum
+  description: Control vacuum cleaners
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: upstairs vacuum
+        domain:
+        - vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-187
+  category: core_control
+  scenario: turn on the coffee maker
+  description: Control switched outlets and appliances
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: coffee maker
+        device_class:
+        - switch
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-188
+  category: core_control
+  scenario: turn off the coffee maker
+  description: Control switched outlets and appliances
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: coffee maker
+        device_class:
+        - switch
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-189
+  category: core_control
+  scenario: turn on the space heater
+  description: Control switched outlets and appliances
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: space heater
+        device_class:
+        - outlet
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-190
+  category: core_control
+  scenario: turn off the space heater
+  description: Control switched outlets and appliances
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: space heater
+        device_class:
+        - outlet
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-191
+  category: core_control
+  scenario: turn on the garage outlet
+  description: Control switched outlets and appliances
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: garage outlet
+        device_class:
+        - outlet
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-192
+  category: core_control
+  scenario: turn off the garage outlet
+  description: Control switched outlets and appliances
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: garage outlet
+        device_class:
+        - outlet
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-193
+  category: core_control
+  scenario: turn on the holiday lights
+  description: Control switched outlets and appliances
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: holiday lights
+        device_class:
+        - switch
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-194
+  category: core_control
+  scenario: turn off the holiday lights
+  description: Control switched outlets and appliances
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: holiday lights
+        device_class:
+        - switch
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-195
+  category: core_control
+  scenario: turn on the heat
+  description: Control climate devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        domain:
+        - climate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-196
+  category: core_control
+  scenario: turn off the heat
+  description: Control climate devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        domain:
+        - climate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-197
+  category: core_control
+  scenario: turn on the air conditioning
+  description: Control climate devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        domain:
+        - climate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-198
+  category: core_control
+  scenario: turn off the air conditioning
+  description: Control climate devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        domain:
+        - climate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-199
+  category: core_control
+  scenario: set heat in the living room
+  description: Control climate devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: living room
+        domain:
+        - climate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-200
+  category: core_control
+  scenario: turn off heat in the bedroom
+  description: Control climate devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: bedroom
+        domain:
+        - climate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-201
+  category: core_control
+  scenario: cool down the office
+  description: Control climate devices
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: office
+        domain:
+        - climate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-202
+  category: core_control
+  scenario: stop cooling the office
+  description: Control climate devices
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: office
+        domain:
+        - climate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-203
+  category: core_control
+  scenario: cancel all timers
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments: {}
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-204
+  category: core_control
+  scenario: clear every timer
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments: {}
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-205
+  category: core_control
+  scenario: stop all timers
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments: {}
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-206
+  category: core_control
+  scenario: cancel kitchen timers
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments:
+        area: kitchen
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-207
+  category: core_control
+  scenario: clear bedroom timers
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments:
+        area: bedroom
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-208
+  category: core_control
+  scenario: cancel living room timers
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments:
+        area: living room
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-209
+  category: core_control
+  scenario: stop office timers
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments:
+        area: office
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-210
+  category: core_control
+  scenario: cancel timers in the garage
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments:
+        area: garage
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-211
+  category: core_control
+  scenario: clear timers in the nursery
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments:
+        area: nursery
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-212
+  category: core_control
+  scenario: cancel bathroom timers
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments:
+        area: bathroom
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-213
+  category: core_control
+  scenario: stop laundry room timers
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments:
+        area: laundry room
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-214
+  category: core_control
+  scenario: cancel patio timers
+  description: Cancel household timers
+  expect:
+    tool_calls:
+    - name: HassCancelAllTimers
+      arguments:
+        area: patio
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-215
+  category: query
+  scenario: what lights are on
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        domain: light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-216
+  category: query
+  scenario: are any lights on in the kitchen
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: kitchen
+        domain: light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-217
+  category: query
+  scenario: is the bedroom light on
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: bedroom
+        domain: light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-218
+  category: query
+  scenario: what is the garage door state
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: garage
+        name: garage door
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-219
+  category: query
+  scenario: is the front door locked
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        name: front door lock
+        domain: lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-220
+  category: query
+  scenario: what is the temperature in the living room
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: living room
+        domain: sensor
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-221
+  category: query
+  scenario: are the blinds open in the office
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: office
+        name: blinds
+        domain: cover
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-222
+  category: query
+  scenario: what fans are running
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        domain: fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-223
+  category: query
+  scenario: is the tv on
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        name: tv
+        domain: media_player
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-224
+  category: query
+  scenario: what media is playing in the kitchen
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: kitchen
+        domain: media_player
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-225
+  category: query
+  scenario: is the robot vacuum running
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        name: robot vacuum
+        domain: vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-226
+  category: query
+  scenario: what is the hallway humidity
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: hallway
+        domain: sensor
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-227
+  category: query
+  scenario: are any upstairs windows open
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        name: upstairs window
+        domain: cover
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-228
+  category: query
+  scenario: what covers are open in the dining room
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: dining room
+        domain: cover
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-229
+  category: query
+  scenario: is the patio shade closed
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: patio
+        name: shade
+        domain: cover
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-230
+  category: query
+  scenario: what switches are on
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        domain: switch
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-231
+  category: query
+  scenario: is the nursery night light on
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: nursery
+        name: night light
+        domain: light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-232
+  category: query
+  scenario: what is the office temperature
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: office
+        domain: climate
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-233
+  category: query
+  scenario: are the curtains closed in the guest room
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: guest room
+        name: curtains
+        domain: cover
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-234
+  category: query
+  scenario: is the basement dehumidifier on
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: basement
+        domain: humidifier
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-235
+  category: query
+  scenario: what sensors are in the laundry room
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: laundry room
+        domain: sensor
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-236
+  category: query
+  scenario: is the sunroom fan on
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: sunroom
+        domain: fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-237
+  category: query
+  scenario: what locks are engaged
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        domain: lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-238
+  category: query
+  scenario: is the entryway light on
+  description: Query current device or area state
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: entryway
+        domain: light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-239
+  category: query
+  scenario: what time is it
+  description: Ask for current date or time
+  expect:
+    tool_calls:
+    - name: GetDateTime
+      arguments: {}
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-240
+  category: query
+  scenario: tell me the current time
+  description: Ask for current date or time
+  expect:
+    tool_calls:
+    - name: GetDateTime
+      arguments: {}
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-241
+  category: query
+  scenario: what is today's date
+  description: Ask for current date or time
+  expect:
+    tool_calls:
+    - name: GetDateTime
+      arguments: {}
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-242
+  category: query
+  scenario: what day is it
+  description: Ask for current date or time
+  expect:
+    tool_calls:
+    - name: GetDateTime
+      arguments: {}
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-243
+  category: query
+  scenario: give me the date and time
+  description: Ask for current date or time
+  expect:
+    tool_calls:
+    - name: GetDateTime
+      arguments: {}
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-244
+  category: query
+  scenario: what is the time right now
+  description: Ask for current date or time
+  expect:
+    tool_calls:
+    - name: GetDateTime
+      arguments: {}
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-245
+  category: core_control
+  scenario: turn on the upstairs lights
+  description: Turn on lights on a floor
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        floor: upstairs
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-246
+  category: core_control
+  scenario: switch on the downstairs lights
+  description: Turn on lights on a floor
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        floor: downstairs
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-247
+  category: core_control
+  scenario: please turn on the first floor lights
+  description: Turn on lights on a floor
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        floor: first floor
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-248
+  category: core_control
+  scenario: activate the second floor lights
+  description: Turn on lights on a floor
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        floor: second floor
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-249
+  category: core_control
+  scenario: turn off the upstairs lights
+  description: Turn off lights on a floor
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        floor: upstairs
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-250
+  category: core_control
+  scenario: switch off the downstairs lights
+  description: Turn off lights on a floor
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        floor: downstairs
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-251
+  category: core_control
+  scenario: please turn off the first floor lights
+  description: Turn off lights on a floor
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        floor: first floor
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-252
+  category: core_control
+  scenario: deactivate the second floor lights
+  description: Turn off lights on a floor
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        floor: second floor
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-253
+  category: core_control
+  scenario: make upstairs lights cool white
+  description: Set light color on a floor
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        floor: upstairs
+        domain:
+        - light
+        color: cool white
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-254
+  category: core_control
+  scenario: make downstairs lights purple
+  description: Set light color on a floor
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        floor: downstairs
+        domain:
+        - light
+        color: purple
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-255
+  category: core_control
+  scenario: make first floor lights orange
+  description: Set light color on a floor
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        floor: first floor
+        domain:
+        - light
+        color: orange
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-256
+  category: core_control
+  scenario: make second floor lights pink
+  description: Set light color on a floor
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        floor: second floor
+        domain:
+        - light
+        color: pink
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-257
+  category: core_control
+  scenario: turn on the kitchen ceiling light
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: kitchen
+        name: ceiling light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-258
+  category: core_control
+  scenario: turn off the bedroom desk lamp
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: bedroom
+        name: desk lamp
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-259
+  category: core_control
+  scenario: switch on the office floor lamp
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: office
+        name: floor lamp
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-260
+  category: core_control
+  scenario: switch off the nursery night light
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: nursery
+        name: night light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-261
+  category: core_control
+  scenario: turn on the bathroom vanity light
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: bathroom
+        name: vanity light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-262
+  category: core_control
+  scenario: turn off the hallway track lights
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: hallway
+        name: track lights
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-263
+  category: core_control
+  scenario: start the laundry room fan
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: laundry room
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-264
+  category: core_control
+  scenario: stop the guest room fan
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: guest room
+        domain:
+        - fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-265
+  category: core_control
+  scenario: open the bedroom curtains
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: bedroom
+        name: curtains
+        device_class:
+        - curtain
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-266
+  category: core_control
+  scenario: close the kitchen blinds
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: kitchen
+        name: blinds
+        device_class:
+        - blind
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-267
+  category: core_control
+  scenario: lock the garage door
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        name: garage door lock
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-268
+  category: core_control
+  scenario: unlock the garage door
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        name: garage door lock
+        domain:
+        - lock
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-269
+  category: core_control
+  scenario: turn on the patio string lights
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: patio
+        name: holiday lights
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-270
+  category: core_control
+  scenario: turn off the dining room chandelier
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: dining room
+        name: chandelier
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-271
+  category: core_control
+  scenario: play the basement tv
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: basement
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-272
+  category: core_control
+  scenario: pause the sunroom tv
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: sunroom
+        device_class:
+        - tv
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-273
+  category: core_control
+  scenario: start vacuuming the hallway
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: hallway
+        domain:
+        - vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-274
+  category: core_control
+  scenario: stop the entryway vacuum
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: entryway
+        domain:
+        - vacuum
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-275
+  category: core_control
+  scenario: turn on the sunroom reading light
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOn
+      arguments:
+        area: sunroom
+        name: reading light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-276
+  category: core_control
+  scenario: turn off the guest room pendant light
+  description: Control a named device within an area
+  expect:
+    tool_calls:
+    - name: HassTurnOff
+      arguments:
+        area: guest room
+        name: pendant light
+        domain:
+        - light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-277
+  category: query
+  scenario: check if the kitchen lights are on
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: kitchen
+        domain: light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-278
+  category: query
+  scenario: is the office desk lamp on
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: office
+        name: desk lamp
+        domain: light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-279
+  category: query
+  scenario: what is the bedroom fan speed
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: bedroom
+        domain: fan
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-280
+  category: query
+  scenario: are any timers running in the kitchen
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: kitchen
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-281
+  category: query
+  scenario: is the garage door open
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: garage
+        name: garage door
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-282
+  category: query
+  scenario: what is the patio temperature
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: patio
+        domain: sensor
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-283
+  category: query
+  scenario: is the laundry room humidifier on
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: laundry room
+        domain: humidifier
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-284
+  category: query
+  scenario: what upstairs covers are open
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        name: upstairs cover
+        domain: cover
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-285
+  category: query
+  scenario: is the guest room tv on
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: guest room
+        name: tv
+        domain: media_player
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-286
+  category: query
+  scenario: what is the basement humidity
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: basement
+        domain: sensor
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-287
+  category: query
+  scenario: are the nursery lights on
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: nursery
+        domain: light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-288
+  category: query
+  scenario: is the dining room chandelier on
+  description: Query device state in a specific area
+  expect:
+    tool_calls:
+    - name: GetLiveContext
+      arguments:
+        area: dining room
+        name: chandelier
+        domain: light
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-289
+  category: core_control
+  scenario: set the hallway fan to 33 percent
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: hallway
+        domain:
+        - fan
+        percentage: 33
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-290
+  category: core_control
+  scenario: set the nursery fan to 66 percent
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: nursery
+        domain:
+        - fan
+        percentage: 66
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-291
+  category: core_control
+  scenario: slow the patio fan to 12 percent
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: patio
+        domain:
+        - fan
+        percentage: 12
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-292
+  category: core_control
+  scenario: boost the garage fan to 88 percent
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: garage
+        domain:
+        - fan
+        percentage: 88
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-293
+  category: core_control
+  scenario: set guest room fan to 44 percent
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: guest room
+        domain:
+        - fan
+        percentage: 44
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-294
+  category: core_control
+  scenario: set laundry room fan to 77 percent
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassFanSetSpeed
+      arguments:
+        area: laundry room
+        domain:
+        - fan
+        percentage: 77
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-295
+  category: core_control
+  scenario: dim the hallway lights to 22 percent
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: hallway
+        domain:
+        - light
+        brightness: 22
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-296
+  category: core_control
+  scenario: brighten the entryway lights to 88 percent
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: entryway
+        domain:
+        - light
+        brightness: 88
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-297
+  category: core_control
+  scenario: set the sunroom lights to 33 percent
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: sunroom
+        domain:
+        - light
+        brightness: 33
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-298
+  category: core_control
+  scenario: set nursery lights to warm white
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: nursery
+        domain:
+        - light
+        color: warm white
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-299
+  category: core_control
+  scenario: make the guest room lights cool white
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: guest room
+        domain:
+        - light
+        color: cool white
+  checks:
+  - tool_name
+  - tool_args
+- id: sayso-behavior-v1-300
+  category: core_control
+  scenario: set the laundry room light temperature to 4000
+  description: Adjust fan speed or light appearance
+  expect:
+    tool_calls:
+    - name: HassLightSet
+      arguments:
+        area: laundry room
+        domain:
+        - light
+        temperature: 4000
+  checks:
+  - tool_name
+  - tool_args
