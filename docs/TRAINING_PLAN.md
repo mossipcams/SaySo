@@ -92,7 +92,8 @@ area. Do not train on those utterances.
 
 The current mix is:
 
-- 10k deterministic train from `training/scripts/build_synthetic_dataset.py`
+- 40k deterministic v3 train from `training/scripts/build_synthetic_dataset.py --pipeline v3`
+- 10k legacy deterministic train from the same script (legacy pipeline)
 - plus the existing 10k-plus supplement
 - plus a small corrective set (500–800 rows) from
   `training/scripts/generate_training_supplement.py`
@@ -151,7 +152,7 @@ to:
 
 | Concern | Location |
 |---|---|
-| Dataset generation | `training/scripts/build_synthetic_dataset.py`, `training/scripts/generate_training_supplement.py`, `training/scripts/generate_balanced_test_data.py` |
+| Dataset generation | `training/generators/`, `training/scripts/build_synthetic_dataset.py`, `training/scripts/generate_training_supplement.py`, `training/scripts/generate_balanced_test_data.py` |
 | Recipe-lock gold | `training/evals/recipe_lock.py`, `training/scripts/generate_recipe_lock_eval.py` |
 | Raw tool-call parse | `training/evals/lfm_python_parse.py` |
 | LFM adapter | `training/adapters/lfm.py` |
