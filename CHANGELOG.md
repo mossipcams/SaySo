@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.6.0](https://github.com/mossipcams/SaySo/compare/0.5.3...0.6.0) (2026-09-05)
+
+
+### Features
+
+* **training:** add apostrophe-safe parser and corrective curriculum ([9626d1f](https://github.com/mossipcams/SaySo/commit/9626d1ffdcb42072cd2958f11e7abfa9903e0f40))
+* **training:** add first Base SFT quality eval and 10k generator ([aa0f367](https://github.com/mossipcams/SaySo/commit/aa0f367e46492415648a4d8ce8a2a876ff958ad4))
+* **training:** expand Assist catalog and add device-type tier schema v2 ([d955c30](https://github.com/mossipcams/SaySo/commit/d955c30341c79bd8d158b8eebc81810e15abe7ea))
+* **training:** expand synthetic generator with capability registry ([606b3a2](https://github.com/mossipcams/SaySo/commit/606b3a29c1a42c2093fd656e0d6bc4e6f27baefb))
+* **training:** pin synthetic generation to schema v2 tool catalog ([55ee03c](https://github.com/mossipcams/SaySo/commit/55ee03c43194dcb0e629b47280f9ce9014a50b53))
+
+
+### Bug Fixes
+
+* **training:** score no-call mismatches and aggregate eval metrics correctly ([d643146](https://github.com/mossipcams/SaySo/commit/d643146cf63396387755b489c51e91985a01db12))
+* **training:** stop calling JSON parse schema-valid and skip inference errors ([922d4d0](https://github.com/mossipcams/SaySo/commit/922d4d0bc9f4c3313cbe24d6516eb2deb276348e))
+* **training:** validate schema from args and use category rate denominators ([d0838ab](https://github.com/mossipcams/SaySo/commit/d0838abbed084371d4af30a82d7234f25bd49895))
+
+
+### Documentation
+
+* **training:** collapse plans onto Base rsLoRA ([e304d45](https://github.com/mossipcams/SaySo/commit/e304d45641960d1683cbb894cdbc46d2b7553b5e))
+
 ## [0.5.3](https://github.com/mossipcams/SaySo/compare/0.5.2...0.5.3) (2026-09-03)
 
 
