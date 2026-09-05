@@ -94,6 +94,20 @@ Locked gold eval is the 38 recipe-lock cases in `training/evals/recipe_lock.py`
 (recipes 1–8, thermostat omitted). Generic nouns resolve in the SaySo entity
 area. Do not train on those utterances.
 
+The expanded v3 quality gate adds locked gold plus shadow rows from
+`training/evals/v3_quality.py` and
+`training/scripts/generate_v3_quality_eval.py`. Gold covers climate setpoint,
+media play/pause/volume/mute, timer start/pause/status/cancel, vacuum
+start/return/clean area, scene activate, script run, plus ordinary on/off,
+status, ambiguity, and unsupported/no-call. Labels validate against
+`sayso-tool-schema-v2` only. Shadow uses different homes, entities, and
+phrasing. Exclude gold, shadow, and recipe-lock prompts from train-set overlap
+checks via `excluded_train_prompts()`.
+
+The frozen champion is the corrective epoch-2 checkpoint promoted after the
+first 10k + corrective mix. Train the 40k v3 run from Base, not from that
+champion.
+
 The current mix is:
 
 - 40k deterministic v3 train from `training/scripts/build_synthetic_dataset.py --pipeline v3`
@@ -108,9 +122,10 @@ apostrophe names, multi-action retention). Do not generate another 10k set and
 do not start a third epoch on a corrective retrain.
 
 Shadow eval is 100–150 cases covering the same concepts as the 38 gold rows,
-with different entities and phrasing (`sayso_shadow_eval.jsonl`). Promote only
-when golden and shadow both move the right way. If only golden improves, the
-run is overfitting the benchmark.
+with different entities and phrasing (`sayso_shadow_eval.jsonl`). The v3
+shadow set (`sayso_quality_eval_v3_shadow.jsonl`) mirrors the expanded gold
+domains. Promote only when golden and shadow both move the right way. If only
+golden improves, the run is overfitting the benchmark.
 
 Score generations with the apostrophe-safe parser in
 `training/evals/lfm_python_parse.py` (raw `/completion` text). llama.cpp
@@ -118,8 +133,8 @@ structured `tool_calls` still truncates names such as `O'Malley's` and `Kids'`;
 that is a serving bug, not a training label. Do not retrain to paper over it.
 
 `training/scripts/generate_balanced_test_data.py` builds the 2,500-example
-held-out set. Do not train on those prompts. Use it when asked; the 38 gold
-cases plus shadow are the working quality gate.
+held-out set. Do not train on those prompts. Use it when asked; the working
+quality gate is recipe-lock 38 plus the v3 gold/shadow eval.
 
 Promote a checkpoint only when it improves target behavior without regressing
 STT, status, no-call, multi-action, light/fan, or lock polarity. Then export
@@ -158,10 +173,11 @@ to:
 |---|---|
 | Dataset generation | `training/generators/`, `training/scripts/build_synthetic_dataset.py`, `training/scripts/generate_training_supplement.py`, `training/scripts/generate_balanced_test_data.py` |
 | Recipe-lock gold | `training/evals/recipe_lock.py`, `training/scripts/generate_recipe_lock_eval.py` |
+| V3 quality gold + shadow | `training/evals/v3_quality.py`, `training/scripts/generate_v3_quality_eval.py` |
 | Raw tool-call parse | `training/evals/lfm_python_parse.py` |
 | LFM adapter | `training/adapters/lfm.py` |
 | Schema validation | `training/adapters/schema.py` |
-| TRL recipe (checked-in) | `training/configs/lfm25-230m-synthetic-v2-trl.yml` |
+| TRL recipe (checked-in) | `training/configs/lfm25-230m-synthetic-v3-40k-trl.yml` |
 | Evaluation | `evals/`, `training/evals/` |
 | Pinned contract | `schemas/sayso-tool-schema-v1.json` |
 
