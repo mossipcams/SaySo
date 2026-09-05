@@ -1,0 +1,600 @@
+{
+  "accepted": 40000,
+  "achieved_stt_rate": 0.1479,
+  "attempts": 48250,
+  "by_capability": {
+    "buttons": 668,
+    "climate": 3855,
+    "covers": 2313,
+    "fans": 2698,
+    "lawn_mowers": 666,
+    "lights": 8481,
+    "locks": 1932,
+    "media_players": 5397,
+    "scenes": 2000,
+    "scripts": 2000,
+    "switches": 3469,
+    "timers": 3855,
+    "todo_lists": 666,
+    "vacuums": 2000
+  },
+  "by_difficulty": {
+    "alias_distractor": 1402,
+    "ambiguity": 1761,
+    "exclusion": 844,
+    "large_home": 1423,
+    "multi_action": 973,
+    "ordinary": 30433,
+    "similar_name": 1416,
+    "unsupported": 1748
+  },
+  "by_home_size": {
+    "8": 4176,
+    "16": 13658,
+    "32": 13379,
+    "64": 6899,
+    "128": 1888
+  },
+  "by_operation": {
+    "cancel_all": 3855,
+    "close": 771,
+    "lock": 644,
+    "open": 771,
+    "query_state": 18312,
+    "set_brightness": 1414,
+    "set_color": 1413,
+    "set_color_temperature": 1413,
+    "set_speed": 674,
+    "turn_off": 5044,
+    "turn_on": 5045,
+    "unlock": 644
+  },
+  "by_tier": {
+    "1": 32000,
+    "2": 6000,
+    "3": 2000
+  },
+  "config": {
+    "count": 40000,
+    "home_size_weights": {
+      "8": 10,
+      "16": 35,
+      "32": 35,
+      "64": 15,
+      "128": 5
+    },
+    "near_duplicate_limit": 8,
+    "ordinary_rate": 0.75,
+    "output_path": "datasets/synthetic_v3_train.jsonl",
+    "paraphrase_enabled": false,
+    "paraphrase_variants": 0,
+    "seed": 20260905,
+    "split": "train",
+    "stt_noise_rate": 0.15,
+    "tier_proportions": {
+      "1": 0.8,
+      "2": 0.15,
+      "3": 0.05
+    },
+    "token_budget": 4096
+  },
+  "deterministic": 40000,
+  "paraphrased": 0,
+  "quota": {
+    "achieved": {
+      "capability": {
+        "(1, 'climate')": 3855,
+        "(1, 'covers')": 2313,
+        "(1, 'fans')": 2698,
+        "(1, 'lights')": 8481,
+        "(1, 'locks')": 1932,
+        "(1, 'media_players')": 5397,
+        "(1, 'switches')": 3469,
+        "(1, 'timers')": 3855,
+        "(2, 'scenes')": 2000,
+        "(2, 'scripts')": 2000,
+        "(2, 'vacuums')": 2000,
+        "(3, 'buttons')": 668,
+        "(3, 'lawn_mowers')": 666,
+        "(3, 'todo_lists')": 666
+      },
+      "operation": {
+        "(1, 'climate', 'query_state')": 3855,
+        "(1, 'covers', 'close')": 771,
+        "(1, 'covers', 'open')": 771,
+        "(1, 'covers', 'query_state')": 771,
+        "(1, 'fans', 'query_state')": 674,
+        "(1, 'fans', 'set_speed')": 674,
+        "(1, 'fans', 'turn_off')": 675,
+        "(1, 'fans', 'turn_on')": 675,
+        "(1, 'lights', 'query_state')": 1413,
+        "(1, 'lights', 'set_brightness')": 1414,
+        "(1, 'lights', 'set_color')": 1413,
+        "(1, 'lights', 'set_color_temperature')": 1413,
+        "(1, 'lights', 'turn_off')": 1414,
+        "(1, 'lights', 'turn_on')": 1414,
+        "(1, 'locks', 'lock')": 644,
+        "(1, 'locks', 'query_state')": 644,
+        "(1, 'locks', 'unlock')": 644,
+        "(1, 'media_players', 'query_state')": 1799,
+        "(1, 'media_players', 'turn_off')": 1799,
+        "(1, 'media_players', 'turn_on')": 1799,
+        "(1, 'switches', 'query_state')": 1156,
+        "(1, 'switches', 'turn_off')": 1156,
+        "(1, 'switches', 'turn_on')": 1157,
+        "(1, 'timers', 'cancel_all')": 3855,
+        "(2, 'scenes', 'query_state')": 2000,
+        "(2, 'scripts', 'query_state')": 2000,
+        "(2, 'vacuums', 'query_state')": 2000,
+        "(3, 'buttons', 'query_state')": 668,
+        "(3, 'lawn_mowers', 'query_state')": 666,
+        "(3, 'todo_lists', 'query_state')": 666
+      },
+      "tier": {
+        "1": 32000,
+        "2": 6000,
+        "3": 2000
+      }
+    },
+    "requested": {
+      "capability": {
+        "(1, 'climate')": 3855,
+        "(1, 'covers')": 2313,
+        "(1, 'fans')": 2698,
+        "(1, 'lights')": 8481,
+        "(1, 'locks')": 1932,
+        "(1, 'media_players')": 5397,
+        "(1, 'switches')": 3469,
+        "(1, 'timers')": 3855,
+        "(2, 'scenes')": 2000,
+        "(2, 'scripts')": 2000,
+        "(2, 'vacuums')": 2000,
+        "(3, 'buttons')": 668,
+        "(3, 'lawn_mowers')": 666,
+        "(3, 'todo_lists')": 666
+      },
+      "operation": {
+        "(1, 'climate', 'query_state')": 3855,
+        "(1, 'covers', 'close')": 771,
+        "(1, 'covers', 'open')": 771,
+        "(1, 'covers', 'query_state')": 771,
+        "(1, 'fans', 'query_state')": 674,
+        "(1, 'fans', 'set_speed')": 674,
+        "(1, 'fans', 'turn_off')": 675,
+        "(1, 'fans', 'turn_on')": 675,
+        "(1, 'lights', 'query_state')": 1413,
+        "(1, 'lights', 'set_brightness')": 1414,
+        "(1, 'lights', 'set_color')": 1413,
+        "(1, 'lights', 'set_color_temperature')": 1413,
+        "(1, 'lights', 'turn_off')": 1414,
+        "(1, 'lights', 'turn_on')": 1414,
+        "(1, 'locks', 'lock')": 644,
+        "(1, 'locks', 'query_state')": 644,
+        "(1, 'locks', 'unlock')": 644,
+        "(1, 'media_players', 'query_state')": 1799,
+        "(1, 'media_players', 'turn_off')": 1799,
+        "(1, 'media_players', 'turn_on')": 1799,
+        "(1, 'switches', 'query_state')": 1156,
+        "(1, 'switches', 'turn_off')": 1156,
+        "(1, 'switches', 'turn_on')": 1157,
+        "(1, 'timers', 'cancel_all')": 3855,
+        "(2, 'scenes', 'query_state')": 2000,
+        "(2, 'scripts', 'query_state')": 2000,
+        "(2, 'vacuums', 'query_state')": 2000,
+        "(3, 'buttons', 'query_state')": 668,
+        "(3, 'lawn_mowers', 'query_state')": 666,
+        "(3, 'todo_lists', 'query_state')": 666
+      },
+      "tier": {
+        "1": 32000,
+        "2": 6000,
+        "3": 2000
+      }
+    },
+    "shortfall": {
+      "capability": {},
+      "operation": {},
+      "tier": {}
+    }
+  },
+  "registry": {
+    "buttons": {
+      "blocker": "no button tool in v1 schema",
+      "operations": [
+        {
+          "blocker": "no button press tool in v1 schema",
+          "name": "control",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "unavailable",
+      "tier": 3
+    },
+    "climate": {
+      "blocker": "no climate control tools in v1 schema",
+      "operations": [
+        {
+          "blocker": "no climate tool in v1 schema",
+          "name": "set_temperature",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": "no climate tool in v1 schema",
+          "name": "turn_on",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": "no climate tool in v1 schema",
+          "name": "turn_off",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "unavailable",
+      "tier": 1
+    },
+    "covers": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "open",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "close",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": "no position tool in v1 schema",
+          "name": "set_position",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "fans": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "turn_on",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "turn_off",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": null,
+          "name": "set_speed",
+          "support": "supported",
+          "tool": "HassFanSetSpeed"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "lawn_mowers": {
+      "blocker": "no lawn mower tool in v1 schema",
+      "operations": [
+        {
+          "blocker": "no lawn mower tool in v1 schema",
+          "name": "control",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "unavailable",
+      "tier": 3
+    },
+    "lights": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "turn_on",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "turn_off",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": null,
+          "name": "set_brightness",
+          "support": "supported",
+          "tool": "HassLightSet"
+        },
+        {
+          "blocker": null,
+          "name": "set_color",
+          "support": "supported",
+          "tool": "HassLightSet"
+        },
+        {
+          "blocker": null,
+          "name": "set_color_temperature",
+          "support": "supported",
+          "tool": "HassLightSet"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "locks": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "lock",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "unlock",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "media_players": {
+      "blocker": "volume/play/pause not exposed in v1 Assist schema",
+      "operations": [
+        {
+          "blocker": null,
+          "name": "turn_on",
+          "support": "partial",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "turn_off",
+          "support": "partial",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": "no media play tool in v1 schema",
+          "name": "play",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": "no media pause tool in v1 schema",
+          "name": "pause",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": "no volume tool in v1 schema",
+          "name": "volume_set",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": "no volume tool in v1 schema",
+          "name": "volume_up",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": "no mute tool in v1 schema",
+          "name": "mute",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "partial",
+      "tier": 1
+    },
+    "scenes": {
+      "blocker": "no scene tool in v1 schema",
+      "operations": [
+        {
+          "blocker": "no scene activation tool in v1 schema",
+          "name": "control",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "unavailable",
+      "tier": 2
+    },
+    "scripts": {
+      "blocker": "no script tool in v1 schema",
+      "operations": [
+        {
+          "blocker": "no script run tool in v1 schema",
+          "name": "control",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "unavailable",
+      "tier": 2
+    },
+    "switches": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "turn_on",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "turn_off",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "timers": {
+      "blocker": "only HassCancelAllTimers in v1 schema",
+      "operations": [
+        {
+          "blocker": null,
+          "name": "cancel_all",
+          "support": "supported",
+          "tool": "HassCancelAllTimers"
+        },
+        {
+          "blocker": "no timer start tool in v1 schema",
+          "name": "start",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": "no timer pause tool in v1 schema",
+          "name": "pause",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": "no timer status tool in v1 schema",
+          "name": "status",
+          "support": "unavailable",
+          "tool": null
+        }
+      ],
+      "support": "partial",
+      "tier": 1
+    },
+    "todo_lists": {
+      "blocker": "no todo tool in v1 schema",
+      "operations": [
+        {
+          "blocker": "no todo list tool in v1 schema",
+          "name": "control",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "unavailable",
+      "tier": 3
+    },
+    "vacuums": {
+      "blocker": "no vacuum tool in v1 schema",
+      "operations": [
+        {
+          "blocker": "no vacuum tool in v1 schema",
+          "name": "control",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "unavailable",
+      "tier": 2
+    }
+  },
+  "rejected": 8250,
+  "rejection_reasons": {
+    "excluded_entity_called": 61,
+    "missing_expected_target": 4355,
+    "missing_required_argument": 137,
+    "missing_utterance": 3650,
+    "recipe_lock_overlap": 47
+  },
+  "requested": 40000,
+  "requested_stt_rate": 0.15,
+  "stt_corrupted": 5917,
+  "unique_semantic_ids": 40000
+}

@@ -1926,6 +1926,7 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--pipeline", choices=("legacy", "v3"), default="legacy")
     parser.add_argument("--stage", choices=("all", "generate", "judge", "curate"), default="all")
     parser.add_argument("--count", type=int, default=DEFAULT_TRAIN_COUNT)
     parser.add_argument("--seed", type=int, default=20260903)
@@ -1933,13 +1934,41 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--out-dir", type=Path, default=ROOT / "datasets" / "synthetic_v2")
     parser.add_argument("--generator-url", default="http://192.168.1.140:8080/v1")
-    parser.add_argument("--generator-model", required=True)
+    parser.add_argument("--generator-model", default=None)
     parser.add_argument("--judge-url", default="http://192.168.1.140:8080/v1")
-    parser.add_argument("--judge-model", required=True)
+    parser.add_argument("--judge-model", default=None)
     parser.add_argument("--min-count", type=int, default=DEFAULT_TRAIN_COUNT)
     parser.add_argument("--max-count", type=int, default=DEFAULT_TRAIN_COUNT)
     parser.add_argument("--exclude-prompts", type=Path)
+    parser.add_argument("--stt-rate", type=float, default=0.15)
+    parser.add_argument("--paraphrase", action="store_true", default=False)
+    parser.add_argument("--token-budget", type=int, default=4096)
+    parser.add_argument("--manifest", type=Path, default=None)
     args = parser.parse_args()
+
+    if args.pipeline == "v3":
+        from generators.config import GeneratorConfig
+        from generators.pipeline import run_generation, write_jsonl, write_manifest
+
+        out_path = args.out_dir / "synthetic_v3_train.jsonl" if args.out_dir.is_dir() else args.out_dir
+        config = GeneratorConfig(
+            count=args.count,
+            seed=args.seed,
+            output_path=out_path,
+            manifest_path=args.manifest or out_path.with_suffix(".manifest.json"),
+            stt_noise_rate=args.stt_rate,
+            paraphrase_enabled=args.paraphrase,
+            token_budget=args.token_budget,
+            exclude_prompts_path=args.exclude_prompts,
+        )
+        result = run_generation(config)
+        write_jsonl(config.output_path, result["rows"])
+        write_manifest(config.manifest_path, result["stats"])
+        print(json.dumps(result["stats"], indent=2, default=str))
+        return 0
+
+    if not args.generator_model or not args.judge_model:
+        parser.error("legacy pipeline requires --generator-model and --judge-model")
 
     generator_key = os.environ.get("SAYSO_GENERATOR_API_KEY", "")
     judge_key = os.environ.get("SAYSO_JUDGE_API_KEY", generator_key)
