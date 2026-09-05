@@ -30,10 +30,14 @@ class GenerationFactors:
     status_request_factor: int = 8
     refusal_factor: int = 3
     failure_factor: int = 1
+    ambiguity_factor: int = 1
+    partial_failure_factor: int = 1
+    datetime_factor: int = 2
+    timer_factor: int = 2
 
 
-SMALL_FACTORS = GenerationFactors(1, 10, 8, 3, 1)
-SAMPLE_FACTORS = GenerationFactors(1, 1, 1, 1, 1)
+SMALL_FACTORS = GenerationFactors(1, 10, 8, 3, 1, 2, 2, 2, 2)
+SAMPLE_FACTORS = GenerationFactors(1, 1, 1, 1, 1, 1, 1, 2, 2)
 
 _DATETIME_QUESTIONS: tuple[str, ...] = (
     "what time is it",
@@ -61,6 +65,13 @@ _CANCEL_AREA_QUESTIONS: tuple[str, ...] = (
     "cancel all timers in the {area}",
     "stop every timer in the {area}",
     "clear all timers in the {area}",
+)
+
+_AMBIGUOUS_QUESTIONS: tuple[tuple[str, str], ...] = (
+    ("turn on the light", "which light would you like me to control?"),
+    ("turn off the fan", "which fan should I control?"),
+    ("open the blinds", "which blinds should I open?"),
+    ("lock the door", "which door should I lock?"),
 )
 
 
@@ -470,6 +481,73 @@ def _generate_refusal(
     )
 
 
+def _generate_ambiguity(
+    persona_prompt: str,
+    rng: random.Random,
+    seed: int,
+) -> dict[str, Any]:
+    question, answer = rng.choice(_AMBIGUOUS_QUESTIONS)
+    return _entry(
+        persona_prompt=persona_prompt,
+        messages=[_user(question), _assistant_text(answer)],
+        template_family="pile_ambiguity",
+        phrasing_family=question,
+        seed=seed,
+    )
+
+
+def _generate_partial_failure(
+    piles: DatasetPiles,
+    persona_prompt: str,
+    rng: random.Random,
+    seed: int,
+) -> dict[str, Any] | None:
+    light = _pick_device(piles, "light", rng)
+    fan = _pick_device(piles, "fan", rng)
+    if light is None or fan is None:
+        return None
+
+    light_name = light["description"]
+    fan_name = fan["description"]
+    light_call = build_tool_call("light.turn_on", light_name)
+    fan_call = build_tool_call("fan.turn_off", fan_name)
+    if light_call is None or fan_call is None:
+        return None
+
+    failed_light = rng.choice([True, False])
+    failed_name = light_name if failed_light else fan_name
+    successful_name = fan_name if failed_light else light_name
+    question = f"turn on {light_name} and turn off {fan_name}".lower()
+    final = f"{successful_name} is updated, but I couldn't update {failed_name}."
+    return _entry(
+        persona_prompt=persona_prompt,
+        messages=[
+            _user(question),
+            _assistant_tool([light_call, fan_call], text="working on both now."),
+            _tool_results(
+                [
+                    (
+                        light_call.name,
+                        {"result": "Failed", "error": "Device unavailable"}
+                        if failed_light
+                        else {"result": "Success"},
+                    ),
+                    (
+                        fan_call.name,
+                        {"result": "Failed", "error": "Device unavailable"}
+                        if not failed_light
+                        else {"result": "Success"},
+                    ),
+                ]
+            ),
+            _assistant_text(final.lower()),
+        ],
+        template_family="pile_partial_failure",
+        phrasing_family="light_and_fan",
+        seed=seed,
+    )
+
+
 def _generate_failure(
     piles: DatasetPiles,
     failure: dict[str, str],
@@ -694,6 +772,27 @@ def generate_pile_examples(
                 stats.record_emit()
                 yield example
 
+        def _ambiguity(pp: str = persona_prompt) -> dict[str, Any]:
+            nonlocal example_seed
+            example_seed += 1
+            return _generate_ambiguity(pp, rng, example_seed)
+
+        for example in _run_factor(rng, factors.ambiguity_factor, _ambiguity):
+            stats.record_emit()
+            yield example
+
+        def _partial_failure(pp: str = persona_prompt) -> dict[str, Any] | None:
+            nonlocal example_seed
+            example_seed += 1
+            built = _generate_partial_failure(piles, pp, rng, example_seed)
+            if built is None:
+                stats.record_drop("build_failed_partial_failure")
+            return built
+
+        for example in _run_factor(rng, factors.partial_failure_factor, _partial_failure):
+            stats.record_emit()
+            yield example
+
     for status in piles.pile_of_status_requests:
         device_type = status["device_type"]
 
@@ -727,7 +826,7 @@ def generate_pile_examples(
             example_seed += 1
             return _generate_datetime(piles, p, pp, rng, example_seed)
 
-        for example in _run_factor(rng, factors.static_factor, _datetime):
+        for example in _run_factor(rng, factors.datetime_factor, _datetime):
             stats.record_emit()
             yield example
 
@@ -736,7 +835,7 @@ def generate_pile_examples(
             example_seed += 1
             return _generate_cancel_all_timers(piles, p, pp, rng, example_seed)
 
-        for example in _run_factor(rng, factors.static_factor, _cancel_all):
+        for example in _run_factor(rng, factors.timer_factor, _cancel_all):
             stats.record_emit()
             yield example
 
@@ -759,5 +858,6 @@ def estimate_example_count(factors: GenerationFactors | None = None, piles: Data
     total += int(failures * factors.failure_factor * personas)
     total += int(refusals * factors.refusal_factor * personas)
     total += int(status * factors.status_request_factor)
-    total += int(2 * factors.static_factor * personas)
+    total += int((factors.datetime_factor + factors.timer_factor) * personas)
+    total += int((factors.ambiguity_factor + factors.partial_failure_factor) * personas)
     return total
