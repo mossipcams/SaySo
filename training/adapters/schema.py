@@ -19,7 +19,7 @@ TRAINING_V2_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sayso_
 
 # Device-type tiers mirror synthetic generator kinds plus Assist domain tools.
 # HassTurnOn/HassTurnOff remain the on/off path for scene, script, vacuum, and climate.
-V1_TOOL_DEVICE_TYPE_TIERS: dict[str, frozenset[str]] = {
+TRAINING_TOOL_DEVICE_TYPE_TIERS: dict[str, frozenset[str]] = {
     "query": frozenset({"GetDateTime", "GetLiveContext"}),
     "generic": frozenset({"HassTurnOff", "HassTurnOn"}),
     "light": frozenset({"HassLightSet"}),
@@ -58,6 +58,9 @@ V1_TOOL_DEVICE_TYPE_TIERS: dict[str, frozenset[str]] = {
         }
     ),
 }
+
+# Backward-compatible alias for tests comparing v1 artifact metadata.
+V1_TOOL_DEVICE_TYPE_TIERS = TRAINING_TOOL_DEVICE_TYPE_TIERS
 
 # Legacy service-call argument keys that must be rejected.
 LEGACY_ARGUMENT_KEYS: frozenset[str] = frozenset(
@@ -109,6 +112,57 @@ def v2_tool_catalog_by_device_type() -> dict[str, list[dict[str, Any]]]:
 
 
 @lru_cache(maxsize=1)
+def load_v2_tools() -> tuple[dict[str, Any], ...]:
+    """Return immutable OpenAI-style tools from the pinned v2 artifact."""
+    schema = load_v2_schema()
+    tools = schema.get("tools")
+    if not isinstance(tools, list) or not tools:
+        raise ValueError("Pinned v2 schema must contain a non-empty tools list")
+    for index, tool in enumerate(tools):
+        if not isinstance(tool, dict) or tool.get("type") != "function":
+            raise ValueError(f"Tool at index {index} must be type:function")
+        fn = tool.get("function")
+        if not isinstance(fn, dict) or not isinstance(fn.get("name"), str):
+            raise ValueError(f"Tool at index {index} must declare function.name")
+    return tuple(tools)
+
+
+def v2_tool_names() -> frozenset[str]:
+    """Tool names declared in the pinned v2 artifact."""
+    return frozenset(tool["function"]["name"] for tool in load_v2_tools())
+
+
+def v2_tool_device_type_tiers() -> dict[str, frozenset[str]]:
+    """Return the pinned v2 catalog grouped by device-type tier."""
+    return TRAINING_TOOL_DEVICE_TYPE_TIERS
+
+
+def assert_v2_tiers_cover_catalog() -> None:
+    """Ensure tier metadata partitions the pinned v2 catalog without drift."""
+    tiered: set[str] = set()
+    for names in TRAINING_TOOL_DEVICE_TYPE_TIERS.values():
+        overlap = tiered & set(names)
+        if overlap:
+            raise ValueError(f"tool tier overlap: {sorted(overlap)}")
+        tiered.update(names)
+    allowed = ALLOWED_HASS_TOOLS
+    if tiered != set(allowed):
+        missing = sorted(set(allowed) - tiered)
+        extra = sorted(tiered - set(allowed))
+        raise ValueError(f"tier/catalog mismatch: missing={missing!r} extra={extra!r}")
+
+
+def v2_openai_tools() -> list[dict[str, Any]]:
+    """Full pinned v2 catalog in the OpenAI type:function envelope SaySo sends at runtime."""
+    return [dict(tool) for tool in load_v2_tools()]
+
+
+def v2_tool_by_name() -> dict[str, dict[str, Any]]:
+    """Map tool name -> canonical OpenAI tool definition from v2."""
+    return {tool["function"]["name"]: dict(tool) for tool in load_v2_tools()}
+
+
+@lru_cache(maxsize=1)
 def load_v1_schema() -> dict[str, Any]:
     """Load the locked SaySo tool schema artifact (read-only source of truth)."""
     if not V1_SCHEMA_ARTIFACT.is_file():
@@ -137,23 +191,23 @@ def v1_tool_names() -> frozenset[str]:
     return frozenset(tool["function"]["name"] for tool in load_v1_tools())
 
 
-ALLOWED_HASS_TOOLS: frozenset[str] = v1_tool_names()
+ALLOWED_HASS_TOOLS: frozenset[str] = v2_tool_names()
 
 
 def v1_tool_device_type_tiers() -> dict[str, frozenset[str]]:
-    """Return the locked v1 catalog grouped by device-type tier."""
-    return V1_TOOL_DEVICE_TYPE_TIERS
+    """Return device-type tiers for the flat v1 artifact (same partition as v2)."""
+    return TRAINING_TOOL_DEVICE_TYPE_TIERS
 
 
 def assert_v1_tiers_cover_catalog() -> None:
-    """Ensure tier metadata partitions the locked v1 catalog without drift."""
+    """Ensure tier metadata partitions the v1 flat catalog without drift."""
     tiered: set[str] = set()
-    for names in V1_TOOL_DEVICE_TYPE_TIERS.values():
+    for names in TRAINING_TOOL_DEVICE_TYPE_TIERS.values():
         overlap = tiered & set(names)
         if overlap:
             raise ValueError(f"tool tier overlap: {sorted(overlap)}")
         tiered.update(names)
-    allowed = ALLOWED_HASS_TOOLS
+    allowed = v1_tool_names()
     if tiered != set(allowed):
         missing = sorted(set(allowed) - tiered)
         extra = sorted(tiered - set(allowed))
@@ -185,13 +239,18 @@ def assert_openai_tool_envelope(tool: dict[str, Any]) -> None:
 
 
 def assert_tools_subset_of_v1(tools: list[dict[str, Any]]) -> None:
-    """Ensure every tool name is declared in the locked v1 catalog."""
+    """Ensure every tool name is declared in the pinned training catalog."""
+    assert_tools_subset_of_v2(tools)
+
+
+def assert_tools_subset_of_v2(tools: list[dict[str, Any]]) -> None:
+    """Ensure every tool name is declared in the pinned v2 catalog."""
     allowed = ALLOWED_HASS_TOOLS
     for tool in tools:
         assert_openai_tool_envelope(tool)
         name = tool["function"]["name"]
         if name not in allowed:
-            raise ValueError(f"tool {name!r} is not in locked v1 catalog")
+            raise ValueError(f"tool {name!r} is not in pinned v2 catalog")
 
 
 def contains_chatml_tool_call_markers(text: str) -> bool:

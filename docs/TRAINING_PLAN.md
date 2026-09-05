@@ -13,13 +13,14 @@ Axolotl files are leftovers, not the training path.
 
 ## 1. Training contract
 
-Use `schemas/sayso-tool-schema-v1.json` as the pinned training contract. It is a
+Use `schemas/sayso-tool-schema-v2.json` as the pinned training contract. It is a
 snapshot of the Home Assistant Assist LLM API and defines the tool names,
 descriptions, parameters, required fields, and constraints used to validate
-examples. `schemas/sayso-tool-schema-v2.json` mirrors the same tools grouped by
-device-type tier (`query`, `generic`, `light`, `fan`, `climate`, `media_player`,
-`vacuum`, `timer`) for catalog validation; the flat `tools` list remains the
-training source of truth.
+examples. The flat `tools` list is the training source of truth; the same
+artifact also groups tools by device-type tier (`query`, `generic`, `light`,
+`fan`, `climate`, `media_player`, `vacuum`, `timer`) for catalog validation.
+`schemas/sayso-tool-schema-v1.json` remains as a flat-only historical artifact
+with an identical tool list and fingerprint.
 
 Every expected tool call must pass the pinned schema before it enters a
 dataset. When the Home Assistant contract changes, update the pinned artifact
