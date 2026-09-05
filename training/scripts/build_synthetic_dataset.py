@@ -21,7 +21,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from adapters.schema import tool_schema_map, v1_openai_tools, validate_tool_arguments  # noqa: E402
+from adapters.schema import tool_schema_map, v2_openai_tools, validate_tool_arguments  # noqa: E402
 
 DEFAULT_TRAIN_COUNT = 10_000
 
@@ -684,13 +684,13 @@ def build_specs(count: int, *, seed: int = 42) -> list[dict[str, Any]]:
 
 
 def validate_spec(spec: dict[str, Any]) -> str | None:
-    """Validate authoritative behavior against its synthetic HA environment and v1."""
+    """Validate authoritative behavior against its synthetic HA environment and v2."""
     expected = spec.get("expected") or {}
     calls = expected.get("calls") or []
     if expected.get("kind") == "no_action" and calls:
         return "no_action_has_calls"
     entities = {entity["name"]: entity for entity in spec["home"]["entities"]}
-    schemas = tool_schema_map(v1_openai_tools())
+    schemas = tool_schema_map(v2_openai_tools())
     excluded = set(spec.get("excluded_names") or [])
     for call in calls:
         name = call.get("name")
@@ -830,7 +830,7 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
     }
     if "quality" in spec:
         metadata["quality"] = spec["quality"]
-    return {"messages": messages, "tools": v1_openai_tools(), "metadata": metadata}
+    return {"messages": messages, "tools": v2_openai_tools(), "metadata": metadata}
 
 
 def request_seed(spec: dict[str, Any]) -> str:
@@ -1644,7 +1644,7 @@ def _counts(rows: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def _audit_selected(rows: list[dict[str, Any]]) -> dict[str, int]:
-    schemas = tool_schema_map(v1_openai_tools())
+    schemas = tool_schema_map(v2_openai_tools())
     calls = [call for row in rows for call in row["expected"].get("calls", [])]
     exact = [(_normalized(row["utterance"]), _behavior_key(row)) for row in rows]
     semantic = [(_normalized(row["quality"]["semantic_key"]), _behavior_key(row)) for row in rows]

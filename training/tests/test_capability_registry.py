@@ -29,17 +29,19 @@ def test_tier1_weights_present() -> None:
     }
 
 
-def test_climate_marked_unavailable() -> None:
+def test_climate_uses_v2_temperature_tool() -> None:
     cap = CAPABILITIES["climate"]
-    assert cap.support == SupportLevel.UNAVAILABLE
-    assert cap.blocker is not None
+    assert cap.support == SupportLevel.SUPPORTED
+    ops = {op.name: op for op in cap.operations}
+    assert ops["set_temperature"].tool_name == "HassClimateSetTemperature"
 
 
-def test_media_partial_support() -> None:
+def test_media_uses_v2_playback_tools() -> None:
     cap = CAPABILITIES["media_players"]
     ops = {op.name: op for op in cap.operations}
-    assert ops["turn_on"].support == SupportLevel.PARTIAL
-    assert ops["volume_set"].support == SupportLevel.UNAVAILABLE
+    assert ops["play"].tool_name == "HassMediaUnpause"
+    assert ops["volume_set"].tool_name == "HassSetVolume"
+    assert ops["mute"].tool_name == "HassMediaPlayerMute"
 
 
 def test_registry_summary_covers_all_capabilities() -> None:

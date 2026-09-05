@@ -77,6 +77,39 @@ def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
             return f"set {target} color temperature to {arguments['temperature']}"
     if name == "HassFanSetSpeed":
         return f"set {target} speed to {arguments['percentage']} percent"
+    if name == "HassClimateSetTemperature":
+        return f"set {target} temperature to {arguments['temperature']} degrees"
+    if name == "HassMediaPause":
+        return f"pause {target}"
+    if name == "HassMediaUnpause":
+        return f"play {target}"
+    if name == "HassSetVolume":
+        return f"set {target} volume to {arguments['volume_level']} percent"
+    if name == "HassSetVolumeRelative":
+        step = arguments.get("volume_step")
+        if step == "up":
+            return f"turn up {target} volume"
+        if step == "down":
+            return f"turn down {target} volume"
+        return f"adjust {target} volume"
+    if name == "HassMediaPlayerMute":
+        return f"mute {target}"
+    if name == "HassStartTimer":
+        minutes = arguments.get("minutes")
+        if minutes:
+            return f"start a {minutes} minute timer"
+        return "start a timer"
+    if name == "HassPauseTimer":
+        return "pause the timer"
+    if name == "HassTimerStatus":
+        return "what is the timer status"
+    if name == "HassVacuumStart":
+        return f"start {target}"
+    if name == "HassVacuumReturnToBase":
+        return f"send {target} home"
+    if name == "HassVacuumCleanArea":
+        area = arguments.get("area")
+        return f"vacuum {area}" if area else f"vacuum with {target}"
     if name == "HassCancelAllTimers":
         area = arguments.get("area")
         return f"cancel all timers in {area}" if area else "cancel all timers"
@@ -119,7 +152,12 @@ def expand_utterance(spec: dict[str, Any]) -> str:
         target = ""
         if target_names:
             target = spec.get("spoken_targets", {}).get(target_names[0], target_names[0])
-        return _direct_utterance(target, call) if target or call["name"] == "HassCancelAllTimers" else seed
+        return _direct_utterance(target, call) if target or call["name"] in {
+            "HassCancelAllTimers",
+            "HassStartTimer",
+            "HassPauseTimer",
+            "HassTimerStatus",
+        } else seed
     return seed
 
 
