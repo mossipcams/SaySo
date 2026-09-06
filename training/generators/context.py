@@ -74,10 +74,9 @@ DEVICE_CONTROL_TOOL_USAGE_PROMPT = (
 )
 
 # Home Assistant buckets calendars and scripts out of the overview because each has
-# its own tools. SaySo labels still target scripts through HassTurnOn, so excluding
-# them here would leave those rows referencing a name absent from context. Scripts
-# stay until the generator models them as HA 2026.8.3 does.
-OVERVIEW_EXCLUDED_DOMAINS = frozenset({"calendar"})
+# its own tools (async_get_exposed_entities). Scripts reach the model as per-script
+# tools instead; see generators.tools.script_tools.
+OVERVIEW_EXCLUDED_DOMAINS = frozenset({"calendar", "script"})
 
 
 def _dump(data: list[dict[str, Any]]) -> str:

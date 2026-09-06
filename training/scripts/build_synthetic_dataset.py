@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 
 from adapters.schema import tool_schema_map, v2_openai_tools, validate_tool_arguments  # noqa: E402
 from generators.context import system_prompt  # noqa: E402
-from generators.tools import offered_tools  # noqa: E402
+from generators.tools import offered_tools, script_tool_name, script_tools  # noqa: E402
 
 DEFAULT_TRAIN_COUNT = 10_000
 
@@ -695,11 +695,21 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
     entities = {entity["name"]: entity for entity in spec["home"]["entities"]}
     schemas = tool_schema_map(v2_openai_tools())
     excluded = set(spec.get("excluded_names") or [])
+    # Per-script tools are named after the script and are not in the pinned catalog.
+    script_names = {
+        script_tool_name(entity)
+        for entity in spec["home"]["entities"]
+        if entity.get("domain") == "script"
+    }
     for call in calls:
         name = call.get("name")
         arguments = call.get("arguments")
         if not isinstance(name, str) or not isinstance(arguments, dict):
             return "invalid_call_shape"
+        if name in script_names:
+            if arguments:
+                return "script_tool_takes_no_arguments"
+            continue
         reason = validate_tool_arguments(name, arguments, schemas)
         if reason:
             return reason
@@ -816,7 +826,11 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         metadata["quality"] = spec["quality"]
     # Same candidate-set shape as the v3 train rows, so the eval sets rendered through
     # here are not out of distribution against a model trained on 8 offered tools.
-    offered = offered_tools([call["name"] for call in calls], spec["candidate_id"])
+    offered = offered_tools(
+        [call["name"] for call in calls],
+        spec["candidate_id"],
+        extra_tools=script_tools(spec["home"]),
+    )
     return {"messages": messages, "tools": offered, "metadata": metadata}
 
 

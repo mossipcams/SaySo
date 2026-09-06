@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from adapters.schema import tool_schema_map, validate_tool_arguments, v2_openai_tools  # noqa: E402
 from build_synthetic_dataset import render_example  # noqa: E402
+from generators.tools import script_tool_name  # noqa: E402
 from generators.utterances import _phrase_for_call, expand_utterance, request_seed_from_spec  # noqa: E402
 from evals.metrics import (  # noqa: E402
     extract_assistant_tool_calls,
@@ -140,6 +141,11 @@ def _status(entity: dict[str, Any]) -> dict[str, Any]:
 def _turn_on(entity: dict[str, Any]) -> dict[str, Any]:
     args: dict[str, Any] = {"name": entity["name"], "domain": [entity["domain"]]}
     return {"name": "HassTurnOn", "arguments": args}
+
+
+def _run_script(entity: dict[str, Any]) -> dict[str, Any]:
+    """Scripts are their own zero-argument tool, not HassTurnOn."""
+    return {"name": script_tool_name(entity), "arguments": {}}
 
 
 def _turn_off(entity: dict[str, Any]) -> dict[str, Any]:
@@ -388,7 +394,7 @@ def gold_specs() -> list[dict[str, Any]]:
             subcategory="named_script",
             utterance="Run Good Morning Script",
             home=_home(morning_script, sayso_entity_area="Kitchen", home_id="v3_gold_script_a"),
-            expected=_action(_turn_on(morning_script)),
+            expected=_action(_run_script(morning_script)),
         ),
         _spec(
             row_id="script_b",
@@ -396,7 +402,7 @@ def gold_specs() -> list[dict[str, Any]]:
             subcategory="conversational",
             utterance="Please start the leave home script",
             home=_home(away_script, sayso_entity_area="Foyer", home_id="v3_gold_script_b"),
-            expected=_action(_turn_on(away_script)),
+            expected=_action(_run_script(away_script)),
         ),
         _spec(
             row_id="ordinary_on",
@@ -1075,6 +1081,9 @@ def assert_quality_eval_contract(example: dict[str, Any]) -> None:
     if str(metadata.get("candidate_id", "")).startswith("evals/cases"):
         raise ValueError("v3 quality eval must not use evals/cases IDs")
     schemas = tool_schema_map(v2_openai_tools())
+    # Per-script tools are named after the script, so they are absent from the pinned
+    # catalog by design; they must still be offered to the row and take no arguments.
+    offered = {tool["function"]["name"] for tool in example.get("tools") or []}
     for call in expected_tool_calls(example):
         args = call.get("function", {}).get("arguments")
         if not isinstance(args, str):
@@ -1082,7 +1091,14 @@ def assert_quality_eval_contract(example: dict[str, Any]) -> None:
         parsed = parse_tool_arguments(args)
         if parsed is None:
             raise ValueError("v3 quality eval arguments must parse as JSON objects")
-        reason = validate_tool_arguments(call["function"]["name"], parsed, schemas)
+        name = call["function"]["name"]
+        if name not in schemas:
+            if name not in offered:
+                raise ValueError(f"v3 quality eval calls a tool the row never offered: {name}")
+            if parsed:
+                raise ValueError("v3 quality eval script tools take no arguments")
+            continue
+        reason = validate_tool_arguments(name, parsed, schemas)
         if reason:
             raise ValueError(f"v3 quality eval arguments failed schema validation: {reason}")
 

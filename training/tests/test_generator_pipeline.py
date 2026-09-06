@@ -80,6 +80,60 @@ def test_offered_tools_are_compact_and_always_contain_the_called_tools() -> None
     assert len(tool_sets) > 10, len(tool_sets)
 
 
+def test_scripts_are_their_own_tools_and_absent_from_the_entity_overview() -> None:
+    """HA 2026.8.3 exposes each script as its own tool and hides it from the overview."""
+    from generators.context import serialize_context
+    from generators.tools import script_tool_name, script_tools
+
+    home = {
+        "sayso_entity_area": "Kitchen",
+        "entities": [
+            {
+                "entity_id": "script.good_morning",
+                "name": "Good Morning",
+                "aliases": ["Sunrise"],
+                "domain": "script",
+                "area": "Kitchen",
+                "floor": "Ground",
+                "state": "off",
+            },
+            {
+                "entity_id": "light.kitchen_light",
+                "name": "Kitchen Light",
+                "aliases": [],
+                "domain": "light",
+                "area": "Kitchen",
+                "floor": "Ground",
+                "state": "off",
+            },
+        ],
+    }
+    assert script_tool_name(home["entities"][0]) == "good_morning"
+
+    tools = script_tools(home)
+    assert [tool["function"]["name"] for tool in tools] == ["good_morning"]
+    assert tools[0]["function"]["parameters"]["properties"] == {}
+    assert "Sunrise" in tools[0]["function"]["description"]
+
+    # the script must not appear in the static overview, but the light must
+    context = serialize_context(home)
+    assert "Good Morning" not in context
+    assert "Kitchen Light" in context
+
+
+def test_generated_script_rows_call_the_script_tool_not_hass_turn_on() -> None:
+    rows = run_generation(GeneratorConfig(count=400, seed=17, paraphrase_enabled=False))["rows"]
+    script_rows = [r for r in rows if r["metadata"].get("capability") == "scripts"]
+    assert script_rows, "no script rows generated"
+    for row in script_rows:
+        offered = {tool["function"]["name"] for tool in row["tools"]}
+        for message in row["messages"]:
+            for call in message.get("tool_calls") or []:
+                name = call["function"]["name"]
+                assert name != "HassTurnOn", "scripts are not run through HassTurnOn"
+                assert name in offered
+
+
 def test_every_quality_eval_prompt_is_rejected_verbatim() -> None:
     """Punctuation must not defeat the guard: "joe's" and "joe s" both contaminate."""
     from evals.recipe_lock import quality_eval_user_prompts
