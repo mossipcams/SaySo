@@ -101,25 +101,35 @@ media play/pause/volume/mute, timer start/pause/status/cancel, vacuum
 start/return/clean area, scene activate, script run, plus ordinary on/off,
 status, ambiguity, and unsupported/no-call. Labels validate against
 `sayso-tool-schema-v2` only. Shadow uses different homes, entities, and
-phrasing. Exclude gold, shadow, and recipe-lock prompts from train-set overlap
-checks via `excluded_train_prompts()`.
+phrasing. Gold, shadow, and recipe-lock prompts come from
+`excluded_train_prompts()`; the v3 generator rejects any train utterance in that
+set (`quality_eval_overlap`) instead of filtering contaminated rows out
+afterwards. Generation is reproducible — the same seed yields a byte-identical
+dataset across processes — so never seed generator randomness with builtin
+`hash()` on a string.
 
 The frozen champion is the corrective epoch-2 checkpoint promoted after the
 first 10k + corrective mix. Train the 40k v3 run from Base, not from that
 champion.
 
-The current mix is:
+The v3 run trains on the 40k v3 render alone:
 
 - 40k deterministic v3 train from `training/scripts/build_synthetic_dataset.py --pipeline v3`
-- 10k legacy deterministic train from the same script (legacy pipeline)
-- plus the existing 10k-plus supplement
-- plus a small corrective set (500–800 rows) from
-  `training/scripts/generate_training_supplement.py`
 
-Corrective rows must use fresh homes, entities, and wording. Weight the four
-remaining failure classes (light brightness vs fan speed, lock vs unlock,
-apostrophe names, multi-action retention). Do not generate another 10k set and
-do not start a third epoch on a corrective retrain.
+Do not blend it with the legacy corpora. Start from the clean 40k set, read the
+gold and shadow results, then refine the cases the run actually gets wrong and
+regenerate. Adding data before that evidence exists only hides which cases are
+weak.
+
+These are prior-run corpora, not part of the v3 mix: the 10k legacy
+deterministic train, the 10k-plus supplement, and the 500–800 corrective rows
+from `training/scripts/generate_training_supplement.py` (all under
+`/srv/datasets/sayso_v2/` on the training host). They trained the frozen
+champion. If a later refinement pass does pull corrective rows in, they must use
+fresh homes, entities, and wording, and weight the four remaining failure classes
+(light brightness vs fan speed, lock vs unlock, apostrophe names, multi-action
+retention). Do not generate another 10k set and do not start a third epoch on a
+corrective retrain.
 
 Shadow eval is 100–150 cases covering the same concepts as the 38 gold rows,
 with different entities and phrasing (`sayso_shadow_eval.jsonl`). The v3

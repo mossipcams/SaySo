@@ -1,7 +1,7 @@
 {
   "accepted": 40000,
-  "achieved_stt_rate": 0.1498,
-  "attempts": 50542,
+  "achieved_stt_rate": 0.15,
+  "attempts": 56858,
   "by_capability": {
     "buttons": 668,
     "climate": 3855,
@@ -19,21 +19,20 @@
     "vacuums": 2000
   },
   "by_difficulty": {
-    "alias_distractor": 1468,
-    "ambiguity": 1876,
-    "exclusion": 769,
-    "large_home": 1287,
-    "multi_action": 824,
-    "ordinary": 30564,
-    "similar_name": 1436,
-    "unsupported": 1776
+    "alias_distractor": 1432,
+    "ambiguity": 2082,
+    "exclusion": 784,
+    "large_home": 1320,
+    "multi_action": 806,
+    "ordinary": 30069,
+    "similar_name": 1398,
+    "unsupported": 2109
   },
   "by_home_size": {
-    "8": 4242,
-    "16": 13886,
-    "32": 13316,
-    "64": 6729,
-    "128": 1827
+    "8": 4281,
+    "16": 13898,
+    "32": 13214,
+    "64": 8607
   },
   "by_operation": {
     "activate": 1000,
@@ -72,8 +71,7 @@
       "8": 10,
       "16": 35,
       "32": 35,
-      "64": 15,
-      "128": 5
+      "64": 20
     },
     "near_duplicate_limit": 8,
     "ordinary_rate": 0.75,
@@ -641,17 +639,19 @@
       "tier": 2
     }
   },
-  "rejected": 10542,
+  "rejected": 16858,
   "rejection_reasons": {
-    "excluded_entity_called": 30,
-    "extra_argument": 398,
-    "missing_expected_target": 5391,
-    "missing_required_argument": 110,
-    "missing_utterance": 4561,
-    "recipe_lock_overlap": 52
+    "excluded_entity_called": 39,
+    "extra_argument": 403,
+    "missing_expected_target": 5267,
+    "missing_required_argument": 143,
+    "missing_utterance": 4358,
+    "quality_eval_overlap": 6648
   },
+  "render_path": "training/datasets/sayso_train_v3_40k_render.jsonl",
+  "render_rows": 40000,
   "requested": 40000,
   "requested_stt_rate": 0.15,
-  "stt_corrupted": 5992,
+  "stt_corrupted": 5999,
   "unique_semantic_ids": 40000
 }

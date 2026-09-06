@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import zlib
 from typing import Any
 
 _CONVERSATIONAL = (
@@ -143,7 +144,10 @@ def expand_utterance(spec: dict[str, Any]) -> str:
         return hint
     if category == "conversational":
         action = request_seed_from_spec(spec)
-        template = _CONVERSATIONAL[hash(spec.get("candidate_id", "")) % len(_CONVERSATIONAL)]
+        # crc32, not builtin hash(): randomized str hashing would pick a different
+        # template per process for the same spec.
+        index = zlib.crc32(str(spec.get("candidate_id", "")).encode()) % len(_CONVERSATIONAL)
+        template = _CONVERSATIONAL[index]
         return template.format(action=action)
     seed = request_seed_from_spec(spec)
     if category == "clean_direct" and expected.get("calls"):

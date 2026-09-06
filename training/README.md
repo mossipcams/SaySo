@@ -26,7 +26,7 @@ python -m pytest training/tests training/evals -q
 | Generate corrective SFT + shadow eval | `python training/scripts/generate_training_supplement.py` |
 | Generate balanced held-out test set | `python training/scripts/generate_balanced_test_data.py` |
 | Build synthetic train JSONL (legacy 10k) | `python training/scripts/build_synthetic_dataset.py --generator-model ... --judge-model ...` |
-| Build synthetic v3 train (~40k, deterministic) | `python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 --out-dir training/datasets/synthetic_v3_train.jsonl` |
+| Build synthetic v3 train (~40k, deterministic) | `python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 --out-dir training/datasets/synthetic_v3_train.jsonl --render-out training/datasets/sayso_train_v3_40k_render.jsonl` |
 | Split 80/10/10 | `python training/scripts/split_dataset.py INPUT.jsonl --out-dir training/datasets` |
 | Detect GPU | `python training/scripts/detect_gpu.py` |
 | Evaluate | `python training/scripts/evaluate.py training/evals/adversarial.jsonl` |
@@ -34,14 +34,22 @@ python -m pytest training/tests training/evals -q
 | Verify llama.cpp | `python training/scripts/verify_llamacpp.py --dry-run` |
 
 Host TRL runs copy `training/configs/lfm25-230m-synthetic-v3-40k-trl.yml` and
-point `data_files` / `output_dir` at the current mix. Train from Base, not from
-the corrective epoch-2 champion checkpoint. Defaults: rsLoRA rank 32, FP16, accum
-16, `2e-4`, cosine, assistant-only loss, 2 epochs for the 40k v3 run.
+point `data_files` / `output_dir` at the 40k v3 render — that set alone, not
+blended with the legacy `sayso_v2/` corpora. Refine cases after reading gold and
+shadow results, not before. Train from Base, not from the corrective epoch-2
+champion checkpoint. Defaults: rsLoRA rank 32, FP16, accum 16, `2e-4`, cosine,
+assistant-only loss, 2 epochs for the 40k v3 run.
 
 ## Dataset views
 
 - **canonical**: OpenAI-compatible envelope with JSON-string `function.arguments`
 - **TRL render**: dict `function.arguments` for `apply_chat_template` only
+
+The v3 build writes both in one pass; `--render-out` overrides the default
+`<canonical stem>_render.jsonl`. The manifest records `render_rows`, which must
+equal `accepted`. Never hand-filter the render: dropping rows there silently
+shrinks the train set. Generation already rejects gold, shadow, and recipe-lock
+prompts (`quality_eval_overlap`), so the two views stay row-for-row identical.
 
 See [TRAINING_PLAN.md](../docs/TRAINING_PLAN.md) for the on-disk contract and
 the apostrophe-safe eval parser.

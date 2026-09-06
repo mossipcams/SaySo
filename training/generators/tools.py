@@ -3,15 +3,45 @@
 from __future__ import annotations
 
 import random
+import zlib
 from typing import Any
 
 from adapters.schema import ALLOWED_HASS_TOOLS, v2_openai_tools
 from generators.capability_registry import CAPABILITIES
 
+# Home Assistant supplies only the tools exposed for a request, so a row offers a
+# candidate set rather than the whole catalog. All 27 tools cost ~4k tokens a row
+# (66% of the prompt) and teach nothing about selection. Argument validation still
+# runs against the full pinned v2 contract -- only the prompt is compacted.
+AMBIENT_TOOLS = ("GetDateTime", "GetLiveContext")
+DEFAULT_TOOLS_PER_ROW = 8
+
 
 def available_tools_for_home(home: dict[str, Any]) -> list[dict[str, Any]]:
     """Return full pinned v2 tool catalog (runtime sends all schema tools regardless of home)."""
     return v2_openai_tools()
+
+
+def offered_tools(
+    called_names: list[str],
+    seed_key: str,
+    *,
+    count: int = DEFAULT_TOOLS_PER_ROW,
+) -> list[dict[str, Any]]:
+    """Candidate tools for one row: every called tool, the ambient pair, then distractors.
+
+    Returned alphabetically so position never leaks which tool is the answer, and
+    seeded by crc32 (not builtin hash) so the same row picks the same distractors
+    in every process.
+    """
+    catalog = {tool["function"]["name"]: tool for tool in v2_openai_tools()}
+    keep = {name for name in called_names if name in catalog}
+    keep.update(name for name in AMBIENT_TOOLS if name in catalog)
+    pool = sorted(set(catalog) - keep)
+    rng = random.Random(zlib.crc32(str(seed_key).encode()))
+    rng.shuffle(pool)
+    keep.update(pool[: max(0, count - len(keep))])
+    return [catalog[name] for name in sorted(keep)]
 
 
 def _domain_args(entity: dict[str, Any]) -> dict[str, Any]:

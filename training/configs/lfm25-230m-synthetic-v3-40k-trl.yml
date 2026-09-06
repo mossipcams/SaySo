@@ -1,4 +1,6 @@
-# 40k v3 supervised train set: render sayso_train_v3_40k_render.jsonl before training.
+# 40k v3 supervised train set. build_synthetic_dataset.py --pipeline v3 writes
+# sayso_train_v3_40k_render.jsonl next to the canonical JSONL; copy that file here.
+# Check manifest render_rows == accepted before training.
 model_name_or_path: /srv/models/LFM2.5-230M-Base
 trust_remote_code: true
 dtype: float16

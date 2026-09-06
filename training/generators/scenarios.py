@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import zlib
 from typing import Any
 
 from generators.capability_registry import (
@@ -56,7 +57,15 @@ def build_scenario(
     split: str = "train",
     attempt: int = 0,
 ) -> dict[str, Any]:
-    rng = random.Random((seed << 20) ^ (index << 8) ^ (attempt << 4) ^ hash(capability) ^ hash(operation))
+    # crc32, not builtin hash(): str hashing is randomized per process and would
+    # make the same seed generate a different dataset on every run.
+    rng = random.Random(
+        (seed << 20)
+        ^ (index << 8)
+        ^ (attempt << 4)
+        ^ zlib.crc32(capability.encode())
+        ^ zlib.crc32(operation.encode())
+    )
     home = generate_home(index, home_size, rng)
     cap_entities = entities_of_capability(home, capability)
     if capability == "timers":
