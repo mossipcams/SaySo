@@ -168,10 +168,24 @@ def _scene_ops() -> tuple[OperationSpec, ...]:
     )
 
 
+# Placeholder tool name for scripts: the real name is the script's own object id, so it
+# is only known per home. See generators.tools.script_tool_name.
+SCRIPT_ACTION_TOOL = "__script__"
+
+
 def _script_ops() -> tuple[OperationSpec, ...]:
+    """Scripts are their own tools in HA 2026.8.3, and their state is not readable.
+
+    ``async_get_exposed_entities`` buckets the script domain out of both the static
+    overview and GetLiveContext, so a script's state cannot be queried at all.
+    """
     return (
-        OperationSpec("run", SupportLevel.SUPPORTED, "HassTurnOn"),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
+        OperationSpec("run", SupportLevel.SUPPORTED, SCRIPT_ACTION_TOOL),
+        OperationSpec(
+            "query_state",
+            SupportLevel.UNAVAILABLE,
+            blocker="GetLiveContext excludes the script domain",
+        ),
     )
 
 

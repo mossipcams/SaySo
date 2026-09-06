@@ -54,6 +54,9 @@ def _no_action_hint(expected: dict[str, Any]) -> str:
 
 def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
     name, arguments = call["name"], call.get("arguments") or {}
+    # Per-script tools are named after the script itself, not Hass*/Get*.
+    if not name.startswith(("Hass", "Get")):
+        return f"run {target}"
     device_class = set(arguments.get("device_class") or [])
     if name == "HassTurnOn":
         if "door" in device_class:

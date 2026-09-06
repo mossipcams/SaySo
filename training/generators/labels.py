@@ -7,7 +7,7 @@ import json
 from typing import Any
 
 from generators.context import system_prompt
-from generators.tools import offered_tools
+from generators.tools import offered_tools, script_tools
 from generators.gold import target_names_from_expected
 from generators.validate import validate_spec
 
@@ -138,5 +138,6 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
     offered = offered_tools(
         [call["name"] for call in calls],
         spec.get("semantic_id") or spec["candidate_id"],
+        extra_tools=script_tools(spec["home"]),
     )
     return {"messages": messages, "tools": offered, "metadata": metadata}

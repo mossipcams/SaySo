@@ -20,7 +20,12 @@ def expected_action(
 ) -> dict[str, Any]:
     capability = entity.get("capability", "")
     call = build_call_for_operation(entity, capability, operation, rng, area=area, floor=floor)
-    return {"kind": "action", "calls": [call]}
+    payload: dict[str, Any] = {"kind": "action", "calls": [call]}
+    if capability == "scripts":
+        # A script tool takes no arguments, so the friendly name has to ride alongside
+        # the call for utterance generation and target checks.
+        payload["script_targets"] = [entity["name"]]
+    return payload
 
 
 def expected_status(entity: dict[str, Any]) -> dict[str, Any]:
@@ -152,4 +157,6 @@ def target_names_from_expected(expected: dict[str, Any]) -> list[str]:
         args = call.get("arguments") or {}
         if isinstance(args.get("name"), str):
             names.append(args["name"])
+    # Script tools carry no arguments; their target rides in script_targets.
+    names.extend(expected.get("script_targets") or [])
     return names

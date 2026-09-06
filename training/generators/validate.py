@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from adapters.schema import tool_schema_map, validate_tool_arguments, v2_openai_tools
+from generators.tools import script_tool_name
 
 _BANNED = re.compile(r"<tool_call>|evals/cases/|tool_call_start", re.I)
 
@@ -20,11 +21,22 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
     entities = {entity["name"]: entity for entity in spec.get("home", {}).get("entities", [])}
     schemas = tool_schema_map(v2_openai_tools())
     excluded = set(spec.get("excluded_names") or [])
+    # Per-script tools are named after the script and are not in the pinned catalog.
+    script_names = {
+        script_tool_name(entity)
+        for entity in spec.get("home", {}).get("entities", [])
+        if entity.get("domain") == "script"
+    }
     for call in calls:
         name = call.get("name")
         arguments = call.get("arguments")
         if not isinstance(name, str) or not isinstance(arguments, dict):
             return "invalid_call_shape"
+        if name in script_names:
+            # Home Assistant builds these from the script's fields; ours take none.
+            if arguments:
+                return "script_tool_takes_no_arguments"
+            continue
         reason = validate_tool_arguments(name, arguments, schemas)
         if reason:
             return reason
