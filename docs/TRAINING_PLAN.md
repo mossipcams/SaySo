@@ -1,6 +1,10 @@
 # SaySo training plan
 
-**Status:** current contract for `LFM2.5-230M-Base` supervised fine-tuning.
+**Scope:** the stable design and constraints for `LFM2.5-230M-Base` supervised
+fine-tuning. Rules that outlive any one run belong here. What ran, what it
+scored, and which checkpoint is promoted belong in
+[training/TRAINING_LOG.md](../training/TRAINING_LOG.md); commands and active
+config belong in [training/README.md](../training/README.md).
 
 SaySo trains `LiquidAI/LFM2.5-230M-Base` to select and emit Home Assistant tools in
 the same OpenAI-compatible shape used by the integration. Home Assistant still
@@ -108,43 +112,31 @@ afterwards. Generation is reproducible — the same seed yields a byte-identical
 dataset across processes — so never seed generator randomness with builtin
 `hash()` on a string.
 
-The frozen champion is the corrective epoch-2 checkpoint promoted after the
-first 10k + corrective mix. Train the 40k v3 run from Base, not from that
-champion.
+Train each run from Base, not by continuing a previously merged checkpoint.
 
-The v3 run trains on the 40k v3 render alone:
+A run trains on one deterministic corpus. Do not blend corpora to make a set
+larger: read the gold and shadow results first, then refine the cases the run
+actually gets wrong and regenerate. Adding data before that evidence exists
+hides which cases are weak. Corrective rows, when a refinement pass calls for
+them, must use fresh homes, entities, and wording.
 
-- 40k deterministic v3 train from `training/scripts/build_synthetic_dataset.py --pipeline v3`
-
-Do not blend it with the legacy corpora. Start from the clean 40k set, read the
-gold and shadow results, then refine the cases the run actually gets wrong and
-regenerate. Adding data before that evidence exists only hides which cases are
-weak.
-
-These are prior-run corpora, not part of the v3 mix: the 10k legacy
-deterministic train, the 10k-plus supplement, and the 500–800 corrective rows
-from `training/scripts/generate_training_supplement.py` (all under
-`/srv/datasets/sayso_v2/` on the training host). They trained the frozen
-champion. If a later refinement pass does pull corrective rows in, they must use
-fresh homes, entities, and wording, and weight the four remaining failure classes
-(light brightness vs fan speed, lock vs unlock, apostrophe names, multi-action
-retention). Do not generate another 10k set and do not start a third epoch on a
-corrective retrain.
-
-Shadow eval is 100–150 cases covering the same concepts as the 38 gold rows,
-with different entities and phrasing (`sayso_shadow_eval.jsonl`). The v3
-shadow set (`sayso_quality_eval_v3_shadow.jsonl`) mirrors the expanded gold
-domains. Promote only when golden and shadow both move the right way. If only
-golden improves, the run is overfitting the benchmark.
+Shadow eval is 100–150 cases covering the same concepts as its gold set, with
+different entities and phrasing. Promote only when gold and shadow both move the
+right way. If only gold improves, the run is overfitting the benchmark.
 
 Score generations with the apostrophe-safe parser in
 `training/evals/lfm_python_parse.py` (raw `/completion` text). llama.cpp
-structured `tool_calls` still truncates names such as `O'Malley's` and `Kids'`;
-that is a serving bug, not a training label. Do not retrain to paper over it.
+structured `tool_calls` truncates names such as `O'Malley's` and `Kids'`; that is
+a serving bug, not a training label. Do not retrain to paper over it, and never
+compare a score from one scorer against a score from another — record which
+scorer produced each result.
 
 `training/scripts/generate_balanced_test_data.py` builds the 2,500-example
-held-out set. Do not train on those prompts. Use it when asked; the working
-quality gate is recipe-lock 38 plus the v3 gold/shadow eval.
+held-out set. Do not train on those prompts.
+
+Which checkpoint is currently promoted, what each run scored, and which corpus
+it used belong in [training/TRAINING_LOG.md](../training/TRAINING_LOG.md), not
+here.
 
 Promote a checkpoint only when it improves target behavior without regressing
 STT, status, no-call, multi-action, light/fan, or lock polarity. Then export
@@ -170,7 +162,6 @@ to:
 
 - model bake-offs (Instruct LFM, FunctionGemma, Alexa+)
 - Axolotl full-parameter SFT
-- another 10k generation or Epoch 3 on the corrective mix
 - fine-tuning on ChatML `<tool_call>` labels
 - long autonomous chains
 - replacing Home Assistant validation with model trust
@@ -189,7 +180,8 @@ to:
 | Schema validation | `training/adapters/schema.py` |
 | TRL recipe (checked-in) | `training/configs/lfm25-230m-synthetic-v3-40k-trl.yml` |
 | Evaluation | `evals/`, `training/evals/` |
-| Pinned contract | `schemas/sayso-tool-schema-v1.json` |
+| Pinned contract | `schemas/sayso-tool-schema-v2.json` (§1; v1 is a historical artifact) |
+| Run history and scores | `training/TRAINING_LOG.md` |
 
 Operational commands belong in `training/README.md`. Update this document only
 when the training design or its safety boundary changes.
