@@ -172,9 +172,36 @@ entities.
 
 | Checkpoint | Eval suite / revision | Scorer | Result |
 |---|---|---|---|
-| _pending_ | | | |
+| checkpoint-2500 (ep1) | recipe-lock gold, v3 format / `47d9ca1cc52d935b` | `rawparse` | 9/38 |
+| checkpoint-2500 (ep1) | v3 gold / `530234a03f0bb46f` | `rawparse` | 16/30 |
+| checkpoint-2500 (ep1) | v3 shadow / `6377977c71354b04` | `rawparse` | 25/100 |
 
-**Selected:** not yet.
+**Selected:** not yet — epoch 1 only.
+
+These were taken mid-schedule and are **not** a verdict on the run. The cosine
+schedule is sized for 2 epochs, so at step 2500 the learning rate is still
+1.37e-4 of 2e-4 and the weights are far from annealed. Every historical score in
+this log comes from an end-of-run checkpoint; no previous run recorded a
+mid-training eval, so there is nothing to compare these against.
+
+Training metrics at the same point: loss 0.004, `mean_token_accuracy` 0.995,
+entropy 0.011. The model fits the training data almost perfectly while scoring
+poorly on held-out prompts, which is what the gold and shadow sets exist to
+detect.
+
+Failure modes are argument precision, not tool selection — the model picks the
+right tool and emits valid call syntax:
+
+- `temperature=64` where `brightness=64` was expected (the known light/fan class)
+- `name='Patio Blinds'` for `Patio South Blinds`; `name='Up'` for `Upstairs Robot Vacuum` — dropped words when copying names
+- `device_class=['door']` where `['garage']` was expected
+- occasional spurious refusal on a supported action
+- repetition loops in long names (`'Sunroom Robotics Robotics Robotics…'`)
+
+Scored twice: once against eval sets whose entity names were duplicated by a
+context bug, and again after the fix. Both runs returned 9/38, 16/30, 25/100, so
+the duplication was not the cause. Only the corrected revisions are recorded
+above.
 **Artifact:** `/srv/training-runs/SaySo-LFM2.5-230M-v3-40k`
 
 > This run is the first trained on the Home Assistant 2026.8.3 prompt format
