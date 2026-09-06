@@ -95,7 +95,10 @@ def exposed_entities(home: dict[str, Any]) -> list[dict[str, Any]]:
     for entity in sorted(home.get("entities", []), key=lambda item: item["name"]):
         if entity["domain"] in OVERVIEW_EXCLUDED_DOMAINS:
             continue
-        names = [entity["name"], *entity.get("aliases", [])]
+        # HA's intent.async_get_entity_aliases returns a deduped name set; generators
+        # often default an entity's aliases to [name], which would repeat it here and
+        # teach the model that names come in pairs.
+        names = dict.fromkeys([entity["name"], *entity.get("aliases", [])])
         info: dict[str, Any] = {"names": ", ".join(names), "domain": entity["domain"]}
         if entity.get("area"):
             info["areas"] = entity["area"]

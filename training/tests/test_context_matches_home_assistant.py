@@ -55,6 +55,24 @@ def test_sayso_prompt_matches_the_integration_default() -> None:
     assert SAYSO_SYSTEM_PROMPT == match.group(1)
 
 
+def test_entity_names_are_deduplicated() -> None:
+    """Generators default aliases to [name]; repeating it teaches names come in pairs."""
+    home = {
+        "sayso_entity_area": "Kitchen",
+        "entities": [
+            {
+                "name": "Great Room Thermostat",
+                "aliases": ["Great Room Thermostat"],
+                "domain": "climate",
+                "area": "Great Room",
+                "floor": "Ground",
+                "state": "heat",
+            }
+        ],
+    }
+    assert exposed_entities(home)[0]["names"] == "Great Room Thermostat"
+
+
 def test_overview_carries_no_state_and_uses_home_assistant_fields() -> None:
     """HA builds the overview with include_state=False and three keys per entity."""
     rows = exposed_entities(HOME)
