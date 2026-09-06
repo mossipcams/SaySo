@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import random
+import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -67,15 +69,30 @@ def _load_excluded_prompts(path: Path | None) -> set[str]:
     return excluded
 
 
-def _check_recipe_lock_overlap(utterance: str) -> bool:
-    """Reject contamination from locked golden eval utterances."""
-    try:
-        from evals.recipe_lock import locked_specs
+def _normalize_prompt(text: str) -> str:
+    """Match excluded_train_prompts(): punctuation-insensitive, so "joe's" == "joe s"."""
+    return " ".join(re.findall(r"[a-z0-9]+", text.casefold()))
 
-        locked = {spec["utterance"].casefold() for spec in locked_specs()}
-        return utterance.casefold() in locked
+
+@lru_cache(maxsize=1)
+def _quality_eval_prompts() -> frozenset[str]:
+    """Normalized gold, shadow, and recipe-lock prompts, none of which may be trained on."""
+    try:
+        from evals.v3_quality import excluded_train_prompts
+
+        return frozenset(excluded_train_prompts())
     except ImportError:
-        return False
+        try:
+            from evals.recipe_lock import locked_specs
+
+            return frozenset(_normalize_prompt(spec["utterance"]) for spec in locked_specs())
+        except ImportError:
+            return frozenset()
+
+
+def _check_quality_eval_overlap(utterance: str) -> bool:
+    """Reject contamination from golden, shadow, and recipe-lock eval utterances."""
+    return _normalize_prompt(utterance) in _quality_eval_prompts()
 
 
 def generate_row(
@@ -142,8 +159,8 @@ def generate_row(
 
     if spec["utterance"].casefold() in excluded:
         return None, "excluded_prompt"
-    if _check_recipe_lock_overlap(spec["utterance"]):
-        return None, "recipe_lock_overlap"
+    if _check_quality_eval_overlap(spec["utterance"]):
+        return None, "quality_eval_overlap"
 
     reason = validate_row(spec, token_budget=config.token_budget)
     if reason:

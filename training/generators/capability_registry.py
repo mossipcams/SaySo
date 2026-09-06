@@ -315,8 +315,11 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
     ),
 }
 
-# Home size distribution defaults
-HOME_SIZE_WEIGHTS: dict[int, int] = {8: 10, 16: 35, 32: 35, 64: 15, 128: 5}
+# Home size distribution defaults. The 128-entity bucket is omitted: those rows render
+# to ~5.6k tokens and OOM a GTX 1070 (8 GiB), and TRL drops over-length rows silently,
+# so generating them would shrink the train set without saying so. Its weight moved to
+# 64, which is the largest size that trains and still covers large-home behaviour.
+HOME_SIZE_WEIGHTS: dict[int, int] = {8: 10, 16: 35, 32: 35, 64: 20}
 
 # Difficulty tag sampling (~70-80% ordinary)
 ORDINARY_DIFFICULTY_RATE: float = 0.75
