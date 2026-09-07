@@ -296,6 +296,7 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         sampling_weight=1,
         support=SupportLevel.SUPPORTED,
         operations=_script_ops(),
+        targeting_modes=("individual", "multiple", "exclusion"),
     ),
     "lawn_mowers": CapabilitySpec(
         name="lawn_mowers",

@@ -114,6 +114,20 @@ dataset across processes — so never seed generator randomness with builtin
 
 Train each run from Base, not by continuing a previously merged checkpoint.
 
+Training request casing and polite wording must vary independently of the
+call/no-call label. Unsupported examples must withhold the requested tool;
+absence claims must agree with the home. Multi-action and exclusion coverage
+means actual calls and named exclusions, not category tags. Alias examples must
+use an unambiguous exposed alias while retaining canonical tool arguments.
+Named timer requests keep timer operations trainable without copying generic
+held-out prompts. Reject eval overlap before adding wording or STT variation
+and again on the finished request.
+
+The generator's `quality_audit` validates offered schemas, unique row IDs,
+exclusions, unavailable tools, casing balance, and actual behavior coverage.
+Run the same audit on the TRL render and check full chat-template token lengths
+before training. A schema-valid row alone is not evidence of a correct label.
+
 A run trains on one deterministic corpus. Do not blend corpora to make a set
 larger: read the gold and shadow results first, then refine the cases the run
 actually gets wrong and regenerate. Adding data before that evidence exists

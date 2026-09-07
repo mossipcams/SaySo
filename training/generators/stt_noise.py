@@ -119,5 +119,6 @@ def apply_stt_noise(
                 continue
         return corrupted.strip(), kind
     if force_transform and utterance:
-        return utterance.replace(" the ", " ", 1).strip(), "forced_article_drop"
+        changed = utterance.replace(" the ", " ", 1).strip()
+        return changed, "forced_article_drop" if changed != utterance else None
     return utterance, None
