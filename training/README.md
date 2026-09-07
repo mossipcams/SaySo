@@ -94,6 +94,31 @@ names in structured `tool_calls`. Record which scorer produced a result and neve
 compare across them. Neither scorer is version-controlled; see the log's
 "Scorers" table for file hashes.
 
+### Baselining a checkpoint on the v3 suites
+
+`training/scripts/eval_v3_rawparse.py` is a third scorer (`repoparse`) that does
+what `rawparse` does — raw `/completion` text through the apostrophe-safe Python
+parser — but lives in this repository, so a change to it is attributable to a
+commit. Run it against a llama.cpp server hosting the checkpoint:
+
+```bash
+# 1. calibrate: reproduce a recorded rawparse number before trusting a new one
+python3 training/scripts/eval_v3_rawparse.py \
+  --eval-set training/datasets/sayso_quality_eval_v3_gold.jsonl \
+  --tokenizer /srv/models/<run-008-ep1-merged> \
+  --out /srv/training-runs/eval_v3_gold_ep1_repoparse.json      # expect 16/30
+
+# 2. the missing baseline
+python3 training/scripts/eval_v3_rawparse.py \
+  --eval-set training/datasets/sayso_quality_eval_v3_gold.jsonl \
+  --tokenizer /srv/models/LFM2.5-230M-Base \
+  --out /srv/training-runs/eval_v3_gold_base.json
+```
+
+If step 1 does not return 16/30, `repoparse` is not equivalent to `rawparse` and
+its numbers belong in their own column — do not compare them to the recorded
+rawparse results.
+
 ## Dataset views
 
 - **canonical**: OpenAI-compatible envelope with JSON-string `function.arguments`
