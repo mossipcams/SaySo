@@ -24,9 +24,77 @@ _AREAS = (
     "Foyer",
     "Sunroom",
     "Mudroom",
+    "Attic",
+    "Cellar",
+    "Pantry",
+    "Larder",
+    "Scullery",
+    "Utility Room",
+    "Boot Room",
+    "Snug",
+    "Study",
+    "Library",
+    "Den",
+    "Parlor",
+    "Conservatory",
+    "Orangery",
+    "Solarium",
+    "Atrium",
+    "Vestibule",
+    "Landing",
+    "Stairwell",
+    "Breakfast Nook",
+    "Butler's Pantry",
+    "Mud Porch",
+    "Screened Porch",
+    "Veranda",
+    "Terrace",
+    "Balcony",
+    "Courtyard",
+    "Carport",
+    "Potting Shed",
+    "Wine Cellar",
+    "Home Gym",
+    "Media Room",
+    "Craft Room",
+    "Sewing Room",
+    "Music Room",
+    "Playroom",
+    "Bunk Room",
+    "Nanny Suite",
+    "In-Law Suite",
+    "Loft",
 )
 _FLOORS = ("Upstairs", "Downstairs", "Main Floor", "Basement")
-_PREFIXES = ("North", "South", "East", "West", "Main", "Side", "Corner", "Ceiling", "Back", "Front")
+# Name diversity is load-bearing, not cosmetic. Run 008 memorized entity names
+# because 16 areas x 10 prefixes x 13 nouns yields only ~2.1k names across 1.25M
+# name slots (median 693 repeats each), so copying a name out of the context was
+# never the cheapest thing to learn. Keep the combinatorics far above the row
+# count; see TRAINING_LOG "Diagnosis: the model memorized entity names".
+_PLACEMENTS = (
+    "North", "South", "East", "West", "Main", "Side", "Corner", "Ceiling", "Back", "Front",
+    "Upper", "Lower", "Inner", "Outer", "Far", "Near", "Left", "Right", "Center", "Rear",
+    "Bay", "Alcove", "Nook", "Bench", "Island", "Counter", "Cabinet", "Shelf", "Mantel", "Sill",
+    "Reading", "Accent", "Task", "Desk", "Bedside", "Overhead", "Pendant", "Sconce", "Track",
+    "Recessed", "Window", "Doorway", "Stair", "Closet", "Hearth", "Bar", "Buffet", "Console",
+)
+_NEUTRALS = (
+    "Morning", "Evening", "Sunset", "Twilight", "Dawn", "Amber", "Copper", "Slate",
+    "Willow", "Cedar", "Birch", "Alder", "Rowan", "Hazel", "Juniper", "Laurel",
+    "Quill", "Zephyr", "Marlow", "Cobalt", "Vesper", "Tarn", "Cinder", "Harrow", "Lumen", "Fen",
+)
+_DESCRIPTORS = _PLACEMENTS + _NEUTRALS
+# A lawn mower has no "Overhead" and a shopping list has no "Mantel". Things that
+# sit somewhere take either pool; portable and abstract ones take neutrals only.
+_PLACEABLE = frozenset(
+    {"lights", "fans", "switches", "covers", "locks", "media_players", "climate", "buttons"}
+)
+_OWNERS = (
+    "Joe's", "O'Malley's", "McKay's", "Kids'", "Children's", "Nana's", "Grandad's",
+    "Priya's", "Wei's", "Amara's", "Sofia's", "Yusuf's", "Ingrid's", "Mateo's",
+    "Rosa's", "Dmitri's", "Fatima's", "Kenji's", "Niamh's", "Tomas's", "Leila's",
+    "Bram's", "Oona's", "Hallie's",
+)
 
 _ENTITY_TEMPLATES: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
     "lights": ("Light", ("on", "off"), ("on", "off", "brightness", "color", "color_temp")),
@@ -123,12 +191,35 @@ def _random_entity_name(
     slot: int,
     index: int,
     rng: random.Random,
+    taken: set[str] | None = None,
 ) -> str:
+    """Draw a name from a vocabulary far larger than the corpus can memorize.
+
+    Four shapes across 56 areas, 78 descriptors, 24 owners and 13 nouns give
+    ~180k distinct names, so at 40k rows a name is a poor thing to memorize and
+    copying it out of the context is the cheaper rule to learn.
+    """
     noun, _, _ = _ENTITY_TEMPLATES[capability]
-    if slot == 0 and index % 7 == 0 and capability in _SPECIAL_NAMES:
-        return _SPECIAL_NAMES[capability][(index // 7) % len(_SPECIAL_NAMES[capability])]
-    prefix = _PREFIXES[(index * 5 + slot * 3) % len(_PREFIXES)]
-    return f"{area} {prefix} {noun}"
+    taken = taken if taken is not None else set()
+    pool = _DESCRIPTORS if capability in _PLACEABLE else _NEUTRALS
+    for _ in range(24):
+        shape = rng.random()
+        if shape < 0.72:
+            name = f"{area} {rng.choice(pool)} {noun}"
+        elif shape < 0.80:
+            # Possessives keep the apostrophe failure class in the data without
+            # dominating it; a third of a real home is not named after someone.
+            name = f"{rng.choice(_OWNERS)} {rng.choice(pool)} {noun}"
+        elif shape < 0.84:
+            name = f"{rng.choice(_OWNERS)} {area} {noun}"
+        elif capability in _PLACEABLE:
+            name = f"{area} {rng.choice(_PLACEMENTS)} {rng.choice(_NEUTRALS)} {noun}"
+        else:
+            name = f"{rng.choice(_OWNERS)} {area} {rng.choice(_NEUTRALS)} {noun}"
+        # Two names that slug alike would collide as script tool names.
+        if _slug(name) not in taken:
+            return name
+    return f"{area} {rng.choice(pool)} {slot}{index % 97} {noun}"
 
 
 def _capability_slots(size: int, rng: random.Random) -> list[str]:
@@ -157,10 +248,13 @@ def generate_home(
     area_cycle = list(_AREAS)
     rng.shuffle(area_cycle)
 
+    taken: set[str] = set()
+
     for slot, capability in enumerate(capabilities):
         area = area_cycle[slot % len(area_cycle)]
         floor = _FLOORS[(index + slot) % len(_FLOORS)]
-        name = _random_entity_name(capability, area, slot, index, rng)
+        name = _random_entity_name(capability, area, slot, index, rng, taken)
+        taken.add(_slug(name))
         noun = _ENTITY_TEMPLATES[capability][0].lower()
         aliases = [f"{area} {noun}", name.split()[-2] + " " + noun if " " in name else noun]
         entities.append(
@@ -183,31 +277,40 @@ def generate_home(
         entity["aliases"].append(entity["name"].replace("'", ""))
         entity["entity_id"] = f"{entity['domain']}.{_slug(entity['name'])}"
 
-    # Plausible collisions: second kitchen light, bedroom TV
+    # Plausible collisions: a second light sharing an area, and a second TV
+    # elsewhere sharing the "tv" alias. Both names are drawn, not fixed — a
+    # constant here lands in every home of size >= 16 and would be the single
+    # most repeated string in the corpus, which is the habit that broke Run 008.
+    # The colliding alias, not the name, is what makes these rows hard.
     if size >= 16:
-        kitchen_lights = [e for e in entities if e["capability"] == "lights" and e["area"] == "Kitchen"]
-        if kitchen_lights:
-            base = kitchen_lights[0]
+        lights = [entity for entity in entities if entity["capability"] == "lights"]
+        if lights:
+            base = rng.choice(lights)
+            name = _random_entity_name("lights", base["area"], len(entities), index, rng, taken)
+            taken.add(_slug(name))
             entities.append(
                 make_entity(
-                    name="Kitchen Ceiling Lamp",
+                    name=name,
                     capability="lights",
-                    area="Kitchen",
+                    area=base["area"],
                     floor=base["floor"],
                     rng=rng,
-                    aliases=["kitchen light", "ceiling lamp"],
+                    aliases=[f"{base['area']} light", "light"],
                 )
             )
-        tvs = [e for e in entities if e["capability"] == "media_players"]
-        if len(tvs) >= 1:
+        tvs = [entity for entity in entities if entity["capability"] == "media_players"]
+        if tvs:
+            elsewhere = rng.choice([a for a in _AREAS if a != tvs[0]["area"]])
+            name = _random_entity_name("media_players", elsewhere, len(entities), index, rng, taken)
+            taken.add(_slug(name))
             entities.append(
                 make_entity(
-                    name="Bedroom TV",
+                    name=name,
                     capability="media_players",
-                    area="Primary Bedroom",
-                    floor="Upstairs",
+                    area=elsewhere,
+                    floor=rng.choice(_FLOORS),
                     rng=rng,
-                    aliases=["bedroom tv", "tv"],
+                    aliases=[f"{elsewhere} tv", "tv"],
                 )
             )
 
