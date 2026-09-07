@@ -50,6 +50,33 @@ def test_entity_names_are_too_varied_to_memorize() -> None:
     assert repeats[len(repeats) // 2] == 1, "the median name repeats; it will be memorized"
 
 
+def test_training_areas_never_collide_with_eval_areas() -> None:
+    """The v3 suites hold their areas out so eval entity names are unseen in
+    training. Share an area and the generator can emit an eval target verbatim —
+    `Study Desk Fan` and `Dining Room Pendant Light` are gold targets."""
+    from evals.v3_quality import _GOLD_AREAS, _SHADOW_AREAS
+    from generators.homes import _AREAS
+
+    shared = set(_AREAS) & (set(_GOLD_AREAS) | set(_SHADOW_AREAS))
+    assert not shared, f"training and eval share areas: {sorted(shared)}"
+
+
+def test_generator_cannot_emit_an_eval_entity_name() -> None:
+    """The property the area split exists to protect, checked directly."""
+    from evals.v3_quality import build_shadow_specs, gold_specs
+
+    eval_names = {
+        entity["name"]
+        for spec in gold_specs() + build_shadow_specs(seed=20260906, count=100)
+        for entity in spec["home"]["entities"]
+    }
+    generated: set[str] = set()
+    rng = random.Random(11)
+    for index, size in enumerate([32, 64] * 120):
+        generated.update(entity["name"] for entity in generate_home(index, size, rng)["entities"])
+    assert not generated & eval_names, sorted(generated & eval_names)
+
+
 def test_apostrophe_names_stay_represented_but_not_dominant() -> None:
     """Apostrophes are a known failure class, so they must appear — but a third
     of a home named after someone is not a home."""
