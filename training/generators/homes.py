@@ -7,6 +7,10 @@ from typing import Any
 
 from generators.capability_registry import CAPABILITIES, CapabilitySpec
 
+# Must stay disjoint from the v3 eval suites' areas (evals.v3_quality _GOLD_AREAS
+# and _SHADOW_AREAS). Those suites hold their areas out so eval entity names are
+# unseen in training; an area shared with them lets the generator emit an eval
+# target verbatim. tests/test_homes.py pins the disjointness.
 _AREAS = (
     "Kitchen",
     "Living Room",
@@ -20,26 +24,16 @@ _AREAS = (
     "Workshop",
     "Nursery",
     "Basement",
-    "Dining Room",
     "Foyer",
-    "Sunroom",
-    "Mudroom",
-    "Attic",
-    "Cellar",
     "Pantry",
     "Larder",
     "Scullery",
     "Utility Room",
     "Boot Room",
     "Snug",
-    "Study",
-    "Library",
     "Den",
     "Parlor",
-    "Conservatory",
     "Orangery",
-    "Solarium",
-    "Atrium",
     "Vestibule",
     "Landing",
     "Stairwell",
@@ -47,10 +41,6 @@ _AREAS = (
     "Butler's Pantry",
     "Mud Porch",
     "Screened Porch",
-    "Veranda",
-    "Terrace",
-    "Balcony",
-    "Courtyard",
     "Carport",
     "Potting Shed",
     "Wine Cellar",
@@ -64,6 +54,14 @@ _AREAS = (
     "Nanny Suite",
     "In-Law Suite",
     "Loft",
+    "Box Room",
+    "Cloak Room",
+    "Garden Room",
+    "Sun Porch",
+    "Back Hall",
+    "Front Hall",
+    "Side Room",
+    "Top Landing",
 )
 _FLOORS = ("Upstairs", "Downstairs", "Main Floor", "Basement")
 # Name diversity is load-bearing, not cosmetic. Run 008 memorized entity names
