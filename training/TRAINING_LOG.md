@@ -54,19 +54,20 @@ Never compare a structured score to a rawparse score and call it progress.
 | `sayso_v2/sayso_train_first_10000_render.jsonl` | 10,000 | `2b1ce63c4cf9db0d` |
 | `sayso_v2/sayso_train_10k_plus_supplement_render.jsonl` | 11,701 | `870eaaf44dd4ead9` |
 | `sayso_v2/sayso_train_10k_plus_corrective_render.jsonl` | 12,276 | `211de92039b2401e` |
-| `sayso_v3/sayso_train_v3_40k_render.jsonl` | 40,000 | `17754a93ae9c397e` |
+| `sayso_v3/sayso_train_v3_40k_render.jsonl` (Run 008) | 40,000 | `17754a93ae9c397e` |
+| `sayso_v3/sayso_train_v3_40k_render.jsonl` (Run 009) | 40,000 | `a6babc7345fc097c` |
 | `sayso_v2/sayso_quality_eval_recipe_lock.jsonl` (gold, v2 format) | 38 | `3467874f936887a9` |
 | `sayso_v2/sayso_shadow_eval.jsonl` (shadow) | 125 | `b5db74aa3028d9a6` |
 | `sayso_v2/sayso_quality_eval_recipe_lock.jsonl` (gold, v3 format) | 38 | `47d9ca1cc52d935b` |
 | `sayso_v3/sayso_quality_eval_v3_gold.jsonl` | 35 | `79c90d4cd4bc9615` |
 | `sayso_v3/sayso_quality_eval_v3_shadow.jsonl` | 100 | `32ab38ea06932344` |
+| `sayso_test_balanced.jsonl` (held-out) | 2,500 | `af4b44d34b601fa7` |
 
 Superseded eval revisions, kept so old result rows stay resolvable:
 `6368f5559178abd8` and `f014c7e874ccbcce` (v3 gold/shadow, pre-dedup),
 `6377977c71354b04` (v3 shadow, stale script rows — see Run 008), and
 `530234a03f0bb46f` / `5a98b56297099211` (v3 gold/shadow, before light and fan
 coverage existed).
-| `sayso_test_balanced.jsonl` (held-out) | 2,500 | `af4b44d34b601fa7` |
 
 ---
 
@@ -349,6 +350,51 @@ above.
 > was missed. Fixed and shadow regenerated as `5a98b56297099211`. The 25/100 is
 > not comparable to any score taken against the new revision. Re-scored against
 > the corrected revision above.
+**Artifact:** `/srv/training-runs/SaySo-LFM2.5-230M-v3-40k`
+
+## Run 009: v3 40k, realistic and varied entity names — in progress
+- **Base:** `/srv/models/LFM2.5-230M-Base`
+- **Data:** `sayso_v3/sayso_train_v3_40k_render.jsonl` (40,000, `a6babc7345fc097c`)
+- **Config:** unchanged from Run 008 — `sayso-lfm-v3-40k.yml`, 2 epochs, rank 32,
+  lr 2e-4, `max_length` 8192
+- **Training code:** `d4c9eee`
+- **Change vs Run 008:** data only. Entity names are drawn from a vocabulary wide
+  enough that copying a name out of the context is cheaper than memorizing it,
+  and modelled on real Home Assistant homes rather than invented words.
+- **Started:** 2026-09-07
+- **Expected:** 5,000 steps at ~25.4 s/step, checkpoints at 2500 (ep1) and 5000 (ep2)
+
+| | Run 008 | Run 009 |
+|---|---|---|
+| distinct context names | 2,124 | 145,682 |
+| distinct words in names | 52 | 478 |
+| median repeats per name | 693 | 3 |
+| distinct target names | — | 19,959 |
+| targets seen exactly once | — | 76% |
+| rows accepted / attempted | 69% | 70% |
+| sequence tokens, median / max | 2,401 / 3,692 | 2,440 / 3,787 |
+
+Names follow acon96/Home-Assistant-Requests-V2 in shape and casing — "Pantry
+Under Cabinet Light", "Chamberlain Blinds", "EV charger outlet", "Foyer Main Door
+Lock" — but not in scale: that pile has 995 names at a median of 401 repeats,
+which is Run 008's failure mode. Verified before launch: zero eval entity names
+and zero eval prompts appear in the corpus, and no sequence exceeds `max_length`.
+
+Run 008's output directory was deleted to launch this. Its merged model and GGUFs
+are kept at `/srv/models/SaySo-LFM2.5-230M-v3-40k-ep1-*`, so every Run 008 result
+above is still reproducible. The Run 008 dataset is kept beside the new one as
+`sayso_train_v3_40k_render.jsonl.run008-17754a93`.
+
+**The scores to beat are the base reference, not Run 008's.** Run 008 trained on
+a different corpus; only base is common to both. Base scores 6/30 on the old v3
+gold and 15/100 on the old shadow, and has not been scored on the light/fan
+revisions — score it on `79c90d4c` and `32ab38ea` before reading ep1.
+
+| Checkpoint | Eval suite / revision | Scorer | Result |
+|---|---|---|---|
+| _pending_ | | | |
+
+**Selected:** not yet.
 **Artifact:** `/srv/training-runs/SaySo-LFM2.5-230M-v3-40k`
 
 > This run is the first trained on the Home Assistant 2026.8.3 prompt format
