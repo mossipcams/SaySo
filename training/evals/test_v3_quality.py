@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -45,6 +47,9 @@ def test_gold_specs_cover_v3_domains_and_ordinary_categories() -> None:
         "script_run",
         "ordinary_on",
         "ordinary_off",
+        # 12.3% of training calls; no v3 suite covered either before 2026-09-06
+        "light_brightness",
+        "fan_speed",
         "status",
         "ambiguity",
         "unsupported_no_action",
@@ -113,6 +118,68 @@ def test_shadow_examples_validate_and_mark_metadata() -> None:
         assert row["metadata"]["shadow_eval"] is True
         assert row["metadata"]["v3_quality_shadow"] is True
         assert_quality_eval_contract(row)
+
+
+def test_shadow_script_rows_call_the_per_script_tool() -> None:
+    rows = build_shadow_examples(seed=20260906, count=100)
+    script_rows = [row for row in rows if row["metadata"]["category"] == "script_run"]
+    assert script_rows
+    for row in script_rows:
+        offered = {tool["function"]["name"] for tool in row["tools"]}
+        for call in expected_tool_calls(row):
+            name = call["function"]["name"]
+            assert name.endswith("_script"), name
+            assert name in offered
+            assert json.loads(call["function"]["arguments"]) == {}
+
+
+def test_light_and_fan_rows_use_the_argument_the_domain_requires() -> None:
+    """Run 008's top failure was `temperature=` where `brightness=` was wanted.
+    These rows only catch it if the labels themselves are right."""
+    rows = build_gold_examples() + build_shadow_examples(seed=20260906, count=100)
+    seen = set()
+    for row in rows:
+        for call in expected_tool_calls(row):
+            name = call["function"]["name"]
+            if name not in {"HassLightSet", "HassFanSetSpeed"}:
+                continue
+            seen.add(name)
+            args = json.loads(call["function"]["arguments"])
+            if name == "HassLightSet":
+                assert "brightness" in args and "temperature" not in args, args
+                assert args["domain"] == ["light"]
+            else:
+                assert "percentage" in args and "brightness" not in args, args
+                assert args["domain"] == ["fan"]
+    assert seen == {"HassLightSet", "HassFanSetSpeed"}
+
+
+def test_contrast_rows_put_both_a_light_and_a_fan_in_the_home() -> None:
+    """A contrast row is only a contrast if the wrong device is also present."""
+    contrast = [
+        spec
+        for spec in gold_specs() + build_shadow_specs(seed=20260906, count=100)
+        if spec["subcategory"] == "light_fan_contrast"
+    ]
+    assert contrast
+    for spec in contrast:
+        domains = {entity["domain"] for entity in spec["home"]["entities"]}
+        assert {"light", "fan"}.issubset(domains), spec["candidate_id"]
+
+
+def test_contract_rejects_a_target_the_prompt_never_names() -> None:
+    example = next(
+        row
+        for row in build_shadow_examples(seed=20260906, count=100)
+        if row["metadata"]["category"] == "climate_setpoint"
+    )
+    for message in example["messages"]:
+        for call in message.get("tool_calls") or []:
+            arguments = json.loads(call["function"]["arguments"])
+            arguments["name"] = "Nowhere Thermostat"
+            call["function"]["arguments"] = json.dumps(arguments)
+    with pytest.raises(ValueError, match="absent from the prompt"):
+        assert_quality_eval_contract(example)
 
 
 def test_excluded_train_prompts_include_gold_shadow_and_recipe_lock() -> None:

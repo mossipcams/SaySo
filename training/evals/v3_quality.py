@@ -153,6 +153,22 @@ def _turn_off(entity: dict[str, Any]) -> dict[str, Any]:
     return {"name": "HassTurnOff", "arguments": args}
 
 
+def _light_set(entity: dict[str, Any], brightness: int) -> dict[str, Any]:
+    """Brightness, not temperature — the argument Run 008 got wrong most often."""
+    return {
+        "name": "HassLightSet",
+        "arguments": {"name": entity["name"], "domain": ["light"], "brightness": brightness},
+    }
+
+
+def _fan_speed(entity: dict[str, Any], percentage: int) -> dict[str, Any]:
+    """Percentage, not brightness — the other half of the same confusion."""
+    return {
+        "name": "HassFanSetSpeed",
+        "arguments": {"name": entity["name"], "domain": ["fan"], "percentage": percentage},
+    }
+
+
 def _spec(
     *,
     row_id: str,
@@ -420,6 +436,61 @@ def gold_specs() -> list[dict[str, Any]]:
             home=_home(study_fan, sayso_entity_area="Study", home_id="v3_gold_ordinary_off"),
             expected=_action(_turn_off(study_fan)),
         ),
+        # HassLightSet and HassFanSetSpeed are 12.3% of training calls. Until these
+        # rows existed no v3 suite covered either, so the light/fan argument
+        # confusion that Run 008 failed on was invisible to gold and shadow.
+        _spec(
+            row_id="light_brightness",
+            category="light_brightness",
+            subcategory="named_device",
+            utterance="Set Dining Room Pendant Light brightness to 40 percent",
+            home=_home(dining_light, sayso_entity_area="Dining Room", home_id="v3_gold_light_brightness"),
+            expected=_action(_light_set(dining_light, 40)),
+        ),
+        _spec(
+            row_id="light_brightness_conversational",
+            category="light_brightness",
+            subcategory="conversational",
+            utterance="Could you dim the Sunroom Accent Light to 25 percent?",
+            home=_home(sunroom_light, sayso_entity_area="Sunroom", home_id="v3_gold_light_brightness_b"),
+            expected=_action(_light_set(sunroom_light, 25)),
+        ),
+        _spec(
+            row_id="fan_speed",
+            category="fan_speed",
+            subcategory="named_device",
+            utterance="Set Study Desk Fan speed to 40 percent",
+            home=_home(study_fan, sayso_entity_area="Study", home_id="v3_gold_fan_speed"),
+            expected=_action(_fan_speed(study_fan, 40)),
+        ),
+        # Same number, same phrasing shape, both devices present: the row fails if
+        # the model reaches for brightness on a fan or speed on a light.
+        _spec(
+            row_id="fan_speed_contrastive",
+            category="fan_speed",
+            subcategory="light_fan_contrast",
+            utterance="Set Study Desk Fan speed to 60 percent",
+            home=_home(
+                study_fan,
+                dining_light,
+                sayso_entity_area="Study",
+                home_id="v3_gold_fan_speed_contrast",
+            ),
+            expected=_action(_fan_speed(study_fan, 60)),
+        ),
+        _spec(
+            row_id="light_brightness_contrastive",
+            category="light_brightness",
+            subcategory="light_fan_contrast",
+            utterance="Set Dining Room Pendant Light brightness to 60 percent",
+            home=_home(
+                dining_light,
+                study_fan,
+                sayso_entity_area="Dining Room",
+                home_id="v3_gold_light_brightness_contrast",
+            ),
+            expected=_action(_light_set(dining_light, 60)),
+        ),
         _spec(
             row_id="status_media",
             category="status",
@@ -577,6 +648,8 @@ def build_shadow_specs(seed: int = 20260906, count: int = DEFAULT_SHADOW_COUNT) 
         "script_run": max(2, count // 15),
         "ordinary_on": max(2, count // 15),
         "ordinary_off": max(1, count // 20),
+        "light_brightness": max(2, count // 15),
+        "fan_speed": max(2, count // 15),
         "status": max(2, count // 15),
         "ambiguity": max(3, count // 10),
         "unsupported_no_action": max(2, count // 15),
@@ -882,8 +955,9 @@ def build_shadow_specs(seed: int = 20260906, count: int = DEFAULT_SHADOW_COUNT) 
                 category="script_run",
                 subcategory="named_script",
                 home=home,
-                expected=_action(_turn_on(script)),
+                expected=_action(_run_script(script)),
                 target_names=[script["name"]],
+                utterance=f"turn on {script['name']}",
             )
         )
         slot += 1
@@ -918,6 +992,52 @@ def build_shadow_specs(seed: int = 20260906, count: int = DEFAULT_SHADOW_COUNT) 
                 home=home,
                 expected=_action(_turn_off(fan)),
                 target_names=[fan["name"]],
+            )
+        )
+        slot += 1
+
+    # Half of each pool puts the other device in the home, so a row fails if the
+    # model reaches for brightness on a fan or speed on a light.
+    for index in range(slots["light_brightness"]):
+        area = _SHADOW_AREAS[(index + 8) % len(_SHADOW_AREAS)]
+        light = _entity(name=f"{area} Reading Lamp", kind="light", area=area, aliases=["light"])
+        brightness = 20 + (index * 15) % 80
+        members = [light]
+        if index % 2:
+            members.append(_entity(name=f"{area} Column Fan", kind="fan", area=area))
+        home = _home(*members, sayso_entity_area=area, home_id=f"v3_shadow_bright_{slot:04d}")
+        specs.append(
+            _shadow_spec_shell(
+                candidate_id=f"v3_shadow_bright_{slot:04d}",
+                seed=seed,
+                category="light_brightness",
+                subcategory="light_fan_contrast" if index % 2 else "named_device",
+                home=home,
+                expected=_action(_light_set(light, brightness)),
+                target_names=[light["name"]],
+                utterance=f"set {light['name']} brightness to {brightness} percent",
+            )
+        )
+        slot += 1
+
+    for index in range(slots["fan_speed"]):
+        area = _SHADOW_AREAS[(index + 10) % len(_SHADOW_AREAS)]
+        fan = _entity(name=f"{area} Column Fan", kind="fan", area=area, aliases=["fan"])
+        percentage = 25 + (index * 15) % 75
+        members = [fan]
+        if index % 2:
+            members.append(_entity(name=f"{area} Reading Lamp", kind="light", area=area))
+        home = _home(*members, sayso_entity_area=area, home_id=f"v3_shadow_speed_{slot:04d}")
+        specs.append(
+            _shadow_spec_shell(
+                candidate_id=f"v3_shadow_speed_{slot:04d}",
+                seed=seed,
+                category="fan_speed",
+                subcategory="light_fan_contrast" if index % 2 else "named_device",
+                home=home,
+                expected=_action(_fan_speed(fan, percentage)),
+                target_names=[fan["name"]],
+                utterance=f"set {fan['name']} speed to {percentage} percent",
             )
         )
         slot += 1
@@ -1084,6 +1204,11 @@ def assert_quality_eval_contract(example: dict[str, Any]) -> None:
     # Per-script tools are named after the script, so they are absent from the pinned
     # catalog by design; they must still be offered to the row and take no arguments.
     offered = {tool["function"]["name"] for tool in example.get("tools") or []}
+    prompt = "".join(
+        str(message.get("content") or "")
+        for message in example.get("messages") or []
+        if message.get("role") == "system"
+    )
     for call in expected_tool_calls(example):
         args = call.get("function", {}).get("arguments")
         if not isinstance(args, str):
@@ -1092,6 +1217,11 @@ def assert_quality_eval_contract(example: dict[str, Any]) -> None:
         if parsed is None:
             raise ValueError("v3 quality eval arguments must parse as JSON objects")
         name = call["function"]["name"]
+        # A target the prompt never names cannot be answered: the row is unscoreable,
+        # not hard. Scripts are excluded from the overview, so they ground on the tool.
+        target = parsed.get("name")
+        if isinstance(target, str) and target not in prompt:
+            raise ValueError(f"v3 quality eval targets a name absent from the prompt: {target}")
         if name not in schemas:
             if name not in offered:
                 raise ValueError(f"v3 quality eval calls a tool the row never offered: {name}")

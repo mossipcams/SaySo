@@ -22,7 +22,9 @@ def test_gold_tool_names_are_schema_v2_or_offered_script_tools() -> None:
             assert name in ALLOWED_HASS_TOOLS or name in offered, name
 
 
-def test_shadow_tool_names_are_schema_v2_only() -> None:
+def test_shadow_tool_names_are_schema_v2_or_offered_script_tools() -> None:
     for row in build_shadow_examples(seed=20260906, count=100):
+        offered = {tool["function"]["name"] for tool in row["tools"]}
         for call in expected_tool_calls(row):
-            assert call["function"]["name"] in ALLOWED_HASS_TOOLS
+            name = call["function"]["name"]
+            assert name in ALLOWED_HASS_TOOLS or name in offered, name
