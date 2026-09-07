@@ -26,7 +26,19 @@ attributed to a commit, so results are pinned by file hash instead.
 | Scorer | Path (host) | sha256 | Reads | Notes |
 |---|---|---|---|---|
 | `structured` | `/srv/training-runs/sayso-eval-quality-llamacpp.py` | `068f412a9be0872b` | `/v1/chat/completions` `tool_calls` | Truncates apostrophe names (`O'Malley's`, `Kids'`). Serving bug, not a label bug. |
-| `rawparse` | `/srv/training-runs/eval_gold_raw.py` | `b649076ed217f950` | raw `/completion` text | Apostrophe-safe Python-call parser. Authoritative per TRAINING_PLAN §4. |
+| `rawparse` | `/srv/training-runs/eval_gold_raw.py` | `b649076ed217f950` | raw `/completion` text | Apostrophe-safe Python-call parser. Authoritative per TRAINING_PLAN §4. Hangs on untuned-base output — see below. |
+| `repoparse` | `training/scripts/eval_v3_rawparse.py` | pinned by commit | raw `/completion` text | Same method as `rawparse`, in-repo. Calibrated equal to it (below). |
+
+`repoparse` exists because `rawparse` cannot score the base model: its
+`parse_call` loop does not advance the cursor on prose that contains `(`, so an
+untuned completion spins forever. Observed 2026-09-06 on v3 gold — 29 of 30 rows
+served, then the process pinned a core at 8.3 GB RSS until killed. `repoparse`
+reuses `training/evals/lfm_python_parse.py`, which raises instead of looping.
+
+**Calibration.** `repoparse` reproduced both recorded `rawparse` results for Run
+008 checkpoint-2500 exactly — 16/30 on v3 gold `530234a0` and 9/38 on the
+v3-format recipe lock `47d9ca1c`. The two scorers are therefore comparable on
+these suites, unlike `structured` and `rawparse`. Re-calibrate if either changes.
 
 `training/scripts/evaluate.py` is **not** a scorer. It wires the offline harness
 with `_stub_infer`, which returns a fixed string. No result in this log came
@@ -43,10 +55,17 @@ Never compare a structured score to a rawparse score and call it progress.
 | `sayso_v2/sayso_train_10k_plus_supplement_render.jsonl` | 11,701 | `870eaaf44dd4ead9` |
 | `sayso_v2/sayso_train_10k_plus_corrective_render.jsonl` | 12,276 | `211de92039b2401e` |
 | `sayso_v3/sayso_train_v3_40k_render.jsonl` | 40,000 | `17754a93ae9c397e` |
-| `sayso_v2/sayso_quality_eval_recipe_lock.jsonl` (gold) | 38 | `3467874f936887a9` |
+| `sayso_v2/sayso_quality_eval_recipe_lock.jsonl` (gold, v2 format) | 38 | `3467874f936887a9` |
 | `sayso_v2/sayso_shadow_eval.jsonl` (shadow) | 125 | `b5db74aa3028d9a6` |
-| `sayso_v3/sayso_quality_eval_v3_gold.jsonl` | 30 | `6368f5559178abd8` |
-| `sayso_v3/sayso_quality_eval_v3_shadow.jsonl` | 100 | `f014c7e874ccbcce` |
+| `sayso_v2/sayso_quality_eval_recipe_lock.jsonl` (gold, v3 format) | 38 | `47d9ca1cc52d935b` |
+| `sayso_v3/sayso_quality_eval_v3_gold.jsonl` | 35 | `79c90d4cd4bc9615` |
+| `sayso_v3/sayso_quality_eval_v3_shadow.jsonl` | 100 | `32ab38ea06932344` |
+
+Superseded eval revisions, kept so old result rows stay resolvable:
+`6368f5559178abd8` and `f014c7e874ccbcce` (v3 gold/shadow, pre-dedup),
+`6377977c71354b04` (v3 shadow, stale script rows — see Run 008), and
+`530234a03f0bb46f` / `5a98b56297099211` (v3 gold/shadow, before light and fan
+coverage existed).
 | `sayso_test_balanced.jsonl` (held-out) | 2,500 | `af4b44d34b601fa7` |
 
 ---
@@ -175,8 +194,50 @@ entities.
 | checkpoint-2500 (ep1) | recipe-lock gold, v3 format / `47d9ca1cc52d935b` | `rawparse` | 9/38 |
 | checkpoint-2500 (ep1) | v3 gold / `530234a03f0bb46f` | `rawparse` | 16/30 |
 | checkpoint-2500 (ep1) | v3 shadow / `6377977c71354b04` | `rawparse` | 25/100 |
+| `LFM2.5-230M-Base` (reference) | recipe-lock gold, v3 format / `47d9ca1cc52d935b` | `repoparse` | 4/38 |
+| `LFM2.5-230M-Base` (reference) | v3 gold / `530234a03f0bb46f` | `repoparse` | 6/30 |
+| `LFM2.5-230M-Base` (reference) | v3 shadow / `5a98b56297099211` | `repoparse` | 15/100 |
+| checkpoint-2500 (ep1) | recipe-lock gold, v3 format / `47d9ca1cc52d935b` | `repoparse` | 9/38 |
+| checkpoint-2500 (ep1) | v3 gold / `530234a03f0bb46f` | `repoparse` | 16/30 |
+| checkpoint-2500 (ep1) | v3 shadow / `5a98b56297099211` | `repoparse` | 25/100 |
+| checkpoint-2500 (ep1) | v3 gold, light/fan coverage / `79c90d4cd4bc9615` | `repoparse` | 20/35 |
+| checkpoint-2500 (ep1) | v3 shadow, light/fan coverage / `32ab38ea06932344` | `repoparse` | 22/100 |
 
 **Selected:** not yet — epoch 1 only.
+
+The light and fan rows paid for themselves on the first run. Gold scores 4/5 on
+them and the one failure is the class the coverage was added for: the model
+emitted `HassLightSet(name='Sunroom Accent Light', percentage=25)` where
+`brightness=25` was wanted — the same wrong-argument slip as the `temperature=64`
+case, now caught by a suite instead of by reading completions. Shadow scores
+**0/10**, all ten the blanket refusal, which is the memorization failure below
+rather than anything specific to lights and fans.
+
+The base rows are the first baseline any v3 suite has had. Scored 2026-09-06
+against `LFM2.5-230M-Base-Q8_0.gguf` on a llama.cpp server, tokenizer
+`/srv/models/LFM2.5-230M-Base`. Epoch 1 beats base on all three suites
+(+10 gold, +10 shadow, +5 recipe-lock), but the aggregate hides two regressions:
+
+- **Refusal discipline inverted.** On the six v3 gold rows that want no tool
+  call, base scores 3/6 and ep1 scores **0/6** — ep1 emits a call every time,
+  inventing tools and entities (`HassMediaStart(...)`, `add_area(...)`,
+  `name='The Courment'`). Two of base's three are genuine prose refusals; the
+  third passes only because its completion did not parse, which both scorers
+  treat as "made no call".
+- **Scripts regressed below base.** On the six corrected shadow `script_run`
+  rows base scores 4/6 by copying the offered tool name (`[cellar_away_script()]`),
+  and ep1 scores **0/6**, answering every one with the same refusal: "I can't do
+  that with the available Home Assistant tools." The per-script tools carry very
+  thin supervision — ~190 distinct names over 40k rows, 1 to 37 occurrences each,
+  none above 0.1% — and the script is excluded from the overview, so the fix in
+  `1eb94a9` appears to have taught refusal rather than execution.
+
+Base's passes are mostly not real capability: 10 of its 15 shadow passes and 4 of
+its 4 recipe-lock passes are rows that wanted no call at all.
+
+Re-scoring ep1 on the corrected shadow `5a98b56297099211` returned 25/100 again,
+the same total as the stale revision. The six repaired script rows moved from
+unwinnable to winnable and ep1 still fails all six, so the totals coincide.
 
 These were taken mid-schedule and are **not** a verdict on the run. The cosine
 schedule is sized for 2 epochs, so at step 2500 the learning rate is still
@@ -198,10 +259,96 @@ right tool and emits valid call syntax:
 - occasional spurious refusal on a supported action
 - repetition loops in long names (`'Sunroom Robotics Robotics Robotics…'`)
 
+### Diagnosis: the model memorized entity names
+
+Run 008 ep1 fits its training data and does not generalize, and the variable
+responsible is the entity-name vocabulary. Isolated 2026-09-06 by mutating one
+thing at a time and re-scoring with `repoparse` against the ep1 server:
+
+| Probe | Change from the row as trained | Score |
+|---|---|---|
+| 100 training rows, unmodified | none — replayed through the eval harness | **99/100** |
+| 100 training rows, entities renamed | novel name tokens, everything else identical | **38/100** |
+| v3 shadow, as built | held-out rows | 25/100 |
+| v3 shadow, homes padded to 32 entities | home size matched to training | 21/100 |
+| v3 shadow, targets renamed to training names | target name only | 19/100 |
+
+The 99/100 rules out the harness, the chat-template render, and the scorer: the
+model answers its own training rows correctly through the exact path the eval
+uses. Renaming the entities in those same rows — same homes, same home sizes,
+same utterance templates, same tools — drops it 61 points. Home size is not the
+cause (padding made it worse), and neither is name novelty at the target alone.
+
+The reason is that names are barely varied. Across all 40,000 rows the overview
+uses **2,124 distinct entity names built from 52 distinct words**, filling
+1,245,259 name slots — a median of **693 appearances per name**. At that
+repetition the cheapest thing for a 230M model to learn is the finished string,
+not the rule that produces it. So it never learned to copy a name out of the
+context and slug it, and on an unseen name it either garbles the slug —
+`athematic_quill_script`, `boxroom_quill_script`, `cell_room_quill_script` for
+`Solarium Quill Script`-style targets — or refuses outright. On the renamed
+probe that is `tool_name_mismatch` 52, `missing_tool_call` 10.
+
+This also explains why base beats ep1 on scripts, 4/6 to 0/6: base has no
+memorized lookup, so it does the obvious thing and copies the offered tool name.
+
+Fixing this is a generation change, not a training or eval change: the name
+vocabulary has to be large enough that no name is seen often enough to memorize.
+Until then a longer run or a second epoch will drive training loss lower without
+moving these suites.
+
+**Fixed in `generators/homes.py`** (not yet regenerated or trained). Names are now
+drawn from 56 areas, 48 placements, 26 neutral words, 24 owner possessives and 13
+nouns across four shapes, with a per-home guard so no two names slug alike. Two
+constants that had been injected into every home of size ≥ 16 — `Kitchen Ceiling
+Lamp` and `Bedroom TV` — are drawn too; they alone had appeared in roughly 35k
+rows. Measured against the real pipeline:
+
+| | Run 008 data | after the change |
+|---|---|---|
+| distinct entity names | 2,124 | ~291,000 at 40k rows |
+| distinct words in names | 52 | 175 |
+| median repeats per name | 693 | 1 |
+| distinct target names | — | 1,538 across 1,561 calls (2k sample) |
+| rows accepted / attempted | 69% | 69% |
+| names carrying an apostrophe | rare, via a `% 7` branch | 15.9% |
+
+`tests/test_homes.py::test_entity_names_are_too_varied_to_memorize` pins the
+property so it cannot regress quietly.
+
+The brightness failure was not visible to the v3 suites. `HassLightSet` and
+`HassFanSetSpeed` are 12.3% of training calls (4,472 of 36,381) and were 0% of
+both v3 gold and v3 shadow, so the light/fan class only showed up in the
+v3-format recipe-lock score. **Closed 2026-09-06**: gold gained 5 rows (35
+total, 3 `HassLightSet` and 2 `HassFanSetSpeed`) and shadow gained 10 (5 and 5),
+half of each pool placing the other device in the home so a row fails if the
+model reaches for brightness on a fan or speed on a light. The shadow slot
+rebalance took one row each from ten categories to hold the count at 100; every
+category still has at least four. Shadow totals before and after that change are
+not comparable.
+
+One further gap, recorded because it bounds what these numbers mean: every v3
+eval home holds one or two entities while training homes hold 7 to 64 (median
+32). That is deliberate — minimal homes isolate the behavior — and it is not the
+cause of the low scores; padding the homes to 32 entities scored *worse*, 21/100
+against 25/100. See the diagnosis below.
+
 Scored twice: once against eval sets whose entity names were duplicated by a
 context bug, and again after the fix. Both runs returned 9/38, 16/30, 25/100, so
 the duplication was not the cause. Only the corrected revisions are recorded
 above.
+
+> **The shadow 25/100 is capped at 94.** Shadow revision `6377977c71354b04`
+> carried six `script_run` rows built before `1eb94a9`: they expect
+> `HassTurnOn(name=…, domain=['script'])`, the modeling this run exists to
+> replace. Four of the six name a script that appears nowhere in the prompt —
+> scripts are excluded from the overview and those rows were not offered a
+> script tool — so they are unanswerable. The other two offer the correct
+> per-script tool while still expecting `HassTurnOn`, marking a correctly
+> trained model wrong. Gold was regenerated by `1eb94a9`; `build_shadow_specs`
+> was missed. Fixed and shadow regenerated as `5a98b56297099211`. The 25/100 is
+> not comparable to any score taken against the new revision. Re-scored against
+> the corrected revision above.
 **Artifact:** `/srv/training-runs/SaySo-LFM2.5-230M-v3-40k`
 
 > This run is the first trained on the Home Assistant 2026.8.3 prompt format
