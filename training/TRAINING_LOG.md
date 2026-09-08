@@ -56,7 +56,8 @@ Never compare a structured score to a rawparse score and call it progress.
 | `sayso_v2/sayso_train_10k_plus_corrective_render.jsonl` | 12,276 | `211de92039b2401e` |
 | `sayso_v3/sayso_train_v3_40k_render.jsonl` (Run 008) | 40,000 | `17754a93ae9c397e` |
 | `sayso_v3/sayso_train_v3_40k_render.jsonl` (Run 009) | 40,000 | `a6babc7345fc097c` |
-| `sayso_quality_20260907/train_render.jsonl` (quality repair, queued) | 40,000 | `a18ebd301613aa83` |
+| `sayso_quality_20260907/train_render.jsonl` (superseded before training) | 40,000 | `a18ebd301613aa83` |
+| `sayso_realistic_20260908/train_render.jsonl` (realistic replacement) | 40,000 | `e088b3a6066f7fba` |
 | `sayso_v2/sayso_quality_eval_recipe_lock.jsonl` (gold, v2 format) | 38 | `3467874f936887a9` |
 | `sayso_v2/sayso_shadow_eval.jsonl` (shadow) | 125 | `b5db74aa3028d9a6` |
 | `sayso_v2/sayso_quality_eval_recipe_lock.jsonl` (gold, v3 format) | 38 | `47d9ca1cc52d935b` |
@@ -353,7 +354,12 @@ above.
 > the corrected revision above.
 **Artifact:** `/srv/training-runs/SaySo-LFM2.5-230M-v3-40k`
 
-## Run 009: v3 40k, realistic and varied entity names — in progress
+## Run 009: v3 40k, realistic and varied entity names — cancelled
+
+**Cancelled at user request on 2026-09-08 13:46 UTC.** The trainer and data-loader
+workers were stopped, then `/srv/training-runs/SaySo-LFM2.5-230M-v3-40k` was
+deleted, including its epoch-one checkpoint. The original dataset is retained.
+The realistic replacement below starts from Base, without resuming this run.
 - **Base:** `/srv/models/LFM2.5-230M-Base`
 - **Data:** `sayso_v3/sayso_train_v3_40k_render.jsonl` (40,000, `a6babc7345fc097c`)
 - **Config:** unchanged from Run 008 — `sayso-lfm-v3-40k.yml`, 2 epochs, rank 32,
@@ -469,7 +475,7 @@ requires a finite loss and saved adapter, and then trains. After training it
 exports and scores both epoch checkpoints on all three pinned suites using a
 separate localhost server. No checkpoint is automatically promoted.
 
-## Prepared replacement: realistic 40k households and voice requests
+## Run 010: v3 realistic 40k households and voice requests — in progress
 
 This supersedes the untrained label-quality dataset above. The source removes
 random adjective/position combinations and implausible room assignments. Homes
@@ -515,10 +521,19 @@ tokens, including tool schemas. Zero truncated rows or empty assistant masks;
 minimum/median supervised tokens 8/31. Every assistant response and called
 function name is inside the loss mask. The VM render hash matches the hash above.
 
-**Status:** queued behind active Run 009 at **2026-09-08 11:45:26 UTC**, durable
-launcher PID `94784` (parent PID 1). GPU smoke and training have not started.
-Assign the next run number after the first optimizer step. Progress is recorded
-in the bundle's `status`, `smoke.log`, `train.log`, and `results/` files.
+**Status:** training from Base since **2026-09-08 13:47:22 UTC**, durable launcher
+PID `94784` (parent PID 1), SFT worker `96135`. The user cancelled Run 009 and
+requested immediate fresh training. The one-step, longest-sequence GPU smoke
+saved an adapter with loss 1.50; the full run subsequently reached its first
+training step with loss 1.1614. Both initially logged a non-finite FP16 gradient
+norm; subsequent gradient health is recorded below. This starts with a new
+adapter and optimizer; neither Run 009 nor the smoke adapter is resumed.
+Progress is recorded in the bundle's `status`, `smoke.log`, `train.log`, and
+`results/` files.
+
+**Startup verified at step 10:** loss `0.5584`, finite gradient norm `10.7829`,
+learning rate `0.00009`. The initial non-finite gradient did not persist. The
+host bundle records these TensorBoard readings in `startup-health.json`.
 
 The bundle preserves the same pinned eval files and Base reference results above
 (4/38 recipe, 6/35 gold, 10/100 shadow). Its launcher verifies the dataset hash,
