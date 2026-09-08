@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import zlib
 from typing import Any
 
 _CONVERSATIONAL = (
@@ -53,6 +54,9 @@ def _no_action_hint(expected: dict[str, Any]) -> str:
 
 def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
     name, arguments = call["name"], call.get("arguments") or {}
+    # Per-script tools are named after the script itself, not Hass*/Get*.
+    if not name.startswith(("Hass", "Get")):
+        return f"run {target}"
     device_class = set(arguments.get("device_class") or [])
     if name == "HassTurnOn":
         if "door" in device_class:
@@ -143,7 +147,10 @@ def expand_utterance(spec: dict[str, Any]) -> str:
         return hint
     if category == "conversational":
         action = request_seed_from_spec(spec)
-        template = _CONVERSATIONAL[hash(spec.get("candidate_id", "")) % len(_CONVERSATIONAL)]
+        # crc32, not builtin hash(): randomized str hashing would pick a different
+        # template per process for the same spec.
+        index = zlib.crc32(str(spec.get("candidate_id", "")).encode()) % len(_CONVERSATIONAL)
+        template = _CONVERSATIONAL[index]
         return template.format(action=action)
     seed = request_seed_from_spec(spec)
     if category == "clean_direct" and expected.get("calls"):

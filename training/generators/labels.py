@@ -6,8 +6,8 @@ import hashlib
 import json
 from typing import Any
 
-from adapters.schema import v2_openai_tools
 from generators.context import system_prompt
+from generators.tools import offered_tools, script_tools
 from generators.gold import target_names_from_expected
 from generators.validate import validate_spec
 
@@ -135,4 +135,9 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         "stt_corruption": spec.get("stt_corruption"),
         "paraphrase_source": spec.get("paraphrase_source"),
     }
-    return {"messages": messages, "tools": v2_openai_tools(), "metadata": metadata}
+    offered = offered_tools(
+        [call["name"] for call in calls],
+        spec.get("semantic_id") or spec["candidate_id"],
+        extra_tools=script_tools(spec["home"]),
+    )
+    return {"messages": messages, "tools": offered, "metadata": metadata}

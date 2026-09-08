@@ -168,10 +168,24 @@ def _scene_ops() -> tuple[OperationSpec, ...]:
     )
 
 
+# Placeholder tool name for scripts: the real name is the script's own object id, so it
+# is only known per home. See generators.tools.script_tool_name.
+SCRIPT_ACTION_TOOL = "__script__"
+
+
 def _script_ops() -> tuple[OperationSpec, ...]:
+    """Scripts are their own tools in HA 2026.8.3, and their state is not readable.
+
+    ``async_get_exposed_entities`` buckets the script domain out of both the static
+    overview and GetLiveContext, so a script's state cannot be queried at all.
+    """
     return (
-        OperationSpec("run", SupportLevel.SUPPORTED, "HassTurnOn"),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
+        OperationSpec("run", SupportLevel.SUPPORTED, SCRIPT_ACTION_TOOL),
+        OperationSpec(
+            "query_state",
+            SupportLevel.UNAVAILABLE,
+            blocker="GetLiveContext excludes the script domain",
+        ),
     )
 
 
@@ -315,8 +329,11 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
     ),
 }
 
-# Home size distribution defaults
-HOME_SIZE_WEIGHTS: dict[int, int] = {8: 10, 16: 35, 32: 35, 64: 15, 128: 5}
+# Home size distribution defaults. The 128-entity bucket is omitted: those rows render
+# to ~5.6k tokens and OOM a GTX 1070 (8 GiB), and TRL drops over-length rows silently,
+# so generating them would shrink the train set without saying so. Its weight moved to
+# 64, which is the largest size that trains and still covers large-home behaviour.
+HOME_SIZE_WEIGHTS: dict[int, int] = {8: 10, 16: 35, 32: 35, 64: 20}
 
 # Difficulty tag sampling (~70-80% ordinary)
 ORDINARY_DIFFICULTY_RATE: float = 0.75
