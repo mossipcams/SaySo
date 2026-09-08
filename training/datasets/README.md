@@ -19,3 +19,8 @@ Generators:
 - `python training/scripts/generate_v3_quality_eval.py`
 - `python training/scripts/generate_training_supplement.py`
 - `python training/scripts/generate_balanced_test_data.py`
+
+The additional [realistic 120-case eval](../fixtures/realistic_eval_20260908_v2.md)
+is stored as a shared-context fixture under `training/fixtures/`. Its documented
+expansion writes `sayso_quality_eval_realistic_20260908_v2.jsonl` here and verifies
+the frozen SHA256. Do not train on its requests.

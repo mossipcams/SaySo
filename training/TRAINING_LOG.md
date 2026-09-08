@@ -403,3 +403,34 @@ revisions — score it on `79c90d4c` and `32ab38ea` before reading ep1.
 > Its gold score is therefore **not** comparable to Run 006's 38/38, in either
 > scorer. The v3 gold and v3 shadow suites have never been scored against any
 > checkpoint.
+
+## Additional Base baseline: realistic 120-case eval
+
+The new realistic 40k corpus (`e088b3a6066f7fba`, source `52b89a4`) has a
+separate 120-case diagnostic eval. The [frozen fixture and report](fixtures/realistic_eval_20260908_v2.md)
+include the complete case list and commands to reconstruct the exact evaluated
+JSONL. Eval sha256: `35e6be66fd42e73ca`. The five households and every normalized
+request were checked against the actual training file: no identical contexts
+or normalized prompt overlaps. Existing locked eval files are unchanged.
+
+| Model | Evaluation / scorer | Result |
+|---|---|---:|
+| LFM2.5-230M-Base Q8_0 | realistic 120 / `repoparse` | 19/120 |
+| Same saved generations | Python-literal syntax diagnostic, same labels | 14/120 |
+
+Both readings have **0/100 exact action matches**. The original parser accepts
+only single-quoted string arguments and hides five double-quoted tool attempts
+in no-call cases. The diagnostic counts those attempts, leaving **14/20
+abstentions**. Neither score judges whether clarification prose is useful.
+All 120 requests completed without transport errors.
+
+The isolated CPU server used `tokenizer.ggml.add_bos_token=bool:false` because
+the HF-rendered prompt already includes BOS. All 120 server token sequences
+matched the Base tokenizer exactly; prompts span 1,610–2,325 tokens, with no
+truncation. This new set and serving configuration differ from earlier locked
+baselines; compare future checkpoints using this same frozen fixture and setup.
+
+The host bundle `/srv/training-runs/sayso-realistic-20260908` retains the raw
+outputs, diagnostic, and provenance. The isolated eval server was stopped after
+scoring; the fresh Base training run continued. No checkpoint is promoted by
+this baseline.
