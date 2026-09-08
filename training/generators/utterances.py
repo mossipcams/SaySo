@@ -18,10 +18,30 @@ _CONVERSATIONAL = (
 def vary_training_utterance(text: str, rng: random.Random) -> str:
     """Vary request style independently of the expected call/no-call decision."""
     text = text[:1].lower() + text[1:]
+    for technical, spoken in (("climates", "thermostats"), ("switchs", "outlets"), ("covers", "blinds"), ("media players", "TVs")):
+        text = text.replace(f"the {technical} in ", f"the {spoken} in ")
+    # Preserve multi-action/exclusion scope; vary single-clause sentence structure.
+    if " and " not in text and ", but leave " not in text:
+        patterns = (
+            (r"turn on (.+)", ("turn on {0}", "turn {0} on", "switch {0} on", "switch on {0}")),
+            (r"turn off (.+)", ("turn off {0}", "turn {0} off", "switch {0} off", "switch off {0}")),
+            (r"set (.+) brightness to (.+) percent", ("set {0} brightness to {1} percent", "dim {0} to {1} percent", "set {0} to {1} percent brightness")),
+            (r"set (.+) color to (.+)", ("set {0} color to {1}", "make {0} {1}", "change {0} to {1}")),
+            (r"set (.+) color temperature to (.+)", ("set {0} color temperature to {1} kelvin", "set {0} to {1} kelvin")),
+            (r"set (.+) temperature to (.+) degrees", ("set {0} temperature to {1} degrees", "set {0} to {1} degrees", "adjust {0} to {1} degrees")),
+            (r"what is the status of (.+)", ("what is the status of {0}", "what's the status of {0}", "check the status of {0}", "tell me the status of {0}")),
+        )
+        for pattern, alternatives in patterns:
+            match = re.fullmatch(pattern, text)
+            if match:
+                if "brightness" in pattern and match[2].isdigit() and int(match[2]) > 50:
+                    alternatives = tuple(choice for choice in alternatives if not choice.startswith("dim "))
+                text = rng.choice(alternatives).format(*match.groups())
+                break
     variants = {
-        "turn on ": ("turn on ", "switch on ", "enable "),
-        "turn off ": ("turn off ", "switch off ", "disable "),
-        "run ": ("run ", "start ", "activate ", "turn on "),
+        "turn on ": ("turn on ", "switch on "),
+        "turn off ": ("turn off ", "switch off "),
+        "run ": ("run ", "start ", "activate "),
         "play ": ("play ", "resume "),
         "what is the status of ": ("what is the status of ", "what is the current state of "),
     }
@@ -29,9 +49,9 @@ def vary_training_utterance(text: str, rng: random.Random) -> str:
         if text.startswith(prefix):
             text = rng.choice(alternatives) + text[len(prefix):]
             break
-    template = rng.choice(("{action}", "please {action}", "could you {action}?", "can you {action} for me?"))
-    if template != "{action}" and text.startswith("what "):
-        text = "tell me " + text
+    template = rng.choice(("{action}", "{action}", "{action}", "please {action}", "could you {action}?", "can you {action} for me?"))
+    if template != "{action}" and text.startswith(("what ", "what's ")):
+        text = re.sub(r"^what(?: is|'s) ", "tell me ", text)
     return template.format(action=text)
 
 

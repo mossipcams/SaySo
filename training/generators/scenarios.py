@@ -15,7 +15,7 @@ from generators.capability_registry import (
     trainable_operations,
 )
 from generators.gold import gold_from_scenario, target_names_from_expected
-from generators.homes import entities_of_capability, generate_home, make_entity, _random_entity_name, _FLOORS
+from generators.homes import entities_of_capability, generate_home, make_entity, _random_entity_name, device_areas
 
 
 def semantic_id(scenario: dict[str, Any]) -> str:
@@ -71,9 +71,9 @@ def build_scenario(
     if capability == "timers":
         cap_entities = []
     elif not cap_entities and operation not in {"cancel_all"}:
-        area = home["sayso_entity_area"]
-        floor = _FLOORS[(index + 1) % len(_FLOORS)]
-        name = _random_entity_name(capability, area, 0, index, rng)
+        area = rng.choice(device_areas(capability, home["areas"]))
+        floor = home["area_floors"][area]
+        name = _random_entity_name(capability, area, 0, index, rng, owners=home["owners"])
         injected = make_entity(
             name=name,
             capability=capability,

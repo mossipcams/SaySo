@@ -407,6 +407,9 @@ revisions — score it on `79c90d4c` and `32ab38ea` before reading ep1.
 
 ## Prepared replacement: 40k label-quality repair
 
+**Superseded before training:** the queued launcher was stopped for the realism
+revision below. The `a18ebd301613aa83` dataset did not start a replacement run.
+
 - **Source:** `c98624f`, stacked on the realistic-name generator in Run 009.
 - **Base:** `/srv/models/LFM2.5-230M-Base`; fresh training, same two-epoch recipe.
 - **Data:** `sayso_quality_20260907/train_render.jsonl`, 40,000 rows,

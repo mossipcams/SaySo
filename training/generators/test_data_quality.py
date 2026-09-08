@@ -193,3 +193,104 @@ def test_exclusion_validation_rejects_a_missing_excluded_name():
             "excluded_names": ["Workshop Lamp"],
             "utterance": "turn on Kitchen Light but leave the other one alone"}
     assert validate_utterance(spec) == "missing_exclusion"
+
+
+def test_homes_have_plausible_rooms_devices_and_aliases():
+    from generators.homes import generate_home
+    outdoor = {"Garden", "Backyard", "Front Yard", "Driveway", "Patio", "Deck", "Porch", "Balcony"}
+    for seed in range(60):
+        home = generate_home(seed, 64, random.Random(seed))
+        assert len({e["area"] for e in home["entities"]}) <= 14
+        floors = {}
+        for entity in home["entities"]:
+            area = entity["area"]
+            assert floors.setdefault(area, entity["floor"]) == entity["floor"]
+            if entity["domain"] in {"media_player", "climate", "todo"}:
+                assert area not in outdoor, entity
+            for alias in entity["aliases"]:
+                words = alias.lower().split()
+                assert all(a != b for a, b in zip(words, words[1:])), alias
+
+
+def test_names_describe_devices_and_routines_instead_of_random_qualities():
+    from generators.homes import _random_entity_name
+    for capability in ("lights", "scripts", "scenes", "todo_lists", "climate"):
+        for seed in range(100):
+            name = _random_entity_name(capability, "Kitchen", 0, seed, random.Random(seed))
+            words = set(name.lower().split())
+            assert not words & {"old", "spare", "second", "smart", "new", "portable"}, name
+            if capability == "scripts":
+                assert "script" not in words, name
+            if capability == "scenes":
+                assert "scene" not in words, name
+
+
+def test_ordinary_speech_changes_sentence_structure_and_preserves_settings():
+    from generators.utterances import vary_training_utterance
+    on = [vary_training_utterance("turn on Kitchen Lamp", random.Random(seed)) for seed in range(80)]
+    brightness = [vary_training_utterance("set Kitchen Lamp brightness to 35 percent", random.Random(seed)) for seed in range(80)]
+    status = [vary_training_utterance("what is the status of Kitchen Lamp", random.Random(seed)) for seed in range(80)]
+    assert any("Kitchen Lamp on" in request for request in on)
+    assert any("dim Kitchen Lamp to 35 percent" in request for request in brightness)
+    assert any("what's" in request or "check" in request for request in status)
+    assert all("Kitchen Lamp" in request and "35" in request for request in brightness)
+
+
+def test_routine_names_match_the_room_activity():
+    from generators.homes import _random_entity_name
+    for seed in range(50):
+        scene = _random_entity_name("scenes", "Bathroom", 0, seed, random.Random(seed))
+        assert not any(word in scene.lower() for word in ("movie", "dinner", "reading")), scene
+        shopping = _random_entity_name("todo_lists", "Kitchen", 0, seed, random.Random(seed))
+        assert "Kitchen" not in shopping, shopping
+
+
+def test_large_homes_are_mostly_lights_and_plugs_not_thermostats():
+    from collections import Counter
+    from generators.homes import generate_home
+    home = generate_home(12, 64, random.Random(19))
+    counts = Counter(e["domain"] for e in home["entities"])
+    assert counts["climate"] <= 2
+    assert counts["light"] + counts["switch"] >= 38
+
+
+def test_possessive_names_come_from_one_household():
+    from generators.homes import generate_home
+    home = generate_home(4, 64, random.Random(4))
+    owners = {e["name"].split()[0].casefold() for e in home["entities"] if "'" in e["name"]}
+    assert len(owners) <= 2
+
+
+def test_speech_avoids_conflicting_verbs_and_supplies_kelvin_units():
+    from generators.utterances import vary_training_utterance
+    for seed in range(60):
+        rng = random.Random(seed)
+        assert "turn on" not in vary_training_utterance("run Bathroom Lights Off", rng)
+        assert "dim" not in vary_training_utterance("set Kitchen Lamp brightness to 100 percent", rng)
+        assert "kelvin" in vary_training_utterance("set Kitchen Lamp color temperature to 2700", rng)
+
+
+def test_eval_name_exclusion_ignores_capitalization():
+    from generators.homes import _random_entity_name
+    with patch("generators.homes._eval_entity_names", return_value=frozenset({"kitchen lamp"})), patch("generators.homes._roles", return_value=("Lamp",)):
+        for seed in range(50):
+            name = _random_entity_name("lights", "Kitchen", 0, seed, random.Random(seed))
+            assert name.casefold() != "kitchen lamp"
+
+
+def test_group_requests_use_spoken_device_types():
+    from generators.utterances import vary_training_utterance
+    for seed in range(20):
+        request = vary_training_utterance("set the climates in Hallway temperature to 70 degrees", random.Random(seed))
+        assert "thermostats" in request and "climates" not in request
+        request = vary_training_utterance("turn off the switchs in Kitchen", random.Random(seed))
+        assert "outlets" in request and "switchs" not in request
+
+
+def test_held_out_names_do_not_leak_through_aliases():
+    from generators.homes import generate_home
+    with patch("generators.homes._eval_entity_names", return_value=frozenset({"living room tv", "kitchen light"})):
+        home = generate_home(9, 64, random.Random(9))
+        assert not {"living room tv", "kitchen light"} & {
+            alias.casefold() for entity in home["entities"] for alias in entity["aliases"]
+        }

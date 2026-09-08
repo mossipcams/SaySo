@@ -60,6 +60,14 @@ Do not train on:
 Synthetic generation in `training/scripts/build_synthetic_dataset.py` owns
 utterance diversity; schema validation remains authoritative for every label.
 
+Prefer realistic repetition to artificial uniqueness. Homes should contain
+several devices per room, consistent floors, and plausible device placement.
+Lights and plugs dominate a larger home; thermostats and whole-home appliances
+remain few. Names describe fixtures or routines, with coherent household
+possessives and grammatical aliases. Do not combine arbitrary rooms, adjectives,
+and device nouns to reach a distinct-name target. Review actual names and spoken
+requests alongside coverage counts; unique strings are not proof of naturalness.
+
 ## 3. Format and trainer
 
 Keep two representations separate:
