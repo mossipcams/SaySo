@@ -15,7 +15,7 @@ from generators.capability_registry import (
     trainable_operations,
 )
 from generators.gold import gold_from_scenario, target_names_from_expected
-from generators.homes import entities_of_capability, generate_home, make_entity, _random_entity_name, _FLOORS
+from generators.homes import entities_of_capability, generate_home, make_entity, _random_entity_name, device_areas, remove_canonical_alias_collisions
 
 
 def semantic_id(scenario: dict[str, Any]) -> str:
@@ -76,9 +76,9 @@ def build_scenario(
     if capability == "timers":
         cap_entities = []
     elif not cap_entities and operation not in {"cancel_all"}:
-        area = home["sayso_entity_area"]
-        floor = _FLOORS[(index + 1) % len(_FLOORS)]
-        name = _random_entity_name(capability, area, 0, index, rng)
+        area = rng.choice(device_areas(capability, home["areas"]))
+        floor = home["area_floors"][area]
+        name = _random_entity_name(capability, area, 0, index, rng, owners=home["owners"])
         injected = make_entity(
             name=name,
             capability=capability,
@@ -88,6 +88,7 @@ def build_scenario(
         )
         home["entities"].append(injected)
         cap_entities = [injected]
+    remove_canonical_alias_collisions(home["entities"])
     target_entity = cap_entities[index % len(cap_entities)] if cap_entities else None
     scenario: dict[str, Any] = {
         "scenario_index": index,
@@ -115,9 +116,23 @@ def build_scenario(
         scenario["target_entities"] = cap_entities[:2]
         scenario["excluded_names"] = [cap_entities[2]["name"]] if len(cap_entities) > 2 else []
     if robustness == "multi_action" and len(cap_entities) >= 2:
-        scenario["target_entities"] = cap_entities[:2]
+        others = [e for e in home["entities"]
+                  if capability != "scripts" and e["capability"] != capability
+                  and trainable_operations(CAPABILITIES[e["capability"]])]
+        scenario["target_entities"] = [target_entity, rng.choice(others)] if others else cap_entities[:2]
         scenario["targeting"] = "multiple"
     scenario["expected"] = gold_from_scenario(scenario, rng)
+    if robustness == "alias_distractor" and target_entity:
+        # Use only an unambiguous HA alias; retain the canonical name in labels.
+        other_names = {
+            name.casefold() for entity in home["entities"] if entity is not target_entity
+            for name in [entity["name"], *entity.get("aliases", [])]
+        }
+        aliases = [alias for alias in target_entity.get("aliases", [])
+                   if alias.casefold() != target_entity["name"].casefold()
+                   and alias.casefold() not in other_names]
+        if aliases:
+            scenario["spoken_targets"] = {target_entity["name"]: rng.choice(aliases)}
     scenario["semantic_id"] = semantic_id(scenario)
     scenario["tier"] = CAPABILITIES[capability].tier
     return scenario

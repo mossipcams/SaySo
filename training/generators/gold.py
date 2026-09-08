@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from generators.capability_registry import CAPABILITIES, OperationSpec, SupportLevel
+from generators.capability_registry import CAPABILITIES, OperationSpec, SupportLevel, trainable_operations
 from generators.homes import entities_in_area, entities_of_capability
 from generators.tools import build_call_for_operation
 
@@ -53,13 +53,30 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
     cap_spec = CAPABILITIES[capability]
     op_spec = next((op for op in cap_spec.operations if op.name == operation), None)
 
-    if scenario.get("robustness") == "unsupported" or (
-        op_spec and op_spec.support == SupportLevel.UNAVAILABLE
-    ):
+    if scenario.get("robustness") == "unsupported" and op_spec and op_spec.support != SupportLevel.UNAVAILABLE:
+        requested = gold_from_scenario(
+            {**scenario, "robustness": "ordinary", "targeting": "individual"}, rng
+        )
+        return expected_no_action(
+            "unsupported", requested=requested,
+            unavailable_tools=list(dict.fromkeys(call["name"] for call in requested.get("calls", []))),
+        )
+
+    if op_spec and op_spec.support == SupportLevel.UNAVAILABLE:
         return expected_no_action(
             "unsupported",
             blocker=op_spec.blocker if op_spec else cap_spec.blocker,
         )
+
+    if capability == "timers" and operation in {"cancel_all", "start", "pause", "status"}:
+        area = scenario.get("area")
+        call = build_call_for_operation(None, capability, operation, rng, area=area)
+        if operation in {"start", "pause", "status"}:
+            call["arguments"]["name"] = rng.choice((
+                "tea", "rice", "pasta", "bread", "coffee", "workout",
+                "homework", "stretching", "watering", "roast", "cookies", "meditation",
+            ))
+        return {"kind": "action", "calls": [call]}
 
     if scenario.get("robustness") == "ambiguity":
         return _ambiguous_gold(home, capability, operation, rng)
@@ -69,11 +86,6 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
         if entity is None:
             return expected_no_action("clarify")
         return expected_status(entity)
-
-    if operation == "cancel_all" or (capability == "timers" and operation in {"start", "pause", "status"}):
-        area = scenario.get("area")
-        call = build_call_for_operation(None, capability, operation, rng, area=area)
-        return {"kind": "action", "calls": [call]}
 
     if targeting == "area":
         area = scenario.get("area") or home["sayso_entity_area"]
@@ -94,14 +106,21 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
         matches = [e for e in entities_of_capability(home, capability) if e["floor"] == floor]
         if not matches:
             return expected_no_action("clarify")
-        area = matches[0]["area"]
-        call = build_call_for_operation(None, capability, operation, rng, area=area, floor=floor)
+        call = build_call_for_operation(None, capability, operation, rng, floor=floor)
         return {"kind": "action", "calls": [call]}
 
     if targeting == "multiple":
         targets = scenario.get("target_entities") or entities_of_capability(home, capability)[:2]
-        calls = [build_call_for_operation(e, capability, operation, rng) for e in targets]
-        return {"kind": "action", "calls": calls}
+        calls, script_targets = [], []
+        for entity in targets:
+            entity_cap = entity["capability"]
+            chosen_op = operation
+            if entity_cap != capability:
+                chosen_op = rng.choice(trainable_operations(CAPABILITIES[entity_cap])).name
+            action = expected_action(entity, chosen_op, rng)
+            calls.extend(action["calls"])
+            script_targets.extend(action.get("script_targets", []))
+        return {"kind": "action", "calls": calls, "script_targets": script_targets}
 
     entity = _pick_entity(scenario, rng)
     if entity is None:
@@ -126,6 +145,9 @@ def _ambiguous_gold(
     operation: str,
     rng: random.Random,
 ) -> dict[str, Any]:
+    if capability == "scripts":
+        # Script tools expose friendly names, not their hidden HA area assignments.
+        return expected_no_action("clarify")
     area = home["sayso_entity_area"]
     matches = entities_in_area(home, capability, area)
     if len(matches) == 0:
@@ -134,7 +156,7 @@ def _ambiguous_gold(
             unavailable={"area": area.casefold(), "type": _type_label(capability)},
         )
     if len(matches) == 1:
-        return expected_action(matches[0], operation, rng)
+        return expected_status(matches[0]) if operation == "query_state" else expected_action(matches[0], operation, rng)
     return expected_no_action("clarify")
 
 
@@ -147,16 +169,24 @@ def _type_label(capability: str) -> str:
         "locks": "doors",
         "media_players": "media players",
         "climate": "thermostats",
+        "scripts": "scripts",
+        "scenes": "scenes",
+        "vacuums": "vacuums",
+        "timers": "timers",
+        "buttons": "buttons",
+        "todo_lists": "shopping lists",
+        "lawn_mowers": "lawn mowers",
     }
     return labels.get(capability, "devices")
 
 
 def target_names_from_expected(expected: dict[str, Any]) -> list[str]:
     names: list[str] = []
+    scripts = iter(expected.get("script_targets") or [])
     for call in expected.get("calls") or []:
         args = call.get("arguments") or {}
         if isinstance(args.get("name"), str):
             names.append(args["name"])
-    # Script tools carry no arguments; their target rides in script_targets.
-    names.extend(expected.get("script_targets") or [])
+        elif not call["name"].startswith(("Hass", "Get")):
+            names.append(next(scripts))
     return names

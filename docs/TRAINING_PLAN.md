@@ -86,11 +86,15 @@ Train from Base with TRL rsLoRA, not by continuing a previous merged checkpoint:
 - rank 32, alpha 32, `use_rslora: true`, `all-linear`, FP16, no BF16, no Flash Attention
 - microbatch 1, gradient accumulation 16
 - learning rate `2e-4`, cosine, assistant-only loss
-- `save_strategy: epoch`, keep every epoch checkpoint needed for comparison
+- For early-feedback runs, save every 250 optimizer steps; retain the first
+  checkpoint and both epoch checkpoints needed for comparison.
 
-Smoke one update step on the target host before a full run. Pascal GTX 1070
-(8 GiB) may log an allocator warning and still complete; treat a finished step
-plus a reloadable adapter as the gate.
+Smoke on the longest rendered training row before a full run. Require finite
+losses, a finite gradient at a positive learning rate, finite adapter tensors,
+and nonzero LoRA B weights to demonstrate an actual optimizer update. A saved
+adapter after a skipped FP16 step is insufficient. The full run still starts
+from Base, never from the smoke adapter. Pascal GTX 1070 (8 GiB) may log an
+allocator warning and still complete.
 
 ## 4. Data and eval
 
@@ -107,12 +111,17 @@ status, ambiguity, and unsupported/no-call. Labels validate against
 `sayso-tool-schema-v2` only. Shadow uses different homes, entities, and
 phrasing. Gold, shadow, and recipe-lock prompts come from
 `excluded_train_prompts()`; the v3 generator rejects any train utterance in that
-set (`quality_eval_overlap`) instead of filtering contaminated rows out
+set (`quality_eval_overlap`), including normalized prompts from the frozen
+`training/fixtures/realistic_eval_20260908_v2.json` fixture, instead of filtering contaminated rows out
 afterwards. Generation is reproducible — the same seed yields a byte-identical
 dataset across processes — so never seed generator randomness with builtin
 `hash()` on a string.
 
 Train each run from Base, not by continuing a previously merged checkpoint.
+Evaluate the first 250-step checkpoint on the frozen suites while training
+continues, using the same tokenizer/serving configuration as Base. Keep both
+epoch evaluations; an early result is diagnostic and does not trigger automatic
+promotion or stopping.
 
 A run trains on one deterministic corpus. Do not blend corpora to make a set
 larger: read the gold and shadow results first, then refine the cases the run
