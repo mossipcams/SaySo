@@ -294,3 +294,15 @@ def test_held_out_names_do_not_leak_through_aliases():
         assert not {"living room tv", "kitchen light"} & {
             alias.casefold() for entity in home["entities"] for alias in entity["aliases"]
         }
+
+
+def test_generic_script_requests_clarify_without_hidden_area_assumptions():
+    for seed in range(20):
+        scenario = build_scenario(index=seed, seed=seed, capability="scripts", operation="run",
+                                  home_size=32, targeting="area", robustness="ambiguity")
+        assert scenario["expected"]["kind"] == "no_action"
+        assert scenario["expected"]["response"] == "clarify"
+        spec = scenario_to_spec(scenario)
+        spec["utterance"] = _unique_no_action_hint(spec, random.Random(seed))
+        assert "routine" in spec["utterance"]
+        assert render_example(spec)["messages"][-1]["content"] == "Which routine did you mean?"

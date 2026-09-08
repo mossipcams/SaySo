@@ -26,6 +26,8 @@ def _final_text(spec: dict[str, Any]) -> str:
         return f"{names[0]} is {expected.get('state', 'unknown')}."
     if expected["kind"] == "action":
         return "Done."
+    if expected.get("response") == "clarify" and spec.get("capability") == "scripts":
+        return "Which routine did you mean?"
     if expected.get("response") == "area_unavailable":
         unavailable = expected.get("unavailable") or {}
         area = unavailable.get("area", "this area")

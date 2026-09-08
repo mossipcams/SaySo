@@ -146,6 +146,9 @@ def _ambiguous_gold(
     operation: str,
     rng: random.Random,
 ) -> dict[str, Any]:
+    if capability == "scripts":
+        # Script tools expose friendly names, not their hidden HA area assignments.
+        return expected_no_action("clarify")
     area = home["sayso_entity_area"]
     matches = entities_in_area(home, capability, area)
     if len(matches) == 0:

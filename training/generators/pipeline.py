@@ -38,7 +38,7 @@ def _unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
     entity = None
     if capability != "timers":
         entity = make_entity(
-            name=f"the {area} {_ENTITY_TEMPLATES[capability][0].lower()}",
+            name=f"the {area} {'routine' if capability == 'scripts' else _ENTITY_TEMPLATES[capability][0].lower()}",
             capability=capability, area=area, floor="Main Floor", rng=rng,
         )
     call = build_call_for_operation(entity, capability, spec["operation"], rng, area=area)
