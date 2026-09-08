@@ -35,6 +35,13 @@ class GeneratorConfig:
     max_attempts_multiplier: int = DEFAULT_MAX_ATTEMPTS_MULTIPLIER
     ordinary_rate: float = 0.75
     exclude_prompts_path: Path | None = None
+    # A real home fetched by scripts/fetch_ha_home.py, mixed in at this rate.
+    # Default 0.0: an existing recipe generates the same dataset it always did.
+    real_home_path: Path | None = None
+    real_home_rate: float = 0.0
+    # Max rows in which one real entity may be the target. 0 derives it from
+    # count, rate, and the number of real entities (real_home.derive_entity_cap).
+    real_home_entity_cap: int = 0
 
     def max_attempts(self) -> int:
         return self.count * self.max_attempts_multiplier
@@ -53,4 +60,7 @@ class GeneratorConfig:
             "token_budget": self.token_budget,
             "near_duplicate_limit": self.near_duplicate_limit,
             "ordinary_rate": self.ordinary_rate,
+            "real_home_path": str(self.real_home_path) if self.real_home_path else None,
+            "real_home_rate": self.real_home_rate,
+            "real_home_entity_cap": self.real_home_entity_cap,
         }
