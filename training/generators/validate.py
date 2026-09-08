@@ -101,7 +101,7 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
                     if not area or str(area).casefold() not in lowered:
                         return "missing_expected_target"
         for name in spec.get("excluded_names") or []:
-            if "leave" not in lowered and name.casefold() in lowered:
+            if "leave" not in lowered or name.casefold() not in lowered:
                 return "missing_exclusion"
     if expected.get("kind") == "status" and "status" not in lowered and "what" not in lowered:
         return "status_not_query"

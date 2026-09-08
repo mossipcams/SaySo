@@ -185,3 +185,11 @@ def test_multi_actions_do_not_label_state_queries_as_done():
         scenario = build_scenario(index=index, seed=29, capability="lights", operation="turn_on",
                                   home_size=64, targeting="multiple", robustness="multi_action")
         assert all(c["name"] != "GetLiveContext" for c in scenario["expected"]["calls"])
+
+
+def test_exclusion_validation_rejects_a_missing_excluded_name():
+    from generators.validate import validate_utterance
+    spec = {"expected": {"kind": "action", "calls": []},
+            "excluded_names": ["Workshop Lamp"],
+            "utterance": "turn on Kitchen Light but leave the other one alone"}
+    assert validate_utterance(spec) == "missing_exclusion"
