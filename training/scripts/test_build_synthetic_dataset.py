@@ -1047,8 +1047,9 @@ def test_system_context_includes_sayso_conversation_entity_area() -> None:
     spec = build_specs(100, seed=11)[0]
     spec["utterance"] = expand_utterance(spec)
     system = render_example(spec)["messages"][0]["content"]
-    assert "This SaySo conversation entity area is" in system
-    assert spec["home"]["sayso_entity_area"] in system
+    # Home Assistant's own area wording (components/intent/llm.py)
+    assert "and all generic commands like" in system
+    assert f"You are in area {spec['home']['sayso_entity_area']}" in system
 
 
 def test_banned_please_what_status_and_chatml_labels_rejected() -> None:
@@ -1060,3 +1061,34 @@ def test_banned_please_what_status_and_chatml_labels_rejected() -> None:
     assert validate_utterance(bad) == "banned_content"
     bad["utterance"] = "<tool_call>{\"name\":\"HassTurnOn\"}</tool_call> turn on the kitchen light please"
     assert validate_utterance(bad) == "banned_content"
+
+
+def test_v3_cli_writes_trl_render_for_every_canonical_row(tmp_path, monkeypatch) -> None:
+    """The TRL render must cover the canonical set row for row, with dict arguments."""
+    import build_synthetic_dataset as builder
+
+    out = tmp_path / "v3_train.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["build_synthetic_dataset.py", "--pipeline", "v3", "--count", "50", "--out-dir", str(out)],
+    )
+    assert builder.main() == 0
+
+    render = tmp_path / "v3_train_render.jsonl"
+    canonical_rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines() if line]
+    rendered_rows = [json.loads(line) for line in render.read_text(encoding="utf-8").splitlines() if line]
+    assert len(rendered_rows) == len(canonical_rows) == 50
+
+    manifest = json.loads((tmp_path / "v3_train.manifest.json").read_text(encoding="utf-8"))
+    assert manifest["render_rows"] == len(canonical_rows)
+    assert manifest["render_path"] == str(render)
+
+    def semantic_ids(rows):
+        return [row["metadata"]["semantic_id"] for row in rows]
+
+    assert semantic_ids(rendered_rows) == semantic_ids(canonical_rows)
+    for row in rendered_rows:
+        for message in row["messages"]:
+            for call in message.get("tool_calls") or []:
+                assert isinstance(call["function"]["arguments"], dict)

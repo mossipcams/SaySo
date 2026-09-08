@@ -41,8 +41,9 @@ def test_quality_eval_includes_sayso_entity_area_context_for_recipe_seven() -> N
             for spec in locked_specs()
             if spec["candidate_id"] == example["metadata"]["candidate_id"]
         )
-        assert "This SaySo conversation entity area is" in system
-        assert sayso_area in system
+        # Home Assistant's own area wording (components/intent/llm.py)
+        assert "and all generic commands like" in system
+        assert f"You are in area {sayso_area}" in system
 
 
 def test_kitchen_no_lights_row_has_area_unavailable_next_action() -> None:

@@ -12,6 +12,7 @@ import random
 import re
 import sys
 import time
+import zlib
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -22,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from adapters.schema import tool_schema_map, v2_openai_tools, validate_tool_arguments  # noqa: E402
+from generators.context import system_prompt  # noqa: E402
+from generators.tools import offered_tools, script_tool_name, script_tools  # noqa: E402
 
 DEFAULT_TRAIN_COUNT = 10_000
 
@@ -692,11 +695,21 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
     entities = {entity["name"]: entity for entity in spec["home"]["entities"]}
     schemas = tool_schema_map(v2_openai_tools())
     excluded = set(spec.get("excluded_names") or [])
+    # Per-script tools are named after the script and are not in the pinned catalog.
+    script_names = {
+        script_tool_name(entity)
+        for entity in spec["home"]["entities"]
+        if entity.get("domain") == "script"
+    }
     for call in calls:
         name = call.get("name")
         arguments = call.get("arguments")
         if not isinstance(name, str) or not isinstance(arguments, dict):
             return "invalid_call_shape"
+        if name in script_names:
+            if arguments:
+                return "script_tool_takes_no_arguments"
+            continue
         reason = validate_tool_arguments(name, arguments, schemas)
         if reason:
             return reason
@@ -712,27 +725,8 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
 
 
 def _system_prompt(home: dict[str, Any]) -> str:
-    context = [
-        {
-            "name": entity["name"],
-            "aliases": entity["aliases"],
-            "domain": entity["domain"],
-            "device_class": entity["device_class"],
-            "area": entity["area"],
-            "floor": entity["floor"],
-            "state": entity["state"],
-            "capabilities": entity["capabilities"],
-        }
-        for entity in home["entities"]
-    ]
-    sayso_area = home.get("sayso_entity_area", "")
-    return (
-        "You are SaySo, a concise Home Assistant conversation agent. Use only the supplied "
-        "Home Assistant tools and preserve canonical entity names exactly. "
-        f"This SaySo conversation entity area is {sayso_area!r}. "
-        "Current exposed context: "
-        + json.dumps(context, ensure_ascii=False, separators=(",", ":"))
-    )
+    """Same Home Assistant prompt the v3 rows use, so eval sets stay in distribution."""
+    return system_prompt(home)
 
 
 def _call_id(candidate_id: str, index: int, call: dict[str, Any]) -> str:
@@ -830,7 +824,14 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
     }
     if "quality" in spec:
         metadata["quality"] = spec["quality"]
-    return {"messages": messages, "tools": v2_openai_tools(), "metadata": metadata}
+    # Same candidate-set shape as the v3 train rows, so the eval sets rendered through
+    # here are not out of distribution against a model trained on 8 offered tools.
+    offered = offered_tools(
+        [call["name"] for call in calls],
+        spec["candidate_id"],
+        extra_tools=script_tools(spec["home"]),
+    )
+    return {"messages": messages, "tools": offered, "metadata": metadata}
 
 
 def request_seed(spec: dict[str, Any]) -> str:
@@ -877,8 +878,10 @@ def expand_utterance(spec: dict[str, Any]) -> str:
         return f"what is the status of {targets[0]}"
     if category == "conversational":
         action_seed = request_seed(spec)
+        # crc32, not builtin hash(): randomized str hashing would pick a different
+        # template per process for the same spec.
         template = _CONVERSATIONAL_TEMPLATES[
-            hash(spec["candidate_id"]) % len(_CONVERSATIONAL_TEMPLATES)
+            zlib.crc32(str(spec["candidate_id"]).encode()) % len(_CONVERSATIONAL_TEMPLATES)
         ]
         return template.format(action=action_seed)
     if category == "clean_direct":
@@ -1944,6 +1947,7 @@ def main() -> int:
     parser.add_argument("--paraphrase", action="store_true", default=False)
     parser.add_argument("--token-budget", type=int, default=4096)
     parser.add_argument("--manifest", type=Path, default=None)
+    parser.add_argument("--render-out", type=Path, default=None)
     args = parser.parse_args()
 
     if args.pipeline == "v3":
@@ -1951,6 +1955,7 @@ def main() -> int:
         from generators.pipeline import run_generation, write_jsonl, write_manifest
 
         out_path = args.out_dir / "synthetic_v3_train.jsonl" if args.out_dir.is_dir() else args.out_dir
+        render_path = args.render_out or out_path.with_name(f"{out_path.stem}_render.jsonl")
         config = GeneratorConfig(
             count=args.count,
             seed=args.seed,
@@ -1962,9 +1967,16 @@ def main() -> int:
             exclude_prompts_path=args.exclude_prompts,
         )
         result = run_generation(config)
+        rendered = [render_for_trl(row) for row in result["rows"]]
         write_jsonl(config.output_path, result["rows"])
-        write_manifest(config.manifest_path, result["stats"])
-        print(json.dumps(result["stats"], indent=2, default=str))
+        write_jsonl(render_path, rendered)
+        stats = {
+            **result["stats"],
+            "render_path": str(render_path),
+            "render_rows": len(rendered),
+        }
+        write_manifest(config.manifest_path, stats)
+        print(json.dumps(stats, indent=2, default=str))
         return 0
 
     if not args.generator_model or not args.judge_model:

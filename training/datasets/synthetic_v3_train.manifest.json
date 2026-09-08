@@ -1,7 +1,7 @@
 {
   "accepted": 40000,
-  "achieved_stt_rate": 0.1498,
-  "attempts": 50542,
+  "achieved_stt_rate": 0.15,
+  "attempts": 57853,
   "by_capability": {
     "buttons": 668,
     "climate": 3855,
@@ -19,21 +19,20 @@
     "vacuums": 2000
   },
   "by_difficulty": {
-    "alias_distractor": 1468,
-    "ambiguity": 1876,
-    "exclusion": 769,
-    "large_home": 1287,
-    "multi_action": 824,
-    "ordinary": 30564,
-    "similar_name": 1436,
-    "unsupported": 1776
+    "alias_distractor": 1421,
+    "ambiguity": 2052,
+    "exclusion": 709,
+    "large_home": 1325,
+    "multi_action": 716,
+    "ordinary": 30289,
+    "similar_name": 1360,
+    "unsupported": 2128
   },
   "by_home_size": {
-    "8": 4242,
-    "16": 13886,
-    "32": 13316,
-    "64": 6729,
-    "128": 1827
+    "8": 4302,
+    "16": 13889,
+    "32": 13011,
+    "64": 8798
   },
   "by_operation": {
     "activate": 1000,
@@ -45,9 +44,9 @@
     "open": 771,
     "pause": 1639,
     "play": 675,
-    "query_state": 10795,
+    "query_state": 9795,
     "return_home": 500,
-    "run": 1000,
+    "run": 2000,
     "set_brightness": 1414,
     "set_color": 1413,
     "set_color_temperature": 1413,
@@ -72,8 +71,7 @@
       "8": 10,
       "16": 35,
       "32": 35,
-      "64": 15,
-      "128": 5
+      "64": 20
     },
     "near_duplicate_limit": 8,
     "ordinary_rate": 0.75,
@@ -148,8 +146,7 @@
         "(1, 'timers', 'status')": 963,
         "(2, 'scenes', 'activate')": 1000,
         "(2, 'scenes', 'query_state')": 1000,
-        "(2, 'scripts', 'query_state')": 1000,
-        "(2, 'scripts', 'run')": 1000,
+        "(2, 'scripts', 'run')": 2000,
         "(2, 'vacuums', 'clean_area')": 500,
         "(2, 'vacuums', 'query_state')": 500,
         "(2, 'vacuums', 'return_home')": 500,
@@ -219,8 +216,7 @@
         "(1, 'timers', 'status')": 963,
         "(2, 'scenes', 'activate')": 1000,
         "(2, 'scenes', 'query_state')": 1000,
-        "(2, 'scripts', 'query_state')": 1000,
-        "(2, 'scripts', 'run')": 1000,
+        "(2, 'scripts', 'run')": 2000,
         "(2, 'vacuums', 'clean_area')": 500,
         "(2, 'vacuums', 'query_state')": 500,
         "(2, 'vacuums', 'return_home')": 500,
@@ -522,13 +518,13 @@
           "blocker": null,
           "name": "run",
           "support": "supported",
-          "tool": "HassTurnOn"
+          "tool": "__script__"
         },
         {
-          "blocker": null,
+          "blocker": "GetLiveContext excludes the script domain",
           "name": "query_state",
-          "support": "supported",
-          "tool": "GetLiveContext"
+          "support": "unavailable",
+          "tool": null
         }
       ],
       "support": "supported",
@@ -641,17 +637,19 @@
       "tier": 2
     }
   },
-  "rejected": 10542,
+  "rejected": 17853,
   "rejection_reasons": {
-    "excluded_entity_called": 30,
-    "extra_argument": 398,
-    "missing_expected_target": 5391,
-    "missing_required_argument": 110,
-    "missing_utterance": 4561,
-    "recipe_lock_overlap": 52
+    "excluded_entity_called": 34,
+    "extra_argument": 391,
+    "missing_expected_target": 5373,
+    "missing_required_argument": 150,
+    "missing_utterance": 5205,
+    "quality_eval_overlap": 6700
   },
+  "render_path": "training/datasets/sayso_train_v3_40k_render.jsonl",
+  "render_rows": 40000,
   "requested": 40000,
   "requested_stt_rate": 0.15,
-  "stt_corrupted": 5992,
+  "stt_corrupted": 6000,
   "unique_semantic_ids": 40000
 }
