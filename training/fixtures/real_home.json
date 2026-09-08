@@ -1,0 +1,1339 @@
+{
+  "home_id": "real_home",
+  "size": 74,
+  "sayso_entity_area": "Rock's room",
+  "entities": [
+    {
+      "entity_id": "button.turn_on_the_lamp",
+      "name": "Turn on the lamp",
+      "aliases": [
+        "Turn on the lamp"
+      ],
+      "domain": "button",
+      "kind": "button",
+      "capability": "buttons",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "unknown",
+      "capabilities": [
+        "press"
+      ]
+    },
+    {
+      "entity_id": "button.rocky_room_cam_pan_left",
+      "name": "Rocky room cam Pan left",
+      "aliases": [
+        "Rocky room cam Pan left"
+      ],
+      "domain": "button",
+      "kind": "button",
+      "capability": "buttons",
+      "device_class": null,
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "unknown",
+      "capabilities": [
+        "press"
+      ]
+    },
+    {
+      "entity_id": "button.rocky_room_cam_pan_right",
+      "name": "Rocky room cam Pan right",
+      "aliases": [
+        "Rocky room cam Pan right"
+      ],
+      "domain": "button",
+      "kind": "button",
+      "capability": "buttons",
+      "device_class": null,
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "unknown",
+      "capabilities": [
+        "press"
+      ]
+    },
+    {
+      "entity_id": "button.rocky_room_cam_tilt_down",
+      "name": "Rocky room cam Tilt down",
+      "aliases": [
+        "Rocky room cam Tilt down"
+      ],
+      "domain": "button",
+      "kind": "button",
+      "capability": "buttons",
+      "device_class": null,
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "unknown",
+      "capabilities": [
+        "press"
+      ]
+    },
+    {
+      "entity_id": "button.rocky_room_cam_tilt_up",
+      "name": "Rocky room cam Tilt up",
+      "aliases": [
+        "Rocky room cam Tilt up"
+      ],
+      "domain": "button",
+      "kind": "button",
+      "capability": "buttons",
+      "device_class": null,
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "unknown",
+      "capabilities": [
+        "press"
+      ]
+    },
+    {
+      "entity_id": "button.thermostat_clear_hold",
+      "name": "Thermostat Clear Hold",
+      "aliases": [
+        "Thermostat Clear Hold"
+      ],
+      "domain": "button",
+      "kind": "button",
+      "capability": "buttons",
+      "device_class": null,
+      "area": "Hallway",
+      "floor": "Floor 1",
+      "state": "2026-09-08T13:43:38.413232+00:00",
+      "capabilities": [
+        "press"
+      ]
+    },
+    {
+      "entity_id": "climate.thermostat",
+      "name": "Thermostat",
+      "aliases": [
+        "Thermostat"
+      ],
+      "domain": "climate",
+      "kind": "climate",
+      "capability": "climate",
+      "device_class": null,
+      "area": "Hallway",
+      "floor": "Floor 1",
+      "state": "heat_cool",
+      "capabilities": [
+        "heat",
+        "cool",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "fan.levoit_vesync_core_300s_plus_smart_air_purifier",
+      "name": "Levoit VeSync Core 300S Plus Smart Air Purifier",
+      "aliases": [
+        "Levoit VeSync Core 300S Plus Smart Air Purifier"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "capability": "fans",
+      "device_class": null,
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    },
+    {
+      "entity_id": "light.apollo_msr_2_173d50_rgb_light",
+      "name": "Apollo MSR-2 RGB Light",
+      "aliases": [
+        "Apollo MSR-2 RGB Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "brightness",
+        "color",
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "light.kitchen_light",
+      "name": "Kitchen light",
+      "aliases": [
+        "Kitchen light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "brightness",
+        "color",
+        "color_temp",
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "light.levds_switch_92d6",
+      "name": "LEVDS-Switch-92D6",
+      "aliases": [
+        "LEVDS-Switch-92D6"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "light.nightstand",
+      "name": "Nightstand",
+      "aliases": [
+        "Nightstand"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "brightness",
+        "color",
+        "color_temp",
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "light.outdoor_lights",
+      "name": "Outdoor Lights",
+      "aliases": [
+        "Outdoor Lights"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Outside",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "brightness",
+        "color",
+        "color_temp",
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "light.porch_light",
+      "name": "Porch_Light",
+      "aliases": [
+        "Porch_Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Outside",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "brightness",
+        "color",
+        "color_temp",
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "media_player.desk_echo_dot",
+      "name": "Desk Echo Dot",
+      "aliases": [
+        "Desk Echo Dot"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "idle",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "media_player.dorm",
+      "name": "Dorm",
+      "aliases": [
+        "Dorm"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "receiver",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "idle",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "media_player.everywhere",
+      "name": "Everywhere",
+      "aliases": [
+        "Everywhere"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "idle",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "media_player.matt_s_kitchen_echo_dot",
+      "name": "Matt's Kitchen Echo Dot",
+      "aliases": [
+        "Matt's Kitchen Echo Dot"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "idle",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "media_player.party_time",
+      "name": "Party Time",
+      "aliases": [
+        "Party Time"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "idle",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "media_player.sayso_satellite_living_room_media_player",
+      "name": "sayso-satellite-living-room Media Player",
+      "aliases": [
+        "sayso-satellite-living-room Media Player"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "idle",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "scene.movie",
+      "name": "Movie",
+      "aliases": [
+        "Movie"
+      ],
+      "domain": "scene",
+      "kind": "scene",
+      "capability": "scenes",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "2026-09-08T04:35:34.240346+00:00",
+      "capabilities": [
+        "activate"
+      ]
+    },
+    {
+      "entity_id": "script.1739200486389",
+      "name": "Away Sequence",
+      "aliases": [
+        "Away Sequence"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "capability": "scripts",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    },
+    {
+      "entity_id": "script.colder",
+      "name": "Colder",
+      "aliases": [
+        "Colder"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "capability": "scripts",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    },
+    {
+      "entity_id": "script.thermo_clear_and_set",
+      "name": "Thermo clear and set (Optional Reset/Boolean/Button)",
+      "aliases": [
+        "Thermo clear and set (Optional Reset/Boolean/Button)"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "capability": "scripts",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    },
+    {
+      "entity_id": "script.vacation_mode",
+      "name": "Vacation",
+      "aliases": [
+        "Vacation"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "capability": "scripts",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    },
+    {
+      "entity_id": "script.warmer",
+      "name": "Warmer",
+      "aliases": [
+        "Warmer"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "capability": "scripts",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    },
+    {
+      "entity_id": "switch.apollo_msr_2_173d50_ld2410_bluetooth",
+      "name": "Apollo MSR-2 ld2410 Bluetooth",
+      "aliases": [
+        "Apollo MSR-2 ld2410 Bluetooth"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "switch",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.apollo_msr_2_173d50_radar_engineering_mode",
+      "name": "Apollo MSR-2 Radar Engineering Mode",
+      "aliases": [
+        "Apollo MSR-2 Radar Engineering Mode"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "switch",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.apollo_msr_2_173d50_reduce_db_reporting",
+      "name": "Apollo MSR-2 Reduce DB Reporting",
+      "aliases": [
+        "Apollo MSR-2 Reduce DB Reporting"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.apollo_msr_2_173d50_startup_light_blink",
+      "name": "Apollo MSR-2 Startup Light Blink",
+      "aliases": [
+        "Apollo MSR-2 Startup Light Blink"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.autodoctor_pre_release",
+      "name": "Autodoctor Pre-release",
+      "aliases": [
+        "Autodoctor Pre-release"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.autosnooze_pre_release",
+      "name": "AutoSnooze Pre-release",
+      "aliases": [
+        "AutoSnooze Pre-release"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.battery_state_card_entity_row_pre_release",
+      "name": "Battery State Card / Entity Row Pre-release",
+      "aliases": [
+        "Battery State Card / Entity Row Pre-release"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.bedroom_apollo_msr_2_bluetooth_proxy",
+      "name": "Apollo MSR-2 Bluetooth Proxy",
+      "aliases": [
+        "Apollo MSR-2 Bluetooth Proxy"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.bedroom_apollo_msr_2_co2_auto_calibration",
+      "name": "Apollo MSR-2 CO2 Auto Calibration",
+      "aliases": [
+        "Apollo MSR-2 CO2 Auto Calibration"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.christmas_tree",
+      "name": "Christmas tree",
+      "aliases": [
+        "Christmas tree"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.corner_lamp",
+      "name": "Corner lamp",
+      "aliases": [
+        "Corner lamp"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "switch",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.desk_echo_dot_announcements",
+      "name": "Desk Echo Dot Announcements",
+      "aliases": [
+        "Desk Echo Dot Announcements"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "unavailable",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.desk_echo_dot_communications",
+      "name": "Desk Echo Dot Communications",
+      "aliases": [
+        "Desk Echo Dot Communications"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.desk_echo_dot_do_not_disturb",
+      "name": "Desk Echo Dot Do not disturb",
+      "aliases": [
+        "Desk Echo Dot Do not disturb"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.dishwasher",
+      "name": "Dishwasher",
+      "aliases": [
+        "Dishwasher"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Kitchen",
+      "floor": "Floor 1",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.dishwasher_child_lock",
+      "name": "Dishwasher Child lock",
+      "aliases": [
+        "Dishwasher Child lock"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Kitchen",
+      "floor": "Floor 1",
+      "state": "unknown",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.dishwasher_led_enable",
+      "name": "Dishwasher Led enable",
+      "aliases": [
+        "Dishwasher Led enable"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Kitchen",
+      "floor": "Floor 1",
+      "state": "unknown",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.goneforvacation",
+      "name": "GoneforVacation",
+      "aliases": [
+        "GoneforVacation"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.humidifier_plugin",
+      "name": "Humidifier Plugin",
+      "aliases": [
+        "Humidifier Plugin"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.humidifier_plugin_child_lock",
+      "name": "Humidifier Plugin Child lock",
+      "aliases": [
+        "Humidifier Plugin Child lock"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "unknown",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.humidifier_plugin_led_enable",
+      "name": "Humidifier Plugin Led enable",
+      "aliases": [
+        "Humidifier Plugin Led enable"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "unknown",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.levds_switch_92d6",
+      "name": "LEVDS-Switch-92D6",
+      "aliases": [
+        "LEVDS-Switch-92D6"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Kitchen",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.levoit_vesync_core_300s_plus_smart_air_purifier_child_lock",
+      "name": "Levoit VeSync Core 300S Plus Smart Air Purifier Child lock",
+      "aliases": [
+        "Levoit VeSync Core 300S Plus Smart Air Purifier Child lock"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.levoit_vesync_core_300s_plus_smart_air_purifier_display",
+      "name": "Levoit VeSync Core 300S Plus Smart Air Purifier Display",
+      "aliases": [
+        "Levoit VeSync Core 300S Plus Smart Air Purifier Display"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.living_room_lights",
+      "name": "Living room lights ",
+      "aliases": [
+        "Living room lights "
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.livingroom_lampshade",
+      "name": "Living room Lampshade",
+      "aliases": [
+        "Living room Lampshade"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "switch",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.matt_s_kitchen_echo_dot_do_not_disturb",
+      "name": "Matt's Kitchen Echo Dot Do not disturb",
+      "aliases": [
+        "Matt's Kitchen Echo Dot Do not disturb"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.proxmox_plugin",
+      "name": "Proxmox_plugin",
+      "aliases": [
+        "Proxmox_plugin"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Office",
+      "floor": "Floor 1",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.proxmox_plugin_child_lock",
+      "name": "Proxmox_plugin Child lock",
+      "aliases": [
+        "Proxmox_plugin Child lock"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Office",
+      "floor": "Floor 1",
+      "state": "unknown",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.proxmox_plugin_led_enable",
+      "name": "Proxmox_plugin Led enable",
+      "aliases": [
+        "Proxmox_plugin Led enable"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Office",
+      "floor": "Floor 1",
+      "state": "unknown",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.rocky_room_cam",
+      "name": "Rocky room cam",
+      "aliases": [
+        "Rocky room cam"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.rocky_room_cam_baby_cry_detection",
+      "name": "Rocky room cam Baby cry detection",
+      "aliases": [
+        "Rocky room cam Baby cry detection"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.rocky_room_cam_led",
+      "name": "Rocky room cam LED",
+      "aliases": [
+        "Rocky room cam LED"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.rocky_room_cam_motion_detection",
+      "name": "Rocky room cam Motion detection",
+      "aliases": [
+        "Rocky room cam Motion detection"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.rocky_room_cam_person_detection",
+      "name": "Rocky room cam Person detection",
+      "aliases": [
+        "Rocky room cam Person detection"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.rocky_room_cam_tamper_detection",
+      "name": "Rocky room cam Tamper detection",
+      "aliases": [
+        "Rocky room cam Tamper detection"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.sayso_satellite_living_room_mute",
+      "name": "sayso-satellite-living-room Mute",
+      "aliases": [
+        "sayso-satellite-living-room Mute"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.sayso_satellite_living_room_thinking_sound",
+      "name": "sayso-satellite-living-room Thinking Sound",
+      "aliases": [
+        "sayso-satellite-living-room Thinking Sound"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.shelf_lamp",
+      "name": "Shelf lamp",
+      "aliases": [
+        "Shelf lamp"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.shelf_lamp_child_lock",
+      "name": "Shelf lamp Child lock",
+      "aliases": [
+        "Shelf lamp Child lock"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "unknown",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.shelf_lamp_led_enable",
+      "name": "Shelf lamp Led enable",
+      "aliases": [
+        "Shelf lamp Led enable"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "unknown",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.sidetable_lamp",
+      "name": "sidetable lamp",
+      "aliases": [
+        "sidetable lamp"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "switch",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.zigbee2mqtt_bridge_permit_join",
+      "name": "Zigbee2MQTT Bridge Permit join",
+      "aliases": [
+        "Zigbee2MQTT Bridge Permit join"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "todo.family",
+      "name": "Family",
+      "aliases": [
+        "Family"
+      ],
+      "domain": "todo",
+      "kind": "todo",
+      "capability": "todo_lists",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "0",
+      "capabilities": [
+        "add"
+      ]
+    },
+    {
+      "entity_id": "todo.grocery",
+      "name": "Grocery",
+      "aliases": [
+        "Grocery"
+      ],
+      "domain": "todo",
+      "kind": "todo",
+      "capability": "todo_lists",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "0",
+      "capabilities": [
+        "add"
+      ]
+    },
+    {
+      "entity_id": "todo.shopping_list",
+      "name": "Shopping list",
+      "aliases": [
+        "Shopping list"
+      ],
+      "domain": "todo",
+      "kind": "todo",
+      "capability": "todo_lists",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "2",
+      "capabilities": [
+        "add"
+      ]
+    },
+    {
+      "entity_id": "todo.to_do_list",
+      "name": "To-do list",
+      "aliases": [
+        "To-do list"
+      ],
+      "domain": "todo",
+      "kind": "todo",
+      "capability": "todo_lists",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "0",
+      "capabilities": [
+        "add"
+      ]
+    },
+    {
+      "entity_id": "todo.reminders",
+      "name": "Reminders",
+      "aliases": [
+        "Reminders"
+      ],
+      "domain": "todo",
+      "kind": "todo",
+      "capability": "todo_lists",
+      "device_class": null,
+      "area": "Unassigned",
+      "floor": "Main Floor",
+      "state": "2",
+      "capabilities": [
+        "add"
+      ]
+    }
+  ],
+  "active_timers": []
+}
