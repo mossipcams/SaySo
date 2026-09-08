@@ -56,7 +56,11 @@ def build_scenario(
     robustness: str = "ordinary",
     split: str = "train",
     attempt: int = 0,
+    home: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Build one scenario. `home` overrides synthetic generation and is mutated
+    (missing capabilities get an injected entity), so callers pass a fresh copy.
+    """
     # crc32, not builtin hash(): str hashing is randomized per process and would
     # make the same seed generate a different dataset on every run.
     rng = random.Random(
@@ -66,7 +70,8 @@ def build_scenario(
         ^ zlib.crc32(capability.encode())
         ^ zlib.crc32(operation.encode())
     )
-    home = generate_home(index, home_size, rng)
+    if home is None:
+        home = generate_home(index, home_size, rng)
     cap_entities = entities_of_capability(home, capability)
     if capability == "timers":
         cap_entities = []
