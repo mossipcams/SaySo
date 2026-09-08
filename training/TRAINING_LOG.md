@@ -417,7 +417,8 @@ examples answered “Done.”; and 302 calls used canonical names that also alia
 another same-domain entity. Another 280 positive ambiguity examples used
 canonical wording, and all 2,784 floor calls also specified a single area.
 
-Training was paused when the timer defect was confirmed. Its artifacts are
+Training was paused when the timer defect was confirmed, then its exact launcher
+and worker processes were cancelled before replacement. Its artifacts are
 retained for diagnosis; its optimizer and adapter must not seed a replacement.
 The corrected run starts again from `LFM2.5-230M-Base`.
 
@@ -451,3 +452,61 @@ The host bundle `/srv/training-runs/sayso-realistic-20260908` retains the raw
 outputs, diagnostic, and provenance. The isolated eval server was stopped after
 scoring; the fresh Base training run continued. No checkpoint is promoted by
 this baseline.
+
+## Run 011: v3 semantic repair, fresh Base
+
+- **Generator:** `6fdd46b`, seed `20260908`, 40,000 rows.
+- **Canonical SHA256:** `1a18bbd807bdb7b89b5c47acbe15b4af59fc05308814071ffe714bb4f3838c26`.
+- **TRL render SHA256:** `58e78c74c72928ac305f4375faa57315aee9eeda799db91afc6b42719908f04f`.
+- **Data:** `/srv/datasets/sayso_semantic_20260908/`.
+- **Bundle:** `/srv/training-runs/sayso-semantic-20260908/`.
+- **Output:** `/srv/training-runs/SaySo-LFM2.5-230M-v3-semantic-20260908`.
+- **Recipe:** fresh `/srv/models/LFM2.5-230M-Base`, two epochs, rank/alpha 32,
+  rsLoRA, FP16/SDPA, learning rate 2e-4, batch 1 / accumulation 16, assistant-only
+  loss, no packing, maximum 8,192 tokens. No Run 010 or smoke adapter is resumed.
+
+The built-in and independent full-corpus audits found zero actionable timer
+refusals, zero timer inventory absence claims, zero status queries labeled
+“Done.”, and zero called-name/alias collisions. All 138 timer refusals withhold
+the required tool. All 2,857 floor calls are floor-wide. There are 282 positive
+generic room/device requests, 2,887 multi-call rows, 428 exclusions, and 659
+actual spoken-alias requests. No normalized realistic-eval prompt or exact
+eval context overlaps the new corpus; existing locked prompts also pass the
+generator exclusion gate. The frozen 120-case eval is unchanged.
+
+The corpus contains 3,470 distinct canonical context names, 185 words in those
+names, and 24,522 distinct requests ignoring case. It deliberately repeats
+ordinary household names. STT corruption affects 5,596 rows (13.99%); call and
+no-call casing are balanced independently. This is deterministic synthetic
+coverage, not a measurement of real-user task success.
+
+Local validation: **268 tests passed** across generator, training tests, evals,
+and scripts. PR CI also passed all automated checks. The bundle retains both
+independent audit scripts, the old and rebuilt reports, source snapshot,
+configs, and launch/evaluation scripts.
+
+Base reference uses Q8_0 and `tokenizer.ggml.add_bos_token=bool:false`, matching
+the checkpoint evaluator. Each request completed without transport errors.
+
+| Suite | Raw-parser Base result |
+|---|---:|
+| Recipe-lock (38) | 3/38 |
+| V3 gold (35) | 8/35 |
+| V3 shadow (100) | 12/100 |
+| Frozen realistic (120) | 19/120 |
+
+These references supersede the duplicate-BOS serving setup for this run. The
+existing raw parser’s quote-handling limitation remains; do not interpret
+no-call accuracy as clarification quality. Both epoch checkpoints are scheduled
+for all four suites, with no automatic promotion.
+
+The full HF template/tokenizer audit matched the rendered-file hash: sequence
+lengths are 1,485 minimum, 2,454 median, and 3,675 maximum; no truncation and no
+empty assistant-loss masks. The frozen realistic eval hash remains
+`35e6be66fd42e73cad015836e09f584209e6f395846a6476338acae14758ed43`.
+
+**Started:** 2026-09-08 21:33:47 UTC, launcher PID `102630`. The 12-step GPU
+smoke on the longest row passed: finite losses, finite gradients after initial
+FP16 loss-scaler backoff, finite saved tensors, and nonzero learned LoRA B
+weights. The separate full run then loaded Base and its fresh output directory.
+Status and logs live in the bundle; epoch results remain pending.
