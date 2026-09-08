@@ -352,7 +352,7 @@ above.
 > the corrected revision above.
 **Artifact:** `/srv/training-runs/SaySo-LFM2.5-230M-v3-40k`
 
-## Run 009: v3 40k, realistic and varied entity names — in progress
+## Run 009: v3 40k, realistic and varied entity names — cancelled
 - **Base:** `/srv/models/LFM2.5-230M-Base`
 - **Data:** `sayso_v3/sayso_train_v3_40k_render.jsonl` (40,000, `a6babc7345fc097c`)
 - **Config:** unchanged from Run 008 — `sayso-lfm-v3-40k.yml`, 2 epochs, rank 32,
@@ -403,6 +403,23 @@ revisions — score it on `79c90d4c` and `32ab38ea` before reading ep1.
 > Its gold score is therefore **not** comparable to Run 006's 38/38, in either
 > scorer. The v3 gold and v3 shadow suites have never been scored against any
 > checkpoint.
+
+Run 009 was stopped and its training output deleted at the user’s request on
+2026-09-08. Its dataset and the earlier exported Run 008 models were retained.
+
+## Run 010: realistic 40k — stopped for semantic label defects
+
+The replacement corpus (`e088b3a6066f7fba`, generator `52b89a4`) began training
+from Base on 2026-09-08 in `/srv/training-runs/sayso-realistic-20260908`.
+An independent full-corpus audit subsequently found 52 timer absence claims,
+including 15 actionable refusals with the required tool offered; 79 status
+examples answered “Done.”; and 302 calls used canonical names that also aliased
+another same-domain entity. Another 280 positive ambiguity examples used
+canonical wording, and all 2,784 floor calls also specified a single area.
+
+Training was paused when the timer defect was confirmed. Its artifacts are
+retained for diagnosis; its optimizer and adapter must not seed a replacement.
+The corrected run starts again from `LFM2.5-230M-Base`.
 
 ## Additional Base baseline: realistic 120-case eval
 
