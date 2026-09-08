@@ -56,6 +56,7 @@ Never compare a structured score to a rawparse score and call it progress.
 | `sayso_v2/sayso_train_10k_plus_corrective_render.jsonl` | 12,276 | `211de92039b2401e` |
 | `sayso_v3/sayso_train_v3_40k_render.jsonl` (Run 008) | 40,000 | `17754a93ae9c397e` |
 | `sayso_v3/sayso_train_v3_40k_render.jsonl` (Run 009) | 40,000 | `a6babc7345fc097c` |
+| `sayso_quality_20260907/train_render.jsonl` (quality repair, queued) | 40,000 | `a18ebd301613aa83` |
 | `sayso_v2/sayso_quality_eval_recipe_lock.jsonl` (gold, v2 format) | 38 | `3467874f936887a9` |
 | `sayso_v2/sayso_shadow_eval.jsonl` (shadow) | 125 | `b5db74aa3028d9a6` |
 | `sayso_v2/sayso_quality_eval_recipe_lock.jsonl` (gold, v3 format) | 38 | `47d9ca1cc52d935b` |
@@ -403,3 +404,64 @@ revisions — score it on `79c90d4c` and `32ab38ea` before reading ep1.
 > Its gold score is therefore **not** comparable to Run 006's 38/38, in either
 > scorer. The v3 gold and v3 shadow suites have never been scored against any
 > checkpoint.
+
+## Prepared replacement: 40k label-quality repair
+
+- **Source:** `c98624f`, stacked on the realistic-name generator in Run 009.
+- **Base:** `/srv/models/LFM2.5-230M-Base`; fresh training, same two-epoch recipe.
+- **Data:** `sayso_quality_20260907/train_render.jsonl`, 40,000 rows,
+  sha256 `a18ebd301613aa83`, generator seed `20260907`.
+- **Output reserved:** `/srv/training-runs/SaySo-LFM2.5-230M-quality-20260907`.
+- **Host bundle:** `/srv/training-runs/sayso-quality-c0f9dac`; the directory was
+  created at the first repair commit, and `source-commit.txt` pins the final code.
+- **Status:** queued behind Run 009 at 2026-09-08 01:19 UTC, launcher PID `91647`;
+  Run 009's active processes and artifacts are preserved. Assign the next run number after its first optimizer
+  step. A queued job is not a completed smoke or a trained checkpoint.
+
+Run 008's current shadow score was reproduced at **22/100**. Changing only the
+first character to uppercase in 77 prompts moved it to **69/100**; unsupported
+cases regressed from 5/5 to 3/5. That isolates casing leakage and rules out
+capitalization as a safe serving fix. These are diagnostic results on shadow
+`32ab38ea06932344`, using the repo raw parser, not new model training results.
+
+The repair makes casing and polite wording independent of labels, grounds
+unavailable requests, preserves every multi-action/exclusion target, uses exposed
+aliases, and fixes grouped script/light/fan requests. The full audit blocked one
+STT-corrupted exclusion before export; the validator was repaired and the entire
+set regenerated. No upstream assistant labels were imported.
+
+| Audited behavior | Accepted rows |
+|---|---:|
+| Calls / no call | 37,352 / 2,648 |
+| Multiple actual calls | 3,939 |
+| Explicit exclusions | 589 |
+| Spoken aliases differing from canonical names | 886 |
+| Conversational wording | 30,039 |
+| Uppercase / lowercase first character, call | 18,666 / 18,686 |
+| Uppercase / lowercase first character, no call | 1,289 / 1,359 |
+
+Both canonical and TRL render audits pass. STT variation actually changed 13.81%
+of rows; transformations that damaged target alignment were discarded rather
+than counted as successful noise. Local validation: 241 tests passed, existing
+assertions and locked eval files unchanged.
+
+Full Base-tokenizer audit of all 40,000 rendered conversations (including tool
+schemas): 1,474 / 2,506 / 3,820 minimum/median/maximum tokens. Zero truncations or
+empty assistant masks; minimum/median supervised tokens 8/31. Every assistant
+response and called function name occurs within the loss mask. GPU smoke is
+pending until Run 009 releases the GPU.
+
+Fresh Base reference, Q8_0 on an isolated CPU llama.cpp server, `repoparse`, no
+request failures:
+
+| Checkpoint | Eval suite / revision | Result |
+|---|---|---:|
+| Base | recipe lock / `47d9ca1cc52d935b` | 4/38 |
+| Base | v3 gold / `79c90d4cd4bc9615` | 6/35 |
+| Base | v3 shadow / `32ab38ea06932344` | 10/100 |
+
+The host bundle pins copies of all three eval files. Its launcher checks the
+render hash and token audit, runs a one-step smoke on the longest sequence,
+requires a finite loss and saved adapter, and then trains. After training it
+exports and scores both epoch checkpoints on all three pinned suites using a
+separate localhost server. No checkpoint is automatically promoted.

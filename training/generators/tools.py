@@ -65,6 +65,7 @@ def offered_tools(
     *,
     count: int = DEFAULT_TOOLS_PER_ROW,
     extra_tools: list[dict[str, Any]] | None = None,
+    excluded_names: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Candidate tools for one row: every called tool, the ambient pair, then distractors.
 
@@ -76,6 +77,8 @@ def offered_tools(
     catalog = {tool["function"]["name"]: tool for tool in v2_openai_tools()}
     for tool in extra_tools or []:
         catalog[tool["function"]["name"]] = tool
+    for name in excluded_names or []:
+        catalog.pop(name, None)
     keep = {name for name in called_names if name in catalog}
     keep.update(name for name in AMBIENT_TOOLS if name in catalog)
     pool = sorted(set(catalog) - keep)
@@ -246,7 +249,10 @@ def build_area_call(
         args["device_class"] = [cap.device_class]
     tool = _operation_tool(operation, capability)
     if tool == "HassLightSet" and rng:
-        args["brightness"] = rng.randrange(20, 90)
+        settings = build_light_set({"name": "", "domain": "light"}, rng, operation)["arguments"]
+        args.update({key: value for key, value in settings.items() if key not in {"name", "domain"}})
+    if tool == "HassFanSetSpeed" and rng:
+        args["percentage"] = rng.randrange(10, 101)
     if tool == "HassClimateSetTemperature" and rng:
         args["temperature"] = rng.randint(65, 75)
     if tool == "HassSetVolume" and rng:

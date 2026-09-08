@@ -147,3 +147,16 @@ OOMs above roughly 5k tokens per row at this vocabulary size, which is why homes
 are capped at 64 entities and rows offer 8 tools rather than the full catalog.
 TRL drops over-length rows silently rather than truncating them, so a `max_length`
 below the longest row shrinks the train set without reporting it.
+## Audit a rebuilt training set
+
+The v3 manifest includes an independent `quality_audit`. Check the actual TRL
+file too before starting a run:
+
+```bash
+PYTHONPATH=training python -m generators.audit /path/to/train_render.jsonl --count 40000
+python -m pytest -q training/generators/test_data_quality.py training/tests training/evals training/scripts
+```
+
+Use a new dataset directory and training output directory for each rebuild.
+Check token lengths with the Base tokenizer and the full tools/chat template;
+then run a one-step TRL smoke before launching the two-epoch Base recipe.

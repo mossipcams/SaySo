@@ -134,10 +134,16 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         "contrastive_group": spec.get("contrastive_group"),
         "stt_corruption": spec.get("stt_corruption"),
         "paraphrase_source": spec.get("paraphrase_source"),
+        "excluded_names": spec.get("excluded_names", []),
+        "spoken_targets": spec.get("spoken_targets", {}),
+        "no_action_reason": spec["expected"].get("response"),
+        "unavailable": spec["expected"].get("unavailable"),
+        "unavailable_tools": spec["expected"].get("unavailable_tools", []),
     }
     offered = offered_tools(
         [call["name"] for call in calls],
         spec.get("semantic_id") or spec["candidate_id"],
         extra_tools=script_tools(spec["home"]),
+        excluded_names=spec["expected"].get("unavailable_tools", []),
     )
     return {"messages": messages, "tools": offered, "metadata": metadata}

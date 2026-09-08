@@ -8,6 +8,8 @@ from typing import Any
 
 from adapters.schema import tool_schema_map, validate_tool_arguments, v2_openai_tools
 from generators.tools import script_tool_name
+from generators.capability_registry import CAPABILITIES
+from generators.gold import _type_label
 
 _BANNED = re.compile(r"<tool_call>|evals/cases/|tool_call_start", re.I)
 
@@ -19,6 +21,17 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
     if expected.get("kind") == "no_action" and calls:
         return "no_action_has_calls"
     entities = {entity["name"]: entity for entity in spec.get("home", {}).get("entities", [])}
+    if expected.get("response") == "area_unavailable":
+        unavailable = expected.get("unavailable") or {}
+        area = unavailable.get("area", "").casefold()
+        domains = {cap.domain for cap in CAPABILITIES.values() if _type_label(cap.name) == unavailable.get("type")}
+        if any(e.get("area", "").casefold() == area and
+               (e.get("domain") in domains or unavailable.get("type") == "devices") for e in entities.values()):
+            return "contradictory_absence"
+    if spec.get("category") in {"multi_action", "exclusion"} and len(calls) < 2:
+        return "missing_multiple_actions"
+    if spec.get("category") == "exclusion" and not spec.get("excluded_names"):
+        return "missing_excluded_target"
     schemas = tool_schema_map(v2_openai_tools())
     excluded = set(spec.get("excluded_names") or [])
     # Per-script tools are named after the script and are not in the pinned catalog.
@@ -36,12 +49,17 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
             # Home Assistant builds these from the script's fields; ours take none.
             if arguments:
                 return "script_tool_takes_no_arguments"
+            if any(script_tool_name(e) == name and e["name"] in excluded
+                   for e in entities.values() if e.get("domain") == "script"):
+                return "excluded_entity_called"
             continue
         reason = validate_tool_arguments(name, arguments, schemas)
         if reason:
             return reason
         target = arguments.get("name")
-        if target is not None and target not in entities:
+        if target is not None and target not in entities and name not in {
+            "HassStartTimer", "HassPauseTimer", "HassTimerStatus",
+        }:
             return "unknown_canonical_entity"
         if target in excluded:
             return "excluded_entity_called"
@@ -83,7 +101,7 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
                     if not area or str(area).casefold() not in lowered:
                         return "missing_expected_target"
         for name in spec.get("excluded_names") or []:
-            if "leave" not in lowered and name.casefold() in lowered:
+            if "leave" not in lowered or name.casefold() not in lowered:
                 return "missing_exclusion"
     if expected.get("kind") == "status" and "status" not in lowered and "what" not in lowered:
         return "status_not_query"

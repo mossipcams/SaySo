@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import random
 import zlib
 from typing import Any
 
@@ -12,6 +13,26 @@ _CONVERSATIONAL = (
     "Please {action}.",
     "Can you {action} for me?",
 )
+
+
+def vary_training_utterance(text: str, rng: random.Random) -> str:
+    """Vary request style independently of the expected call/no-call decision."""
+    text = text[:1].lower() + text[1:]
+    variants = {
+        "turn on ": ("turn on ", "switch on ", "enable "),
+        "turn off ": ("turn off ", "switch off ", "disable "),
+        "run ": ("run ", "start ", "activate ", "turn on "),
+        "play ": ("play ", "resume "),
+        "what is the status of ": ("what is the status of ", "what is the current state of "),
+    }
+    for prefix, alternatives in variants.items():
+        if text.startswith(prefix):
+            text = rng.choice(alternatives) + text[len(prefix):]
+            break
+    template = rng.choice(("{action}", "please {action}", "could you {action}?", "can you {action} for me?"))
+    if template != "{action}" and text.startswith("what "):
+        text = "tell me " + text
+    return template.format(action=text)
 
 
 def request_seed_from_spec(spec: dict[str, Any]) -> str:
@@ -32,7 +53,8 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
             return f"what is the status of the {domain[0]}"
         return "what is the device status"
     phrases: list[str] = []
-    for target, call in zip(targets, expected.get("calls") or []):
+    for index, call in enumerate(expected.get("calls") or []):
+        target = targets[index] if index < len(targets) else ""
         phrases.append(_phrase_for_call(target, call))
     seed = " and ".join(phrases)
     excluded = spec.get("excluded_names") or []
@@ -54,6 +76,12 @@ def _no_action_hint(expected: dict[str, Any]) -> str:
 
 def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
     name, arguments = call["name"], call.get("arguments") or {}
+    if not target and arguments.get("area"):
+        domain = arguments.get("domain") or arguments.get("device_class") or ["device"]
+        noun = domain[0] if isinstance(domain, list) else domain
+        target = f"the {noun.replace('_', ' ')}s in {arguments['area']}"
+        if arguments.get("floor"):
+            target += f" on {arguments['floor']}"
     # Per-script tools are named after the script itself, not Hass*/Get*.
     if not name.startswith(("Hass", "Get")):
         return f"run {target}"
@@ -100,13 +128,14 @@ def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
         return f"mute {target}"
     if name == "HassStartTimer":
         minutes = arguments.get("minutes")
+        suffix = f" called {arguments['name']}" if arguments.get("name") else ""
         if minutes:
-            return f"start a {minutes} minute timer"
-        return "start a timer"
+            return f"start a {minutes} minute timer{suffix}"
+        return f"start a timer{suffix}"
     if name == "HassPauseTimer":
-        return "pause the timer"
+        return f"pause the {arguments.get('name', '')} timer".replace("  ", " ")
     if name == "HassTimerStatus":
-        return "what is the timer status"
+        return f"what is the {arguments.get('name', '')} timer status".replace("  ", " ")
     if name == "HassVacuumStart":
         return f"start {target}"
     if name == "HassVacuumReturnToBase":
@@ -153,6 +182,8 @@ def expand_utterance(spec: dict[str, Any]) -> str:
         template = _CONVERSATIONAL[index]
         return template.format(action=action)
     seed = request_seed_from_spec(spec)
+    if len(expected.get("calls") or []) > 1 or spec.get("excluded_names"):
+        return seed
     if category == "clean_direct" and expected.get("calls"):
         call = expected["calls"][0]
         target_names = spec.get("target_names") or []
