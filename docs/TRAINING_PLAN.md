@@ -86,7 +86,8 @@ Train from Base with TRL rsLoRA, not by continuing a previous merged checkpoint:
 - rank 32, alpha 32, `use_rslora: true`, `all-linear`, FP16, no BF16, no Flash Attention
 - microbatch 1, gradient accumulation 16
 - learning rate `2e-4`, cosine, assistant-only loss
-- `save_strategy: epoch`, keep every epoch checkpoint needed for comparison
+- For early-feedback runs, save every 250 optimizer steps; retain the first
+  checkpoint and both epoch checkpoints needed for comparison.
 
 Smoke on the longest rendered training row before a full run. Require finite
 losses, a finite gradient at a positive learning rate, finite adapter tensors,
@@ -117,6 +118,10 @@ dataset across processes — so never seed generator randomness with builtin
 `hash()` on a string.
 
 Train each run from Base, not by continuing a previously merged checkpoint.
+Evaluate the first 250-step checkpoint on the frozen suites while training
+continues, using the same tokenizer/serving configuration as Base. Keep both
+epoch evaluations; an early result is diagnostic and does not trigger automatic
+promotion or stopping.
 
 A run trains on one deterministic corpus. Do not blend corpora to make a set
 larger: read the gold and shadow results first, then refine the cases the run

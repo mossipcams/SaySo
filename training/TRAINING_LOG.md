@@ -510,3 +510,46 @@ smoke on the longest row passed: finite losses, finite gradients after initial
 FP16 loss-scaler backoff, finite saved tensors, and nonzero learned LoRA B
 weights. The separate full run then loaded Base and its fresh output directory.
 Status and logs live in the bundle; epoch results remain pending.
+
+## Run 012: early checkpoint feedback — restart authorized
+
+Run 011 was cancelled at the user’s request to enable earlier evaluation. Its
+logs and artifacts remain in place. The running trainer could not reload the
+epoch-only save schedule and had no saved checkpoint to resume.
+
+The replacement uses the same audited 40k corpus (`58e78c74c72928ac`), source
+`6fdd46b`, Base, and training hyperparameters. Its only training-config changes
+are a fresh output path and saving every 250 steps, retaining all 20 checkpoints
+so both epoch checkpoints remain available. A background watcher validates the
+first checkpoint’s trainer state and adapter before invoking the existing
+CPU merge/Q8 export and all four frozen eval suites. It writes a separate
+`early-eval-status` and reports under `results/step-250-*.json`; training
+continues during evaluation. The first result is expected about two hours after
+restart at the measured throughput. No automatic model promotion or early stop.
+
+- **Bundle:** `/srv/training-runs/sayso-semantic-early-20260908`.
+- **Output:** `/srv/training-runs/SaySo-LFM2.5-230M-v3-semantic-early-20260908`.
+- **Started:** 2026-09-08 22:10:46 UTC, after the fresh 12-step GPU smoke passed.
+- **Launcher PID:** `105178`.
+- **Validation:** the early watcher regression failed before implementation,
+  then passed by evaluating step 250 while no epoch checkpoint existed. Shell
+  syntax checks passed. The config diff preserves the data and training recipe.
+
+### Quick gradient-checkpointing memory benchmark
+
+Both attempts used the longest 3,675-token example, batch 1, accumulation 1,
+FP16, and the same rank-32 rsLoRA recipe. CUDA-synchronized timings exclude
+the first four steps. The normal full run still accumulates 16 microbatches;
+these per-example timings are not its optimizer-step timings.
+
+| Setting | Result | Peak total GPU memory |
+|---|---|---:|
+| Checkpointing on | 12 steps passed; median 2.581 seconds per step | 4,961 MiB |
+| Checkpointing off | CUDA OOM in the first step; requested another 826 MiB | 7,523 MiB sampled before failure |
+
+The on benchmark’s saved tensors are finite and LoRA B weights changed, proving
+an optimizer update. The inference server remained running during both trials.
+**Keep gradient checkpointing enabled:** disabling it does not fit this GPU
+workload, so the earlier estimated six-hour saving is not available with this
+configuration. The bundle retains `benchmark.py`, both configs/logs, sampled
+GPU usage, the passing adapter, and `memory-benchmark.json`.
