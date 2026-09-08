@@ -13,42 +13,39 @@ from generators.capability_registry import CAPABILITIES, registry_summary
 from generators.config import GeneratorConfig
 from generators.duplicates import DuplicateTracker
 from generators.labels import render_example, scenario_to_spec
+from generators.gold import target_names_from_expected
+from generators.homes import make_entity, _ENTITY_TEMPLATES
+from generators.tools import build_call_for_operation
 from generators.paraphrase import load_paraphraser
 from generators.sampling import QuotaTracker
 from generators.scenarios import build_scenario, pick_robustness, pick_targeting
 from generators.stats import empty_stats, finalize_stats, record_accept, record_reject
 from generators.stt_noise import apply_stt_noise
-from generators.utterances import expand_utterance, request_seed_from_spec
+from generators.utterances import expand_utterance, request_seed_from_spec, vary_training_utterance
 from generators.validate import validate_row
 
 
 def _unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
-    """Generate no-action hints that avoid recipe-lock golden utterances."""
-    home = spec.get("home", {})
-    area = home.get("sayso_entity_area", "room")
-    templates = (
-        f"set the {area} thermostat to {rng.randint(60, 75)} degrees",
-        f"start the robot vacuum in the {area}",
-        f"play jazz in the {area}",
-        f"add eggs to the {area} shopping list",
-        f"run the {area} goodnight scene",
-        f"start a {rng.randint(5, 20)} minute {area} timer",
-    )
-    return rng.choice(templates)
-
-
-def _ambiguous_hint(spec: dict[str, Any], rng: random.Random) -> str:
-    area = spec.get("home", {}).get("sayso_entity_area", "kitchen")
-    cap = spec.get("capability", "lights")
-    nouns = {
-        "lights": "light",
-        "fans": "fan",
-        "switches": "outlet",
-        "covers": "blinds",
-        "locks": "door",
-    }
-    noun = nouns.get(cap, "device")
-    return f"turn on the {area.casefold()} {noun}"
+    """Describe the actual blocked request, never an unrelated random action."""
+    requested = spec["expected"].get("requested")
+    if requested:
+        return request_seed_from_spec({
+            **spec, "expected": requested,
+            "target_names": target_names_from_expected(requested),
+        })
+    capability = spec["capability"]
+    area = spec["home"]["sayso_entity_area"]
+    entity = None
+    if capability != "timers":
+        entity = make_entity(
+            name=f"the {area} {'routine' if capability == 'scripts' else _ENTITY_TEMPLATES[capability][0].lower()}",
+            capability=capability, area=area, floor="Main Floor", rng=rng,
+        )
+    call = build_call_for_operation(entity, capability, spec["operation"], rng, area=area)
+    return request_seed_from_spec({
+        "expected": {"kind": "action", "calls": [call]},
+        "target_names": [entity["name"]] if entity else [""],
+    })
 
 
 def _load_excluded_prompts(path: Path | None) -> set[str]:
@@ -71,7 +68,9 @@ def _load_excluded_prompts(path: Path | None) -> set[str]:
 
 def _normalize_prompt(text: str) -> str:
     """Match excluded_train_prompts(): punctuation-insensitive, so "joe's" == "joe s"."""
-    return " ".join(re.findall(r"[a-z0-9]+", text.casefold()))
+    prompt = " ".join(re.findall(r"[a-z0-9]+", text.casefold()))
+    prompt = re.sub(r"^(?:(?:please|can you|could you|tell me) )+", "", prompt)
+    return re.sub(r"(?: for me)+$", "", prompt)
 
 
 @lru_cache(maxsize=1)
@@ -80,14 +79,20 @@ def _quality_eval_prompts() -> frozenset[str]:
     try:
         from evals.v3_quality import excluded_train_prompts
 
-        return frozenset(excluded_train_prompts())
+        prompts = {_normalize_prompt(prompt) for prompt in excluded_train_prompts()}
     except ImportError:
         try:
             from evals.recipe_lock import locked_specs
 
-            return frozenset(_normalize_prompt(spec["utterance"]) for spec in locked_specs())
+            prompts = {_normalize_prompt(spec["utterance"]) for spec in locked_specs()}
         except ImportError:
-            return frozenset()
+            prompts = set()
+
+    fixture = Path(__file__).resolve().parents[1] / "fixtures" / "realistic_eval_20260908_v2.json"
+    for case in json.loads(fixture.read_text(encoding="utf-8"))["cases"]:
+        prompts.update(_normalize_prompt(message["content"]) for message in case["messages"]
+                       if message["role"] == "user")
+    return frozenset(prompts)
 
 
 def _check_quality_eval_overlap(utterance: str) -> bool:
@@ -131,13 +136,19 @@ def generate_row(
     expected = spec.get("expected") or {}
     if expected.get("kind") == "no_action":
         spec["request_hint"] = _unique_no_action_hint(spec, rng)
-    elif robustness == "ambiguity":
-        spec["request_hint"] = _ambiguous_hint(spec, rng)
+    elif robustness == "ambiguity" and capability != "timers":
+        area = spec["home"]["sayso_entity_area"]
+        noun = _ENTITY_TEMPLATES[capability][0].lower()
+        spec["spoken_targets"] = {name: f"the {area} {noun}" for name in spec["target_names"]}
     spec["utterance"] = expand_utterance({**spec, "category": "clean_direct"})
     if expected.get("kind") in {"action", "status"} and spec.get("target_names"):
         primary = spec["target_names"][0]
         if primary.casefold() not in spec["utterance"].casefold():
             spec["utterance"] = request_seed_from_spec(spec)
+
+    # Check before style/noise transforms too: variants of held-out requests stay held out.
+    if _check_quality_eval_overlap(spec["utterance"]):
+        return None, "quality_eval_overlap"
 
     if (
         stt_remaining > 0
@@ -157,6 +168,12 @@ def generate_row(
             if validate_row(trial, token_budget=config.token_budget) is None:
                 spec = trial
 
+    # Apply the same casing distribution to every label, including refusals.
+    utterance = vary_training_utterance(spec["utterance"], rng)
+    spec["utterance"] = (
+        utterance.lower() if rng.random() < 0.5
+        else utterance[:1].upper() + utterance[1:]
+    )
     if spec["utterance"].casefold() in excluded:
         return None, "excluded_prompt"
     if _check_quality_eval_overlap(spec["utterance"]):
@@ -226,6 +243,14 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
         )
 
     quota.verify_complete()
+    # Balance within each label so small refusal samples cannot acquire a case shortcut by chance.
+    for has_calls in (False, True):
+        users = [next(message for message in row["messages"] if message["role"] == "user")
+                 for row in accepted if any(message.get("tool_calls") for message in row["messages"]) == has_calls]
+        rng.shuffle(users)
+        for index, user in enumerate(users):
+            text = user["content"]
+            user["content"] = text.lower() if index % 2 == 0 else text[:1].upper() + text[1:]
     report = finalize_stats(stats, semantic_ids, quota_summary=quota.summary())
     report["requested_stt_rate"] = config.stt_noise_rate
     report["achieved_stt_rate"] = round(stats["stt_corrupted"] / max(stats["accepted"], 1), 4)
@@ -233,6 +258,9 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
     report["attempts"] = attempts
     report["config"] = config.to_dict()
     report["registry"] = registry_summary()
+    from generators.audit import audit_rows
+
+    report["quality_audit"] = audit_rows(accepted, expected_count=config.count)
     return {"rows": accepted, "stats": report}
 
 

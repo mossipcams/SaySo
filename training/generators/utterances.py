@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import random
 import zlib
 from typing import Any
 
@@ -12,6 +13,46 @@ _CONVERSATIONAL = (
     "Please {action}.",
     "Can you {action} for me?",
 )
+
+
+def vary_training_utterance(text: str, rng: random.Random) -> str:
+    """Vary request style independently of the expected call/no-call decision."""
+    text = text[:1].lower() + text[1:]
+    for technical, spoken in (("climates", "thermostats"), ("switchs", "outlets"), ("covers", "blinds"), ("media players", "TVs")):
+        text = text.replace(f"the {technical} ", f"the {spoken} ")
+    # Preserve multi-action/exclusion scope; vary single-clause sentence structure.
+    if " and " not in text and ", but leave " not in text:
+        patterns = (
+            (r"turn on (.+)", ("turn on {0}", "turn {0} on", "switch {0} on", "switch on {0}")),
+            (r"turn off (.+)", ("turn off {0}", "turn {0} off", "switch {0} off", "switch off {0}")),
+            (r"set (.+) brightness to (.+) percent", ("set {0} brightness to {1} percent", "dim {0} to {1} percent", "set {0} to {1} percent brightness")),
+            (r"set (.+) color to (.+)", ("set {0} color to {1}", "make {0} {1}", "change {0} to {1}")),
+            (r"set (.+) color temperature to (.+)", ("set {0} color temperature to {1} kelvin", "set {0} to {1} kelvin")),
+            (r"set (.+) temperature to (.+) degrees", ("set {0} temperature to {1} degrees", "set {0} to {1} degrees", "adjust {0} to {1} degrees")),
+            (r"what is the status of (.+)", ("what is the status of {0}", "what's the status of {0}", "check the status of {0}", "tell me the status of {0}")),
+        )
+        for pattern, alternatives in patterns:
+            match = re.fullmatch(pattern, text)
+            if match:
+                if "brightness" in pattern and match[2].isdigit() and int(match[2]) > 50:
+                    alternatives = tuple(choice for choice in alternatives if not choice.startswith("dim "))
+                text = rng.choice(alternatives).format(*match.groups())
+                break
+    variants = {
+        "turn on ": ("turn on ", "switch on "),
+        "turn off ": ("turn off ", "switch off "),
+        "run ": ("run ", "start ", "activate "),
+        "play ": ("play ", "resume "),
+        "what is the status of ": ("what is the status of ", "what is the current state of "),
+    }
+    for prefix, alternatives in variants.items():
+        if text.startswith(prefix):
+            text = rng.choice(alternatives) + text[len(prefix):]
+            break
+    template = rng.choice(("{action}", "{action}", "{action}", "please {action}", "could you {action}?", "can you {action} for me?"))
+    if template != "{action}" and text.startswith(("what ", "what's ")):
+        text = re.sub(r"^what(?: is|'s) ", "tell me ", text)
+    return template.format(action=text)
 
 
 def request_seed_from_spec(spec: dict[str, Any]) -> str:
@@ -32,7 +73,8 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
             return f"what is the status of the {domain[0]}"
         return "what is the device status"
     phrases: list[str] = []
-    for target, call in zip(targets, expected.get("calls") or []):
+    for index, call in enumerate(expected.get("calls") or []):
+        target = targets[index] if index < len(targets) else ""
         phrases.append(_phrase_for_call(target, call))
     seed = " and ".join(phrases)
     excluded = spec.get("excluded_names") or []
@@ -54,6 +96,14 @@ def _no_action_hint(expected: dict[str, Any]) -> str:
 
 def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
     name, arguments = call["name"], call.get("arguments") or {}
+    if not target and (arguments.get("area") or arguments.get("floor")):
+        domain = arguments.get("domain") or arguments.get("device_class") or ["device"]
+        noun = domain[0] if isinstance(domain, list) else domain
+        target = f"the {noun.replace('_', ' ')}s"
+        if arguments.get("area"):
+            target += f" in {arguments['area']}"
+        if arguments.get("floor"):
+            target += f" on {arguments['floor']}"
     # Per-script tools are named after the script itself, not Hass*/Get*.
     if not name.startswith(("Hass", "Get")):
         return f"run {target}"
@@ -100,13 +150,14 @@ def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
         return f"mute {target}"
     if name == "HassStartTimer":
         minutes = arguments.get("minutes")
+        suffix = f" called {arguments['name']}" if arguments.get("name") else ""
         if minutes:
-            return f"start a {minutes} minute timer"
-        return "start a timer"
+            return f"start a {minutes} minute timer{suffix}"
+        return f"start a timer{suffix}"
     if name == "HassPauseTimer":
-        return "pause the timer"
+        return f"pause the {arguments.get('name', '')} timer".replace("  ", " ")
     if name == "HassTimerStatus":
-        return "what is the timer status"
+        return f"what is the {arguments.get('name', '')} timer status".replace("  ", " ")
     if name == "HassVacuumStart":
         return f"start {target}"
     if name == "HassVacuumReturnToBase":
@@ -153,6 +204,8 @@ def expand_utterance(spec: dict[str, Any]) -> str:
         template = _CONVERSATIONAL[index]
         return template.format(action=action)
     seed = request_seed_from_spec(spec)
+    if len(expected.get("calls") or []) > 1 or spec.get("excluded_names"):
+        return seed
     if category == "clean_direct" and expected.get("calls"):
         call = expected["calls"][0]
         target_names = spec.get("target_names") or []

@@ -88,9 +88,12 @@ Train from Base with TRL rsLoRA, not by continuing a previous merged checkpoint:
 - learning rate `2e-4`, cosine, assistant-only loss
 - `save_strategy: epoch`, keep every epoch checkpoint needed for comparison
 
-Smoke one update step on the target host before a full run. Pascal GTX 1070
-(8 GiB) may log an allocator warning and still complete; treat a finished step
-plus a reloadable adapter as the gate.
+Smoke on the longest rendered training row before a full run. Require finite
+losses, a finite gradient at a positive learning rate, finite adapter tensors,
+and nonzero LoRA B weights to demonstrate an actual optimizer update. A saved
+adapter after a skipped FP16 step is insufficient. The full run still starts
+from Base, never from the smoke adapter. Pascal GTX 1070 (8 GiB) may log an
+allocator warning and still complete.
 
 ## 4. Data and eval
 
@@ -107,7 +110,8 @@ status, ambiguity, and unsupported/no-call. Labels validate against
 `sayso-tool-schema-v2` only. Shadow uses different homes, entities, and
 phrasing. Gold, shadow, and recipe-lock prompts come from
 `excluded_train_prompts()`; the v3 generator rejects any train utterance in that
-set (`quality_eval_overlap`) instead of filtering contaminated rows out
+set (`quality_eval_overlap`), including normalized prompts from the frozen
+`training/fixtures/realistic_eval_20260908_v2.json` fixture, instead of filtering contaminated rows out
 afterwards. Generation is reproducible — the same seed yields a byte-identical
 dataset across processes — so never seed generator randomness with builtin
 `hash()` on a string.
