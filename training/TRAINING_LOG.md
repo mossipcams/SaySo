@@ -468,3 +468,60 @@ render hash and token audit, runs a one-step smoke on the longest sequence,
 requires a finite loss and saved adapter, and then trains. After training it
 exports and scores both epoch checkpoints on all three pinned suites using a
 separate localhost server. No checkpoint is automatically promoted.
+
+## Prepared replacement: realistic 40k households and voice requests
+
+This supersedes the untrained label-quality dataset above. The source removes
+random adjective/position combinations and implausible room assignments. Homes
+have consistent floors, at most 12 rooms, mostly lights and plugs, few major
+appliances, and two household owners. Fixture names can recur across homes.
+Requests vary sentence structure; generic routine requests clarify because the
+model cannot see scripts' hidden area assignments. The corpus remains synthetic,
+not a sample of recorded household speech.
+
+- **Source:** `52b89a4`; PR #32 targets `main` and includes the earlier #31 repair.
+- **Base:** `/srv/models/LFM2.5-230M-Base`, fresh two-epoch training.
+- **Data:** `/srv/datasets/sayso_realistic_20260908/train_render.jsonl`, 40,000 rows,
+  generator seed `20260908`.
+- **Full render SHA256:**
+  `e088b3a6066f7fba5ff9a1f073acf4b3b92335f0f3f1f8f895abf6b43ba8ff15`.
+- **Host bundle:** `/srv/training-runs/sayso-realistic-20260908`.
+- **Output reserved:** `/srv/training-runs/SaySo-LFM2.5-230M-realistic-20260908`.
+
+Both canonical and rendered schema audits pass. The finished corpus contains
+3,469 distinct context device names and 25,197 distinct requests, ignoring case.
+The full realism audit found zero repeated-word aliases, zero checked implausible
+placements, and zero held-out entity names in canonical names or aliases. Names
+include "Kitchen Counter Lights", "Bathroom Vanity Lights", and "Living Room
+Table Lamp". These are structural checks, not a human naturalness rating.
+
+| Audited behavior | Accepted rows |
+|---|---:|
+| Calls / no call | 37,349 / 2,651 |
+| Multiple actual calls | 2,858 |
+| Explicit exclusions | 437 |
+| Spoken aliases differing from canonical names | 664 |
+| Conversational wording | 19,749 |
+| Uppercase / lowercase first character, call | 18,707 / 18,642 |
+| Uppercase / lowercase first character, no call | 1,339 / 1,312 |
+
+STT transformations changed 13.98% of accepted rows. Local validation: **252
+tests passed**. The obsolete >70% unique-name assertion was replaced, with user
+approval, by recurring-familiar-name, variety, and dominance checks. Other safety
+assertions and locked eval files remain intact.
+
+Full Base-tokenizer audit: 1,489 / 2,453 / 3,687 minimum/median/maximum sequence
+tokens, including tool schemas. Zero truncated rows or empty assistant masks;
+minimum/median supervised tokens 8/31. Every assistant response and called
+function name is inside the loss mask. The VM render hash matches the hash above.
+
+**Status:** queued behind active Run 009 at **2026-09-08 11:45:26 UTC**, durable
+launcher PID `94784` (parent PID 1). GPU smoke and training have not started.
+Assign the next run number after the first optimizer step. Progress is recorded
+in the bundle's `status`, `smoke.log`, `train.log`, and `results/` files.
+
+The bundle preserves the same pinned eval files and Base reference results above
+(4/38 recipe, 6/35 gold, 10/100 shadow). Its launcher verifies the dataset hash,
+requires the longest-sequence GPU smoke to save an adapter with finite loss, and
+then trains from Base. Both epoch checkpoints are exported and scored on all
+three suites; no checkpoint is automatically promoted.
