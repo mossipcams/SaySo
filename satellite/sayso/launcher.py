@@ -12,6 +12,7 @@ from .playback import configure_pulse_mpv, install_playback_recovery
 from .process_audio import install_wake_audio_path
 from .wake.hook import SaySoExternalWakeHook
 from .wake.livekit import LiveKitWakeWordProvider
+from .wake.mining import HardNegativeMiner
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,11 +60,29 @@ def main() -> None:
 
     sys.argv = argv
 
+    # ponytail: getattr defaults so a config predating the mining fields still
+    # launches; mining is strictly opt-in and must never be a hard requirement.
+    mine_dir = getattr(cfg.wake_word, "mine_dir", None)
+    miner = None
+    if mine_dir is not None:
+        mine_threshold = float(getattr(cfg.wake_word, "mine_threshold", 0.1))
+        miner = HardNegativeMiner(
+            mine_dir,
+            mine_threshold=mine_threshold,
+            detect_threshold=cfg.wake_word.threshold,
+            sample_rate=cfg.audio.sample_rate,
+            model_path=cfg.wake_word.model,
+        )
+        _LOGGER.info(
+            "Wake hard-negative mining enabled: %s (score >= %.2f)", mine_dir, mine_threshold
+        )
+
     provider = LiveKitWakeWordProvider(
         model_path=cfg.wake_word.model,
         phrase=cfg.wake_word.phrase,
         threshold=cfg.wake_word.threshold,
         refractory_seconds=cfg.wake_word.refractory_seconds,
+        miner=miner,
     )
     if not provider.available:
         raise SystemExit(
