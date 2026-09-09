@@ -20,24 +20,24 @@ No existing test assertions were removed or weakened. The imported grammar JSON
 was reproduced exactly from its pinned upstream checkout.
 
 Canonical sample SHA256:
-`746caf87e28698584d10e8783b41345e17e1a7f796966eb88160b8699d9651ec`.
+`5004843f27656eb538ccd03b35988eb0169bc7cfb47421edcd1f6bb67549e0bb`.
 
 ## Audited sample
 
 | Measurement | Result |
 |---|---:|
 | Accepted rows | 2,000 |
-| Distinct requests, ignoring case | 1,874 |
-| Action/state-call rows | 1,869 |
-| No-call rows | 131 |
-| Rows using OHF grammar | 901 |
+| Distinct requests, ignoring case | 1,873 |
+| Action/state-call rows | 1,868 |
+| No-call rows | 132 |
+| Rows using OHF grammar | 898 |
 | OHF source files actually selected | 21 |
-| OHF source/block/template combinations | 60 |
-| Rows using an explicit fallback | 974 |
-| Multi-call rows | 120 |
-| Exclusion rows | 14 |
-| Actual alias rows | 24 |
-| Conversational rows | 974 |
+| OHF source/block/template combinations | 56 |
+| Rows using an explicit fallback | 976 |
+| Multi-call rows | 115 |
+| Exclusion rows | 18 |
+| Actual alias rows | 22 |
+| Conversational rows | 971 |
 
 OHF and fallback counts can overlap for multi-call requests. State questions use
 the explicit GetLiveContext renderer; negative request hints are not included in
@@ -69,12 +69,37 @@ sample, before and after this pass:
 | Degree sign in spoken text (`sixty nine °`) | 15 | 0 |
 | `create the timer` instead of `create a timer` | 7 | 0 |
 | `make X to blue` / `set X blue` value binding | 30 | 0 |
+| Verbless scene fragments (`can you my garage bright lights on for me?`) | 59 | 0 |
+| `change to scene the X` parser word order | 23 | 0 |
 
 The double space was the worst of these: it marked every article-dropped row with
 a token the model could learn instead of the phrasing. Candidates violating a
-generation rule are resampled rather than dropped, so OHF coverage rose (890 to
-901 rows, 57 to 60 templates) while the defects went to zero.
+generation rule are resampled rather than dropped, so OHF coverage held (890 to
+898 rows) while the defects went to zero.
 `test_generated_requests_are_grammatical_english` locks these in.
+
+Counts for the verbless and `to scene` rows are from a 6,000-row sample at seed
+777, where they are frequent enough to measure; the rest are from the 2,000-row
+sample above.
+
+## Known limits of this pass
+
+These are corpus-shape problems, not grammar defects, and are out of scope here:
+
+- **State questions are one frame.** `GetLiveContext` is 22.5% of rows and every
+  one of them is built from "the status of {name}" — 11 phrasings before STT
+  noise. `HassGetState` is excluded from `ohf_extract.INTENTS`, so the natural
+  forms ("is the kitchen light on", "which lights are on in the kitchen",
+  "how many lights are on upstairs") never appear. Adopting it needs a free
+  `{state}` slot that carries no `GetLiveContext` argument, which the current
+  "every slot must bind an argument" contract rejects.
+- **Media, vacuum, fan and volume calls have 4-39 frames each** and one phrasing
+  covers 23-57% of their rows; `HassVacuum*` is also excluded from extraction.
+- **Assistant replies are 34 distinct forms, 71% of them the literal "Done."**
+  Nothing in the corpus confirms *what* was done, so the response side is far
+  narrower than the request side.
+- HVAC modes are spoken raw ("the thermostat is heat"), and clarification
+  replies never name the candidates ("Which device did you mean?").
 
 The adapter rejects recognition-only fragments before conversational framing,
 protects literal names from grammar cleanup, and handles articles before

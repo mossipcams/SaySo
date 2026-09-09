@@ -157,7 +157,15 @@ def render_call(call: dict, target: str, seed="", provenance: list | None = None
             # complete imperatives so polite framing remains grammatical.
             starts = {"HassTurnOn": r"^(turn|switch|open|lock)\b",
                       "HassTurnOff": r"^(turn|switch|close|unlock)\b"}
-            if intent in starts and domain not in {"scene", "script"} and not re.search(starts[intent], text, re.I):
+            # Scenes carry their own verbs, but "[activate] {name}" and the bare
+            # "{name} on" fragment are recognition-only and leave no verb at all.
+            if intent in starts and not re.match(
+                r"^(activate|turn|switch|change|transition|bring|run|start|set)\b"
+                if domain in {"scene", "script"} else starts[intent], text, re.I
+            ):
+                continue
+            # "change to scene the kitchen lights" is parser word order, not speech.
+            if re.search(r"\bto scene\b", text, re.I):
                 continue
             if intent == "HassLightSet" and not args.get("name"):
                 if "brightness" in args and "brightness" not in text:

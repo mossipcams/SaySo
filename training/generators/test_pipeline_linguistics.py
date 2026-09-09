@@ -76,3 +76,13 @@ def test_generated_requests_are_grammatical_english():
         assert not re.search(r"\b(create|start|set) (?:the|my) timer\b", request, re.I), request
         assert not re.search(r"^make\b[^,]*? to (?:blue|red|green|warm white|cool white)\b",
                              request, re.I), request
+        assert "to scene" not in request.casefold(), request
+        # Every clause needs a verb: "my garage bright lights on" is a parser
+        # fragment, and polite framing turns it into "can you my ... on for me?".
+        core = re.sub(r"^(?:hey|okay|please|could you|can you|when you get a chance),?\s+",
+                      "", request.strip(), flags=re.I)
+        assert re.match(r"(?:turn|switch|set|change|make|open|close|lock|lok|unlock|start|stop|"
+                        r"run|activate|transition|bring|play|pause|unpause|resume|mute|dim|"
+                        r"brighten|increase|decrease|adjust|raise|lower|cancel|vacuum|clean|"
+                        r"send|create|begin|check|tell|what|how|is|are|which|do|does|could|can|"
+                        r"please|when|i)\b", core, re.I), request
