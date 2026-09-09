@@ -117,7 +117,8 @@ def apply_stt_noise(
                     break
             if not protected:
                 continue
-        return corrupted.strip(), kind
+        # A dropped word must not leave a double space the model can key on.
+        return " ".join(corrupted.split()), kind
     if force_transform and utterance:
         changed = utterance.replace(" the ", " ", 1).strip()
         return changed, "forced_article_drop" if changed != utterance else None
