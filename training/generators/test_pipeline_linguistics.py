@@ -1,6 +1,7 @@
 """Pipeline must preserve the selected grammar and spoken target."""
 
 import random
+import re
 
 from generators import pipeline
 from generators.config import GeneratorConfig
@@ -57,3 +58,21 @@ def test_pipeline_preserves_alias_grammar_and_category(monkeypatch):
     assert row is not None
     assert categories == ["alias_distractor"]
     assert spoken.casefold() in row["messages"][1]["content"].casefold()
+
+
+def test_generated_requests_are_grammatical_english():
+    result = pipeline.run_generation(GeneratorConfig(count=400, seed=20260909))
+    requests = [message["content"] for row in result["rows"]
+                for message in row["messages"] if message["role"] == "user"]
+    assert requests
+    for request in requests:
+        # A dropped article must not leave a whitespace tell for the model.
+        assert "  " not in request, request
+        assert not re.search(r"\b(switchs|climates)\b", request, re.I), request
+        assert "°" not in request and not re.search(r"\d k\b", request), request
+        # "set the brightness Kitchen Light to 40" needs its preposition.
+        assert not re.search(r"\b(temperature|brightness|color|speed|volume) "
+                             r"(?:the |my |our )?[A-Z]", request), request
+        assert not re.search(r"\b(create|start|set) (?:the|my) timer\b", request, re.I), request
+        assert not re.search(r"^make\b[^,]*? to (?:blue|red|green|warm white|cool white)\b",
+                             request, re.I), request

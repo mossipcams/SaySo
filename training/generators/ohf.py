@@ -59,6 +59,16 @@ def _sample(node, values, rules, rng, used):
     raise ValueError(f"Unsupported Hassil expression: {type(node).__name__}")
 
 
+def _article(match):
+    """Agree a/an with the following word as spoken (8, 11, 18, 80s, hour)."""
+    head = match[2].lower()
+    if head[:1].isdigit():
+        vowel = re.match(r"(?:8|11|18|8\d)(?!\d)", head) is not None
+    else:
+        vowel = head[:1] in "aeiou" or head.startswith("hour")
+    return f"{match[1]}{'n' if vowel else ''} {match[2]}"
+
+
 def _one(value):
     if isinstance(value, list):
         return value[0] if len(value) == 1 else None
@@ -161,8 +171,11 @@ def render_call(call: dict, target: str, seed="", provenance: list | None = None
             if intent in {"HassLightSet", "HassClimateSetTemperature", "HassSetVolume", "HassFanSetSpeed"}:
                 if not re.match(r"^(set|change|turn|adjust|make|dim|brighten|increase|decrease)\b", text):
                     continue
-                if any(key in args for key in ("brightness", "temperature", "volume_level", "percentage")) and " to " not in text:
-                    continue
+                if any(key in args for key in ("brightness", "temperature", "volume_level", "percentage", "color")):
+                    # "set X to blue" and "make X blue" are both grammatical;
+                    # "set X blue" and "make X to blue" are not.
+                    if (" to " in text) == bool(re.match(r"^make\b", text)):
+                        continue
                 if "brightness" in args or "percentage" in args:
                     if not re.match(r"^(set|turn)\b", text):
                         continue
@@ -179,10 +192,27 @@ def render_call(call: dict, target: str, seed="", provenance: list | None = None
                 return match[1] + ("-" if adjective else " ") + match[3] + ("" if adjective or match[1] == "1" else "s")
 
             text = re.sub(r"\b(\d+)([ -])(hour|minute|second)s?\b", duration, text)
+            # Recognition tolerates a dropped preposition ("temperature {name}");
+            # generation needs the full "temperature of {name}".
+            if re.search(r"\b(temperature|brightness|colou?r|speed|volume|level) (?:the |my |our )?SAYSOSLOT", text):
+                continue
+            # Countable timer nouns need a determiner ("create a 5-minute timer").
+            if intent == "HassStartTimer" and not re.search(r"\b(a|an)\b", text):
+                continue
             for marker, literal in literals.items():
                 if re.match(r"^(the|my|our)\b", literal, re.I) or re.search(r"['’]s\b", literal):
                     text = re.sub(r"\b(?:the|my|our) " + marker, marker, text)
+            # A name carrying its own determiner after <all> ("each and every our
+            # lamp") needs more than dropping one word, so resample instead.
+            if any(re.search(r"\b(?:the|my|our|every|each|all) " + marker, text)
+                   for marker, literal in literals.items()
+                   if re.match(r"^(the|my|our)\b", literal, re.I)):
+                continue
+            for marker, literal in literals.items():
                 text = text.replace(marker, literal)
+            text = re.sub(r"\s*°", " degrees", text)
+            text = re.sub(r"(\d) k\b", r"\1 kelvin", text)
+            text = re.sub(r"\b([Aa])n? (\S+)", _article, text)
             if provenance is not None:
                 provenance.append({"source": block["source"], "block": block["block"],
                                    "template": sentence, "revision": revision})

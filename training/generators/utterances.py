@@ -106,6 +106,15 @@ def _no_action_hint(expected: dict[str, Any]) -> str:
     return hints.get(response, "do something unsupported")
 
 
+# Domain ids are not spoken English nouns ("switchs", "climates").
+_SPOKEN_PLURALS = {"switch": "outlets", "climate": "thermostats", "cover": "blinds",
+                   "media_player": "TVs", "device_class": "devices"}
+
+
+def _plural(noun: str) -> str:
+    return _SPOKEN_PLURALS.get(noun, noun.replace("_", " ") + "s")
+
+
 def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenance=None) -> str:
     rendered = render_call(call, target, seed, provenance=provenance)
     if rendered is not None:
@@ -116,7 +125,7 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
     if not target and (arguments.get("area") or arguments.get("floor")):
         domain = arguments.get("domain") or arguments.get("device_class") or ["device"]
         noun = domain[0] if isinstance(domain, list) else domain
-        target = f"the {noun.replace('_', ' ')}s"
+        target = f"the {_plural(noun)}"
     if arguments.get("area"):
         target += f" in {arguments['area']}"
     if arguments.get("floor"):
@@ -207,8 +216,8 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
         else:
             op = "control"
         if floor:
-            return f"{op} the {domain_label}s on {floor} in {area}"
-        return f"{op} the {domain_label}s in {area}"
+            return f"{op} the {_plural(domain_label)} on {floor} in {area}"
+        return f"{op} the {_plural(domain_label)} in {area}"
     return f"control {target}"
 
 
