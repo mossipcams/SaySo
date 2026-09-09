@@ -1882,7 +1882,30 @@ def main() -> int:
     parser.add_argument("--token-budget", type=int, default=4096)
     parser.add_argument("--manifest", type=Path, default=None)
     parser.add_argument("--render-out", type=Path, default=None)
+    parser.add_argument(
+        "--real-home",
+        type=Path,
+        default=None,
+        help="v3 only: home JSON from scripts/fetch_ha_home.py to mix in",
+    )
+    parser.add_argument(
+        "--real-home-rate",
+        type=float,
+        default=0.0,
+        help="v3 only: fraction of rows generated over the real home",
+    )
+    parser.add_argument(
+        "--real-home-entity-cap",
+        type=int,
+        default=0,
+        help="Max rows one real entity may be the target of (0 derives it)",
+    )
     args = parser.parse_args()
+
+    if args.real_home_rate and not args.real_home:
+        parser.error("--real-home-rate needs --real-home")
+    if args.real_home and args.pipeline != "v3":
+        parser.error("--real-home only applies to --pipeline v3")
 
     if args.pipeline == "v3":
         from generators.config import GeneratorConfig
@@ -1899,6 +1922,9 @@ def main() -> int:
             paraphrase_enabled=args.paraphrase,
             token_budget=args.token_budget,
             exclude_prompts_path=args.exclude_prompts,
+            real_home_path=args.real_home,
+            real_home_rate=args.real_home_rate,
+            real_home_entity_cap=args.real_home_entity_cap,
         )
         result = run_generation(config)
         rendered = [render_for_trl(row) for row in result["rows"]]
