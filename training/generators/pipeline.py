@@ -140,11 +140,7 @@ def generate_row(
         area = spec["home"]["sayso_entity_area"]
         noun = _ENTITY_TEMPLATES[capability][0].lower()
         spec["spoken_targets"] = {name: f"the {area} {noun}" for name in spec["target_names"]}
-    spec["utterance"] = expand_utterance({**spec, "category": "clean_direct"})
-    if expected.get("kind") in {"action", "status"} and spec.get("target_names"):
-        primary = spec["target_names"][0]
-        if primary.casefold() not in spec["utterance"].casefold():
-            spec["utterance"] = request_seed_from_spec(spec)
+    spec["utterance"] = expand_utterance(spec)
 
     # Check before style/noise transforms too: variants of held-out requests stay held out.
     if _check_quality_eval_overlap(spec["utterance"]):

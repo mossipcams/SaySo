@@ -60,6 +60,19 @@ Do not train on:
 Synthetic generation in `training/scripts/build_synthetic_dataset.py` owns
 utterance diversity; schema validation remains authoritative for every label.
 
+Both synthetic rendering paths share `training/generators/utterances.py`.
+English phrasing uses a pinned OHF-Voice/intents subset through Hassil, with
+literal home names and aliases bound to grammar slots. The adapter must preserve
+all supplied settings, scopes and calls; unmatched combinations use an explicit
+semantic fallback. Generation filters incomplete recognition fragments before
+adding conversational framing. Numeric validation accepts digits and the number
+words emitted by the existing STT transform, and rejects missing settings.
+See `training/generators/OHF_SOURCE.md` for provenance and reproduction.
+
+Corpus review must report actual upstream grammar sources, fallback usage,
+multi-call/exclusion/alias coverage and label consistency, in addition to unique
+request counts. Never regenerate a running job's pinned input in place.
+
 ## 3. Format and trainer
 
 Keep two representations separate:
