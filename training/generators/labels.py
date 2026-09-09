@@ -141,6 +141,7 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         "no_action_reason": spec["expected"].get("response"),
         "unavailable": spec["expected"].get("unavailable"),
         "unavailable_tools": spec["expected"].get("unavailable_tools", []),
+        "linguistics": spec.get("linguistics", []),
     }
     offered = offered_tools(
         [call["name"] for call in calls],

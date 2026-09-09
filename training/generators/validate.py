@@ -10,6 +10,7 @@ from adapters.schema import tool_schema_map, validate_tool_arguments, v2_openai_
 from generators.tools import script_tool_name
 from generators.capability_registry import CAPABILITIES, SupportLevel
 from generators.gold import _type_label
+from generators.stt_noise import _int_to_words
 
 _BANNED = re.compile(r"<tool_call>|evals/cases/|tool_call_start", re.I)
 
@@ -97,6 +98,20 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
             for scope in ("area", "floor"):
                 if arguments.get(scope) and str(arguments[scope]).casefold() not in lowered:
                     return "missing_expected_scope"
+            for key, value in arguments.items():
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    continue
+                if key in {"hours", "minutes", "seconds"} and value == 0:
+                    continue
+                spellings = [str(value)]
+                if float(value).is_integer():
+                    spellings.append(str(int(value)))
+                    words = _int_to_words(int(value))
+                    if words:
+                        spellings.append(words)
+                if not any(re.search(r"(?<![\w.])" + re.escape(word) + r"(?!\w|\.\d)", lowered)
+                           for word in spellings):
+                    return "missing_expected_value"
         has_area_target = any(
             isinstance(c.get("arguments"), dict) and c["arguments"].get("area") and not c["arguments"].get("name")
             for c in calls

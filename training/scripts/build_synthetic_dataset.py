@@ -12,7 +12,6 @@ import random
 import re
 import sys
 import time
-import zlib
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -25,6 +24,7 @@ sys.path.insert(0, str(ROOT))
 from adapters.schema import tool_schema_map, v2_openai_tools, validate_tool_arguments  # noqa: E402
 from generators.context import system_prompt  # noqa: E402
 from generators.tools import offered_tools, script_tool_name, script_tools  # noqa: E402
+from generators.utterances import expand_utterance as render_utterance, request_seed_from_spec  # noqa: E402
 
 DEFAULT_TRAIN_COUNT = 10_000
 
@@ -286,14 +286,6 @@ _APOSTROPHE_NAMES = (
     "Kids' Room Light",
     "Joe's Guest Room Door Lock",
 )
-
-_CONVERSATIONAL_TEMPLATES = (
-    "Hey, when you get a chance, {action}.",
-    "Could you {action} for me?",
-    "Uh, I was wondering if you could {action}.",
-    "Before I forget, {action}.",
-)
-
 
 def _status_call(entity: dict[str, Any]) -> dict[str, Any]:
     args: dict[str, Any] = {"name": entity["name"]}
@@ -835,78 +827,13 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def request_seed(spec: dict[str, Any]) -> str:
-    """Derive a compact semantic seed from authoritative labels, never model output."""
-    expected = spec["expected"]
-    if expected["kind"] == "no_action":
-        return spec["request_hint"]
-    targets = [spec["spoken_targets"].get(name, name) for name in spec["target_names"]]
-    if expected["kind"] == "status":
-        return f"what is the status of {targets[0]}"
-    phrases: list[str] = []
-    for target, call in zip(targets, expected["calls"]):
-        name, arguments = call["name"], call["arguments"]
-        device_class = set(arguments.get("device_class") or [])
-        if name == "HassTurnOn":
-            verb = "lock" if "door" in device_class else "open" if device_class else "turn on"
-            phrases.append(f"{verb} {target}")
-        elif name == "HassTurnOff":
-            verb = "unlock" if "door" in device_class else "close" if device_class else "turn off"
-            phrases.append(f"{verb} {target}")
-        elif name == "HassLightSet":
-            if "brightness" in arguments:
-                phrases.append(f"set {target} brightness to {arguments['brightness']} percent")
-            else:
-                phrases.append(f"set {target} color to {arguments['color']}")
-        elif name == "HassFanSetSpeed":
-            phrases.append(f"set {target} speed to {arguments['percentage']} percent")
-    seed = " and ".join(phrases)
-    if spec["excluded_names"]:
-        seed += ", but leave " + " and ".join(spec["excluded_names"]) + " alone"
-    return seed
+    """Use the same semantic renderer as the generation pipeline."""
+    return request_seed_from_spec(spec)
 
 
 def expand_utterance(spec: dict[str, Any]) -> str:
-    """Render a deterministic utterance from authoritative labels (recipe-first)."""
-    category = spec["category"]
-    expected = spec["expected"]
-    if expected["kind"] == "no_action":
-        return spec["request_hint"]
-    if category == "ambiguity" and spec.get("request_hint"):
-        return spec["request_hint"]
-    targets = [spec["spoken_targets"].get(name, name) for name in spec["target_names"]]
-    if expected["kind"] == "status":
-        return f"what is the status of {targets[0]}"
-    if category == "conversational":
-        action_seed = request_seed(spec)
-        # crc32, not builtin hash(): randomized str hashing would pick a different
-        # template per process for the same spec.
-        template = _CONVERSATIONAL_TEMPLATES[
-            zlib.crc32(str(spec["candidate_id"]).encode()) % len(_CONVERSATIONAL_TEMPLATES)
-        ]
-        return template.format(action=action_seed)
-    if category == "clean_direct":
-        target, call = targets[0], expected["calls"][0]
-        device_class = set(call["arguments"].get("device_class") or [])
-        if call["name"] == "HassTurnOn":
-            if "door" in device_class:
-                return f"Lock {target}"
-            if device_class:
-                return f"Open {target}"
-            return f"Turn on {target}"
-        if call["name"] == "HassTurnOff":
-            if "garage" in device_class:
-                return f"Close {target}"
-            if "door" in device_class:
-                return f"Unlock {target}"
-            if device_class:
-                return f"Close {target}"
-            return f"Turn off {target}"
-        if call["name"] == "HassLightSet":
-            brightness = call["arguments"].get("brightness")
-            return f"Set {target} to {brightness} percent"
-        if call["name"] == "HassFanSetSpeed":
-            return f"Set {target} speed to {call['arguments']['percentage']} percent"
-    return request_seed(spec)
+    """Use the shared deterministic OHF renderer."""
+    return render_utterance(spec)
 
 
 def _protected_slots(spec: dict[str, Any]) -> list[tuple[str, str]]:
@@ -1216,7 +1143,14 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
         "HassFanSetSpeed": ("speed", "percent", "faster", "slower"),
     }
     for call in expected["calls"]:
-        if not any(cue in text for cue in action_cues.get(call["name"], ())):
+        split_verb = {"HassTurnOn": "on", "HassTurnOff": "off"}.get(call["name"])
+        separated = split_verb and re.search(r"\b(?:turn|switch)\b.+?\b" + split_verb + r"\b", text)
+        color_request = (call["name"] == "HassLightSet" and call["arguments"].get("color")
+                         and _normalized(str(call["arguments"]["color"])) in text
+                         and re.search(r"\b(?:make|change|set)\b", text))
+        percentage_request = (call["name"] in {"HassLightSet", "HassFanSetSpeed"}
+                              and "%" in utterance and re.search(r"\b(?:set|change|dim|brighten)\b", text))
+        if not separated and not color_request and not percentage_request and not any(cue in text for cue in action_cues.get(call["name"], ())):
             return "action_intent_missing"
     if spec["excluded_names"]:
         if any(_normalized(name) not in text for name in spec["excluded_names"]):

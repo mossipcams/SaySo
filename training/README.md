@@ -15,7 +15,7 @@ python -m venv training/.venv
 source training/.venv/bin/activate
 pip install -r training/requirements.txt
 pip install pyyaml   # config validation tests
-python -m pytest training/tests training/evals training/scripts -q
+python -m pytest training/tests training/evals training/scripts training/generators -q
 ```
 
 ## Active config
