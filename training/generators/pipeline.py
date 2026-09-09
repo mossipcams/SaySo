@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import random
 import re
+from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ from generators.gold import target_names_from_expected
 from generators.homes import make_entity, _ENTITY_TEMPLATES
 from generators.tools import build_call_for_operation
 from generators.paraphrase import load_paraphraser
+from generators.real_home import derive_entity_cap, load_real_home
 from generators.sampling import QuotaTracker
 from generators.scenarios import build_scenario, pick_robustness, pick_targeting
 from generators.stats import empty_stats, finalize_stats, record_accept, record_reject
@@ -110,6 +112,8 @@ def generate_row(
     attempt: int = 0,
     stt_remaining: int = 0,
     rows_remaining: int = 1,
+    real_home_targets: Counter[str] | None = None,
+    real_home_entity_cap: int = 0,
 ) -> tuple[dict[str, Any] | None, str | None]:
     capability = slot["capability"]
     operation = slot["operation"]
@@ -119,6 +123,12 @@ def generate_row(
     home_size = slot["home_size"]
     if robustness == "large_home":
         home_size = max(home_size, 64)
+
+    # ponytail: deep-copied per row because build_scenario mutates the home.
+    # Cheap next to utterance expansion; cache the split lists if it ever isn't.
+    home = None
+    if config.real_home_path and rng.random() < config.real_home_rate:
+        home = load_real_home(config.real_home_path, split="train")
 
     scenario = build_scenario(
         index=slot["index"] + attempt * 10000,
@@ -130,6 +140,7 @@ def generate_row(
         robustness=robustness,
         split=config.split,
         attempt=attempt,
+        home=home,
     )
 
     spec = scenario_to_spec(scenario)
@@ -183,12 +194,22 @@ def generate_row(
     if reject:
         return None, reject
 
+    # A rejected real-home row is retried, and the retry re-rolls the real/synthetic
+    # draw, so capping converts surplus rows for one entity into synthetic rows
+    # rather than shrinking the corpus.
+    targets = spec.get("target_names") or []
+    if home is not None and real_home_entity_cap and real_home_targets is not None:
+        if any(real_home_targets[name] >= real_home_entity_cap for name in targets):
+            return None, "real_home_entity_cap"
+
     try:
         row = render_example(spec)
     except ValueError as exc:
         return None, str(exc)
 
     dup_tracker.record(spec)
+    if home is not None and real_home_targets is not None:
+        real_home_targets.update(targets)
     return row, None
 
 
@@ -199,6 +220,14 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
 
     excluded = _load_excluded_prompts(config.exclude_prompts_path)
     dup_tracker = DuplicateTracker(near_limit=config.near_duplicate_limit)
+    real_home_targets: Counter[str] = Counter()
+    real_home_entity_cap = config.real_home_entity_cap
+    if config.real_home_path and not real_home_entity_cap:
+        real_home_entity_cap = derive_entity_cap(
+            config.count,
+            config.real_home_rate,
+            len(load_real_home(config.real_home_path, split="train")["entities"]),
+        )
     stats = empty_stats()
     accepted: list[dict[str, Any]] = []
     semantic_ids: set[str] = set()
@@ -219,6 +248,8 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
             attempt=attempts,
             stt_remaining=max(0, stt_target - stats["stt_corrupted"]),
             rows_remaining=max(1, config.count - quota.accepted_total()),
+            real_home_targets=real_home_targets,
+            real_home_entity_cap=real_home_entity_cap,
         )
         attempts += 1
         if row is None:
@@ -253,6 +284,13 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
     report["requested"] = config.count
     report["attempts"] = attempts
     report["config"] = config.to_dict()
+    if config.real_home_path:
+        report["real_home"] = {
+            "entity_cap": real_home_entity_cap,
+            "rows": sum(real_home_targets.values()),
+            "entities_used": len(real_home_targets),
+            "most_common": real_home_targets.most_common(5),
+        }
     report["registry"] = registry_summary()
     from generators.audit import audit_rows
 

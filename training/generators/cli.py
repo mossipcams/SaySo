@@ -25,6 +25,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--paraphrase", action="store_true", default=False)
     parser.add_argument("--token-budget", type=int, default=4096)
     parser.add_argument("--exclude-prompts", type=Path, default=None)
+    parser.add_argument(
+        "--real-home",
+        type=Path,
+        default=None,
+        help="Home JSON from scripts/fetch_ha_home.py to mix into generation",
+    )
+    parser.add_argument(
+        "--real-home-rate",
+        type=float,
+        default=0.0,
+        help="Fraction of rows generated over the real home (needs --real-home)",
+    )
+    parser.add_argument(
+        "--real-home-entity-cap",
+        type=int,
+        default=0,
+        help="Max rows one real entity may be the target of (0 derives it)",
+    )
     args = parser.parse_args(argv)
 
     config = GeneratorConfig(
@@ -37,7 +55,12 @@ def main(argv: list[str] | None = None) -> int:
         paraphrase_enabled=args.paraphrase,
         token_budget=args.token_budget,
         exclude_prompts_path=args.exclude_prompts,
+        real_home_path=args.real_home,
+        real_home_rate=args.real_home_rate,
+        real_home_entity_cap=args.real_home_entity_cap,
     )
+    if args.real_home_rate and not args.real_home:
+        parser.error("--real-home-rate needs --real-home")
     result = run_generation(config)
     write_jsonl(config.output_path, result["rows"])
     write_manifest(config.manifest_path, result["stats"])

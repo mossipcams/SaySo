@@ -41,6 +41,7 @@ step, then `nohup`s the real run. Update the row count when the dataset changes.
 | Generate balanced held-out test set | `python training/scripts/generate_balanced_test_data.py` |
 | Build synthetic train (legacy 10k) | `python training/scripts/build_synthetic_dataset.py --generator-model ... --judge-model ...` |
 | Split 80/10/10 | `python training/scripts/split_dataset.py INPUT.jsonl --out-dir training/datasets` |
+| Fetch the real Home Assistant home | `HA_URL=... HA_TOKEN=... python training/scripts/fetch_ha_home.py --out training/fixtures/real_home.json` |
 | Detect GPU | `python training/scripts/detect_gpu.py` |
 | Export GGUF | `python training/scripts/export_gguf.py --checkpoint PATH --dry-run` |
 | Verify llama.cpp | `python training/scripts/verify_llamacpp.py --dry-run` |
@@ -48,6 +49,44 @@ step, then `nohup`s the real run. Update the row count when the dataset changes.
 The v3 build writes the canonical JSONL and the TRL render in one pass and
 records `render_rows` in the manifest; it must equal `accepted`. Never hand-filter
 the render — dropping rows there shrinks the train set silently.
+
+## Mixing in a real home
+
+`training/scripts/fetch_ha_home.py` pulls a live Home Assistant instance into the
+same dict `generators.homes.generate_home` returns: two REST calls, `/api/states`
+for entities and `/api/template` for the area/floor map. It keeps the domains
+Assist controls, drops the diagnostic `button` flood (`--keep-entity` restores
+individual ones), and strips email addresses from names and entity ids — voice
+bridges name entities after the linked account. Possessives stay; they are the
+apostrophe failure class the recipe-lock gate tests.
+
+```bash
+python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 \
+  --real-home training/fixtures/real_home.json --real-home-rate 0.10
+```
+
+`generators.real_home` holds every fifth entity of each capability out of
+training (`split="holdout"`, a capability with one entity stays in train). Those
+names never enter the corpus, so scoring on them separates "learned this home"
+from "learned homes" — the distinction the synthetic suites cannot make.
+
+One home is 74 names, so real rows repeat a small vocabulary. Measured at 10% of
+a 10k run: 487 real target labels over 162 distinct names, the most frequent at
+1.8x its fair share. `--real-home-entity-cap` bounds how often one entity may be
+the target; 0 derives it as four times the fair share
+(`real_home.derive_entity_cap`), which is a safety net rather than an active
+constraint at these settings. A capped row is rejected and retried, and the retry
+re-rolls the real/synthetic draw, so capping redistributes rows instead of
+shrinking the corpus. The manifest records the cap, the row count, and the five
+most-targeted entities under `real_home`.
+
+The cap matters most for a capability the real home has only one of -- climate,
+fan, scene -- where every row of that capability lands on the same name. Set it
+explicitly to bind:
+
+```bash
+--real-home-entity-cap 100
+```
 
 ## Eval sets and what each is for
 
