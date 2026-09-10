@@ -7,6 +7,8 @@ import random
 import zlib
 from typing import Any
 
+from generators.ohf import render_call
+
 _CONVERSATIONAL = (
     "Hey, could you {action}.",
     "When you get a chance, {action}.",
@@ -18,6 +20,8 @@ _CONVERSATIONAL = (
 def vary_training_utterance(text: str, rng: random.Random) -> str:
     """Vary request style independently of the expected call/no-call decision."""
     text = text[:1].lower() + text[1:]
+    if re.match(r"^(how|is|are|does|do|which)\b", text):
+        return text
     for technical, spoken in (("climates", "thermostats"), ("switchs", "outlets"), ("covers", "blinds"), ("media players", "TVs")):
         text = text.replace(f"the {technical} ", f"the {spoken} ")
     # Preserve multi-action/exclusion scope; vary single-clause sentence structure.
@@ -27,7 +31,7 @@ def vary_training_utterance(text: str, rng: random.Random) -> str:
             (r"turn off (.+)", ("turn off {0}", "turn {0} off", "switch {0} off", "switch off {0}")),
             (r"set (.+) brightness to (.+) percent", ("set {0} brightness to {1} percent", "dim {0} to {1} percent", "set {0} to {1} percent brightness")),
             (r"set (.+) color to (.+)", ("set {0} color to {1}", "make {0} {1}", "change {0} to {1}")),
-            (r"set (.+) color temperature to (.+)", ("set {0} color temperature to {1} kelvin", "set {0} to {1} kelvin")),
+            (r"set (.+) color temperature to (\d+)(?: kelvin)?", ("set {0} color temperature to {1} kelvin", "set {0} to {1} kelvin")),
             (r"set (.+) temperature to (.+) degrees", ("set {0} temperature to {1} degrees", "set {0} to {1} degrees", "adjust {0} to {1} degrees")),
             (r"what is the status of (.+)", ("what is the status of {0}", "what's the status of {0}", "check the status of {0}", "tell me the status of {0}")),
         )
@@ -57,6 +61,8 @@ def vary_training_utterance(text: str, rng: random.Random) -> str:
 
 def request_seed_from_spec(spec: dict[str, Any]) -> str:
     """Derive compact semantic seed from expected behavior."""
+    provenance: list[dict[str, Any]] = []
+    spec["linguistics"] = provenance
     expected = spec.get("expected") or {}
     if expected.get("kind") == "no_action":
         return spec.get("request_hint") or _no_action_hint(expected)
@@ -65,6 +71,7 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
         for name in spec.get("target_names", [])
     ]
     if expected.get("kind") == "status":
+        provenance.append({"source": "sayso_fallback", "intent": "GetLiveContext"})
         if targets:
             return f"what is the status of {targets[0]}"
         call = (expected.get("calls") or [{}])[0]
@@ -75,7 +82,12 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
     phrases: list[str] = []
     for index, call in enumerate(expected.get("calls") or []):
         target = targets[index] if index < len(targets) else ""
-        phrases.append(_phrase_for_call(target, call))
+        canonical = (call.get("arguments") or {}).get("name")
+        if canonical in spec.get("spoken_targets", {}):
+            target = spec["spoken_targets"][canonical]
+        elif canonical in spec.get("target_names", []):
+            target = canonical
+        phrases.append(_phrase_for_call(target, call, f"{spec.get('candidate_id', '')}:{index}", provenance))
     seed = " and ".join(phrases)
     excluded = spec.get("excluded_names") or []
     if excluded:
@@ -94,16 +106,30 @@ def _no_action_hint(expected: dict[str, Any]) -> str:
     return hints.get(response, "do something unsupported")
 
 
-def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
+# Domain ids are not spoken English nouns ("switchs", "climates").
+_SPOKEN_PLURALS = {"switch": "outlets", "climate": "thermostats", "cover": "blinds",
+                   "media_player": "TVs", "device_class": "devices"}
+
+
+def _plural(noun: str) -> str:
+    return _SPOKEN_PLURALS.get(noun, noun.replace("_", " ") + "s")
+
+
+def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenance=None) -> str:
+    rendered = render_call(call, target, seed, provenance=provenance)
+    if rendered is not None:
+        return rendered
+    if provenance is not None:
+        provenance.append({"source": "sayso_fallback", "intent": call["name"]})
     name, arguments = call["name"], call.get("arguments") or {}
     if not target and (arguments.get("area") or arguments.get("floor")):
         domain = arguments.get("domain") or arguments.get("device_class") or ["device"]
         noun = domain[0] if isinstance(domain, list) else domain
-        target = f"the {noun.replace('_', ' ')}s"
-        if arguments.get("area"):
-            target += f" in {arguments['area']}"
-        if arguments.get("floor"):
-            target += f" on {arguments['floor']}"
+        target = f"the {_plural(noun)}"
+    if arguments.get("area"):
+        target += f" in {arguments['area']}"
+    if arguments.get("floor"):
+        target += f" on {arguments['floor']}"
     # Per-script tools are named after the script itself, not Hass*/Get*.
     if not name.startswith(("Hass", "Get")):
         return f"run {target}"
@@ -123,12 +149,15 @@ def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
             return f"close {target}"
         return f"turn off {target}"
     if name == "HassLightSet":
+        settings = []
         if "brightness" in arguments:
-            return f"set {target} brightness to {arguments['brightness']} percent"
+            settings.append(f"brightness to {arguments['brightness']} percent")
         if "color" in arguments:
-            return f"set {target} color to {arguments['color']}"
+            settings.append(f"color to {arguments['color']}")
         if "temperature" in arguments:
-            return f"set {target} color temperature to {arguments['temperature']}"
+            settings.append(f"color temperature to {arguments['temperature']} kelvin")
+        if settings:
+            return f"set {target} " + " and ".join(settings)
     if name == "HassFanSetSpeed":
         return f"set {target} speed to {arguments['percentage']} percent"
     if name == "HassClimateSetTemperature":
@@ -149,15 +178,18 @@ def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
     if name == "HassMediaPlayerMute":
         return f"mute {target}"
     if name == "HassStartTimer":
-        minutes = arguments.get("minutes")
+        duration = " and ".join(f"{arguments[unit]} {unit}" for unit in ("hours", "minutes", "seconds") if arguments.get(unit))
         suffix = f" called {arguments['name']}" if arguments.get("name") else ""
-        if minutes:
-            return f"start a {minutes} minute timer{suffix}"
+        suffix += "".join(f" {preposition} {arguments[key]}" for key, preposition in (("area", "in"), ("floor", "on")) if arguments.get(key))
+        if duration:
+            return f"start a timer for {duration}{suffix}"
         return f"start a timer{suffix}"
     if name == "HassPauseTimer":
-        return f"pause the {arguments.get('name', '')} timer".replace("  ", " ")
+        scope = "".join(f" {preposition} {arguments[key]}" for key, preposition in (("area", "in"), ("floor", "on")) if arguments.get(key))
+        return f"pause the {arguments.get('name', '')} timer{scope}".replace("  ", " ")
     if name == "HassTimerStatus":
-        return f"what is the {arguments.get('name', '')} timer status".replace("  ", " ")
+        scope = "".join(f" {preposition} {arguments[key]}" for key, preposition in (("area", "in"), ("floor", "on")) if arguments.get(key))
+        return f"what is the {arguments.get('name', '')} timer status{scope}".replace("  ", " ")
     if name == "HassVacuumStart":
         return f"start {target}"
     if name == "HassVacuumReturnToBase":
@@ -184,8 +216,8 @@ def _phrase_for_call(target: str, call: dict[str, Any]) -> str:
         else:
             op = "control"
         if floor:
-            return f"{op} the {domain_label}s on {floor} in {area}"
-        return f"{op} the {domain_label}s in {area}"
+            return f"{op} the {_plural(domain_label)} on {floor} in {area}"
+        return f"{op} the {_plural(domain_label)} in {area}"
     return f"control {target}"
 
 
@@ -196,6 +228,8 @@ def expand_utterance(spec: dict[str, Any]) -> str:
     if expected.get("kind") == "no_action":
         hint = spec.get("request_hint") or _no_action_hint(expected)
         return hint
+    if category == "ambiguity" and spec.get("request_hint"):
+        return spec["request_hint"]
     if category == "conversational":
         action = request_seed_from_spec(spec)
         # crc32, not builtin hash(): randomized str hashing would pick a different
@@ -204,20 +238,8 @@ def expand_utterance(spec: dict[str, Any]) -> str:
         template = _CONVERSATIONAL[index]
         return template.format(action=action)
     seed = request_seed_from_spec(spec)
-    if len(expected.get("calls") or []) > 1 or spec.get("excluded_names"):
-        return seed
-    if category == "clean_direct" and expected.get("calls"):
-        call = expected["calls"][0]
-        target_names = spec.get("target_names") or []
-        target = ""
-        if target_names:
-            target = spec.get("spoken_targets", {}).get(target_names[0], target_names[0])
-        return _direct_utterance(target, call) if target or call["name"] in {
-            "HassCancelAllTimers",
-            "HassStartTimer",
-            "HassPauseTimer",
-            "HassTimerStatus",
-        } else seed
+    if category == "clean_direct" and seed:
+        return seed[0].upper() + seed[1:]
     return seed
 
 
