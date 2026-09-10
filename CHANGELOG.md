@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.0](https://github.com/mossipcams/SaySo/compare/0.6.0...0.7.0) (2026-09-10)
+
+
+### Features
+
+* **training:** derive deterministic linguistics from OHF intents ([5ae3174](https://github.com/mossipcams/SaySo/commit/5ae3174c930cf4bc0fa77d40630b3ae805b5f84f))
+* **training:** fetch a real Home Assistant home for generation ([6370869](https://github.com/mossipcams/SaySo/commit/6370869044f05874e0933facec5758731633d3c1))
+* **training:** mix a real home into v3 generation behind a rate and a cap ([a8a6c57](https://github.com/mossipcams/SaySo/commit/a8a6c57192ef6896c0c3efdac56d94ab8178c410))
+
+
+### Bug Fixes
+
+* **satellite:** make wake inference keep up with the hop, and mine hard negatives ([2861fa6](https://github.com/mossipcams/SaySo/commit/2861fa6dae43c1eab35429a6e95bf67f9d83581d))
+* **training:** make generated requests grammatical English ([c3a50ae](https://github.com/mossipcams/SaySo/commit/c3a50ae7b2d3686549d8cdf243628ed562aefdff))
+* **training:** preserve request semantics and reject contradictory labels ([6fdd46b](https://github.com/mossipcams/SaySo/commit/6fdd46be968ed67f29cf89bcad700e6d9f01b695))
+* **training:** require a verb in every rendered scene request ([da8274c](https://github.com/mossipcams/SaySo/commit/da8274c04dbfc89183e84c36501a4f2d94b44b52))
+
+
+### Documentation
+
+* **satellite:** record the wake-word data strategy and a leaner retrain config ([e4ce8cd](https://github.com/mossipcams/SaySo/commit/e4ce8cdf05b9f35ba2c5751bf4f8362d57568436))
+* **training:** record audited semantic corpus and fresh Base run ([39ff8da](https://github.com/mossipcams/SaySo/commit/39ff8daa75328f0c5750e92975ed4abb499c2ef9))
+* **training:** record early feedback restart and memory benchmark ([1883de8](https://github.com/mossipcams/SaySo/commit/1883de8361471d144fa7c5c9b8a1425a56138006))
+
 ## [0.6.0](https://github.com/mossipcams/SaySo/compare/0.5.3...0.6.0) (2026-09-08)
 
 
