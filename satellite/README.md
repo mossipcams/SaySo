@@ -28,7 +28,7 @@ code is only under `sayso/` plus patches:
 
 Copy `models/sayso.onnx` to `/opt/sayso-satellite/models/sayso.onnx` before start.
 That classifier detects the spoken phrase **Sayso** only. See `models/README.md`
-and `models/sayso_eval.json` for the operating point (threshold 0.19).
+and `models/sayso_eval.json` for the operating point (threshold 0.5).
 
 ## Commands
 

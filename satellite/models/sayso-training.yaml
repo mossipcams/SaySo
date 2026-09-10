@@ -1,0 +1,130 @@
+# Retrain config for the SaySo wake classifier. Deliberately small.
+#
+# READ THIS BEFORE RUNNING: the satellite was scoring misaligned windows until
+# 2026-09-09. WakeAudioBuffer advanced by the caller's chunk size rounded up to
+# the hop -- 4000 samples, 25 mel frames -- instead of a fixed 160 ms, so the
+# phrase landed at an arbitrary offset in every window and ~36% of windows were
+# dropped outright. The observed ceiling of 0.57-0.72 on genuine wakes was
+# measured under that bug. Re-measure the CURRENT model on the fixed pipeline
+# before training anything: the ceiling may lift on its own, and retraining to
+# fix a symptom that no longer exists wastes a cycle and bakes in the wrong
+# operating point.
+#
+# Baseline to beat (satellite/models/sayso_eval.json):
+#   aut 0.0084 | recall 0.598 @ t=0.5 | optimal_threshold 0.19 | fpph 0.2467
+#
+# Why the numbers below are small: 126.8 hours of production telemetry put the
+# bulk of conversational audio at p50 0.0039 and p99.9 0.0311. The model is not
+# broadly confused -- 99.99% of real audio is already below 0.19. The entire
+# false-positive problem is ~116 windows out of 456,382. You cannot fix a tail
+# that thin with volume, and generic negatives do not touch it. Coverage of the
+# specific confusion is the only lever that matters.
+
+model_name: sayso
+target_phrases:
+  - "Sayso"
+
+# Below the upstream default of 10000/2000, not above it. More synthetic
+# positives of the same character do not add coverage; the corpus already
+# contained 19200 positives and still could not separate.
+n_samples: 8000
+n_samples_val: 2000
+n_background_samples: 300
+n_background_samples_val: 80
+tts_batch_size: 50
+
+# Speaker diversity is a quality axis, so this is the one place worth spending.
+# Piper diversifies by SLERP-blending a fixed speaker table, which produces many
+# samples from few underlying voices -- exactly the redundancy this config is
+# trying to avoid. VoxCPM generates from free-text persona prompts instead.
+# Fewer clips, more distinct speakers.
+tts_backend: voxcpm
+
+# The one high-value negative set: the /seI soU/ collision.
+#
+# "Sayso" overlaps "say so", an ordinary English construction. Upstream's eval
+# corpus already carries a negative_natural_say_so category, so the collision
+# was known at design time and never fed back into training.
+#
+# Generic fillers ("okay", "yeah", "hello", "no") are deliberately NOT here.
+# They are what livekit falls back to when no adversarial phrases exist, they
+# are trivially separable, and thousands of them is precisely the "large corpus,
+# poor effective coverage" failure this file exists to avoid.
+#
+# PROVENANCE WARNING: these are phonetic inference, not measurement. No audio of
+# a real false activation has ever been captured, so nobody knows what actually
+# fires this model. Hard-negative mining is now live on the satellite
+# (wake_word.mine_dir); once the spool has labelled clips, replace this list
+# with the real confusions and delete this warning.
+custom_negative_phrases:
+  - "say so"
+  - "says so"
+  - "said so"
+  - "saying so"
+  - "if you say so"
+  - "just say so"
+  - "you don't say so"
+  - "so so"
+  - "stay so"
+  - "same so"
+  - "safe so"
+  - "say slow"
+  - "say show"
+  - "say sorry"
+  - "say something"
+  - "essay so"
+  - "hey so"
+  - "they say so"
+  - "lasso"
+
+noise_scales: [0.98]
+noise_scale_ws: [0.98]
+length_scales: [0.75, 1.0, 1.25]
+slerp_weights: [0.2, 0.35, 0.5, 0.65, 0.8]
+
+data_dir: ./data
+output_dir: ./output
+
+augmentation:
+  clip_duration: 2.0
+  batch_size: 16
+  # Two passes, not one: the satellite mic is a Blue Snowball across a living
+  # room, so reverb and background robustness are real coverage, not padding.
+  rounds: 2
+  background_paths: ["./data/backgrounds"]
+  rir_paths: ["./data/rirs"]
+
+model:
+  # Unchanged from the shipped model. A p50 of 0.0039 across 126.8 hours is not
+  # what an under-capacity classifier looks like, and a bigger head would cost
+  # ~10x the inference the satellite just clawed back. Revisit only if a
+  # coverage-fixed retrain still cannot separate.
+  model_type: conv_attention
+  model_size: small
+
+# 30k phase-1 steps; the trainer adds steps//10 refinement and steps//10
+# fine-tune on top (36k total). A small corpus does not need 120k steps to
+# converge and will only overfit its own redundancy.
+steps: 30000
+learning_rate: 1.0e-4
+weight_decay: 1.0e-2
+label_smoothing: 0.05
+max_negative_weight: 3000.0
+
+# The load-bearing number. The upstream default of 0.2 is what produced the
+# mess: the model could not meet even that, so find_best_threshold() fell
+# through to its max-balanced-accuracy fallback and emitted 0.19. At 0.02 the
+# trainer must actually earn its threshold or double max_negative_weight trying.
+target_fp_per_hour: 0.02
+
+batch_n_per_class:
+  positive: 50
+  # 2x the positives. The confusable set is small and must dominate the
+  # gradient; that is the whole quality thesis of this file.
+  adversarial_negative: 100
+  # Halved from the 1024 default. This is the generic ACAV100M pool -- it
+  # anchors the false-positive-per-hour estimate but teaches almost nothing
+  # about the actual confusion, and at 1024/batch it drowns the negatives that
+  # do.
+  ACAV100M_sample: 512
+  background_noise: 50

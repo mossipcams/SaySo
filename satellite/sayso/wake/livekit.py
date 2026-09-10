@@ -16,6 +16,8 @@ import numpy as np
 
 from .buffer import WakeAudioBuffer
 from .detection import Detection
+from .mining import HardNegativeMiner
+from .streaming import CachedEmbeddingScorer, single_threaded_ort
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,15 +33,18 @@ class LiveKitWakeWordProvider:
         phrase: str,
         threshold: float = 0.65,
         refractory_seconds: float = 2.0,
+        miner: Optional[HardNegativeMiner] = None,
     ) -> None:
         self._model_path = Path(model_path)
         self._phrase = phrase
         self._threshold = float(threshold)
         self._refractory = float(refractory_seconds)
+        self._miner = miner
         self._enabled = False
         self._suspended = False
         self._available = False
         self._model = None
+        self._scorer: Optional[CachedEmbeddingScorer] = None
         self._score_key: Optional[str] = None
         self._last_fire = 0.0
         self._logged_keys = False
@@ -59,10 +64,16 @@ class LiveKitWakeWordProvider:
         try:
             from livekit.wakeword import WakeWordModel
 
-            self._model = WakeWordModel(models=[str(self._model_path)])
+            with single_threaded_ort():
+                self._model = WakeWordModel(models=[str(self._model_path)])
+            self._scorer = CachedEmbeddingScorer(self._model)
             self._score_key = self._model_path.stem
             self._available = True
-            _LOGGER.info("Loaded LiveKit wake model %s", self._model_path)
+            _LOGGER.info(
+                "Loaded LiveKit wake model %s (embedding reuse %s)",
+                self._model_path,
+                "on" if self._scorer.supported else "OFF - will not keep up with the hop",
+            )
         except Exception:
             _LOGGER.exception("Failed to load LiveKit wake model %s (fail closed)", self._model_path)
             self._model = None
@@ -87,6 +98,10 @@ class LiveKitWakeWordProvider:
 
     def reset(self) -> None:
         self._last_fire = 0.0
+        # Audio is discontinuous after a rearm; cached embeddings describe the
+        # pre-rearm stream and must not survive into the next window.
+        if self._scorer is not None:
+            self._scorer.reset()
 
     def shutdown(self) -> None:
         self.stop()
@@ -100,7 +115,7 @@ class LiveKitWakeWordProvider:
         if window.size < WINDOW_SAMPLES:
             return None
 
-        scores = self._model.predict(window)
+        scores = self._scorer.score(window) if self._scorer else self._model.predict(window)
         if not self._logged_keys:
             _LOGGER.info(
                 "Wake predict keys=%s score_key=%s thresh=%.3f",
@@ -119,15 +134,26 @@ class LiveKitWakeWordProvider:
         now = time.monotonic()
         self._max_score_window = max(self._max_score_window, score)
         if now - self._last_score_log >= 1.0:
+            computed, reused = self._scorer.stats if self._scorer else (0, 0)
             _LOGGER.info(
-                "Wake score=%.4f max=%.4f key=%s thresh=%.3f",
+                "Wake score=%.4f max=%.4f key=%s thresh=%.3f emb_computed=%d emb_reused=%d",
                 score,
                 self._max_score_window,
                 self._score_key,
                 self._threshold,
+                computed,
+                reused,
             )
             self._last_score_log = now
             self._max_score_window = 0.0
+
+        # Mine before every early return below. Near-misses that never fire sit
+        # closest to the decision boundary and are the most valuable negatives;
+        # refractory-suppressed windows are real events too. Gating this on the
+        # detect threshold would capture only what we already knew about.
+        if self._miner is not None:
+            self._miner.offer(score, window)
+
         if score < self._threshold:
             return None
         if self._last_fire and (now - self._last_fire) < self._refractory:

@@ -43,6 +43,10 @@ class WakeWordCfg:
     preroll_ms: int
     post_tts_cooldown_ms: int
     wake_skip_ms: int = 500
+    # Hard-negative mining. Off unless mine_dir is set. mine_threshold should sit
+    # well below threshold so near-misses are captured, not just fires.
+    mine_dir: Path | None = None
+    mine_threshold: float = 0.1
 
 
 @dataclass
@@ -100,6 +104,12 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
         preroll_ms=int(_req(raw, "wake_word", "preroll_ms")),
         post_tts_cooldown_ms=int(_req(raw, "wake_word", "post_tts_cooldown_ms")),
         wake_skip_ms=int(raw.get("wake_word", {}).get("wake_skip_ms", 500)),
+        mine_dir=(
+            Path(raw["wake_word"]["mine_dir"])
+            if raw.get("wake_word", {}).get("mine_dir")
+            else None
+        ),
+        mine_threshold=float(raw.get("wake_word", {}).get("mine_threshold", 0.1)),
     )
     sounds = SoundsCfg(
         wake=Path(_req(raw, "sounds", "wake")),
@@ -152,6 +162,14 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append("wake_word.refractory_seconds must be >= 0")
     if cfg.wake_word.preroll_ms < 0:
         errors.append("wake_word.preroll_ms must be >= 0")
+    if not (0.0 < cfg.wake_word.mine_threshold < 1.0):
+        errors.append("wake_word.mine_threshold must be between 0 and 1 exclusive")
+    if cfg.wake_word.mine_dir is not None and cfg.wake_word.mine_threshold >= cfg.wake_word.threshold:
+        errors.append(
+            "wake_word.mine_threshold must be below wake_word.threshold; mining at or above "
+            "the detect threshold captures only windows that already fired, not the "
+            "near-misses that make useful hard negatives"
+        )
     if not cfg.wake_word.model.is_file():
         errors.append(f"wake_word.model file missing: {cfg.wake_word.model}")
     for label, path in (
