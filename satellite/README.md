@@ -30,6 +30,53 @@ Copy `models/sayso.onnx` to `/opt/sayso-satellite/models/sayso.onnx` before star
 That classifier detects the spoken phrase **Sayso** only. See `models/README.md`
 and `models/sayso_eval.json` for the operating point (threshold 0.5).
 
+## Service
+
+The satellite runs as a **system** service under a dedicated `sayso` account,
+not as a `systemd --user` unit. A user unit needs a per-user service manager
+kept alive, which on DietPi means enabling lingering and pulling in
+systemd-logind and the D-Bus session machinery. A system service with `User=`
+avoids all of that.
+
+```bash
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin \
+    --groups audio sayso
+sudo install -m 0644 satellite/systemd/sayso-satellite.service \
+    /etc/systemd/system/sayso-satellite.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now sayso-satellite
+```
+
+`/etc/sayso-satellite/config.yaml` and `secrets.yaml` must be readable by
+`sayso`; keep `secrets.yaml` at `0640` owned by `root:sayso`.
+
+State lives in `/var/lib/sayso-satellite`, created by systemd through
+`StateDirectory=` and owned by the service user. The unit does not use `%h`:
+in a system unit that specifier resolves to root's home regardless of `User=`.
+
+### Audio without a user session
+
+A system service has no `/run/user/<uid>`, so the audio server must be reachable
+system-wide. The unit defaults to the conventional PulseAudio system-mode
+socket:
+
+```ini
+Environment=PULSE_SERVER=unix:/run/pulse/native
+```
+
+Override it without editing the unit:
+
+```bash
+echo 'PULSE_SERVER=unix:/run/pipewire-0' | sudo tee /etc/default/sayso-satellite
+```
+
+If PulseAudio runs in system mode with access control, add the service user to
+its group as well: `sudo usermod -aG pulse-access sayso`.
+
+`ExecStartPre` runs `sayso-satellite wait-audio`, which polls `pactl` until the
+configured source and sink appear, so startup fails fast and loudly when the
+audio server is not reachable.
+
 ## Commands
 
 Operational commands (also `/usr/local/bin/sayso-satellite`):
