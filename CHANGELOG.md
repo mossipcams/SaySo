@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.0](https://github.com/mossipcams/SaySo/compare/0.7.0...1.0.0) (2026-09-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **satellite:** the satellite is a system unit now. Existing installs must disable the old user unit, create the service account, and install the unit under /etc/systemd/system:
+
+### Features
+
+* **tracing:** reconstruct every voice interaction end to end ([a0a8b53](https://github.com/mossipcams/SaySo/commit/a0a8b534ee7277f123ba8997dd5495df6ab7870d))
+
+
+### Bug Fixes
+
+* **satellite:** run as a system service instead of a systemd --user unit ([0a5142b](https://github.com/mossipcams/SaySo/commit/0a5142b0fa96f78f43137fb5e04b47e35da1ebcb))
+
 ## [0.7.0](https://github.com/mossipcams/SaySo/compare/0.6.0...0.7.0) (2026-09-10)
 
 
