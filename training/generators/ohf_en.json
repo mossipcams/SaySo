@@ -1,0 +1,3046 @@
+{
+  "repository": "https://github.com/OHF-Voice/intents",
+  "revision": "c805585d4604c2819ce618f034758cda3bf92fbb",
+  "license": "CC-BY-4.0",
+  "rules": {
+    "temp": "(temp|temperature)",
+    "all": "(all [[of] (the|my|our)]|every [single]|each [and every])",
+    "everywhere": "(everywhere|all over|[(in|on|at|of|across|around|throughout)] (the|my|our) [(entire|whole)] (home|house|apartment|flat)|[(in|on|at|of|across|around|throughout)] (all [[of] (the|my|our)]|every [single]|each [and every]) (room|area|floor)[s])",
+    "here": "([in] here|[in] (this|the|my|our) (room|area|space))",
+    "home": "(home|house|apartment|flat)",
+    "in": "(in|on|at|of|across|around|throughout)",
+    "is": "(is|are) [(there|the|my|our)]",
+    "the": "(the|my|our)",
+    "what_is": "(what's|whats|what is|tell me)",
+    "how_is": "(how is|how's|hows)",
+    "where_is": "(where's|wheres|where is)",
+    "which": "(which|what) [of <the>]",
+    "are": "<is>",
+    "any": "(any|some) [of <the>]",
+    "are_any": "[<are>] <any>",
+    "are_all": "[<are>] <all>",
+    "how_many": "how many [of <the>]",
+    "lockable": "[<the>] (lock|door|window|gate|garage door|shutter)[s]",
+    "light": "(light|lights|lighting|lamp|lamps)",
+    "track": "(song|track|item)",
+    "media": "(music|movie|[tv] show[s]|media [player[s]]|<track>)",
+    "timer_set": "(start|set|create)",
+    "timer_cancel": "(cancel|stop)",
+    "timer_remove": "(remove|take)",
+    "close": "(close|shut|lower) [(up|down)]",
+    "numeric_value_set": "(set|change|turn [(up|down)]|increase|decrease|make)",
+    "open": "(open|raise|lift) [up]",
+    "set": "(set|make|change|turn)",
+    "turn": "(turn|switch|change|bring)",
+    "clean": "(vacuum|clean)"
+  },
+  "blocks": [
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/area_device_class_cover.yaml",
+      "block": 0,
+      "sentences": [
+        "<open> [<the>] {cover_classes:device_class} <in> [<the>] {area}",
+        "<open> [<the>] {area} {cover_classes:device_class}"
+      ],
+      "example": "open the curtains in the kitchen",
+      "inferred_domain": "cover",
+      "response": "cover_device_class"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/area_domain.yaml",
+      "block": 0,
+      "sentences": [
+        "(light up|illuminate) [<the>] {area}",
+        "[<the>] {area} <light> on",
+        "<light> on [in] [<the>] {area}",
+        "<turn> on [<all>] [<the>] {area} <light>",
+        "<turn> on [(<all>|<the>)] <light> <in> [<the>] {area}",
+        "<turn> [<all>] [<the>] {area} <light> on",
+        "<turn> [(<all>|<the>)] <light> <in> [<the>] {area} on",
+        "<turn> [(<all>|<the>)] <light> on <in> [<the>] {area}",
+        "activate [<all>] [<the>] {area} <light>",
+        "activate [(<all>|<the>)] <light> <in> [<the>] {area}"
+      ],
+      "example": "turn on the lights in the kitchen",
+      "inferred_domain": "light",
+      "response": "lights_area"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/area_domain.yaml",
+      "block": 1,
+      "sentences": [
+        "<turn> on [(<all>|<the>)] fan[s] <in> [<the>] {area}",
+        "<turn> on [<the>] {area} fan[s]",
+        "[<turn>] [<all>] [<the>] {area} fan[s] on",
+        "[<turn>] [(<all>|<the>)] fan[s] <in> [<the>] {area} on",
+        "activate [<all>] [<the>] {area} fan[s]",
+        "activate [(<all>|<the>)] fan[s] <in> [<the>] {area}"
+      ],
+      "example": "turn on the fans in the kitchen",
+      "inferred_domain": "fan",
+      "response": "fans_area"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/area_domain.yaml",
+      "block": 2,
+      "sentences": [
+        "turn on [the] lights in [the] {area}",
+        "turn on [the] {area} lights",
+        "[the] {area} lights on"
+      ],
+      "inferred_domain": "light",
+      "response": "lights_area",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/area_domain.yaml",
+      "block": 3,
+      "sentences": [
+        "turn on [the] fans in [the] {area}",
+        "turn on [the] {area} fans"
+      ],
+      "inferred_domain": "fan",
+      "response": "fans_area",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/device_class_cover.yaml",
+      "block": 0,
+      "sentences": [
+        "<open> [<the>] {cover_classes:device_class} [<here>]"
+      ],
+      "example": "open the curtains in here",
+      "inferred_domain": "cover",
+      "response": "cover_device_class"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/domain_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<turn> [(<all>|<the>)] <light> (on;<here>)",
+        "<turn> on [(<all>|<the>)] <light> <here>",
+        "activate [(<all>|<the>)] <light> <here>",
+        "[(<all>|<the>)] <light> on <here>",
+        "<turn> [<the>] <light> (on;[<here>])",
+        "<turn> on [<the>] <light> [<here>]",
+        "activate [<the>] <light> [<here>]",
+        "<light> on [<here>]",
+        "light (it|<here>) up",
+        "light up [<here>]"
+      ],
+      "example": "turn on the lights in here",
+      "inferred_domain": "light",
+      "response": "lights_area"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/domain_only.yaml",
+      "block": 1,
+      "sentences": [
+        "<turn> on [(<all>|<the>)] fan[s] [<here>]",
+        "<turn> [(<all>|<the>)] fan[s] (on;[<here>])",
+        "activate [(<all>|<the>)] fan[s] [<here>]",
+        "[(<all>|<the>)] fan[s] on [<here>]"
+      ],
+      "example": "turn on the fans",
+      "inferred_domain": "fan",
+      "response": "fans_area"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/domain_only.yaml",
+      "block": 2,
+      "sentences": [
+        "turn on [the] lights",
+        "turn [the] lights on",
+        "lights on"
+      ],
+      "inferred_domain": "light",
+      "response": "lights_area",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/floor_device_class_cover.yaml",
+      "block": 0,
+      "sentences": [
+        "<open> [<all>] [<the>] {cover_classes:device_class} <in> [<the>] {floor} [floor]",
+        "<open> [<all>] [<the>] {floor} [floor] {cover_classes:device_class}"
+      ],
+      "example": "open the curtains on the first floor",
+      "inferred_domain": "cover",
+      "response": "cover_device_class"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/floor_domain.yaml",
+      "block": 0,
+      "sentences": [
+        "(light up|illuminate) [<the>] {floor} [floor]",
+        "[<the>] {floor} [floor] <light> on",
+        "<turn> on [<all>] [<the>] {floor} [floor] <light>",
+        "<turn> on [<all>] [<the>] <light> <in> [<the>] {floor} [floor]",
+        "<turn> on [<all>] [<the>] <light> {floor}",
+        "<turn> [<all>] [<the>] {floor} [floor] <light> on",
+        "activate [<all>] [<the>] {floor} [floor] <light>",
+        "activate [<all>] [<the>] <light> {floor}",
+        "activate [<all>] [<the>] <light> <in> [<the>] {floor} [floor]"
+      ],
+      "example": "turn on the lights on the first floor",
+      "inferred_domain": "light",
+      "response": "lights_floor"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/floor_domain.yaml",
+      "block": 1,
+      "sentences": [
+        "turn on [the] lights on [the] {floor}",
+        "turn on [the] {floor} lights"
+      ],
+      "inferred_domain": "light",
+      "response": "lights_floor",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_area.yaml",
+      "block": 0,
+      "sentences": [
+        "<turn> on [<the>] {area} [<the>] {name}",
+        "<turn> on [<the>] {name} <in> [<the>] {area}",
+        "[<turn>] [<the>] {area} [<the>] {name} [to] on",
+        "[<turn>] [<the>] {name} <in> [<the>] {area} [to] on",
+        "activate [<the>] {area} [<the>] {name}",
+        "activate [<the>] {name} <in> [<the>] {area}"
+      ],
+      "example": "turn on the overhead light in the kitchen",
+      "name_domains": "default",
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_area.yaml",
+      "block": 1,
+      "sentences": [
+        "<turn> on [<the>] {area} [<the>] {name} <light>",
+        "<turn> on [<the>] {name} <light> <in> [<the>] {area}",
+        "[<turn>] [<the>] {area} [<the>] {name} <light> [to] on",
+        "[<turn>] [<the>] {name} <light> <in> [<the>] {area} [to] on",
+        "activate [<the>] {area} [<the>] {name} <light>",
+        "activate [<the>] {name} <light> <in> [<the>] {area}",
+        "light up [<the>] {area} [<the>] {name} <light>",
+        "light up [<the>] {name} <light> <in> [<the>] {area}"
+      ],
+      "example": "turn on the play corner lights in the kitchen",
+      "name_domains": [
+        "light"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_area.yaml",
+      "block": 2,
+      "sentences": [
+        "<open> [<the>] {name} <in> [<the>] {area}"
+      ],
+      "example": "open the curtain left in the living room",
+      "name_domains": [
+        "cover"
+      ],
+      "response": "cover"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_area.yaml",
+      "block": 3,
+      "sentences": [
+        "<open> [<the>] {name} <in> [<the>] {area}"
+      ],
+      "example": "open the main valve in the kitchen",
+      "name_domains": [
+        "valve"
+      ],
+      "response": "valve"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_area.yaml",
+      "block": 4,
+      "sentences": [
+        "lock [<the>] {name} <in> [<the>] {area}"
+      ],
+      "example": "lock the front door in the kitchen",
+      "name_domains": [
+        "lock"
+      ],
+      "response": "lock"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_area.yaml",
+      "block": 5,
+      "sentences": [
+        "turn on [the] {name} in [the] {area}",
+        "switch on [the] {name} in [the] {area}"
+      ],
+      "name_domains": [
+        "light",
+        "switch",
+        "fan",
+        "media_player",
+        "input_boolean"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_floor.yaml",
+      "block": 0,
+      "sentences": [
+        "<turn> on [<the>] {name} <in> [<the>] {floor} [floor]",
+        "[<turn>] [<the>] {name} <in> [<the>] {floor} [floor] [to] on",
+        "activate [<the>] {name} <in> [<the>] {floor} [floor]"
+      ],
+      "example": "turn on the overhead light on the first floor",
+      "name_domains": "default",
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_floor.yaml",
+      "block": 1,
+      "sentences": [
+        "<turn> on [<the>] {name} <light> <in> [<the>] {floor} [floor]",
+        "[<turn>] [<the>] {name} <light> <in> [<the>] {floor} [floor] [to] on",
+        "activate [<the>] {name} <light> <in> [<the>] {floor} [floor]",
+        "light up [<the>] {name} <light> <in> [<the>] {floor} [floor]"
+      ],
+      "example": "turn on the play corner lights on the first floor",
+      "name_domains": [
+        "light"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_floor.yaml",
+      "block": 2,
+      "sentences": [
+        "<open> [<the>] {name} <in> [<the>] {floor} [floor]"
+      ],
+      "example": "open the sliding door on the first floor",
+      "name_domains": [
+        "cover"
+      ],
+      "response": "cover"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_floor.yaml",
+      "block": 3,
+      "sentences": [
+        "<open> [<the>] {name} <in> [<the>] {floor} [floor]"
+      ],
+      "example": "open the main valve on the first floor",
+      "name_domains": [
+        "valve"
+      ],
+      "response": "valve"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<turn> on [<the>] {name}",
+        "[<turn>] [<the>] {name} [to] on",
+        "activate [<the>] {name}",
+        "[<the>] {name}"
+      ],
+      "example": "turn on the overhead light",
+      "name_domains": "default",
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_only.yaml",
+      "block": 1,
+      "sentences": [
+        "<turn> on [<the>] {name} <light>",
+        "[<turn>] [<the>] {name} <light> [to] on",
+        "activate [<the>] {name} <light>",
+        "light up [<the>] {name} <light>"
+      ],
+      "example": "turn on the play corner lights",
+      "name_domains": [
+        "light"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_only.yaml",
+      "block": 2,
+      "sentences": [
+        "<open> [<the>] {name}"
+      ],
+      "example": "open the sliding door",
+      "name_domains": [
+        "cover"
+      ],
+      "response": "cover"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_only.yaml",
+      "block": 3,
+      "sentences": [
+        "<open> [<the>] {name}"
+      ],
+      "example": "open the main valve",
+      "name_domains": [
+        "valve"
+      ],
+      "response": "valve"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_only.yaml",
+      "block": 4,
+      "sentences": [
+        "lock [<the>] {name}"
+      ],
+      "example": "lock the front door",
+      "name_domains": [
+        "lock"
+      ],
+      "response": "lock"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_only.yaml",
+      "block": 5,
+      "sentences": [
+        "turn on [the] {name}",
+        "switch on [the] {name}",
+        "activate [the] {name}",
+        "[the] {name} on"
+      ],
+      "name_domains": [
+        "light",
+        "switch",
+        "fan",
+        "media_player",
+        "input_boolean"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_only.yaml",
+      "block": 6,
+      "sentences": [
+        "open [the] {name}"
+      ],
+      "name_domains": [
+        "cover"
+      ],
+      "response": "cover",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_only.yaml",
+      "block": 7,
+      "sentences": [
+        "lock [the] {name}"
+      ],
+      "name_domains": [
+        "lock"
+      ],
+      "response": "lock",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_scene.yaml",
+      "block": 0,
+      "sentences": [
+        "[activate] [<the>] {name} [scene]",
+        "[<the>] {name} on",
+        "<turn> ([<the>] {name} [scene];on)",
+        "(change|transition) to [<the>] {name} [scene]",
+        "(change|transition) to scene [<the>] {name}"
+      ],
+      "example": "activate party mode",
+      "name_domains": [
+        "scene"
+      ],
+      "response": "scene"
+    },
+    {
+      "intent": "HassTurnOn",
+      "source": "sentences/en/HassTurnOn/name_script.yaml",
+      "block": 0,
+      "sentences": [
+        "[(activate|run|start|<turn>)] [<the>] {name} [script] [on]"
+      ],
+      "example": "run the stealth mode script",
+      "name_domains": [
+        "script"
+      ],
+      "response": "script"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/area_device_class_cover.yaml",
+      "block": 0,
+      "sentences": [
+        "<close> [<the>] {cover_classes:device_class} <in> [<the>] {area}",
+        "<close> [<the>] {area} {cover_classes:device_class}"
+      ],
+      "example": "close the curtains in the bedroom",
+      "inferred_domain": "cover",
+      "response": "cover_device_class"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/area_domain.yaml",
+      "block": 0,
+      "sentences": [
+        "[<the>] {area} <light> (off|out)",
+        "<light> (off|out) [<in>] [<the>] {area}",
+        "<turn> (off|out) [<all>] [<the>] {area} <light>",
+        "<turn> (off|out) [(<all>|<the>)] <light> <in> [<the>] {area}",
+        "<turn> [<all>] [<the>] {area} <light> (off|out)",
+        "<turn> [(<all>|<the>)] <light> <in> [<the>] {area} (off|out)",
+        "<turn> [(<all>|<the>)] <light> (off|out) <in> [<the>] {area}",
+        "deactivate [<all>] [<the>] {area} <light>",
+        "deactivate [(<all>|<the>)] <light> <in> [<the>] {area}"
+      ],
+      "example": "turn off the lights in the kitchen",
+      "inferred_domain": "light",
+      "response": "lights_area"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/area_domain.yaml",
+      "block": 1,
+      "sentences": [
+        "<turn> off [(<all>|<the>)] fan[s] <in> [<the>] {area}",
+        "<turn> off [<the>] {area} fan[s]",
+        "[<turn>] [<all>] [<the>] {area} fan[s] off",
+        "[<turn>] [(<all>|<the>)] fan[s] <in> [<the>] {area} off",
+        "deactivate [<all>] [<the>] {area} fan[s]",
+        "deactivate [(<all>|<the>)] fan[s] <in> [<the>] {area}"
+      ],
+      "example": "turn off the fans in the kitchen",
+      "inferred_domain": "fan",
+      "response": "fans_area"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/area_domain.yaml",
+      "block": 2,
+      "sentences": [
+        "turn off [the] lights in [the] {area}",
+        "turn off [the] {area} lights",
+        "[the] {area} lights off"
+      ],
+      "inferred_domain": "light",
+      "response": "lights_area",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/area_domain.yaml",
+      "block": 3,
+      "sentences": [
+        "turn off [the] fans in [the] {area}",
+        "turn off [the] {area} fans"
+      ],
+      "inferred_domain": "fan",
+      "response": "fans_area",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/device_class_cover.yaml",
+      "block": 0,
+      "sentences": [
+        "<close> [<the>] {cover_classes:device_class} [<here>]"
+      ],
+      "example": "close the curtains in here",
+      "inferred_domain": "cover",
+      "response": "cover_device_class"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/domain_all.yaml",
+      "block": 0,
+      "sentences": [
+        "<turn> <all> <light> (off|out) [<everywhere>]",
+        "<turn> [<the>] <light> (off|out) <everywhere>",
+        "<turn> (off|out) <all> <light> [<everywhere>]",
+        "<turn> (off|out) [<the>] <light> <everywhere>",
+        "<turn> (off|out) [<all>] [<the>] <home> <light> <everywhere>",
+        "deactivate <all> <light> [<everywhere>]",
+        "deactivate [<the>] <light> <everywhere>",
+        "get every <light> (off|out) [<everywhere>]",
+        "make sure <all> <light> <is> (off|out)"
+      ],
+      "example": "turn off all the lights in the house",
+      "inferred_domain": "light",
+      "response": "light_all"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/domain_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<turn> [(<all>|<the>)] <light> ((off|out);<here>)",
+        "<turn> (off|out) [(<all>|<the>)] <light> <here>",
+        "deactivate [(<all>|<the>)] <light> <here>",
+        "[<all>] [<the>] <light> (off|out) <here>",
+        "<turn> [<the>] <light> ((off|out);[<here>])",
+        "<turn> (off|out) [<the>] <light> [<here>]",
+        "deactivate [<the>] <light> [<here>]",
+        "<light> (off|out) [<here>]"
+      ],
+      "example": "turn off the lights in here",
+      "inferred_domain": "light",
+      "response": "lights_area"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/domain_only.yaml",
+      "block": 1,
+      "sentences": [
+        "<turn> off [(<all>|<the>)] fan[s] [<here>]",
+        "<turn> [(<all>|<the>)] fan[s] (off;[<here>])",
+        "deactivate [(<all>|<the>)] fan[s] [<here>]",
+        "[(<all>|<the>)] fan[s] off [<here>]"
+      ],
+      "example": "turn off the fans",
+      "inferred_domain": "fan",
+      "response": "fans_area"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/domain_only.yaml",
+      "block": 2,
+      "sentences": [
+        "turn off [the] lights",
+        "turn [the] lights off",
+        "lights off"
+      ],
+      "inferred_domain": "light",
+      "response": "lights_area",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/floor_device_class_cover.yaml",
+      "block": 0,
+      "sentences": [
+        "<close> [<all>] [<the>] {cover_classes:device_class} <in> [<the>] {floor} [floor]",
+        "<close> [<all>] [<the>] {floor} [floor] {cover_classes:device_class}"
+      ],
+      "example": "close the curtains on the first floor",
+      "inferred_domain": "cover",
+      "response": "cover_device_class"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/floor_domain.yaml",
+      "block": 0,
+      "sentences": [
+        "[<the>] {floor} [floor] <light> (off|out)",
+        "<light> (off|out) <in> [<the>] {floor} [floor]",
+        "<turn> (off|out) [<all>] [<the>] {floor} [floor] <light>",
+        "<turn> (off|out) [<all>] [<the>] <light> <in> [<the>] {floor} [floor]",
+        "<turn> [<all>] [<the>] {floor} [floor] <light> (off|out)",
+        "<turn> (off|out) [<all>] [<the>] <light> {floor}",
+        "deactivate [<all>] [<the>] {floor} [floor] <light>",
+        "deactivate [<all>] [<the>] <light> {floor}",
+        "deactivate [<all>] [<the>] <light> <in> [<the>] {floor} [floor]"
+      ],
+      "example": "turn off the lights on the first floor",
+      "inferred_domain": "light",
+      "response": "lights_floor"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/floor_domain.yaml",
+      "block": 1,
+      "sentences": [
+        "turn off [the] lights on [the] {floor}",
+        "turn off [the] {floor} lights"
+      ],
+      "inferred_domain": "light",
+      "response": "lights_floor",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_area.yaml",
+      "block": 0,
+      "sentences": [
+        "<turn> off [<the>] {area} [<the>] {name}",
+        "<turn> off [<the>] {name} <in> [<the>] {area}",
+        "[<turn>] [<the>] {area} [<the>] {name} [to] off",
+        "[<turn>] [<the>] {name} <in> [<the>] {area} [to] off",
+        "deactivate [<the>] {area} [<the>] {name}",
+        "deactivate [<the>] {name} <in> [<the>] {area}"
+      ],
+      "example": "turn off the overhead light in the kitchen",
+      "name_domains": "default",
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_area.yaml",
+      "block": 1,
+      "sentences": [
+        "<turn> off [<the>] {area} [<the>] {name} <light>",
+        "<turn> off [<the>] {name} <light> <in> [<the>] {area}",
+        "[<turn>] [<the>] {area} [<the>] {name} <light> [to] off",
+        "[<turn>] [<the>] {name} <light> <in> [<the>] {area} [to] off",
+        "deactivate [<the>] {area} [<the>] {name} <light>",
+        "deactivate [<the>] {name} <light> <in> [<the>] {area}"
+      ],
+      "example": "turn off the play corner lights in the kitchen",
+      "name_domains": [
+        "light"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_area.yaml",
+      "block": 2,
+      "sentences": [
+        "<close> [<the>] {name} <in> [<the>] {area}"
+      ],
+      "example": "close the curtain left in the living room",
+      "name_domains": [
+        "cover"
+      ],
+      "response": "cover"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_area.yaml",
+      "block": 3,
+      "sentences": [
+        "<close> [<the>] {name} <in> [<the>] {area}"
+      ],
+      "example": "close the main valve in the kitchen",
+      "name_domains": [
+        "valve"
+      ],
+      "response": "valve"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_area.yaml",
+      "block": 4,
+      "sentences": [
+        "unlock [<the>] {name} <in> [<the>] {area}"
+      ],
+      "example": "unlock the front door in the kitchen",
+      "name_domains": [
+        "lock"
+      ],
+      "response": "lock"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_floor.yaml",
+      "block": 0,
+      "sentences": [
+        "<turn> off [<the>] {name} <in> [<the>] {floor} [floor]",
+        "[<turn>] [<the>] {name} <in> [<the>] {floor} [floor] [to] off",
+        "deactivate [<the>] {name} <in> [<the>] {floor} [floor]"
+      ],
+      "example": "turn off the overhead light on the first floor",
+      "name_domains": "default",
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_floor.yaml",
+      "block": 1,
+      "sentences": [
+        "<turn> off [<the>] {name} <light> <in> [<the>] {floor} [floor]",
+        "[<turn>] [<the>] {name} <light> <in> [<the>] {floor} [floor] [to] off",
+        "deactivate [<the>] {name} <light> <in> [<the>] {floor} [floor]"
+      ],
+      "example": "turn off the play corner lights on the first floor",
+      "name_domains": [
+        "light"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_floor.yaml",
+      "block": 2,
+      "sentences": [
+        "<close> [<the>] {name} <in> [<the>] {floor} [floor]"
+      ],
+      "example": "close the sliding door on the first floor",
+      "name_domains": [
+        "cover"
+      ],
+      "response": "cover"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_floor.yaml",
+      "block": 3,
+      "sentences": [
+        "<close> [<the>] {name} <in> [<the>] {floor} [floor]"
+      ],
+      "example": "close the main valve on the first floor",
+      "name_domains": [
+        "valve"
+      ],
+      "response": "valve"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<turn> off [<the>] {name}",
+        "[<turn>] [<the>] {name} [to] off",
+        "deactivate [<the>] {name}"
+      ],
+      "example": "turn off the overhead light",
+      "name_domains": "default",
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_only.yaml",
+      "block": 1,
+      "sentences": [
+        "<turn> off [<the>] {name} <light>",
+        "[<turn>] [<the>] {name} <light> [to] off",
+        "deactivate [<the>] {name} <light>"
+      ],
+      "example": "turn off the play corner lights",
+      "name_domains": [
+        "light"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_only.yaml",
+      "block": 2,
+      "sentences": [
+        "<close> [<the>] {name}"
+      ],
+      "example": "close the sliding door",
+      "name_domains": [
+        "cover"
+      ],
+      "response": "cover"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_only.yaml",
+      "block": 3,
+      "sentences": [
+        "<close> [<the>] {name}"
+      ],
+      "example": "close the main valve",
+      "name_domains": [
+        "valve"
+      ],
+      "response": "valve"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_only.yaml",
+      "block": 4,
+      "sentences": [
+        "unlock [<the>] {name}"
+      ],
+      "example": "unlock the front door",
+      "name_domains": [
+        "lock"
+      ],
+      "response": "lock"
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_only.yaml",
+      "block": 5,
+      "sentences": [
+        "turn off [the] {name}",
+        "switch off [the] {name}",
+        "deactivate [the] {name}",
+        "[the] {name} off"
+      ],
+      "name_domains": [
+        "light",
+        "switch",
+        "fan",
+        "media_player",
+        "input_boolean"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_only.yaml",
+      "block": 6,
+      "sentences": [
+        "close [the] {name}"
+      ],
+      "name_domains": [
+        "cover"
+      ],
+      "response": "cover",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTurnOff",
+      "source": "sentences/en/HassTurnOff/name_only.yaml",
+      "block": 7,
+      "sentences": [
+        "unlock [the] {name}"
+      ],
+      "name_domains": [
+        "lock"
+      ],
+      "response": "lock",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/area_brightness.yaml",
+      "block": 0,
+      "sentences": [
+        "[<numeric_value_set>] [the] brightness in [<the>] {area} to {brightness}[([ ]%)| percent]",
+        "[<numeric_value_set>] [the] brightness of [<the>] {area} to {brightness}[([ ]%)| percent]",
+        "[<numeric_value_set>] [<the>] {area} brightness [to] {brightness}[([ ]%)| percent]",
+        "[<numeric_value_set>] [<the>] {area} [to] {brightness}[([ ]%)| percent] brightness",
+        "[<numeric_value_set>] [<the>] {area} [to] {brightness}[([ ]%)| percent]",
+        "[<numeric_value_set>] [(<all>|<the>)] <light> [<in>] [<the>] {area} to {brightness}[([ ]%)| percent] [brightness]",
+        "[<numeric_value_set>] [the] brightness in [<the>] {area} to [the] {brightness_level:brightness}",
+        "[<numeric_value_set>] [the] brightness of [<the>] {area} to [the] {brightness_level:brightness}",
+        "[<numeric_value_set>] [<the>] {area} brightness to [the] {brightness_level:brightness}",
+        "[<numeric_value_set>] [<the>] {area} [to] [the] {brightness_level:brightness} brightness"
+      ],
+      "example": "set the bedroom brightness to 50%",
+      "inferred_domain": "light",
+      "response": "brightness"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/area_brightness.yaml",
+      "block": 1,
+      "sentences": [
+        "set [the] {area} brightness to {brightness}[ percent]",
+        "set [the] brightness in [the] {area} to {brightness}[ percent]"
+      ],
+      "inferred_domain": "light",
+      "response": "brightness",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/area_color.yaml",
+      "block": 0,
+      "sentences": [
+        "[<set>] [[the] color of] [<the>] {area} [to] {color}",
+        "[<set>] [<the>] {area} [color] [to] {color}",
+        "[<set>] [[the] color of] [(<all>|<the>)] <light> [<in>] [<the>] {area} [to] {color}"
+      ],
+      "example": "set the bedroom color to red",
+      "inferred_domain": "light",
+      "response": "color"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/area_temperature.yaml",
+      "block": 0,
+      "sentences": [
+        "[<numeric_value_set>] [the] color temperature <in> [<the>] {area} to {color_temperature:temperature}[[ ](k|kelvin)]",
+        "[<numeric_value_set>] [the] color temperature <in> [<the>] {area} to {color_temperature_names:temperature}",
+        "[<numeric_value_set>] [<the>] {area} color temperature [to] {color_temperature:temperature}[[ ](k|kelvin)]",
+        "[<numeric_value_set>] [<the>] {area} color temperature [to] {color_temperature_names:temperature}",
+        "[<numeric_value_set>] [the] [color] temperature of [(<all>|<the>)] <light> [<in>] [<the>] {area} to {color_temperature:temperature}[[ ](k|kelvin)]",
+        "[<numeric_value_set>] [the] [color] temperature of [(<all>|<the>)] <light> [<in>] [<the>] {area} to {color_temperature_names:temperature}"
+      ],
+      "example": "set the bedroom color temperature to 2700 Kelvin",
+      "inferred_domain": "light",
+      "response": "temperature"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/brightness_only.yaml",
+      "block": 0,
+      "sentences": [
+        "[<numeric_value_set>] [the] brightness to {brightness}[([ ]%)| percent]",
+        "[<numeric_value_set>] [the] brightness ([in] here;to {brightness}[([ ]%)| percent])",
+        "[<numeric_value_set>] [the] brightness to [the] {brightness_level:brightness}",
+        "[<numeric_value_set>] [the] brightness ([in] here;to [the] {brightness_level:brightness})"
+      ],
+      "example": "set the brightness to 50%",
+      "inferred_domain": "light",
+      "response": "brightness"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/brightness_only.yaml",
+      "block": 1,
+      "sentences": [
+        "set [the] brightness to {brightness}[ percent]",
+        "set [the] brightness to {brightness}%"
+      ],
+      "inferred_domain": "light",
+      "response": "brightness",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/color_only.yaml",
+      "block": 0,
+      "sentences": [
+        "[<set>] [[the] color of] [(<all>|<the>)] <light> [to] {color}",
+        "[<set>] [[the] color of] [(<all>|<the>)] <light> ([in] here;[to] {color})"
+      ],
+      "example": "make the lights red",
+      "inferred_domain": "light",
+      "response": "color"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/floor_brightness.yaml",
+      "block": 0,
+      "sentences": [
+        "[<numeric_value_set>] [<the>] {floor} [floor] brightness [to] {brightness}[([ ]%)| percent]"
+      ],
+      "example": "set the first floor brightness to 50%",
+      "inferred_domain": "light",
+      "response": "brightness"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/floor_brightness.yaml",
+      "block": 1,
+      "sentences": [
+        "set [the] {floor} brightness to {brightness}[ percent]"
+      ],
+      "inferred_domain": "light",
+      "response": "brightness",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/floor_color.yaml",
+      "block": 0,
+      "sentences": [
+        "[<set>] [<the>] {floor} [floor] [color] [to] {color}"
+      ],
+      "example": "set the first floor color to red",
+      "inferred_domain": "light",
+      "response": "color"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/floor_temperature.yaml",
+      "block": 0,
+      "sentences": [
+        "[<numeric_value_set>] [<the>] {floor} [floor] color temperature [to] {color_temperature:temperature}[[ ](k|kelvin)]",
+        "[<numeric_value_set>] [<the>] {floor} [floor] color temperature [to] {color_temperature_names:temperature}"
+      ],
+      "example": "set the first floor color temperature to warm white",
+      "inferred_domain": "light",
+      "response": "temperature"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/name_brightness.yaml",
+      "block": 0,
+      "sentences": [
+        "[<numeric_value_set>] [<the>] {name} brightness [to] {brightness}[([ ]%)| percent]",
+        "[<numeric_value_set>] [the] brightness [of] [<the>] {name} [to] {brightness}[([ ]%)| percent]",
+        "[<numeric_value_set>] [<the>] {name} [to] {brightness}[([ ]%)| percent] [brightness]",
+        "[<numeric_value_set>] [<the>] {name} brightness to [the] {brightness_level:brightness}",
+        "[<numeric_value_set>] [the] brightness of [<the>] {name} to [the] {brightness_level:brightness}",
+        "[<numeric_value_set>] [<the>] {name} [to] [the] {brightness_level:brightness} brightness"
+      ],
+      "example": "set the bedroom lamp brightness to 50%",
+      "name_domains": [
+        "light"
+      ],
+      "response": "brightness"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/name_brightness.yaml",
+      "block": 1,
+      "sentences": [
+        "(set|change) [the] {name} brightness to {brightness}[ percent]"
+      ],
+      "name_domains": [
+        "light"
+      ],
+      "response": "brightness",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/name_color.yaml",
+      "block": 0,
+      "sentences": [
+        "[<set>] [<the>] {name} [color] [to] {color}",
+        "[<set>] [[the] color of] [<the>] {name} to {color}"
+      ],
+      "example": "set the bedroom lamp color to red",
+      "name_domains": [
+        "light"
+      ],
+      "response": "color"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/name_temperature.yaml",
+      "block": 0,
+      "sentences": [
+        "[<numeric_value_set>] [<the>] {name} [color] temperature [to] {color_temperature:temperature}[[ ](k|kelvin)]",
+        "[<numeric_value_set>] [<the>] {name} [color] temperature [to] {color_temperature_names:temperature}",
+        "[<numeric_value_set>] [the] [color] temperature [of] [<the>] {name} [to] {color_temperature:temperature}[[ ](k|kelvin)]",
+        "[<numeric_value_set>] [the] [color] temperature [of] [<the>] {name} [to] {color_temperature_names:temperature}"
+      ],
+      "example": "set the bedroom lamp temperature to 2700 Kelvin",
+      "name_domains": [
+        "light"
+      ],
+      "response": "temperature"
+    },
+    {
+      "intent": "HassLightSet",
+      "source": "sentences/en/HassLightSet/temperature_only.yaml",
+      "block": 0,
+      "sentences": [
+        "[<numeric_value_set>] [the] color temperature to {color_temperature:temperature}[[ ](k|kelvin)]",
+        "[<numeric_value_set>] [the] color temperature to {color_temperature_names:temperature}",
+        "[<numeric_value_set>] [the] color temperature ([in] here;to {color_temperature:temperature}[[ ](k|kelvin)])",
+        "[<numeric_value_set>] [the] color temperature ([in] here;to {color_temperature_names:temperature})"
+      ],
+      "example": "set the color temperature to 2700 Kelvin",
+      "inferred_domain": "light",
+      "response": "temperature"
+    },
+    {
+      "intent": "HassFanSetSpeed",
+      "source": "sentences/en/HassFanSetSpeed/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "[<set>] [<the>] {area} fan[s] [speed] [to] {fan_speed:percentage}[%| percent]",
+        "[<set>] [the] speed [of] [<the>] {area} fan[s] [to] {fan_speed:percentage}[%| percent]",
+        "[<set>] [the] speed [of] fan[s] (in|on) [<the>] {area} [to] {fan_speed:percentage}[%| percent]"
+      ],
+      "example": "set kitchen fans to 50%",
+      "response": "default"
+    },
+    {
+      "intent": "HassFanSetSpeed",
+      "source": "sentences/en/HassFanSetSpeed/default.yaml",
+      "block": 0,
+      "sentences": [
+        "[<set>] fan[s] [speed] [<here>] [to] {fan_speed:percentage}[%| percent]",
+        "[<set>] [the] speed [of [the]] fan[s] [<here>] [to] {fan_speed:percentage}[%| percent]"
+      ],
+      "example": "set fans to 50%",
+      "response": "default"
+    },
+    {
+      "intent": "HassFanSetSpeed",
+      "source": "sentences/en/HassFanSetSpeed/default.yaml",
+      "block": 1,
+      "sentences": [
+        "set fan[s] [speed] to {fan_speed:percentage}[ percent]"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassFanSetSpeed",
+      "source": "sentences/en/HassFanSetSpeed/floor_only.yaml",
+      "block": 0,
+      "sentences": [
+        "[<set>] [<the>] {floor} [floor] fan[s] [speed] [to] {fan_speed:percentage}[%| percent]",
+        "[<set>] [the] speed [of] [<the>] {floor} [floor] fan[s] [to] {fan_speed:percentage}[%| percent]",
+        "[<set>] [the] speed [of] fan[s] (in|on) [<the>] {floor} [floor] [to] {fan_speed:percentage}[%| percent]"
+      ],
+      "example": "set first floor fans to 50%",
+      "response": "default"
+    },
+    {
+      "intent": "HassFanSetSpeed",
+      "source": "sentences/en/HassFanSetSpeed/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "[<set>] [<the>] {name} [speed] [to] {fan_speed:percentage}[%| percent]",
+        "[<set>] [the] speed [of] [<the>] {name} [to] {fan_speed:percentage}[%| percent]"
+      ],
+      "example": "set ceiling fan to 50%",
+      "name_domains": [
+        "fan"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassFanSetSpeed",
+      "source": "sentences/en/HassFanSetSpeed/name_only.yaml",
+      "block": 1,
+      "sentences": [
+        "set [the] {name} [speed] to {fan_speed:percentage}[ percent]"
+      ],
+      "name_domains": [
+        "fan"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassClimateSetTemperature",
+      "source": "sentences/en/HassClimateSetTemperature/area_temperature.yaml",
+      "block": 0,
+      "sentences": [
+        "(<numeric_value_set>|adjust) [the] <temp> in [<the>] {area} to {temperature}[([ ]°)|( degree[s])]",
+        "(<numeric_value_set>|adjust) [<the>] {area} <temp> to {temperature}[([ ]°)|( degree[s])]"
+      ],
+      "example": "set the bedroom temperature to 20 degrees",
+      "response": "default"
+    },
+    {
+      "intent": "HassClimateSetTemperature",
+      "source": "sentences/en/HassClimateSetTemperature/floor_temperature.yaml",
+      "block": 0,
+      "sentences": [
+        "(<numeric_value_set>|adjust) [the] <temp> (of|on) [<the>] {floor} [floor] to {temperature}[([ ]°)|( degree[s])]",
+        "(<numeric_value_set>|adjust) [<the>] {floor} [floor] <temp> to {temperature}[([ ]°)|( degree[s])]"
+      ],
+      "example": "set the first floor temperature to 20 degrees",
+      "response": "default"
+    },
+    {
+      "intent": "HassClimateSetTemperature",
+      "source": "sentences/en/HassClimateSetTemperature/name_temperature.yaml",
+      "block": 0,
+      "sentences": [
+        "(<numeric_value_set>|adjust) [the] <temp> of [<the>] {name} to {temperature}[([ ]°)|( degree[s])]",
+        "(<numeric_value_set>|adjust) [<the>] {name} [<temp>] to {temperature}[([ ]°)|( degree[s])]"
+      ],
+      "example": "set the office thermostat to 20 degrees",
+      "name_domains": [
+        "climate"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassClimateSetTemperature",
+      "source": "sentences/en/HassClimateSetTemperature/temperature_only.yaml",
+      "block": 0,
+      "sentences": [
+        "(<numeric_value_set>|adjust) [the] <temp> to {temperature}[([ ]°)|( degree[s])]"
+      ],
+      "example": "set temperature to 20 degrees",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaPause",
+      "source": "sentences/en/HassMediaPause/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "pause [[the|my] (music|[tv] show[s]|media [player[s]])] [in] [<the>] {area}",
+        "pause [<the>] {area} (music|[tv] show[s]|media [player[s]])"
+      ],
+      "example": "pause music in the living room",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaPause",
+      "source": "sentences/en/HassMediaPause/default.yaml",
+      "block": 0,
+      "sentences": [
+        "pause [[<the>] <media>]",
+        "stop [playing] [[<the>] <media>]"
+      ],
+      "example": "pause",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaPause",
+      "source": "sentences/en/HassMediaPause/default.yaml",
+      "block": 1,
+      "sentences": [
+        "pause [<the>] <media>",
+        "stop [playing] [<the>] <media>"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassMediaPause",
+      "source": "sentences/en/HassMediaPause/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "(pause;[<the>] {name})"
+      ],
+      "example": "pause the TV",
+      "name_domains": [
+        "media_player"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaUnpause",
+      "source": "sentences/en/HassMediaUnpause/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "(unpause|resume) [[the|my] (music|[tv] show[s]|media [player[s]])] [in] [<the>] {area}",
+        "(unpause|resume) [<the>] {area} (music|[tv] show[s]|media [player[s]])"
+      ],
+      "example": "resume music in the living room",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaUnpause",
+      "source": "sentences/en/HassMediaUnpause/default.yaml",
+      "block": 0,
+      "sentences": [
+        "(unpause|resume) [[<the>] <media>]"
+      ],
+      "example": "resume",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaUnpause",
+      "source": "sentences/en/HassMediaUnpause/default.yaml",
+      "block": 1,
+      "sentences": [
+        "(unpause|resume) [<the>] <media>"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassMediaUnpause",
+      "source": "sentences/en/HassMediaUnpause/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "((unpause|resume);[<the>] {name})"
+      ],
+      "example": "resume the TV",
+      "name_domains": [
+        "media_player"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaNext",
+      "source": "sentences/en/HassMediaNext/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "next [track|item] [in] [<the>] {area}",
+        "(skip [(to [the] next [(song|track)]|([the] (song|track)|this [(song|track)]) )];[in] [<the>] {area})"
+      ],
+      "example": "next track in the living room",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaNext",
+      "source": "sentences/en/HassMediaNext/default.yaml",
+      "block": 0,
+      "sentences": [
+        "next [<track>]",
+        "skip [this] [<track>]",
+        "skip the <track>",
+        "skip to [the] next [<track>]"
+      ],
+      "example": "next track",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaNext",
+      "source": "sentences/en/HassMediaNext/default.yaml",
+      "block": 1,
+      "sentences": [
+        "next <track>",
+        "skip [this|the] <track>",
+        "skip to [the] next <track>"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassMediaNext",
+      "source": "sentences/en/HassMediaNext/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "next [track|item] [on|for] [<the>] {name}",
+        "(skip [(to [the] next [(song|track)]|([the] (song|track)|this [(song|track)]) )];[on] [<the>] {name})"
+      ],
+      "example": "next track on the TV",
+      "name_domains": [
+        "media_player"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaPrevious",
+      "source": "sentences/en/HassMediaPrevious/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "previous (track|item) [in] [<the>] {area}",
+        "go back [to the (previous|last) (song|track)] [in] [<the>] {area}",
+        "(replay [the (previous|last) (song|track)] [again];[in] [<the>] {area})",
+        "(play [the] (previous|last) [(song|track) ][again];[in] [<the>] {area})"
+      ],
+      "example": "previous track in the living room",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaPrevious",
+      "source": "sentences/en/HassMediaPrevious/default.yaml",
+      "block": 0,
+      "sentences": [
+        "previous <track>",
+        "go back [to the (previous|last) <track>]",
+        "replay [the (previous|last) <track>] [again]",
+        "play [the] (previous|last) [<track>] [again]"
+      ],
+      "example": "previous track",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaPrevious",
+      "source": "sentences/en/HassMediaPrevious/default.yaml",
+      "block": 1,
+      "sentences": [
+        "previous <track>",
+        "go back to the (previous|last) <track>",
+        "replay the (previous|last) <track> [again]",
+        "play [the] (previous|last) <track> [again]"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassMediaPrevious",
+      "source": "sentences/en/HassMediaPrevious/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "previous (track|item) [on|for] [<the>] {name}",
+        "(go back [to the (previous|last) (song|track)];[on] [<the>] {name})",
+        "replay [the (previous|last) (song|track)] on [<the>] {name}",
+        "[<the>] {name} (play|replay) [the] (previous|last) [(song|track)] [again]"
+      ],
+      "example": "previous track on the TV",
+      "name_domains": [
+        "media_player"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaPlayerMute",
+      "source": "sentences/en/HassMediaPlayerMute/default.yaml",
+      "block": 0,
+      "sentences": [
+        "mute [[<the>] <media>] [<here>]"
+      ],
+      "example": "mute",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaPlayerMute",
+      "source": "sentences/en/HassMediaPlayerMute/default.yaml",
+      "block": 1,
+      "sentences": [
+        "mute [<the>] <media>"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassMediaPlayerMute",
+      "source": "sentences/en/HassMediaPlayerMute/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "mute [<the>] {name}",
+        "mute ([the] (music|media [player[s]])) on [<the>] {name}"
+      ],
+      "example": "mute the TV",
+      "name_domains": [
+        "media_player"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaPlayerUnmute",
+      "source": "sentences/en/HassMediaPlayerUnmute/default.yaml",
+      "block": 0,
+      "sentences": [
+        "unmute [[<the>] <media>] [<here>]"
+      ],
+      "example": "unmute",
+      "response": "default"
+    },
+    {
+      "intent": "HassMediaPlayerUnmute",
+      "source": "sentences/en/HassMediaPlayerUnmute/default.yaml",
+      "block": 1,
+      "sentences": [
+        "unmute [<the>] <media>"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassMediaPlayerUnmute",
+      "source": "sentences/en/HassMediaPlayerUnmute/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "unmute [<the>] {name}",
+        "unmute ([the] (music|media [player[s]])) on [<the>] {name}"
+      ],
+      "example": "unmute the TV",
+      "name_domains": [
+        "media_player"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassSetVolume",
+      "source": "sentences/en/HassSetVolume/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<numeric_value_set> [<the>] {area} volume to {volume:volume_level}[([ ]%)| percent]",
+        "turn [<the>] {area} [volume] (up|down) to {volume:volume_level}[([ ]%)| percent]",
+        "turn [volume] (up|down) to {volume:volume_level}[([ ]%)| percent] [in] [<the>] {area}",
+        "(<numeric_value_set> the volume to {volume:volume_level}[([ ]%)| percent];[in] [<the>] {area})",
+        "<numeric_value_set> the volume [in] [<the>] {area} to {volume:volume_level}[([ ]%)| percent]",
+        "(turn (the volume;(up|down)) to {volume:volume_level}[([ ]%)| percent];[in] [<the>] {area})"
+      ],
+      "example": "set living room volume to 90 percent",
+      "response": "default"
+    },
+    {
+      "intent": "HassSetVolume",
+      "source": "sentences/en/HassSetVolume/default.yaml",
+      "block": 0,
+      "sentences": [
+        "<numeric_value_set> volume to {volume:volume_level}[([ ]%)| percent]",
+        "turn volume (up|down) to {volume:volume_level}[([ ]%)| percent]",
+        "<numeric_value_set> the volume to {volume:volume_level}[([ ]%)| percent]",
+        "turn (the volume;(up|down)) to {volume:volume_level}[([ ]%)| percent]"
+      ],
+      "example": "set volume to 90 percent",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassSetVolume",
+      "source": "sentences/en/HassSetVolume/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<numeric_value_set> [<the>] {name} volume to {volume:volume_level}[([ ]%)| percent]",
+        "turn [<the>] {name} [volume] (up|down) to {volume:volume_level}[([ ]%)| percent]",
+        "(<numeric_value_set> the volume to {volume:volume_level}[([ ]%)| percent];[on] [<the>] {name})",
+        "(turn (the volume;(up|down)) to {volume:volume_level}[([ ]%)| percent];[on] [<the>] {name})"
+      ],
+      "example": "set the TV volume to 90 percent",
+      "name_domains": [
+        "media_player"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassSetVolumeRelative",
+      "source": "sentences/en/HassSetVolumeRelative/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "([<the>] {area};volume {volume_step})",
+        "[turn [the]] volume {volume_step} (in|on) [<the>] {area}",
+        "turn {volume_step} [the] volume (in|on) [<the>] {area}",
+        "{volume_step} [the] volume (in|on) [<the>] {area}",
+        "[turn] {volume_step} [<the>] {area} volume",
+        "([<the>] {area};volume up) [by] {volume_step_up:volume_step}[%| percent]",
+        "[turn [the]] volume up ((in|on) [<the>] {area};[by] {volume_step_up:volume_step}[%| percent])",
+        "increase [the] volume ((in|on) [<the>] {area};[by] {volume_step_up:volume_step}[%| percent])",
+        "turn up [<the>] {area} volume [by] {volume_step_up:volume_step}[%| percent]",
+        "increase [<the>] {area} volume [by] {volume_step_up:volume_step}[%| percent]",
+        "([<the>] {area};volume down) [by] {volume_step_down:volume_step}[%| percent]",
+        "[turn [the]] volume down ((in|on) [<the>] {area};[by] {volume_step_down:volume_step}[%| percent])",
+        "decrease [the] volume ((in|on) [<the>] {area};[by] {volume_step_down:volume_step}[%| percent])",
+        "turn down [<the>] {area} volume [by] {volume_step_down:volume_step}[%| percent]",
+        "decrease [<the>] {area} volume [by] {volume_step_down:volume_step}[%| percent]"
+      ],
+      "example": "decrease the volume in the living room",
+      "response": "default"
+    },
+    {
+      "intent": "HassSetVolumeRelative",
+      "source": "sentences/en/HassSetVolumeRelative/default.yaml",
+      "block": 0,
+      "sentences": [
+        "[turn [the]] volume {volume_step}",
+        "turn {volume_step} [the] volume",
+        "{volume_step} [the] volume",
+        "[turn [the]] volume up [by] {volume_step_up:volume_step}[%| percent]",
+        "turn up [the] volume [by] {volume_step_up:volume_step}[%| percent]",
+        "increase [the] volume [by] {volume_step_up:volume_step}[%| percent]",
+        "[turn [the]] volume down [by] {volume_step_down:volume_step}[%| percent]",
+        "turn down [the] volume [by] {volume_step_down:volume_step}[%| percent]",
+        "decrease [the] volume [by] {volume_step_down:volume_step}[%| percent]"
+      ],
+      "example": "increase volume",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassSetVolumeRelative",
+      "source": "sentences/en/HassSetVolumeRelative/floor_only.yaml",
+      "block": 0,
+      "sentences": [
+        "([<the>] {floor} [floor];volume {volume_step})",
+        "[turn [the]] volume {volume_step} (in|on) [<the>] {floor} [floor]",
+        "turn {volume_step} [the] volume (in|on) [<the>] {floor} [floor]",
+        "{volume_step} [the] volume (in|on) [<the>] {floor} [floor]",
+        "[turn] {volume_step} [<the>] {floor} [floor] volume",
+        "([<the>] {floor} [floor];volume up) [by] {volume_step_up:volume_step}[%| percent]",
+        "[turn [the]] volume up ((in|on) [<the>] {floor} [floor];[by] {volume_step_up:volume_step}[%| percent])",
+        "increase [the] volume ((in|on) [<the>] {floor} [floor];[by] {volume_step_up:volume_step}[%| percent])",
+        "turn up [<the>] {floor} [floor] volume [by] {volume_step_up:volume_step}[%| percent]",
+        "increase [<the>] {floor} [floor] volume [by] {volume_step_up:volume_step}[%| percent]",
+        "([<the>] {floor} [floor];volume down) [by] {volume_step_down:volume_step}[%| percent]",
+        "[turn [the]] volume down ((in|on) [<the>] {floor} [floor];[by] {volume_step_down:volume_step}[%| percent])",
+        "decrease [the] volume ((in|on) [<the>] {floor} [floor];[by] {volume_step_down:volume_step}[%| percent])",
+        "turn down [<the>] {floor} [floor] volume [by] {volume_step_down:volume_step}[%| percent]",
+        "decrease [<the>] {floor} [floor] volume [by] {volume_step_down:volume_step}[%| percent]"
+      ],
+      "example": "increase volume on the first floor",
+      "response": "default"
+    },
+    {
+      "intent": "HassSetVolumeRelative",
+      "source": "sentences/en/HassSetVolumeRelative/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "([<the>] {name};volume {volume_step})",
+        "{volume_step} [the] volume [on|for] [<the>] {name}",
+        "{volume_step} [<the>] {name} volume",
+        "turn {volume_step} [<the>] {name} volume",
+        "([<the>] {name};volume up) [by] {volume_step_up:volume_step}[%| percent]",
+        "increase [the] volume ([on|for] [<the>] {name};[by] {volume_step_up:volume_step}[%| percent])",
+        "increase [<the>] {name} volume [by] {volume_step_up:volume_step}[%| percent]",
+        "turn up [<the>] {name} volume [by] {volume_step_up:volume_step}[%| percent]",
+        "([<the>] {name};volume down) [by] {volume_step_down:volume_step}[%| percent]",
+        "decrease [the] volume ([on|for] [<the>] {name};[by] {volume_step_down:volume_step}[%| percent])",
+        "decrease [<the>] {name} volume [by] {volume_step_down:volume_step}[%| percent]",
+        "turn down [<the>] {name} volume [by] {volume_step_down:volume_step}[%| percent]"
+      ],
+      "example": "decrease TV volume",
+      "name_domains": [
+        "media_player"
+      ],
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/command_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_command:conversation_command} (in|after) {timer_hours:hours}( |-)hour[s]",
+        "(in|after) {timer_hours:hours}( |-)hour[s] {timer_command:conversation_command}"
+      ],
+      "example": "turn off the lights in 1 hour",
+      "response": "command"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/command_hours_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_command:conversation_command} (in|after) {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s]",
+        "(in|after) {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] {timer_command:conversation_command}"
+      ],
+      "example": "turn off the lights in 1 hour 5 minutes",
+      "response": "command"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/command_hours_minutes_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_command:conversation_command} (in|after) {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "(in|after) {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] {timer_command:conversation_command}"
+      ],
+      "example": "turn off the lights in 1 hour 5 minutes 30 seconds",
+      "response": "command"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/command_hours_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_command:conversation_command} (in|after) {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "(in|after) {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] {timer_command:conversation_command}"
+      ],
+      "example": "turn off the lights in 1 hour 30 seconds",
+      "response": "command"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/command_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_command:conversation_command} (in|after) {timer_minutes:minutes}( |-)minute[s]",
+        "(in|after) {timer_minutes:minutes}( |-)minute[s] {timer_command:conversation_command}"
+      ],
+      "example": "turn off the lights in 5 minutes",
+      "response": "command"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/command_minutes_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_command:conversation_command} (in|after) {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "(in|after) {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] {timer_command:conversation_command}"
+      ],
+      "example": "turn off the lights in 5 minutes 30 seconds",
+      "response": "command"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/command_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_command:conversation_command} (in|after) {timer_seconds:seconds}( |-)second[s]",
+        "(in|after) {timer_seconds:seconds}( |-)second[s] {timer_command:conversation_command}"
+      ],
+      "example": "turn off the lights in 30 seconds",
+      "response": "command"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/hours_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] timer for {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_set> [a|an|the|my] {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] timer",
+        "{timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] timer",
+        "timer for {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_set> [a|an|the|my] timer for {timer_hours:hours} and [a] {timer_half:minutes} hour[s]",
+        "timer for {timer_hours:hours} and [a] {timer_half:minutes} hour[s]"
+      ],
+      "example": "timer for 1 hour 5 minutes",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/hours_minutes_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] timer for {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "<timer_set> [a|an|the|my] {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] timer",
+        "{timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] timer",
+        "timer for {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "timer for 1 hour 5 minutes 30 seconds",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/hours_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] timer for {timer_hours:hours}( |-)hour[s]",
+        "<timer_set> [a|an|the|my] {timer_hours:hours}( |-)hour[s] timer",
+        "{timer_hours:hours}( |-)hour[s] timer",
+        "timer for {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "timer for 1 hour",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/hours_only.yaml",
+      "block": 1,
+      "sentences": [
+        "set a timer for {timer_hours:hours} hour[s]",
+        "timer for {timer_hours:hours} hour[s]"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/hours_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] timer for {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "<timer_set> [a|an|the|my] {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] timer",
+        "{timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] timer",
+        "timer for {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "timer for 1 hour 30 seconds",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/minutes_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] timer for {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_set> [a|an|the|my] {timer_minutes:minutes}( |-)minute[s] timer",
+        "{timer_minutes:minutes}( |-)minute[s] timer",
+        "timer for {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_set> [a|an|the|my] timer for {timer_half:minutes} an hour[s]",
+        "timer for {timer_half:minutes} an hour[s]"
+      ],
+      "example": "timer for 5 minutes",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/minutes_only.yaml",
+      "block": 1,
+      "sentences": [
+        "set a timer for {timer_minutes:minutes} minute[s]",
+        "timer for {timer_minutes:minutes} minute[s]",
+        "set a timer for {timer_half:minutes} an hour",
+        "timer for {timer_half:minutes} an hour"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/minutes_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] timer for {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "<timer_set> [a|an|the|my] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] timer",
+        "{timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] timer",
+        "timer for {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "<timer_set> [a|an|the|my] timer for {timer_minutes:minutes} and [a] {timer_half:seconds} minute[s]",
+        "timer for {timer_minutes:minutes} and [a] {timer_half:seconds} minute[s]"
+      ],
+      "example": "timer for 5 minutes 30 seconds",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/name_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] {timer_hours:hours}( |-)hour[s] timer (named|called|for) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer for {timer_hours:hours}( |-)hour[s] (named|called) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer (named|called) {timer_name:name} for {timer_hours:hours}( |-)hour[s]",
+        "{timer_hours:hours}( |-)hour[s] timer (named|called|for) {timer_name:name}",
+        "timer for {timer_hours:hours}( |-)hour[s] (named|called) {timer_name:name}"
+      ],
+      "example": "1 hour timer named pizza",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/name_hours_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] timer (named|called|for) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer for {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] (named|called) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer (named|called) {timer_name:name} for {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s]",
+        "{timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] timer (named|called|for) {timer_name:name}",
+        "timer for {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] (named|called) {timer_name:name}"
+      ],
+      "example": "1 hour 5 minutes timer named pizza",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/name_hours_minutes_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] timer (named|called|for) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer for {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] (named|called) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer (named|called) {timer_name:name} for {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "{timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] timer (named|called|for) {timer_name:name}",
+        "timer for {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] (named|called) {timer_name:name}"
+      ],
+      "example": "1 hour 5 minutes 30 seconds timer named pizza",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/name_hours_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] timer (named|called|for) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer for {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] (named|called) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer (named|called) {timer_name:name} for {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "{timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] timer (named|called|for) {timer_name:name}",
+        "timer for {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] (named|called) {timer_name:name}"
+      ],
+      "example": "1 hour 30 seconds timer named pizza",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/name_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] {timer_minutes:minutes}( |-)minute[s] timer (named|called|for) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer for {timer_minutes:minutes}( |-)minute[s] (named|called) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer (named|called) {timer_name:name} for {timer_minutes:minutes}( |-)minute[s]",
+        "{timer_minutes:minutes}( |-)minute[s] timer (named|called|for) {timer_name:name}",
+        "timer for {timer_minutes:minutes}( |-)minute[s] (named|called) {timer_name:name}"
+      ],
+      "example": "5 minutes timer named pizza",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/name_minutes_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] timer (named|called|for) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer for {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] (named|called) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer (named|called) {timer_name:name} for {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "{timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] timer (named|called|for) {timer_name:name}",
+        "timer for {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] (named|called) {timer_name:name}"
+      ],
+      "example": "5 minutes 30 seconds timer named pizza",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/name_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] {timer_seconds:seconds}( |-)second[s] timer (named|called|for) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer for {timer_seconds:seconds}( |-)second[s] (named|called) {timer_name:name}",
+        "<timer_set> [a|an|the|my] timer (named|called) {timer_name:name} for {timer_seconds:seconds}( |-)second[s]",
+        "{timer_seconds:seconds}( |-)second[s] timer (named|called|for) {timer_name:name}",
+        "timer for {timer_seconds:seconds}( |-)second[s] (named|called) {timer_name:name}"
+      ],
+      "example": "30 seconds timer named pizza",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/seconds_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_set> [a|an|the|my] timer for {timer_seconds:seconds}( |-)second[s]",
+        "<timer_set> [a|an|the|my] {timer_seconds:seconds}( |-)second[s] timer",
+        "{timer_seconds:seconds}( |-)second[s] timer",
+        "timer for {timer_seconds:seconds}( |-)second[s]",
+        "<timer_set> [a|an|the|my] timer for {timer_half:seconds} a minute[s]",
+        "timer for {timer_half:seconds} a minute[s]"
+      ],
+      "example": "timer for 30 seconds",
+      "response": "default"
+    },
+    {
+      "intent": "HassStartTimer",
+      "source": "sentences/en/HassStartTimer/seconds_only.yaml",
+      "block": 1,
+      "sentences": [
+        "set a timer for {timer_seconds:seconds} second[s]",
+        "timer for {timer_seconds:seconds} second[s]"
+      ],
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassPauseTimer",
+      "source": "sentences/en/HassPauseTimer/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "pause [the|my] timer in [<the>] {area}",
+        "pause [the|my] {area} timer"
+      ],
+      "example": "pause timer in the kitchen",
+      "response": "default"
+    },
+    {
+      "intent": "HassPauseTimer",
+      "source": "sentences/en/HassPauseTimer/default.yaml",
+      "block": 0,
+      "sentences": [
+        "pause [the|my] timer"
+      ],
+      "example": "pause timer",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassPauseTimer",
+      "source": "sentences/en/HassPauseTimer/hours_only.yaml",
+      "block": 0,
+      "sentences": [
+        "pause [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "pause [the|my] timer for {timer_hours:start_hours}( |-)hour[s]"
+      ],
+      "example": "pause 1 hour timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassPauseTimer",
+      "source": "sentences/en/HassPauseTimer/minutes_only.yaml",
+      "block": 0,
+      "sentences": [
+        "pause [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "pause [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s]"
+      ],
+      "example": "pause 5 minutes timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassPauseTimer",
+      "source": "sentences/en/HassPauseTimer/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "pause [the|my] {timer_name:name} timer",
+        "pause [the|my] timer (named|called|for) {timer_name:name}"
+      ],
+      "example": "pause pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassPauseTimer",
+      "source": "sentences/en/HassPauseTimer/seconds_only.yaml",
+      "block": 0,
+      "sentences": [
+        "pause [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "pause [the|my] timer for {timer_seconds:start_seconds}( |-)second[s]"
+      ],
+      "example": "pause 30 seconds timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassUnpauseTimer",
+      "source": "sentences/en/HassUnpauseTimer/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "(resume|continue) [the|my] timer in [<the>] {area}",
+        "(resume|continue) [the|my] {area} timer"
+      ],
+      "example": "resume timer in the kitchen",
+      "response": "default"
+    },
+    {
+      "intent": "HassUnpauseTimer",
+      "source": "sentences/en/HassUnpauseTimer/default.yaml",
+      "block": 0,
+      "sentences": [
+        "(resume|continue) [the|my] timer"
+      ],
+      "example": "resume timer",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassUnpauseTimer",
+      "source": "sentences/en/HassUnpauseTimer/hours_only.yaml",
+      "block": 0,
+      "sentences": [
+        "(resume|continue) [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "(resume|continue) [the|my] timer for {timer_hours:start_hours}( |-)hour[s]"
+      ],
+      "example": "resume 1 hour timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassUnpauseTimer",
+      "source": "sentences/en/HassUnpauseTimer/minutes_only.yaml",
+      "block": 0,
+      "sentences": [
+        "(resume|continue) [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "(resume|continue) [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s]"
+      ],
+      "example": "resume 5 minutes timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassUnpauseTimer",
+      "source": "sentences/en/HassUnpauseTimer/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "(resume|continue) [the|my] {timer_name:name} timer",
+        "(resume|continue) [the|my] timer (named|called|for) {timer_name:name}"
+      ],
+      "example": "resume pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassUnpauseTimer",
+      "source": "sentences/en/HassUnpauseTimer/seconds_only.yaml",
+      "block": 0,
+      "sentences": [
+        "(resume|continue) [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "(resume|continue) [the|my] timer for {timer_seconds:start_seconds}( |-)second[s]"
+      ],
+      "example": "resume 30 seconds timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassCancelTimer",
+      "source": "sentences/en/HassCancelTimer/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_cancel> [the|my] timer in [<the>] {area}",
+        "<timer_cancel> [the|my] {area} timer"
+      ],
+      "example": "cancel timer in the kitchen",
+      "response": "default"
+    },
+    {
+      "intent": "HassCancelTimer",
+      "source": "sentences/en/HassCancelTimer/default.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_cancel> [the|my] timer"
+      ],
+      "example": "cancel timer",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassCancelTimer",
+      "source": "sentences/en/HassCancelTimer/hours_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_cancel> [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "<timer_cancel> [the|my] timer for {timer_hours:start_hours}( |-)hour[s]"
+      ],
+      "example": "cancel 1 hour timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassCancelTimer",
+      "source": "sentences/en/HassCancelTimer/minutes_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_cancel> [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "<timer_cancel> [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s]"
+      ],
+      "example": "cancel 5 minutes timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassCancelTimer",
+      "source": "sentences/en/HassCancelTimer/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_cancel> [the|my] {timer_name:name} timer",
+        "<timer_cancel> [the|my] timer (named|called|for) {timer_name:name}"
+      ],
+      "example": "cancel pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassCancelTimer",
+      "source": "sentences/en/HassCancelTimer/seconds_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_cancel> [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "<timer_cancel> [the|my] timer for {timer_seconds:start_seconds}( |-)second[s]"
+      ],
+      "example": "cancel 30 seconds timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassCancelAllTimers",
+      "source": "sentences/en/HassCancelAllTimers/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_cancel> all [[of ](the|my)] {area} timers",
+        "<timer_cancel> all [[of ](the|my)] timers in [<the>] {area}"
+      ],
+      "example": "cancel all kitchen timers",
+      "response": "area"
+    },
+    {
+      "intent": "HassCancelAllTimers",
+      "source": "sentences/en/HassCancelAllTimers/default.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_cancel> all [[of ](the|my)] timers"
+      ],
+      "example": "cancel all timers",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/area_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] {area} timer",
+        "increase [the|my] {area} timer by {timer_hours:hours}( |-)hour[s]",
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] timer in [<the>] {area}",
+        "increase [the|my] timer in [<the>] {area} by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "add 1 hour to kitchen timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/area_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] {area} timer",
+        "increase [the|my] {area} timer by {timer_minutes:minutes}( |-)minute[s]",
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] timer in [<the>] {area}",
+        "increase [the|my] timer in [<the>] {area} by {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "add 5 minutes to kitchen timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/area_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] {area} timer",
+        "increase [the|my] {area} timer by {timer_seconds:seconds}( |-)second[s]",
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] timer in [<the>] {area}",
+        "increase [the|my] timer in [<the>] {area} by {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "add 30 seconds to kitchen timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/hours_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] to [the|my] timer",
+        "increase [the|my] timer by {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s]",
+        "add {timer_hours:hours} and [a] {timer_half:minutes} hour[s] to [the|my] timer",
+        "increase [the|my] timer by {timer_hours:hours} and [a] {timer_half:minutes} hour[s]"
+      ],
+      "example": "add 1 hour 5 minutes to timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/hours_only.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] timer",
+        "increase [the|my] timer by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "add 1 hour to timer",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/hours_start_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "increase [the|my] {timer_hours:start_hours}( |-)hour[s] timer by {timer_hours:hours}( |-)hour[s]",
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] timer for {timer_hours:start_hours}( |-)hour[s]",
+        "increase [the|my] timer for {timer_hours:start_hours}( |-)hour[s] by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "add 1 hour to 1 hour timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/hours_start_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "increase [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer by {timer_hours:hours}( |-)hour[s]",
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s]",
+        "increase [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s] by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "add 1 hour to 5 minutes timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/hours_start_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "increase [the|my] {timer_seconds:start_seconds}( |-)second[s] timer by {timer_hours:hours}( |-)hour[s]",
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] timer for {timer_seconds:start_seconds}( |-)second[s]",
+        "increase [the|my] timer for {timer_seconds:start_seconds}( |-)second[s] by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "add 1 hour to 30 seconds timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/minutes_only.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] timer",
+        "increase [the|my] timer by {timer_minutes:minutes}( |-)minute[s]",
+        "add {timer_half:minutes} an hour[s] to [the|my] timer",
+        "increase [the|my] timer by {timer_half:minutes} an hour[s]"
+      ],
+      "example": "add 5 minutes to timer",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/minutes_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] to [the|my] timer",
+        "increase [the|my] timer by {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "add {timer_minutes:minutes} and [a] {timer_half:seconds} minute[s] to [the|my] timer",
+        "increase [the|my] timer by {timer_minutes:minutes} and [a] {timer_half:seconds} minute[s]"
+      ],
+      "example": "add 5 minutes 30 seconds to timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/minutes_start_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "increase [the|my] {timer_hours:start_hours}( |-)hour[s] timer by {timer_minutes:minutes}( |-)minute[s]",
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] timer for {timer_hours:start_hours}( |-)hour[s]",
+        "increase [the|my] timer for {timer_hours:start_hours}( |-)hour[s] by {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "add 5 minutes to 1 hour timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/minutes_start_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "increase [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer by {timer_minutes:minutes}( |-)minute[s]",
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s]",
+        "increase [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s] by {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "add 5 minutes to 5 minutes timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/minutes_start_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "increase [the|my] {timer_seconds:start_seconds}( |-)second[s] timer by {timer_minutes:minutes}( |-)minute[s]",
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] timer for {timer_seconds:start_seconds}( |-)second[s]",
+        "increase [the|my] timer for {timer_seconds:start_seconds}( |-)second[s] by {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "add 5 minutes to 30 seconds timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/name_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] {timer_name:name} timer",
+        "increase [the|my] {timer_name:name} timer by {timer_hours:hours}( |-)hour[s]",
+        "add {timer_hours:hours}( |-)hour[s] to [the|my] timer (named|called|for) {timer_name:name}",
+        "increase [the|my] timer (named|called|for) {timer_name:name} by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "add 1 hour to pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/name_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] {timer_name:name} timer",
+        "increase [the|my] {timer_name:name} timer by {timer_minutes:minutes}( |-)minute[s]",
+        "add {timer_minutes:minutes}( |-)minute[s] to [the|my] timer (named|called|for) {timer_name:name}",
+        "increase [the|my] timer (named|called|for) {timer_name:name} by {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "add 5 minutes to pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/name_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] {timer_name:name} timer",
+        "increase [the|my] {timer_name:name} timer by {timer_seconds:seconds}( |-)second[s]",
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] timer (named|called|for) {timer_name:name}",
+        "increase [the|my] timer (named|called|for) {timer_name:name} by {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "add 30 seconds to pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/seconds_only.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] timer",
+        "increase [the|my] timer by {timer_seconds:seconds}( |-)second[s]",
+        "add {timer_half:seconds} a minute[s] to [the|my] timer",
+        "increase [the|my] timer by {timer_half:seconds} a minute[s]"
+      ],
+      "example": "add 30 seconds to timer",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/seconds_start_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "increase [the|my] {timer_hours:start_hours}( |-)hour[s] timer by {timer_seconds:seconds}( |-)second[s]",
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] timer for {timer_hours:start_hours}( |-)hour[s]",
+        "increase [the|my] timer for {timer_hours:start_hours}( |-)hour[s] by {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "add 30 seconds to 1 hour timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/seconds_start_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "increase [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer by {timer_seconds:seconds}( |-)second[s]",
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s]",
+        "increase [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s] by {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "add 30 seconds to 5 minutes timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassIncreaseTimer",
+      "source": "sentences/en/HassIncreaseTimer/seconds_start_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "increase [the|my] {timer_seconds:start_seconds}( |-)second[s] timer by {timer_seconds:seconds}( |-)second[s]",
+        "add {timer_seconds:seconds}( |-)second[s] to [the|my] timer for {timer_seconds:start_seconds}( |-)second[s]",
+        "increase [the|my] timer for {timer_seconds:start_seconds}( |-)second[s] by {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "add 30 seconds to 30 seconds timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/area_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] {area} timer",
+        "decrease [the|my] {area} timer by {timer_hours:hours}( |-)hour[s]",
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] timer in [<the>] {area}",
+        "decrease [the|my] timer in [<the>] {area} by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "remove 1 hour from kitchen timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/area_hours_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] {area} timer",
+        "decrease [the|my] {area} timer by {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] timer in [<the>] {area}",
+        "decrease [the|my] timer in [<the>] {area} by {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "remove 1 hour 5 minutes from kitchen timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/area_hours_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] {area} timer",
+        "decrease [the|my] {area} timer by {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer in [<the>] {area}",
+        "decrease [the|my] timer in [<the>] {area} by {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "remove 1 hour 30 seconds from kitchen timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/area_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] {area} timer",
+        "decrease [the|my] {area} timer by {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] timer in [<the>] {area}",
+        "decrease [the|my] timer in [<the>] {area} by {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "remove 5 minutes from kitchen timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/area_minutes_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] {area} timer",
+        "decrease [the|my] {area} timer by {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer in [<the>] {area}",
+        "decrease [the|my] timer in [<the>] {area} by {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "remove 5 minutes 30 seconds from kitchen timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/area_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] {area} timer",
+        "decrease [the|my] {area} timer by {timer_seconds:seconds}( |-)second[s]",
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer in [<the>] {area}",
+        "decrease [the|my] timer in [<the>] {area} by {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "remove 30 seconds from kitchen timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/hours_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] timer",
+        "decrease [the|my] timer by {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_remove> {timer_hours:hours} and [a] {timer_half:minutes} hour[s] (from|off) [the|my] timer",
+        "decrease [the|my] timer by {timer_hours:hours} and [a] {timer_half:minutes} hour[s]"
+      ],
+      "example": "remove 1 hour 5 minutes from timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/hours_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] timer",
+        "decrease [the|my] timer by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "remove 1 hour from timer",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/hours_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer",
+        "decrease [the|my] timer by {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "remove 1 hour 30 seconds from timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/hours_start_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "decrease [the|my] {timer_hours:start_hours}( |-)hour[s] timer by {timer_hours:hours}( |-)hour[s]",
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] timer for {timer_hours:start_hours}( |-)hour[s]",
+        "decrease [the|my] timer for {timer_hours:start_hours}( |-)hour[s] by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "remove 1 hour from 1 hour timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/hours_start_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "decrease [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer by {timer_hours:hours}( |-)hour[s]",
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s]",
+        "decrease [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s] by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "remove 1 hour from 5 minutes timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/hours_start_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "decrease [the|my] {timer_seconds:start_seconds}( |-)second[s] timer by {timer_hours:hours}( |-)hour[s]",
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] timer for {timer_seconds:start_seconds}( |-)second[s]",
+        "decrease [the|my] timer for {timer_seconds:start_seconds}( |-)second[s] by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "remove 1 hour from 30 seconds timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/minutes_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] timer",
+        "decrease [the|my] timer by {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_remove> {timer_half:minutes} an hour[s] (from|off) [the|my] timer",
+        "decrease [the|my] timer by {timer_half:minutes} an hour[s]"
+      ],
+      "example": "remove 5 minutes from timer",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/minutes_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer",
+        "decrease [the|my] timer by {timer_minutes:minutes}( |-)minute[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "<timer_remove> {timer_minutes:minutes} and [a] {timer_half:seconds} minute[s] (from|off) [the|my] timer",
+        "decrease [the|my] timer by {timer_minutes:minutes} and [a] {timer_half:seconds} minute[s]"
+      ],
+      "example": "remove 5 minutes 30 seconds from timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/minutes_start_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "decrease [the|my] {timer_hours:start_hours}( |-)hour[s] timer by {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] timer for {timer_hours:start_hours}( |-)hour[s]",
+        "decrease [the|my] timer for {timer_hours:start_hours}( |-)hour[s] by {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "remove 5 minutes from 1 hour timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/minutes_start_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "decrease [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer by {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s]",
+        "decrease [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s] by {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "remove 5 minutes from 5 minutes timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/minutes_start_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "decrease [the|my] {timer_seconds:start_seconds}( |-)second[s] timer by {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] timer for {timer_seconds:start_seconds}( |-)second[s]",
+        "decrease [the|my] timer for {timer_seconds:start_seconds}( |-)second[s] by {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "remove 5 minutes from 30 seconds timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/name_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] {timer_name:name} timer",
+        "decrease [the|my] {timer_name:name} timer by {timer_hours:hours}( |-)hour[s]",
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] (from|off) [the|my] timer (named|called|for) {timer_name:name}",
+        "decrease [the|my] timer (named|called|for) {timer_name:name} by {timer_hours:hours}( |-)hour[s]"
+      ],
+      "example": "remove 1 hour from pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/name_hours_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] {timer_name:name} timer",
+        "decrease [the|my] {timer_name:name} timer by {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] timer (named|called|for) {timer_name:name}",
+        "decrease [the|my] timer (named|called|for) {timer_name:name} by {timer_hours:hours}( |-)hour[s] [and] {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "remove 1 hour 5 minutes from pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/name_hours_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] {timer_name:name} timer",
+        "decrease [the|my] {timer_name:name} timer by {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s]",
+        "<timer_remove> {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer (named|called|for) {timer_name:name}",
+        "decrease [the|my] timer (named|called|for) {timer_name:name} by {timer_hours:hours}( |-)hour[s] [and] {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "remove 1 hour 30 seconds from pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/name_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] {timer_name:name} timer",
+        "decrease [the|my] {timer_name:name} timer by {timer_minutes:minutes}( |-)minute[s]",
+        "<timer_remove> {timer_minutes:minutes}( |-)minute[s] (from|off) [the|my] timer (named|called|for) {timer_name:name}",
+        "decrease [the|my] timer (named|called|for) {timer_name:name} by {timer_minutes:minutes}( |-)minute[s]"
+      ],
+      "example": "remove 5 minutes from pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/name_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] {timer_name:name} timer",
+        "decrease [the|my] {timer_name:name} timer by {timer_seconds:seconds}( |-)second[s]",
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer (named|called|for) {timer_name:name}",
+        "decrease [the|my] timer (named|called|for) {timer_name:name} by {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "remove 30 seconds from pizza timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/seconds_only.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer",
+        "decrease [the|my] timer by {timer_seconds:seconds}( |-)second[s]",
+        "<timer_remove> {timer_half:seconds} a minute[s] (from|off) [the|my] timer",
+        "decrease [the|my] timer by {timer_half:seconds} a minute[s]"
+      ],
+      "example": "remove 30 seconds from timer",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/seconds_start_hours.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "decrease [the|my] {timer_hours:start_hours}( |-)hour[s] timer by {timer_seconds:seconds}( |-)second[s]",
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer for {timer_hours:start_hours}( |-)hour[s]",
+        "decrease [the|my] timer for {timer_hours:start_hours}( |-)hour[s] by {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "remove 30 seconds from 1 hour timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/seconds_start_minutes.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "decrease [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer by {timer_seconds:seconds}( |-)second[s]",
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s]",
+        "decrease [the|my] timer for {timer_minutes:start_minutes}( |-)minute[s] by {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "remove 30 seconds from 5 minutes timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassDecreaseTimer",
+      "source": "sentences/en/HassDecreaseTimer/seconds_start_seconds.yaml",
+      "block": 0,
+      "sentences": [
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "decrease [the|my] {timer_seconds:start_seconds}( |-)second[s] timer by {timer_seconds:seconds}( |-)second[s]",
+        "<timer_remove> {timer_seconds:seconds}( |-)second[s] (from|off) [the|my] timer for {timer_seconds:start_seconds}( |-)second[s]",
+        "decrease [the|my] timer for {timer_seconds:start_seconds}( |-)second[s] by {timer_seconds:seconds}( |-)second[s]"
+      ],
+      "example": "remove 30 seconds from 30 seconds timer",
+      "response": "default"
+    },
+    {
+      "intent": "HassTimerStatus",
+      "source": "sentences/en/HassTimerStatus/area_only.yaml",
+      "block": 0,
+      "sentences": [
+        "[how much] time [is] left on [the|my] timer[s] in [<the>] {area}",
+        "how long [is] left on [the|my] timer[s] in [<the>] {area}",
+        "status of [the|my] timer[s] in [<the>] {area}",
+        "[how much] time [is] left on [the|my] {area} timer[s]",
+        "how long [is] left on [the|my] {area} timer[s]",
+        "status of [the|my] {area} timer[s]",
+        "{area} timer[s] status"
+      ],
+      "example": "status of timer in the kitchen",
+      "response": "default"
+    },
+    {
+      "intent": "HassTimerStatus",
+      "source": "sentences/en/HassTimerStatus/default.yaml",
+      "block": 0,
+      "sentences": [
+        "timer[s] status",
+        "[how much] time [is] left on [the|my] timer[s]",
+        "how long [is] left on [the|my] timer[s]",
+        "status of [the|my] timer[s]"
+      ],
+      "example": "timer status",
+      "response": "default",
+      "speech_to_phrase": true
+    },
+    {
+      "intent": "HassTimerStatus",
+      "source": "sentences/en/HassTimerStatus/hours_only.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_hours:start_hours}( |-)hour[s] timer status",
+        "[how much] time [is] left on [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "status of [the|my] {timer_hours:start_hours}( |-)hour[s] timer",
+        "how long [is] left on [the|my] {timer_hours:start_hours}( |-)hour[s] timer"
+      ],
+      "example": "1 hour timer status",
+      "response": "default"
+    },
+    {
+      "intent": "HassTimerStatus",
+      "source": "sentences/en/HassTimerStatus/minutes_only.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_minutes:start_minutes}( |-)minute[s] timer status",
+        "[how much] time [is] left on [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "status of [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer",
+        "how long [is] left on [the|my] {timer_minutes:start_minutes}( |-)minute[s] timer"
+      ],
+      "example": "5 minutes timer status",
+      "response": "default"
+    },
+    {
+      "intent": "HassTimerStatus",
+      "source": "sentences/en/HassTimerStatus/name_only.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_name:name} timer status",
+        "[how much] time [is] left on [the|my] {timer_name:name} timer",
+        "status of [the|my] {timer_name:name} timer[s]",
+        "how long [is] left on [the|my] {timer_name:name} timer"
+      ],
+      "example": "pizza timer status",
+      "response": "default"
+    },
+    {
+      "intent": "HassTimerStatus",
+      "source": "sentences/en/HassTimerStatus/seconds_only.yaml",
+      "block": 0,
+      "sentences": [
+        "{timer_seconds:start_seconds}( |-)second[s] timer status",
+        "[how much] time [is] left on [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "status of [the|my] {timer_seconds:start_seconds}( |-)second[s] timer",
+        "how long [is] left on [the|my] {timer_seconds:start_seconds}( |-)second[s] timer"
+      ],
+      "example": "45 seconds timer status",
+      "response": "default"
+    }
+  ],
+  "source_sha256": {
+    "rules/en/climate.yaml": "5c5668519c8cff96cf1a9d6c9c79c2700cf8791b5a72ad6269f540c303c6e3fa",
+    "rules/en/common.yaml": "c4c72c9cd32bbe6150d5b94548f9a29d239154c8a53b53f6ba706c98d2059d65",
+    "rules/en/getstate.yaml": "6bc979786939ad11407e99c7d76c4e4bf312118550ff818016561ad46634be02",
+    "rules/en/light.yaml": "93d5a425f3a42a1fdcf2797369c6b617176f460cc532122f43bbcc503d90a622",
+    "rules/en/media.yaml": "d44237428c5fb7c5b1dd2fe0d638663446986672cb187d6e70799226fe238dff",
+    "rules/en/timers.yaml": "3d994f06870cb4ad3326a3f8edfb7c722a8013c5ef85c901f6d07223fcf0ec1e",
+    "rules/en/verbs.yaml": "65217fa879b70675dbd542778baa69208a7a38e9746c83521655d8638152861e",
+    "sentences/en/HassTurnOn/area_device_class_cover.yaml": "879931feca15f9485b85d84931ad8d221f62a916c30cf8e6fad66e5ee170132b",
+    "sentences/en/HassTurnOn/area_domain.yaml": "514dad28af0e9cd413419b55a9474271a4a618273fe0b3318d5ba75fa6371fc3",
+    "sentences/en/HassTurnOn/device_class_cover.yaml": "1df2643109162fcb9f00fa4fcdf4f293a1264194c3b3c4a0349b30f45716fb89",
+    "sentences/en/HassTurnOn/domain_only.yaml": "6c161dad77cf8295c9ff2bc5a827a7e6d2c814dd24673b141b5b6f8cf1d8f2c1",
+    "sentences/en/HassTurnOn/floor_device_class_cover.yaml": "8ca526e89ac69ac51635e3a4438352fbe26dd21a208d78f83155673312c0e9d5",
+    "sentences/en/HassTurnOn/floor_domain.yaml": "eaa6406872c4d6410ad04792f5b7cb42f587f4642acc40f74e9a74bfd23c6dc1",
+    "sentences/en/HassTurnOn/name_area.yaml": "cd2ee38c2878a6011080c49572c9a30c7cfb28a8c623666d6c463021d977b990",
+    "sentences/en/HassTurnOn/name_floor.yaml": "9826ee7b87c237cdf2699dd330ace966d6b1594281cac34bf742ab6eb22430d3",
+    "sentences/en/HassTurnOn/name_only.yaml": "9c8049a7dc1a161f8046d5d60e1f0e5c3bf1f700150713007264f0a30b51c280",
+    "sentences/en/HassTurnOn/name_scene.yaml": "7fde44db264074509872eaac24faeae2192ea9210671e4f737f7afb52e6b751a",
+    "sentences/en/HassTurnOn/name_script.yaml": "d97cf750c487c19c35ac08411fa0716801541e0634c55c6d30a51264af21ee9f",
+    "sentences/en/HassTurnOff/area_device_class_cover.yaml": "22a295272a2965287ad877061de1d874bf159fbc71993bb82d25d6e874802147",
+    "sentences/en/HassTurnOff/area_domain.yaml": "6107943cd725b5c2a645994415be92ca23d744d37e2835cc09e338f247256d12",
+    "sentences/en/HassTurnOff/device_class_cover.yaml": "e4ec0e6277ea4ce046886cec92a5bedb8f1b5915cd65e305ae87006ac79bd8fb",
+    "sentences/en/HassTurnOff/domain_all.yaml": "0a8c27b5dd944510b3a9932c7a35742416b03a76ba1314b43db1101f5b86190f",
+    "sentences/en/HassTurnOff/domain_only.yaml": "2bd7403386c821bd0720ba7c1037e42e500b832976331915cbbd4d5ff815c254",
+    "sentences/en/HassTurnOff/floor_device_class_cover.yaml": "be81645b53f6f5d5ab452b283bde46583f967c23ccb0614040a164b34a3d2a70",
+    "sentences/en/HassTurnOff/floor_domain.yaml": "1ba905fd560db9e0bc7918caabba63b17a9b385a1980526d6756890543cf89b4",
+    "sentences/en/HassTurnOff/name_area.yaml": "f8c28ae98072c8dcf1c04db5906d357b7bc2bcbe39fd45b85143cd09f693ee7d",
+    "sentences/en/HassTurnOff/name_floor.yaml": "c4586b7dab94a89aef71502685ba87428151da6c40c1481e5b9fd8c61352313c",
+    "sentences/en/HassTurnOff/name_only.yaml": "ec5930fa985e11a9e298effb1b874749b47fded90a17cefc55dcfb7cf9324c48",
+    "sentences/en/HassLightSet/area_brightness.yaml": "a753ee033ce76d1db20e18ebc0ce1fb2ed44a81fc5b609505fb96f93ea1919d4",
+    "sentences/en/HassLightSet/area_color.yaml": "fae6708b7de50c5cd1c91222ee4fb24e3c15dc02e43e5a1ddc4aa477db6b370d",
+    "sentences/en/HassLightSet/area_temperature.yaml": "201c30d7ccc5c46d2f58e47caa2c715e634702021ce3ece4688ef212a69d56fc",
+    "sentences/en/HassLightSet/brightness_only.yaml": "6982e29e62cbe17ed5c00b5c22943d6a4928f23e1132662be1a81d4bacdd72d0",
+    "sentences/en/HassLightSet/color_only.yaml": "31d171cfacc12df9a39474f307bd031aab53a8899fac01a5088bc6d1a7e505a4",
+    "sentences/en/HassLightSet/floor_brightness.yaml": "8abd52aa23c2ffb40eefa995fbb44dc44cf7d99f617b669f1cbc93dd6a4019ac",
+    "sentences/en/HassLightSet/floor_color.yaml": "26874737346059ab6d946c11fea215c356bc27b3723d8fd42cd54311fd00ae23",
+    "sentences/en/HassLightSet/floor_temperature.yaml": "2577454792ea54d06abc8863a1bca1858d1b8a1a73215174af5208123874a7d9",
+    "sentences/en/HassLightSet/name_brightness.yaml": "fb089e901af58c1a5af8fa223e8dd792d6c86579d085ab4b55ca1b40831e3df6",
+    "sentences/en/HassLightSet/name_color.yaml": "afe4e69dca08e15f5e47d728a5093c1c05f967678102cbc44cec206e7c1da0f8",
+    "sentences/en/HassLightSet/name_temperature.yaml": "6c6e845180dd311877f8a5d4093bd273ec3b7712719362f8d9ed0c7ab211f804",
+    "sentences/en/HassLightSet/temperature_only.yaml": "329bd356f90581a2b43ec6f0a7354f630eb641190649c5df8dff66bead1a1a2f",
+    "sentences/en/HassFanSetSpeed/area_only.yaml": "6b45966c07fe3d153c268b147d72f2d36ef54a491cef2a71232e8d8bd8d22c1c",
+    "sentences/en/HassFanSetSpeed/default.yaml": "eee85f5cfd4f35ca29f8f72296d137e66077aaefba46c4a42e08a5d069ef8ef5",
+    "sentences/en/HassFanSetSpeed/floor_only.yaml": "50473956aca479174bbb6979002e86f485ee4b4d2215fd438ef08a7679bc16fb",
+    "sentences/en/HassFanSetSpeed/name_only.yaml": "1824df88a819282911ddd29c40e6520866a0a5e11888269584bcbf1e8234f958",
+    "sentences/en/HassClimateSetTemperature/area_temperature.yaml": "e7e32ee53e5e7b2140592739c79e1bd03edd0125f98e100ab0fdfc47d24fec9c",
+    "sentences/en/HassClimateSetTemperature/floor_temperature.yaml": "5fb7212f8c49c771b5a92474d6c16a501c6107f55ff7e285b0b34b8c8fbde90f",
+    "sentences/en/HassClimateSetTemperature/name_temperature.yaml": "b67d7078f10d0c8573ecc5805e91b42f226e6b060efdceb500c22947936265f0",
+    "sentences/en/HassClimateSetTemperature/temperature_only.yaml": "11933756593f954d142f08e3fbd1595c0ce70fe7d1f695f378430288493859ea",
+    "sentences/en/HassMediaPause/area_only.yaml": "c1b03df315a24f775d98c73e8adc102eda193ebe6fd6019900312a95820620d9",
+    "sentences/en/HassMediaPause/default.yaml": "8c358fbd5a16685dabade5e46f358988966109038a9d6efb1633d961bcc9070a",
+    "sentences/en/HassMediaPause/name_only.yaml": "17a7c73a274d077d606805716efbad740df7f8e2a07307bc542481b0aff37a4a",
+    "sentences/en/HassMediaUnpause/area_only.yaml": "3ce5167a5280424d5d29f338f2eb70999b231b3be47aa74e7f055fb4e7950aa6",
+    "sentences/en/HassMediaUnpause/default.yaml": "5e9b9637d7a23202a6591973a43c983a0ae990ee9f6d9e434a73f7a8f105dba6",
+    "sentences/en/HassMediaUnpause/name_only.yaml": "c5b78193a9ed724ddeb9a0f68d40b33f532c05c1f070b2b368428c6e81f5f0c8",
+    "sentences/en/HassMediaNext/area_only.yaml": "315b32aaebc5b9fb37890841ecbf4908113247ebf65c5dcb03369ed6e748db0c",
+    "sentences/en/HassMediaNext/default.yaml": "5e7a23a8e23b57b3acf935b03e7d9a92a17e429724d310181eb2d50b6e8bf396",
+    "sentences/en/HassMediaNext/name_only.yaml": "87522d843f084c3b5252e2fa3f30b8548bf8fe983eb982a1b515964ec5176514",
+    "sentences/en/HassMediaPrevious/area_only.yaml": "3f0324385377c3b1612e03a01ac0fa3a117620c72ec6ccb5e5e103ba27f60e85",
+    "sentences/en/HassMediaPrevious/default.yaml": "797799101f5d63d9f018ab5d7a3526d8a59f0c7da6de18523c3f47755346e880",
+    "sentences/en/HassMediaPrevious/name_only.yaml": "a6b215e57e0f4699d8e913cb51ddcf72004c23bf26baf1d717219d38a96df66f",
+    "sentences/en/HassMediaPlayerMute/default.yaml": "f87dbc48c2519f80c9749b26c0b057ba4d18f9fa83681a15012e9551fbdb307e",
+    "sentences/en/HassMediaPlayerMute/name_only.yaml": "c3e4c9dbf4909a3caddb8989cf6c9db2100f1fbe95b5830e6d5143142b420d5c",
+    "sentences/en/HassMediaPlayerUnmute/default.yaml": "5a94f156f0e0539c76cfda301be6db358c18f76dbea88ecf197375bd836152c3",
+    "sentences/en/HassMediaPlayerUnmute/name_only.yaml": "342f53224be4047857711edfdb89c869326c4c77cccef99b60c6567f6578bf1e",
+    "sentences/en/HassSetVolume/area_only.yaml": "dba69d2145687a727be35d48b5a7d4a0cadf3e8f9ff277c0133bcd62cc99d1e7",
+    "sentences/en/HassSetVolume/default.yaml": "8949a58bc84831ec0fe4eb8ee0788cabf3b4c3df97507b8244c36680af78857b",
+    "sentences/en/HassSetVolume/name_only.yaml": "331245aa5d4588f128de9e81686996fd9c74849b2b322cc206db1106da28e4db",
+    "sentences/en/HassSetVolumeRelative/area_only.yaml": "e51369743e3448c6d5eef0bf21c05d5574075b4166a29591a16d269467cd080e",
+    "sentences/en/HassSetVolumeRelative/default.yaml": "9d674056d48c8881cc1efe17b819f14c99adb68f1266e4bf6c06b7aa1fd1c87d",
+    "sentences/en/HassSetVolumeRelative/floor_only.yaml": "15c833aa65a938e27ed0f7a8e8796243075ff4a64074bcb524847ce3d7d88cd7",
+    "sentences/en/HassSetVolumeRelative/name_only.yaml": "0485ce3707b82afe5a02e758124f11ab64851f533f0de580e61a17856f71533e",
+    "sentences/en/HassStartTimer/command_hours.yaml": "481da7a441d3351d0558f99ed2ea5743165832158bcf2449dde715849444e455",
+    "sentences/en/HassStartTimer/command_hours_minutes.yaml": "fbbaf5d61786ae4613c4b1e09e01eb3996066b4c92c5f34601a07103c0e3d80d",
+    "sentences/en/HassStartTimer/command_hours_minutes_seconds.yaml": "a92d32f046666b839dc3a2c29c937bed0fa0cd9cf1845e5fbf35169b2675b318",
+    "sentences/en/HassStartTimer/command_hours_seconds.yaml": "095cb272ae475d892afa7f5320eb6c5d3c81cab2fe749144608f073b2e3ce9ae",
+    "sentences/en/HassStartTimer/command_minutes.yaml": "a105740c103b26b2d089aa9e4188cc0f48c5cbf5e5f744255cc1706f7f377c7f",
+    "sentences/en/HassStartTimer/command_minutes_seconds.yaml": "072d3bebb4ad0cfa34a607c812ab8b65636de3755d6472ab4b8507b1f643ded1",
+    "sentences/en/HassStartTimer/command_seconds.yaml": "4b3122e9d228a4a8072c1a1f90f40f9a4ac2cc3f014ad7d6c1ab5012673952a1",
+    "sentences/en/HassStartTimer/hours_minutes.yaml": "57b0aa46cdfda8dada97e7f935f9760aec05d619e409d4ba96a21c87393036d4",
+    "sentences/en/HassStartTimer/hours_minutes_seconds.yaml": "1b967b6a5e6fa2e2b5543184c8b6aad05e77dd2a847a6092aacda31e4adbdef7",
+    "sentences/en/HassStartTimer/hours_only.yaml": "edba7d32eade38ba2086c76b55aed4e432ecf40a95c658f874f14996e09d2628",
+    "sentences/en/HassStartTimer/hours_seconds.yaml": "e0660695f33bb242d2ce2fc96ef6a18a5868cce41721f0911c237348c040a37f",
+    "sentences/en/HassStartTimer/minutes_only.yaml": "b26102d593d6ad462b83c37a2fb53a6b41efea9f0586e737b31ab886f5b0c19e",
+    "sentences/en/HassStartTimer/minutes_seconds.yaml": "b70731abbcf38f01da8320bc0e11351bcf3977db7ffd867c9b9614817658c0a8",
+    "sentences/en/HassStartTimer/name_hours.yaml": "837f31dcc72eefb6d04168b021de5bd6bcf998939237d5ea2b101bf77e23cc0b",
+    "sentences/en/HassStartTimer/name_hours_minutes.yaml": "5338bf208666ea2c56cd8b128d6ed32906e6c32d22ff56cb108bb9c3a1838d74",
+    "sentences/en/HassStartTimer/name_hours_minutes_seconds.yaml": "23c12057e09724ec9a0f6b96b9b7ece0e66b3252dbacda48a9cb786748cbcb57",
+    "sentences/en/HassStartTimer/name_hours_seconds.yaml": "1ef902fcf633f1aa5eab80e45948b27c3b9e554df4dac392cbfa77102587a753",
+    "sentences/en/HassStartTimer/name_minutes.yaml": "60d2c75e845bf9a4a120e9d073211f2e11f9ed5fa32e86e3afc2aeec415caf3e",
+    "sentences/en/HassStartTimer/name_minutes_seconds.yaml": "afe8dc1466db60df4e996db76d0b936f6710b3c3c6334042b5bdfd4ac4a15e7d",
+    "sentences/en/HassStartTimer/name_seconds.yaml": "4cb2869f069736b03fbb6735e5ac724615c9f51a2c6e66895254ffb1e0e90696",
+    "sentences/en/HassStartTimer/seconds_only.yaml": "af2a8cfe0834ee075efdfd481d166e2175de4beb225d2f15658e11da733b83f5",
+    "sentences/en/HassPauseTimer/area_only.yaml": "96853ac05d53a60a768bf42fefad4c2f11c5fd158a4045e90eadef22c5deb59e",
+    "sentences/en/HassPauseTimer/default.yaml": "3093ddcc505f4a9fecf53a10ccb5df5279a3d747ae892e543408b23b4a170793",
+    "sentences/en/HassPauseTimer/hours_only.yaml": "dfcf1393460287b1f188287ab91acb90ae3b50083f0bf3ee334d0206be5f5024",
+    "sentences/en/HassPauseTimer/minutes_only.yaml": "b30ce989cdd6a928d5cf2191cf7c0f8eedb3b68e22a542d2ceff16a41bd19a31",
+    "sentences/en/HassPauseTimer/name_only.yaml": "c33b31c26c842216de26517306feff53537da2c37ea50d85e4135882380698b2",
+    "sentences/en/HassPauseTimer/seconds_only.yaml": "7765c9046ff10ad5f047b9aff67af1947a7ace415342e046585efe1825b5a42d",
+    "sentences/en/HassUnpauseTimer/area_only.yaml": "eb2e1152e40f85c2083baf1f7a2e212cecc8424501a9d899eaeac0c4abc71550",
+    "sentences/en/HassUnpauseTimer/default.yaml": "7448f207f241e03bd8484dd50c4a428dc9c0248b25e3bfdfde7346f34b634023",
+    "sentences/en/HassUnpauseTimer/hours_only.yaml": "3b95a30767b4600a7777ba6f50100169232bdb21c2c7914d27da20609d366b08",
+    "sentences/en/HassUnpauseTimer/minutes_only.yaml": "6a4ead9d47be68559f0d2d398b3884a56ad556ca865dd9e3b16d18f907a090f2",
+    "sentences/en/HassUnpauseTimer/name_only.yaml": "3e597194ca5eea2d481500dfc310e65d13a97d80ab0bd0edb82faddea0016671",
+    "sentences/en/HassUnpauseTimer/seconds_only.yaml": "5b9d062b894a318a14b03ec996cad8ef51838caf3d7486e2865916da3e1b499f",
+    "sentences/en/HassCancelTimer/area_only.yaml": "6ee74c249e265bf58d4c6348950b59a59f86f7b1cb9f507997a8c7f6a9f9603a",
+    "sentences/en/HassCancelTimer/default.yaml": "29024c6dbb470a32b4783cc86dd60fede2109a76aaec7c9c2075d4c09f3a111b",
+    "sentences/en/HassCancelTimer/hours_only.yaml": "a0c635cfd6fe43784f3d71639562632376cd7a0fcba2a92e0b65cb501fa20adb",
+    "sentences/en/HassCancelTimer/minutes_only.yaml": "aade9315b9f2c85aa2579e56b84369fd2425a5d311c18fa9cb389df85a8a00f8",
+    "sentences/en/HassCancelTimer/name_only.yaml": "e436851ea9032856c5afb73d006d10d76054056e803d4afe1e16633eddec1477",
+    "sentences/en/HassCancelTimer/seconds_only.yaml": "c1f12c4199d8dad6ef8b6b1712826f35aa912a234f8bb58d939fad38d6a4bb8e",
+    "sentences/en/HassCancelAllTimers/area_only.yaml": "4f96c70cc44cd35be490b122a482c8d3d1dd021cd287969bc80a0a79bd82cd4b",
+    "sentences/en/HassCancelAllTimers/default.yaml": "91dde1bd69172b01bdc9c635d4a77b6545009f0fc1e801a2758099f47b3b612b",
+    "sentences/en/HassIncreaseTimer/area_hours.yaml": "b2c3152cb9aabfc5fba8b2bccae577a2d77eadab4fa8ef24aeee2c0b60c81d14",
+    "sentences/en/HassIncreaseTimer/area_minutes.yaml": "18247f4b0d2e706e02ef695cc4818a2affa41a12d4050dc36b327c83a3a41c76",
+    "sentences/en/HassIncreaseTimer/area_seconds.yaml": "8f7c77896ea64e64f1f5665254de6f7772ff672d6422615509beba6091a55d2a",
+    "sentences/en/HassIncreaseTimer/hours_minutes.yaml": "6483f3e758c01e08007243d75e547bba90edb3c86bcdcf5abcdf126f37472769",
+    "sentences/en/HassIncreaseTimer/hours_only.yaml": "ad9d20fef725549bb9591b0feed84ee7270deba05b66f7f12dac30f01e9456f7",
+    "sentences/en/HassIncreaseTimer/hours_start_hours.yaml": "3462b2f9dc6d49b45437b2aa1d0b5d4a68beff01ae7aad2d4e8d80b38557709b",
+    "sentences/en/HassIncreaseTimer/hours_start_minutes.yaml": "f79ed7764cffbaa2aca51ead496ba40f00db75ce0e576c942b484a004173d19b",
+    "sentences/en/HassIncreaseTimer/hours_start_seconds.yaml": "b1d52dfab6a105e14125254198c3cd37fc49636d3d12f7cdd8dc862f58f27b82",
+    "sentences/en/HassIncreaseTimer/minutes_only.yaml": "c4d9412c6ba8940d0ecfded4ab386691bfb0761b8feb3a0b6674ed36d0c5aa26",
+    "sentences/en/HassIncreaseTimer/minutes_seconds.yaml": "7e10b2a45601e2866130d01aea1432155bd7b1f2946d0f3bf1727e3479902862",
+    "sentences/en/HassIncreaseTimer/minutes_start_hours.yaml": "524e28b8676bad54125a31a1d691c46e5f87a7012266665379f275507cc15e1d",
+    "sentences/en/HassIncreaseTimer/minutes_start_minutes.yaml": "85211185f42b1640dd7293d2bbe20d1ad4a85095d103650dc5619ddc2b945461",
+    "sentences/en/HassIncreaseTimer/minutes_start_seconds.yaml": "40fa710a853603a6efbb6c4c97980c29f9a1d9593e1d8bafc77a6af6a29de389",
+    "sentences/en/HassIncreaseTimer/name_hours.yaml": "4bfb5492538a7cc20f6fe40c36988e212a01983f4b283377ba57c68508353ae5",
+    "sentences/en/HassIncreaseTimer/name_minutes.yaml": "f96c7196be36ff28ea050d16abfef4e0643071214e02f6e13d9beddec2494cb5",
+    "sentences/en/HassIncreaseTimer/name_seconds.yaml": "f3d1bb5cc1928d286fc23b89a1fecd1fdfeed711588026c3c86f18c9cd55f150",
+    "sentences/en/HassIncreaseTimer/seconds_only.yaml": "c7a8a01bae6a83bcd7bc39cf7c7402392053e22f2f6399885415e96999c9d439",
+    "sentences/en/HassIncreaseTimer/seconds_start_hours.yaml": "b27f26602b841d5bb6ebb4fd8f73ca6c4ffdda1cbdf75ea7dccf6f5a71d94ed2",
+    "sentences/en/HassIncreaseTimer/seconds_start_minutes.yaml": "5051b09b5362d5562f09856fd974e38c436dd08c0586c4b138ddcd6c2829354c",
+    "sentences/en/HassIncreaseTimer/seconds_start_seconds.yaml": "b5d9e500ee4b9cb00ddd821da9108057d3ca3bad269a9e7805614e0f3cad5e5c",
+    "sentences/en/HassDecreaseTimer/area_hours.yaml": "0b5fb0c6702f65bb36e7fe9b955f4882c8d2ca0aeebdc41a46898f79b29fbcfe",
+    "sentences/en/HassDecreaseTimer/area_hours_minutes.yaml": "225a1deecde7f26e49845777e4f8451d90dbc1e4024e24d4a3960da8582fee42",
+    "sentences/en/HassDecreaseTimer/area_hours_seconds.yaml": "683e7a1d0def51f9ae6ebc4c96313a0ef61279b37b5e290bdcc6f4a6b56a820f",
+    "sentences/en/HassDecreaseTimer/area_minutes.yaml": "f38f83d6397422398a16aa361de84d406be0209de4db8ebcefba66da94a8a78f",
+    "sentences/en/HassDecreaseTimer/area_minutes_seconds.yaml": "8ae4395b6d4fb44813d6109d85285a7ee28d45665d7882f67561abb1f675ead3",
+    "sentences/en/HassDecreaseTimer/area_seconds.yaml": "0f4207d0017944958c8bf28d511b17187e2279131a6399cd1725f6ba7bd9ac17",
+    "sentences/en/HassDecreaseTimer/hours_minutes.yaml": "b6e9daa4864ada807afdb6f1601f5e12053fc9868640dac8baf7d2d3095ba23f",
+    "sentences/en/HassDecreaseTimer/hours_only.yaml": "ceffa8bceb5c94007312a7463078b966be52050667311d40cd2e5107ac7acbc8",
+    "sentences/en/HassDecreaseTimer/hours_seconds.yaml": "b9ce3300226dc76d63e05628692fe3b2127e40a835bb06a26fb8cf0352038c23",
+    "sentences/en/HassDecreaseTimer/hours_start_hours.yaml": "7544e0e49af876e3d3795a564901d765a949f3b35ef054a753b5ee0ee869f182",
+    "sentences/en/HassDecreaseTimer/hours_start_minutes.yaml": "2e4fee6c69a7c8219492878e092186cc54acdfa419a2a1b9e9b438618317397b",
+    "sentences/en/HassDecreaseTimer/hours_start_seconds.yaml": "0dc3f220b84b10e901272895e6666bd191fc92cf8a97638178c537ecb7378c53",
+    "sentences/en/HassDecreaseTimer/minutes_only.yaml": "4ca182165cf28bf526c8f699e439fa46b0b146ef080403381553fff0e1652630",
+    "sentences/en/HassDecreaseTimer/minutes_seconds.yaml": "cfa514471448f7531035b58cf435daa9ba0dad19002eae10f9c69254c8ca1290",
+    "sentences/en/HassDecreaseTimer/minutes_start_hours.yaml": "34fadfd4df11df17f694c4bc2475edd94b1e621f2b2a0c64c706895609a4f2cb",
+    "sentences/en/HassDecreaseTimer/minutes_start_minutes.yaml": "d0304e7cd3cb060c2f27003cdd606f618f4911d414ec5288335a30920fb368f6",
+    "sentences/en/HassDecreaseTimer/minutes_start_seconds.yaml": "67da3eead3d5640784d1687a3add92b44c7d4f650423c91640ab0f1c3dc5a372",
+    "sentences/en/HassDecreaseTimer/name_hours.yaml": "ea06e772e6dbd97d4f1fa2eb286da3f9edf314ef831b56f7ffe5be21003c6289",
+    "sentences/en/HassDecreaseTimer/name_hours_minutes.yaml": "0a90049f8cd55909f1cc895246e90bc9cb09238725738c1cabb3337e3d8d0c72",
+    "sentences/en/HassDecreaseTimer/name_hours_seconds.yaml": "33a13120e3bdd4c31bb95f258f57d21d2cc0ed85ed83b3c704a25a48547699e0",
+    "sentences/en/HassDecreaseTimer/name_minutes.yaml": "2edddad3ed231c21af35d3d91ce8445db76190362453869afa5313d1c4739ba1",
+    "sentences/en/HassDecreaseTimer/name_seconds.yaml": "41fc1178140b59bd408539e19a1bebc6e80a75f251b9a3fb4f1f69056efce18d",
+    "sentences/en/HassDecreaseTimer/seconds_only.yaml": "9b0f72ae45219379e1e877d04f3784b0f317e973d40386d13c3eba975a28c9de",
+    "sentences/en/HassDecreaseTimer/seconds_start_hours.yaml": "e2b8045c62834fed6fa4ea670fb77736ffa82435080d33b20b604038e6db2e74",
+    "sentences/en/HassDecreaseTimer/seconds_start_minutes.yaml": "3dec11a08da4be9556548a6671a5e5f0d762c764df5d91ef4dc7dbad585816d0",
+    "sentences/en/HassDecreaseTimer/seconds_start_seconds.yaml": "c48f8f8d806b5474d8d060f1259d586be99337de44086bd255ba60ba19b791f9",
+    "sentences/en/HassTimerStatus/area_only.yaml": "505a107b30fd3efccc97fa957e89d849e4f87bc51862893ddfe7836267068b08",
+    "sentences/en/HassTimerStatus/default.yaml": "41d7caa49833b26409d573bb0eb51892420cfb2cecff0a6d020056c75f0ee461",
+    "sentences/en/HassTimerStatus/hours_only.yaml": "732dd4aa7c5e222587244882975d1e57fa6e3da752b05c2c473cd3a230dfe93c",
+    "sentences/en/HassTimerStatus/minutes_only.yaml": "63ed33a7e93c65e7da7abf9aa10de46bc9fa42e9c89fdfd2042d6aa372d0731c",
+    "sentences/en/HassTimerStatus/name_only.yaml": "868d6825254268188141ccbca381b82779794d323ed02d5cd40605aa5893da0e",
+    "sentences/en/HassTimerStatus/seconds_only.yaml": "2a85ef69e345bb998af423ac948f3981e3cc12f2595eb1387d80495078e054bb"
+  }
+}

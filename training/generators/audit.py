@@ -14,6 +14,9 @@ def audit_rows(rows, *, expected_count=None):
     counts = Counter()
     casing = {"call": Counter(), "no_call": Counter()}
     seen = set()
+    grammar_sources = Counter()
+    grammar_templates = set()
+    requests = set()
     for row in rows:
         meta = row.get("metadata", {})
         row_id = meta.get("candidate_id")
@@ -22,6 +25,15 @@ def audit_rows(rows, *, expected_count=None):
         seen.add(row_id)
         messages = row["messages"]
         user = next(m["content"] for m in messages if m["role"] == "user")
+        requests.add(user.casefold())
+        grammar = [entry for entry in meta.get("linguistics", [])
+                   if entry.get("source", "").startswith("sentences/en/")]
+        counts["ohf_rows"] += bool(grammar)
+        counts["fallback_rows"] += any(entry.get("source") == "sayso_fallback"
+                                       for entry in meta.get("linguistics", []))
+        for entry in grammar:
+            grammar_sources[entry["source"]] += 1
+            grammar_templates.add((entry["source"], entry["block"], entry["template"]))
         if not user.strip() or _check_quality_eval_overlap(user):
             raise ValueError(f"empty request or eval overlap: {row_id}")
         calls = [c["function"] for m in messages for c in m.get("tool_calls", [])]
@@ -71,7 +83,10 @@ def audit_rows(rows, *, expected_count=None):
         for behavior in ("multi_call_rows", "exclusion_rows", "alias_rows"):
             if counts[behavior] < counts["rows"] * 0.005:
                 raise ValueError(f"insufficient actual {behavior}: {counts[behavior]}")
-    return {**counts, "casing": {kind: dict(cases) for kind, cases in casing.items()}}
+    return {**counts, "unique_requests": len(requests),
+            "ohf_source_count": len(grammar_sources), "ohf_template_count": len(grammar_templates),
+            "ohf_sources": dict(sorted(grammar_sources.items())),
+            "casing": {kind: dict(cases) for kind, cases in casing.items()}}
 
 
 if __name__ == "__main__":
