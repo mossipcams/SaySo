@@ -69,7 +69,7 @@ def test_readme_minimum_matches_pyproject() -> None:
 
 
 def test_compat_test_paths_cover_required_categories() -> None:
-    """Matrix runs transcript, compiler, boundary, routing, contract, and eval tests."""
+    """Matrix runs transcript, compiler, boundary, routing, contract, eval, and tracing tests."""
     required = {
         "transcript",
         "compiler",
@@ -77,6 +77,7 @@ def test_compat_test_paths_cover_required_categories() -> None:
         "routing",
         "request_contract",
         "offline_eval",
+        "tracing",
     }
     assert set(COMPAT_TEST_CATEGORIES.values()) == required
     for path in COMPAT_TEST_PATHS:

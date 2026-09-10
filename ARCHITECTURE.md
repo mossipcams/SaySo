@@ -65,6 +65,8 @@ follow the same path beginning at the SaySo conversation agent.
 | Tool-call validation and correction | SaySo integration using Home Assistant schemas |
 | Smart-home action execution | Home Assistant |
 | Model hosting and lifecycle | User-managed llama.cpp |
+| Canonical interaction trace and its storage | SaySo integration |
+| Satellite-observed stage timings | SaySo satellite overlay |
 
 Home Assistant remains authoritative for what exists, what is exposed, and what
 may execute. llama.cpp proposes tool calls but cannot execute actions itself.
@@ -157,6 +159,52 @@ communicates directly with llama.cpp.
 Wake detection runs locally on processed PCM and does not retain audio. It must
 not start another request while the current voice pipeline is active.
 
+## Interaction tracing
+
+The SaySo Home Assistant integration owns the canonical trace for one voice
+interaction and persists it separately from `home-assistant.log`, in a Home
+Assistant `helpers.storage.Store`. There is no tracing service, collector, or
+database.
+
+The trace identifier is Home Assistant's own `PipelineRun` id. That id already
+identifies exactly one end-to-end interaction, so SaySo reuses it rather than
+minting a parallel one. A conversation with no voice pipeline behind it — a text
+request, or a pipeline SaySo cannot resolve — falls back to a locally generated
+ULID. The id is never regenerated for a downstream stage.
+
+The satellite cannot supply that identifier. The ESPHome voice protocol carries
+only `start`, `conversation_id`, `flags`, `audio_settings` and
+`wake_word_phrase` on pipeline start, and Home Assistant's ESPHome integration
+discards `conversation_id` instead of passing it to the pipeline. Home Assistant
+therefore mints the id, and the satellite records the `conversation_id` Home
+Assistant reports back on `INTENT_END` so its own timings can be joined to the
+canonical trace. Introducing a second transport to carry a trace id is out of
+scope for this boundary.
+
+Each side times only what it can observe:
+
+| Stage | Measured by | Source |
+|---|---|---|
+| `wake_detected` | Satellite; Home Assistant | Local detection; `wake_word-end` |
+| `audio_upload_*` | Home Assistant | `stt-start` to `stt-vad-end` |
+| `speech_started` / `speech_ended` | Home Assistant | Pipeline VAD |
+| `stt_*` | Home Assistant | `stt-vad-end` to `stt-end` |
+| `context_*`, `inference_*`, `tool_parse_*`, `ha_action_*`, `response_*` | SaySo integration | Conversation agent |
+| `tts_*` | Home Assistant | `tts-start` to `tts-end` |
+| `playback_*` | Satellite | Local mpv playback |
+
+Audio transport and speech-to-text are recorded as separate stages so transport
+latency is never reported as transcription latency. The satellite runs no voice
+activity detector — Home Assistant's pipeline owns VAD — so no satellite VAD
+stage exists. Stages that cannot be observed stay empty rather than being
+fabricated.
+
+Traces never contain audio, prompts, tool schemas, Home Assistant state dumps,
+or credentials. Transcripts are treated as sensitive: they are configurable and
+are redacted from exported diagnostics. Retention is bounded by both age and
+interaction count, and pruning runs at save time, off the request path. A
+tracing or persistence failure is logged and the voice interaction continues.
+
 ## Failure and trust boundaries
 
 - Missing required satellite resources prevent the affected satellite from
@@ -192,7 +240,7 @@ processing remains on the local network; SaySo does not require a cloud service.
 | `custom_components/sayso/` | Home Assistant conversation integration |
 | `satellite/sayso/` | Optional SaySo reference satellite overlay |
 | `satellite/patches/` | Minimal upstream compatibility patches |
-| `satellite/systemd/` | Satellite process lifecycle |
+| `satellite/systemd/` | Satellite process lifecycle (system unit running as `User=sayso`) |
 | `schemas/` | Reference schema artifacts |
 | `evals/` | Offline and live behavioral evaluation |
 | `training/` | Dataset preparation, training, export, and training evaluation |
@@ -225,6 +273,12 @@ definition of runtime tool support.
     satellite; any compatible Home Assistant voice satellite works.
 12. Wake detection on the reference satellite consumes processed PCM from LVA’s
     external wake hook, not a second microphone capture path.
+13. The SaySo integration owns the canonical interaction trace; the satellite is
+    never the trace database.
+14. One interaction has one trace identifier, reused from Home Assistant’s
+    pipeline run and never regenerated for a later stage.
+15. Tracing is best-effort: a tracing or persistence failure never fails a voice
+    interaction.
 
 Update this document only when component ownership, runtime communication, trust
 boundaries, or an architectural invariant changes. Releases, implementation

@@ -53,8 +53,27 @@ from .schema import (
     format_synthetic_validation_error,
     validate_tool_arguments,
 )
+from .tracing import ErrorType, Stage, TraceContext
 
 _LOGGER = logging.getLogger(__name__)
+
+_BOUNDARY_ERROR_TYPES: dict[BoundaryFailureCode, ErrorType] = {
+    BoundaryFailureCode.SCHEMA_MISMATCH: ErrorType.SCHEMA_MISMATCH,
+    BoundaryFailureCode.INVALID_ARGUMENTS: ErrorType.INVALID_ARGUMENTS,
+    BoundaryFailureCode.UNAVAILABLE_TOOL: ErrorType.UNAVAILABLE_TOOL,
+    BoundaryFailureCode.REQUEST_TIMEOUT: ErrorType.MODEL_TIMEOUT,
+    BoundaryFailureCode.ITERATION_LIMIT: ErrorType.ITERATION_LIMIT,
+    BoundaryFailureCode.TOOL_EXECUTION_FAILED: ErrorType.HA_ACTION_FAILED,
+}
+
+_BOUNDARY_STAGES: dict[BoundaryFailureCode, Stage] = {
+    BoundaryFailureCode.SCHEMA_MISMATCH: Stage.TOOL_PARSE,
+    BoundaryFailureCode.INVALID_ARGUMENTS: Stage.TOOL_PARSE,
+    BoundaryFailureCode.UNAVAILABLE_TOOL: Stage.TOOL_PARSE,
+    BoundaryFailureCode.REQUEST_TIMEOUT: Stage.INFERENCE,
+    BoundaryFailureCode.ITERATION_LIMIT: Stage.INFERENCE,
+    BoundaryFailureCode.TOOL_EXECUTION_FAILED: Stage.HA_ACTION,
+}
 
 
 async def async_setup_entry(
@@ -116,48 +135,80 @@ class SaySoConversationEntity(
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
+        """Handle a user message with llama.cpp, tracing the whole turn."""
+        trace = self._runtime.tracer.async_start(user_input.context, user_input.text)
+        span = trace.open(Stage.SAYSO_REQUEST)
+        try:
+            return await self._async_handle_traced_message(
+                user_input, chat_log, trace
+            )
+        except Exception as err:
+            trace.fail(Stage.SAYSO_REQUEST, ErrorType.UNKNOWN, type(err).__name__)
+            raise
+        finally:
+            trace.close(span, success=trace.success is not False)
+            self._runtime.tracer.async_finish(trace)
+
+    async def _async_handle_traced_message(
+        self,
+        user_input: conversation.ConversationInput,
+        chat_log: conversation.ChatLog,
+        trace: TraceContext,
+    ) -> conversation.ConversationResult:
         """Handle a user message with llama.cpp."""
         runtime = self._runtime
 
-        try:
-            await chat_log.async_provide_llm_data(
-                user_input.as_llm_context(DOMAIN),
-                runtime.llm_api,
-                runtime.system_prompt,
-                user_input.extra_system_prompt,
+        with trace.stage(Stage.CONTEXT) as span:
+            try:
+                await chat_log.async_provide_llm_data(
+                    user_input.as_llm_context(DOMAIN),
+                    runtime.llm_api,
+                    runtime.system_prompt,
+                    user_input.extra_system_prompt,
+                )
+            except conversation.ConverseError as err:
+                trace.fail(Stage.CONTEXT, ErrorType.UNKNOWN, type(err).__name__)
+                return err.as_conversation_result()
+
+            try:
+                complete_schema = compile_llm_tools(chat_log.llm_api)
+            except SaySoInvalidToolEnvelopeError:
+                return _error_result(
+                    user_input,
+                    chat_log,
+                    ERROR_ACTION_FAILED,
+                    trace=trace,
+                    stage=Stage.CONTEXT,
+                    error_type=ErrorType.SCHEMA_MISMATCH,
+                )
+            llm_context = user_input.as_llm_context(DOMAIN)
+            domain_hint = identify_command_domain(
+                user_input.text,
+                build_routing_catalog(self.hass, assistant=llm_context.assistant),
+                registries=build_routing_registries(self.hass),
+                preferences=build_routing_preferences(self.hass, llm_context),
             )
-        except conversation.ConverseError as err:
-            return err.as_conversation_result()
+            active_schema = (
+                select_schema_for_domain(
+                    complete_schema,
+                    chat_log.llm_api.tools,
+                    domain_hint,
+                )
+                if complete_schema is not None
+                else None
+            )
+            messages = _chat_log_to_messages(chat_log.content)
+            span.metadata["domain_hint"] = domain_hint
+            span.metadata["tools"] = (
+                len(active_schema.tools) if active_schema is not None else 0
+            )
 
         try:
-            complete_schema = compile_llm_tools(chat_log.llm_api)
-        except SaySoInvalidToolEnvelopeError:
-            return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
-        llm_context = user_input.as_llm_context(DOMAIN)
-        domain_hint = identify_command_domain(
-            user_input.text,
-            build_routing_catalog(self.hass, assistant=llm_context.assistant),
-            registries=build_routing_registries(self.hass),
-            preferences=build_routing_preferences(self.hass, llm_context),
-        )
-        active_schema = (
-            select_schema_for_domain(
-                complete_schema,
-                chat_log.llm_api.tools,
-                domain_hint,
-            )
-            if complete_schema is not None
-            else None
-        )
-        messages = _chat_log_to_messages(chat_log.content)
-
-        try:
-            result = await runtime.client.chat_completion(
+            result = await self._async_chat_completion(
+                trace,
+                runtime,
                 messages,
-                model=runtime.model,
                 tools=active_schema.tools if active_schema is not None else None,
-                temperature=runtime.temperature,
-                max_tokens=runtime.max_output_tokens,
             )
         except (
             SaySoTimeoutError,
@@ -174,6 +225,7 @@ class SaySoConversationEntity(
                 user_input,
                 chat_log,
                 err,
+                trace=trace,
             )
 
         if result.tool_calls:
@@ -184,19 +236,62 @@ class SaySoConversationEntity(
                 result.tool_calls,
                 complete_schema,
                 active_schema,
+                trace,
             )
 
         error_message = _validate_text_completion(result)
         if error_message is not None:
-            return _error_result(user_input, chat_log, error_message)
-
-        chat_log.async_add_assistant_content_without_tools(
-            conversation.AssistantContent(
-                agent_id=self.entity_id,
-                content=result.content,
+            return _error_result(
+                user_input,
+                chat_log,
+                error_message,
+                trace=trace,
+                stage=Stage.INFERENCE,
+                error_type=ErrorType.EMPTY_RESPONSE,
             )
+
+        with trace.stage(Stage.RESPONSE) as span:
+            chat_log.async_add_assistant_content_without_tools(
+                conversation.AssistantContent(
+                    agent_id=self.entity_id,
+                    content=result.content,
+                )
+            )
+            span.metadata["text_length"] = len(result.content or "")
+            return conversation.async_get_result_from_chat_log(user_input, chat_log)
+
+    async def _async_chat_completion(
+        self,
+        trace: TraceContext,
+        runtime: SaySoRuntimeData,
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]] | None,
+        correction: bool = False,
+    ) -> ChatCompletionResult:
+        """Run one traced llama.cpp completion."""
+        span = trace.open(
+            Stage.INFERENCE,
+            model=runtime.model,
+            **({"correction": True} if correction else {}),
         )
-        return conversation.async_get_result_from_chat_log(user_input, chat_log)
+        try:
+            result = await runtime.client.chat_completion(
+                messages,
+                model=runtime.model,
+                tools=tools,
+                temperature=runtime.temperature,
+                max_tokens=runtime.max_output_tokens,
+            )
+        except BaseException as err:
+            trace.close(span, success=False)
+            trace.fail(Stage.INFERENCE, _inference_error_type(err), str(err))
+            raise
+        span.metadata["tool_calls"] = len(result.tool_calls)
+        if result.prompt_tokens is not None:
+            span.metadata["prompt_tokens"] = result.prompt_tokens
+        trace.close(span)
+        return result
 
     async def _async_handle_tool_calls(
         self,
@@ -206,10 +301,18 @@ class SaySoConversationEntity(
         tool_calls: list[ToolCall],
         complete_schema: CompiledToolSchema | None,
         active_schema: CompiledToolSchema | None,
+        trace: TraceContext,
     ) -> conversation.ConversationResult:
         """Execute tool calls sequentially until final text or iteration limit."""
         if chat_log.llm_api is None:
-            return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+            return _error_result(
+                user_input,
+                chat_log,
+                ERROR_ACTION_FAILED,
+                trace=trace,
+                stage=Stage.TOOL_PARSE,
+                error_type=ErrorType.UNAVAILABLE_TOOL,
+            )
 
         complete_allowed_tools = build_tool_availability_names(chat_log.llm_api.tools)
         validation_tool_names = (
@@ -228,6 +331,10 @@ class SaySoConversationEntity(
         phase = BoundaryPhase.INITIAL
 
         while True:
+            parse_span = trace.open(
+                Stage.TOOL_PARSE, calls=len(current_tool_calls)
+            )
+
             if not _validate_tool_call_batch_structure(current_tool_calls):
                 _record_boundary(
                     self._entry.entry_id,
@@ -239,6 +346,7 @@ class SaySoConversationEntity(
                         complete_schema=complete_schema,
                         correction_used=correction_used,
                     ),
+                    trace=trace,
                 )
                 return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -258,6 +366,7 @@ class SaySoConversationEntity(
                         complete_schema=complete_schema,
                         correction_used=correction_used,
                     ),
+                    trace=trace,
                 )
                 return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -278,6 +387,7 @@ class SaySoConversationEntity(
                             complete_schema=complete_schema,
                             correction_used=correction_used,
                         ),
+                        trace=trace,
                     )
                     return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -288,13 +398,16 @@ class SaySoConversationEntity(
                     complete_allowed_tools,
                     complete_schema.fingerprint,
                 )
+                # Close tool parsing before the correction request so correction
+                # latency lands in the inference stage, not in tool_parse_ms.
+                trace.close(parse_span, success=False)
                 try:
-                    correction_response = await runtime.client.chat_completion(
+                    correction_response = await self._async_chat_completion(
+                        trace,
+                        runtime,
                         correction_messages,
-                        model=runtime.model,
                         tools=complete_schema.tools,
-                        temperature=runtime.temperature,
-                        max_tokens=runtime.max_output_tokens,
+                        correction=True,
                     )
                 except (
                     SaySoTimeoutError,
@@ -312,12 +425,20 @@ class SaySoConversationEntity(
                         chat_log,
                         err,
                         log_label="llama.cpp correction",
+                        trace=trace,
                     )
 
                 correction_used = True
                 validation_tool_names = complete_allowed_tools
                 if not correction_response.tool_calls:
-                    return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+                    return _error_result(
+                        user_input,
+                        chat_log,
+                        ERROR_ACTION_FAILED,
+                        trace=trace,
+                        stage=Stage.TOOL_PARSE,
+                        error_type=ErrorType.INVALID_MODEL_OUTPUT,
+                    )
                 current_tool_calls = correction_response.tool_calls
                 continue
 
@@ -333,7 +454,8 @@ class SaySoConversationEntity(
                 )
                 if validation_error is not None:
                     _LOGGER.debug(
-                        "Tool argument validation failed for %s (%s): %s",
+                        "trace_id=%s tool argument validation failed for %s (%s): %s",
+                        trace.trace_id,
                         tool_call.name,
                         validation_error.code,
                         validation_error.message,
@@ -359,6 +481,7 @@ class SaySoConversationEntity(
                             complete_schema=complete_schema,
                             correction_used=correction_used,
                         ),
+                        trace=trace,
                     )
                     return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -369,13 +492,14 @@ class SaySoConversationEntity(
                     complete_allowed_tools,
                     complete_schema.fingerprint,
                 )
+                trace.close(parse_span, success=False)
                 try:
-                    correction_response = await runtime.client.chat_completion(
+                    correction_response = await self._async_chat_completion(
+                        trace,
+                        runtime,
                         correction_messages,
-                        model=runtime.model,
                         tools=complete_schema.tools,
-                        temperature=runtime.temperature,
-                        max_tokens=runtime.max_output_tokens,
+                        correction=True,
                     )
                 except (
                     SaySoTimeoutError,
@@ -393,12 +517,20 @@ class SaySoConversationEntity(
                         chat_log,
                         err,
                         log_label="llama.cpp correction",
+                        trace=trace,
                     )
 
                 correction_used = True
                 validation_tool_names = complete_allowed_tools
                 if not correction_response.tool_calls:
-                    return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
+                    return _error_result(
+                        user_input,
+                        chat_log,
+                        ERROR_ACTION_FAILED,
+                        trace=trace,
+                        stage=Stage.TOOL_PARSE,
+                        error_type=ErrorType.INVALID_MODEL_OUTPUT,
+                    )
                 current_tool_calls = correction_response.tool_calls
                 continue
 
@@ -414,8 +546,15 @@ class SaySoConversationEntity(
                     for tool_call, normalized_args in validated_tool_calls
                 ],
             )
+            trace.close(parse_span)
+
+            action_span = trace.open(
+                Stage.HA_ACTION,
+                **_action_metadata(validated_tool_calls, tool_map),
+            )
             batch_failed = False
             ha_error: str | None = None
+            resolved_target: str | None = None
             async for _tool_result in chat_log.async_add_assistant_content(
                 assistant_content
             ):
@@ -425,6 +564,13 @@ class SaySoConversationEntity(
                         error = _tool_result.tool_result.get("error")
                         if isinstance(error, str) and error:
                             ha_error = error
+                elif resolved_target is None:
+                    resolved_target = _first_target(_tool_result.tool_result)
+            if resolved_target is not None:
+                # Home Assistant's own resolution beats the name the model asked for.
+                action_span.metadata["target"] = resolved_target
+            _apply_action_summary(trace, action_span)
+            trace.close(action_span, success=not batch_failed)
 
             if batch_failed:
                 _record_boundary(
@@ -438,6 +584,7 @@ class SaySoConversationEntity(
                         correction_used=correction_used,
                     ),
                     ha_error=ha_error,
+                    trace=trace,
                 )
                 return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
@@ -446,12 +593,13 @@ class SaySoConversationEntity(
 
             messages = _chat_log_to_messages(chat_log.content)
             try:
-                follow_up = await runtime.client.chat_completion(
+                follow_up = await self._async_chat_completion(
+                    trace,
+                    runtime,
                     messages,
-                    model=runtime.model,
-                    tools=request_schema.tools if request_schema is not None else None,
-                    temperature=runtime.temperature,
-                    max_tokens=runtime.max_output_tokens,
+                    tools=(
+                        request_schema.tools if request_schema is not None else None
+                    ),
                 )
             except (
                 SaySoTimeoutError,
@@ -469,6 +617,7 @@ class SaySoConversationEntity(
                     chat_log,
                     err,
                     log_label="llama.cpp follow-up",
+                    trace=trace,
                 )
 
             if follow_up.tool_calls:
@@ -483,6 +632,7 @@ class SaySoConversationEntity(
                             complete_schema=complete_schema,
                             correction_used=correction_used,
                         ),
+                        trace=trace,
                     )
                     return _error_result(
                         user_input, chat_log, ERROR_TOOL_ITERATION_LIMIT
@@ -493,15 +643,26 @@ class SaySoConversationEntity(
 
             error_message = _validate_text_completion(follow_up)
             if error_message is not None:
-                return _error_result(user_input, chat_log, error_message)
-
-            chat_log.async_add_assistant_content_without_tools(
-                conversation.AssistantContent(
-                    agent_id=self.entity_id,
-                    content=follow_up.content,
+                return _error_result(
+                    user_input,
+                    chat_log,
+                    error_message,
+                    trace=trace,
+                    stage=Stage.RESPONSE,
+                    error_type=ErrorType.EMPTY_RESPONSE,
                 )
-            )
-            return conversation.async_get_result_from_chat_log(user_input, chat_log)
+
+            with trace.stage(Stage.RESPONSE) as span:
+                chat_log.async_add_assistant_content_without_tools(
+                    conversation.AssistantContent(
+                        agent_id=self.entity_id,
+                        content=follow_up.content,
+                    )
+                )
+                span.metadata["text_length"] = len(follow_up.content or "")
+                return conversation.async_get_result_from_chat_log(
+                    user_input, chat_log
+                )
 
 
 def _boundary_schema(
@@ -528,6 +689,7 @@ def _record_boundary(
     schema: CompiledToolSchema | None,
     *,
     ha_error: str | None = None,
+    trace: TraceContext | None = None,
 ) -> None:
     """Record one boundary failure and log its stable code and phase."""
     fingerprint = schema.fingerprint if schema else None
@@ -538,9 +700,87 @@ def _record_boundary(
         fingerprint=fingerprint,
         ha_error=ha_error,
     )
-    _LOGGER.debug("SaySo boundary failure: code=%s phase=%s", code.value, phase.value)
+    trace_id = trace.trace_id if trace is not None else None
+    _LOGGER.debug(
+        "trace_id=%s SaySo boundary failure: code=%s phase=%s",
+        trace_id,
+        code.value,
+        phase.value,
+    )
     if code == BoundaryFailureCode.TOOL_EXECUTION_FAILED and ha_error:
-        _LOGGER.warning("SaySo tool execution failed: ha_error=%s", ha_error)
+        _LOGGER.warning(
+            "trace_id=%s SaySo tool execution failed: ha_error=%s", trace_id, ha_error
+        )
+    if trace is not None:
+        trace.fail(
+            _BOUNDARY_STAGES.get(code, Stage.SAYSO_REQUEST),
+            _BOUNDARY_ERROR_TYPES.get(code, ErrorType.UNKNOWN),
+            ha_error or code.value,
+        )
+
+
+def _inference_error_type(err: BaseException) -> ErrorType:
+    """Classify why one llama.cpp request failed."""
+    if isinstance(err, SaySoTimeoutError):
+        return ErrorType.MODEL_TIMEOUT
+    if isinstance(err, SaySoInvalidResponseError):
+        return ErrorType.INVALID_MODEL_OUTPUT
+    if isinstance(err, (SaySoConnectionError, SaySoHttpError, SaySoError)):
+        return ErrorType.MODEL_UNAVAILABLE
+    return ErrorType.UNKNOWN
+
+
+def _first_target(tool_result: dict[str, Any]) -> str | None:
+    """Return the first entity Home Assistant reported as successfully targeted."""
+    data = tool_result.get("data")
+    if not isinstance(data, dict):
+        return None
+    successes = data.get("success")
+    if not isinstance(successes, list):
+        return None
+    for target in successes:
+        if isinstance(target, dict) and isinstance(target.get("id"), str):
+            return target["id"]
+    return None
+
+
+def _action_metadata(
+    validated_tool_calls: list[tuple[ToolCall, dict[str, Any]]],
+    tool_map: dict[str, Any],
+) -> dict[str, Any]:
+    """Return small, non-sensitive metadata describing a tool batch.
+
+    Only identifiers are kept: no full arguments, prompts or state dumps.
+    """
+    if not validated_tool_calls:
+        return {}
+    tool_call, normalized_args = validated_tool_calls[0]
+    metadata: dict[str, Any] = {"tool": tool_map[tool_call.name].name}
+    if len(validated_tool_calls) > 1:
+        metadata["batch"] = len(validated_tool_calls)
+    domain = normalized_args.get("domain")
+    if isinstance(domain, str) and domain:
+        metadata["domain"] = domain
+    elif isinstance(domain, list) and domain and isinstance(domain[0], str):
+        metadata["domain"] = domain[0]
+    name = normalized_args.get("name")
+    if isinstance(name, str) and name:
+        metadata["target"] = name
+    return metadata
+
+
+def _apply_action_summary(trace: TraceContext, span: Any) -> None:
+    """Promote the executed action onto the interaction summary."""
+    trace.tool = span.metadata.get("tool") or trace.tool
+    target = span.metadata.get("target")
+    if isinstance(target, str) and target:
+        trace.target = target
+        if "." in target:
+            trace.domain = target.split(".", 1)[0]
+    if trace.domain is None:
+        domain = span.metadata.get("domain")
+        if isinstance(domain, str) and domain:
+            trace.domain = domain
 
 
 def _client_exception_result(
@@ -553,8 +793,10 @@ def _client_exception_result(
     err: BaseException,
     *,
     log_label: str = "llama.cpp",
+    trace: TraceContext | None = None,
 ) -> conversation.ConversationResult:
     """Map a SaySo client exception to a spoken error after recording timeout boundaries."""
+    trace_id = trace.trace_id if trace is not None else None
     if isinstance(err, SaySoTimeoutError):
         _record_boundary(
             entry_id,
@@ -565,16 +807,42 @@ def _client_exception_result(
                 active_schema=active_schema,
                 complete_schema=complete_schema,
             ),
+            trace=trace,
         )
         return _error_result(user_input, chat_log, ERROR_REQUEST_TIMEOUT)
     if isinstance(err, SaySoConnectionError):
-        return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+        return _error_result(
+            user_input,
+            chat_log,
+            ERROR_MODEL_UNAVAILABLE,
+            trace=trace,
+            stage=Stage.INFERENCE,
+            error_type=ErrorType.MODEL_UNAVAILABLE,
+        )
     if isinstance(err, (SaySoHttpError, SaySoInvalidResponseError)):
-        _LOGGER.debug("%s response error: %s", log_label, err)
-        return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+        _LOGGER.debug("trace_id=%s %s response error: %s", trace_id, log_label, err)
+        return _error_result(
+            user_input,
+            chat_log,
+            ERROR_MODEL_UNAVAILABLE,
+            trace=trace,
+            stage=Stage.INFERENCE,
+            error_type=(
+                ErrorType.INVALID_MODEL_OUTPUT
+                if isinstance(err, SaySoInvalidResponseError)
+                else ErrorType.MODEL_UNAVAILABLE
+            ),
+        )
     if isinstance(err, SaySoError):
-        _LOGGER.debug("SaySo error: %s", err)
-        return _error_result(user_input, chat_log, ERROR_MODEL_UNAVAILABLE)
+        _LOGGER.debug("trace_id=%s SaySo error: %s", trace_id, err)
+        return _error_result(
+            user_input,
+            chat_log,
+            ERROR_MODEL_UNAVAILABLE,
+            trace=trace,
+            stage=Stage.INFERENCE,
+            error_type=ErrorType.MODEL_UNAVAILABLE,
+        )
     raise err
 
 
@@ -753,8 +1021,14 @@ def _error_result(
     user_input: conversation.ConversationInput,
     chat_log: conversation.ChatLog,
     speech: str,
+    *,
+    trace: TraceContext | None = None,
+    stage: Stage | str = Stage.SAYSO_REQUEST,
+    error_type: ErrorType = ErrorType.UNKNOWN,
 ) -> conversation.ConversationResult:
-    """Build a short spoken error result."""
+    """Build a short spoken error result, finalizing the trace against ``stage``."""
+    if trace is not None:
+        trace.fail(stage, error_type, speech)
     intent_response = intent.IntentResponse(language=user_input.language)
     intent_response.async_set_error(
         intent.IntentResponseErrorCode.FAILED_TO_HANDLE,

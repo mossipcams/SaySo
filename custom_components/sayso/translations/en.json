@@ -33,7 +33,7 @@
     "step": {
       "init": {
         "title": "SaySo options",
-        "description": "Adjust model, timeout, Home Assistant LLM API, and generation settings.",
+        "description": "Adjust model, timeout, Home Assistant LLM API, generation settings, and interaction trace retention.",
         "data": {
           "model": "Model",
           "timeout": "Request timeout (seconds)",
@@ -41,7 +41,10 @@
           "prompt": "System prompt",
           "temperature": "Temperature",
           "max_output_tokens": "Maximum output tokens",
-          "max_tool_iterations": "Maximum tool iterations"
+          "max_tool_iterations": "Maximum tool iterations",
+          "trace_retention_days": "Trace retention (days)",
+          "trace_max_interactions": "Maximum stored interactions",
+          "trace_store_utterances": "Store transcribed utterances in traces"
         }
       }
     },
@@ -51,6 +54,44 @@
       "invalid_response": "llama.cpp returned an invalid response.",
       "model_not_found": "The selected model is not available on llama.cpp.",
       "unknown": "Unexpected error."
+    }
+  },
+  "services": {
+    "get_trace": {
+      "name": "Get trace",
+      "description": "Return one interaction trace with its chronological stage events.",
+      "fields": {
+        "trace_id": {
+          "name": "Trace ID",
+          "description": "The trace identifier to look up."
+        }
+      }
+    },
+    "list_traces": {
+      "name": "List traces",
+      "description": "Return recent SaySo interaction summaries, newest first.",
+      "fields": {
+        "limit": {
+          "name": "Limit",
+          "description": "Maximum number of interactions to return."
+        },
+        "only_failures": {
+          "name": "Only failures",
+          "description": "Return only interactions that failed."
+        },
+        "error_stage": {
+          "name": "Error stage",
+          "description": "Return only interactions that failed at this stage."
+        },
+        "start_time": {
+          "name": "Start time",
+          "description": "Earliest interaction start time to include."
+        },
+        "end_time": {
+          "name": "End time",
+          "description": "Latest interaction start time to include."
+        }
+      }
     }
   }
 }

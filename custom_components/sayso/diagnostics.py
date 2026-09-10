@@ -16,6 +16,10 @@ from .exceptions import SaySoError
 
 TO_REDACT = {CONF_API_KEY}
 
+# Transcripts are sensitive; a diagnostics download is shared far more widely
+# than the trace store it came from.
+TO_REDACT_TRACE = {"utterance"}
+
 
 class BoundaryFailureCode(StrEnum):
     """Stable diagnostic codes for model-boundary failures."""
@@ -153,9 +157,18 @@ async def async_get_config_entry_diagnostics(
             "max_tool_iterations": runtime.max_tool_iterations,
             "system_prompt_length": len(runtime.system_prompt),
         }
+        traces = {
+            "stored": len(runtime.traces),
+            "retention_days": runtime.traces.retention_days,
+            "recent": [
+                async_redact_data(summary, TO_REDACT_TRACE)
+                for summary in runtime.traces.query(limit=10)
+            ],
+        }
     else:
         connectivity["base_url"] = entry.data.get(CONF_URL)
         runtime_data = {"loaded": False}
+        traces = {"stored": 0, "recent": []}
 
     return {
         "entry": {
@@ -167,4 +180,5 @@ async def async_get_config_entry_diagnostics(
         "runtime": runtime_data,
         "connectivity": connectivity,
         "boundary": boundary_diagnostics_snapshot(entry.entry_id),
+        "traces": traces,
     }
