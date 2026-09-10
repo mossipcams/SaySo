@@ -31,6 +31,7 @@ COMPAT_TEST_PATHS: Final[tuple[str, ...]] = (
     "tests/test_routing.py",  # routing
     "tests/test_client.py",  # request contract
     "tests/test_eval.py",  # offline eval
+    "tests/test_tracing.py",  # tracing
 )
 
 COMPAT_TEST_CATEGORIES: Final[dict[str, str]] = {
@@ -40,6 +41,7 @@ COMPAT_TEST_CATEGORIES: Final[dict[str, str]] = {
     "tests/test_routing.py": "routing",
     "tests/test_client.py": "request_contract",
     "tests/test_eval.py": "offline_eval",
+    "tests/test_tracing.py": "tracing",
 }
 
 
@@ -64,8 +66,10 @@ MATRIX: Final[tuple[MatrixEntry, ...]] = (
 
 # Integration roots whose manifest requirements are installed after Home Assistant.
 # Conversation setup on 2026.8.3 pulls hassil via the conversation manifest.
+# assist_pipeline is present so the tracing contract test can import the voice
+# pipeline internals the canonical trace id depends on.
 COMPONENT_REQUIREMENT_ROOTS: Final[dict[str, tuple[str, ...]]] = {
-    "current": ("conversation", "llm"),
+    "current": ("conversation", "llm", "assist_pipeline"),
 }
 
 

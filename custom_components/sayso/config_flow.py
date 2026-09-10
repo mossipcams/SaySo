@@ -20,6 +20,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv, llm
 from homeassistant.helpers.llm import LLM_API_ASSIST
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -39,13 +40,20 @@ from .const import (
     CONF_PROMPT,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
+    CONF_TRACE_MAX_INTERACTIONS,
+    CONF_TRACE_RETENTION_DAYS,
+    CONF_TRACE_STORE_UTTERANCES,
     DEFAULT_BASE_URL,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_TOOL_ITERATIONS,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT,
+    DEFAULT_TRACE_MAX_INTERACTIONS,
+    DEFAULT_TRACE_RETENTION_DAYS,
+    DEFAULT_TRACE_STORE_UTTERANCES,
     DOMAIN,
+    MAX_TRACE_INTERACTIONS,
 )
 from .exceptions import (
     SaySoAuthError,
@@ -90,6 +98,9 @@ def _default_options(model: str) -> dict[str, Any]:
         CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
         CONF_MAX_OUTPUT_TOKENS: DEFAULT_MAX_OUTPUT_TOKENS,
         CONF_MAX_TOOL_ITERATIONS: DEFAULT_MAX_TOOL_ITERATIONS,
+        CONF_TRACE_RETENTION_DAYS: DEFAULT_TRACE_RETENTION_DAYS,
+        CONF_TRACE_MAX_INTERACTIONS: DEFAULT_TRACE_MAX_INTERACTIONS,
+        CONF_TRACE_STORE_UTTERANCES: DEFAULT_TRACE_STORE_UTTERANCES,
     }
 
 
@@ -181,6 +192,39 @@ def _options_schema(
             ): NumberSelector(
                 NumberSelectorConfig(min=0, max=10, step=1, mode=NumberSelectorMode.BOX)
             ),
+            vol.Required(
+                CONF_TRACE_RETENTION_DAYS,
+                description={
+                    "suggested_value": options.get(
+                        CONF_TRACE_RETENTION_DAYS, DEFAULT_TRACE_RETENTION_DAYS
+                    )
+                },
+            ): NumberSelector(
+                NumberSelectorConfig(min=1, max=365, step=1, mode=NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_TRACE_MAX_INTERACTIONS,
+                description={
+                    "suggested_value": options.get(
+                        CONF_TRACE_MAX_INTERACTIONS, DEFAULT_TRACE_MAX_INTERACTIONS
+                    )
+                },
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=1,
+                    max=MAX_TRACE_INTERACTIONS,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(
+                CONF_TRACE_STORE_UTTERANCES,
+                description={
+                    "suggested_value": options.get(
+                        CONF_TRACE_STORE_UTTERANCES, DEFAULT_TRACE_STORE_UTTERANCES
+                    )
+                },
+            ): BooleanSelector(),
         }
     )
 
