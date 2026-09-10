@@ -3,10 +3,10 @@
 
 Run on the satellite, where the real livekit mel/embedding ONNX models live:
 
-    systemctl --user stop sayso-satellite
+    sudo systemctl stop sayso-satellite
     PYTHONPATH=/opt/sayso-satellite /opt/sayso-satellite/.venv/bin/python \
         scripts/wake_bench.py /opt/sayso-satellite/models/sayso.onnx AUDIO.wav
-    systemctl --user start sayso-satellite
+    sudo systemctl start sayso-satellite
 
 The equivalence assertion is the point. The speedup is worthless if the cached
 path scores differently from what the model was evaluated with.

@@ -49,7 +49,7 @@ Use a model whose template supports tool/function calling. SaySo sends requests 
 2. Search for **SaySo**.
 3. Enter the llama.cpp base URL (for example `http://127.0.0.1:8080/v1`) and optional API key.
 4. Select the model identifier exposed by your server.
-5. Adjust options (timeout, Home Assistant LLM API, system prompt, temperature, token limits, tool iterations) from the integration’s **Configure** menu.
+5. Adjust options (timeout, Home Assistant LLM API, system prompt, temperature, token limits, tool iterations, trace retention) from the integration’s **Configure** menu.
 
 ## Use SaySo as the conversation agent
 
@@ -65,6 +65,25 @@ The optional reference satellite under `satellite/` uses Home Assistant’s stan
 ## Diagnostics
 
 Download config entry diagnostics from the SaySo integration page. API keys and other configured secrets are redacted automatically.
+
+## Interaction traces
+
+SaySo records one trace per voice interaction: wake, audio transport, STT, context construction, model inference, tool parsing, Home Assistant action execution, response, and TTS. Traces are stored separately from `home-assistant.log` and are retrievable from **Developer tools → Actions**:
+
+- `sayso.get_trace` — one trace with its chronological stage events.
+- `sayso.list_traces` — recent interaction summaries, with `only_failures`, `error_stage`, `start_time`, and `end_time` filters.
+
+Both return a response; use **Perform action** with *Return response* enabled.
+
+Traces never contain audio, prompts, tool schemas, or credentials. Transcripts are stored by default and can be turned off with **Store transcribed utterances in traces** without losing timings, tool, target, or failure information. Retention defaults to 30 days or 500 interactions, whichever comes first.
+
+To attach trace IDs to ordinary logs for troubleshooting:
+
+```yaml
+logger:
+  logs:
+    custom_components.sayso: debug
+```
 
 ## Development
 

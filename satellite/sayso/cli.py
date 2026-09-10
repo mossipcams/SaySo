@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -10,36 +11,49 @@ from pathlib import Path
 
 from .config import CONFIG_PATH, load_config, validate_config
 
-USER_UNIT = "sayso-satellite.service"
+# A system unit running as User=sayso, not a systemd --user unit: a user manager
+# would need lingering plus systemd-logind and D-Bus, which DietPi does not run
+# by default.
+UNIT = "sayso-satellite.service"
 CHECK_DIR = Path("/var/tmp/sayso-satellite")
 
 
-def _systemctl(*args: str) -> int:
-    env = os.environ.copy()
-    env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-    return subprocess.call(["systemctl", "--user", *args], env=env)
+def _privileged(command: list[str]) -> list[str]:
+    """Prefix with sudo when changing unit state as an unprivileged user.
+
+    Reading unit state needs no privileges, so only the mutating commands take
+    this path. Without it a headless image with no polkit agent just fails with
+    "Interactive authentication required".
+    """
+    if os.geteuid() == 0:
+        return command
+    sudo = shutil.which("sudo")
+    return [sudo, *command] if sudo else command
+
+
+def _systemctl(action: str, *, privileged: bool = True) -> int:
+    command = ["systemctl", action, UNIT]
+    return subprocess.call(_privileged(command) if privileged else command)
 
 
 def cmd_start(_: argparse.Namespace) -> int:
-    return _systemctl("start", USER_UNIT)
+    return _systemctl("start")
 
 
 def cmd_stop(_: argparse.Namespace) -> int:
-    return _systemctl("stop", USER_UNIT)
+    return _systemctl("stop")
 
 
 def cmd_restart(_: argparse.Namespace) -> int:
-    return _systemctl("restart", USER_UNIT)
+    return _systemctl("restart")
 
 
 def cmd_status(_: argparse.Namespace) -> int:
-    return _systemctl("status", USER_UNIT)
+    return _systemctl("status", privileged=False)
 
 
 def cmd_logs(_: argparse.Namespace) -> int:
-    env = os.environ.copy()
-    env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-    return subprocess.call(["journalctl", "--user", "-u", USER_UNIT, "-f"], env=env)
+    return subprocess.call(["journalctl", "-u", UNIT, "-f"])
 
 
 def cmd_validate(_: argparse.Namespace) -> int:

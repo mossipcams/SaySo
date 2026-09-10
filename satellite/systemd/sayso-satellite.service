@@ -2,13 +2,36 @@
 Description=SaySo Linux Voice Assistant satellite
 StartLimitBurst=5
 StartLimitIntervalSec=120
-After=pipewire.service pipewire-pulse.service wireplumber.service network-online.target
-Wants=pipewire.service pipewire-pulse.service wireplumber.service
+# Ordering only. These are user units on a stock Debian/DietPi image, so they
+# may not exist system-wide; ExecStartPre=wait-audio is the real readiness gate.
+After=sound.target pipewire.service pipewire-pulse.service wireplumber.service network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
+# A system service running as a specified user avoids needing a systemd --user
+# manager, and therefore avoids lingering, systemd-logind and the D-Bus session
+# machinery that DietPi does not run by default.
+User=sayso
+Group=audio
+NoNewPrivileges=yes
+
 Environment=PYTHONPATH=/opt/sayso-satellite
-Environment=PREFERENCES_FILE=%h/.local/state/sayso-satellite/preferences.json
+# %h is not influenced by User= in a system unit - it resolves to root's home -
+# so state goes in StateDirectory, which systemd creates owned by User=/Group=.
+StateDirectory=sayso-satellite
+StateDirectoryMode=0700
+Environment=PREFERENCES_FILE=%S/sayso-satellite/preferences.json
+# There is no user session, so give the process its own runtime directory and
+# point it at a system-wide audio server.
+RuntimeDirectory=sayso-satellite
+Environment=XDG_RUNTIME_DIR=%t/sayso-satellite
+Environment=PULSE_SERVER=unix:/run/pulse/native
+# Operator overrides. EnvironmentFile= takes precedence over Environment=, so a
+# different PULSE_SERVER needs no edit to this unit. Optional: the leading "-"
+# means a missing file is not an error.
+EnvironmentFile=-/etc/default/sayso-satellite
+
 ExecStartPre=/opt/sayso-satellite/.venv/bin/python -m sayso.cli wait-audio
 ExecStart=/opt/sayso-satellite/.venv/bin/python -m sayso.launcher
 Restart=on-failure
@@ -19,4 +42,4 @@ StandardError=journal
 SyslogIdentifier=sayso-satellite
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

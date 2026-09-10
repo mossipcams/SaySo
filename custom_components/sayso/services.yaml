@@ -1,0 +1,31 @@
+get_trace:
+  fields:
+    trace_id:
+      required: true
+      example: "01K4Z9V0M2QF7N8YB3T5R6WXYZ"
+      selector:
+        text:
+
+list_traces:
+  fields:
+    limit:
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 1000
+          mode: box
+    only_failures:
+      default: false
+      selector:
+        boolean:
+    error_stage:
+      example: "inference"
+      selector:
+        text:
+    start_time:
+      selector:
+        datetime:
+    end_time:
+      selector:
+        datetime:
