@@ -28,6 +28,12 @@ from generators.utterances import expand_utterance as render_utterance, request_
 
 DEFAULT_TRAIN_COUNT = 10_000
 
+# The home-specific recipe mixes the fetched home in at this rate unless the
+# caller overrides it. Nonzero on purpose: a recipe that trains for one home and
+# never shows the model that home is not a home-specific recipe. --synthetic-only
+# is the explicit way to turn it off.
+HOME_RECIPE_REAL_RATE = 0.10
+
 CATEGORY_WEIGHTS = {
     "clean_direct": 10,
     "conversational": 15,
@@ -1900,20 +1906,61 @@ def main() -> int:
         default=0,
         help="Max rows one real entity may be the target of (0 derives it)",
     )
+    parser.add_argument(
+        "--home-recipe",
+        action="store_true",
+        help="v3 only: the home-specific recipe. Requires --real-home and defaults "
+             f"--real-home-rate to {HOME_RECIPE_REAL_RATE}",
+    )
+    parser.add_argument(
+        "--synthetic-only",
+        action="store_true",
+        help="v3 only: explicitly disable real-home mixing, overriding --home-recipe",
+    )
+    parser.add_argument(
+        "--allow-stale-home",
+        action="store_true",
+        help="v3 only: accept a home snapshot that Home Assistant's Assist exposure "
+             "list was not applied to",
+    )
+    parser.add_argument("--negative-rate", type=float, default=None)
+    parser.add_argument("--grounding-rate", type=float, default=None)
+    parser.add_argument("--max-absence-rate", type=float, default=None)
     args = parser.parse_args()
 
     if args.real_home_rate and not args.real_home:
         parser.error("--real-home-rate needs --real-home")
     if args.real_home and args.pipeline != "v3":
         parser.error("--real-home only applies to --pipeline v3")
+    if args.home_recipe and args.synthetic_only:
+        parser.error("--home-recipe and --synthetic-only are mutually exclusive")
+    if args.home_recipe and not args.real_home:
+        parser.error("--home-recipe needs --real-home")
 
     if args.pipeline == "v3":
         from generators.config import GeneratorConfig
         from generators.pipeline import run_generation, write_jsonl, write_manifest
+        from generators.real_home import TESTABLE_EXPOSURE_SOURCES, require_exposure_source
+
+        real_home_rate = args.real_home_rate
+        if args.home_recipe and not real_home_rate:
+            real_home_rate = HOME_RECIPE_REAL_RATE
+        if args.real_home and not args.synthetic_only and not args.allow_stale_home:
+            require_exposure_source(args.real_home, allowed=TESTABLE_EXPOSURE_SOURCES)
 
         out_path = args.out_dir / "synthetic_v3_train.jsonl" if args.out_dir.is_dir() else args.out_dir
         render_path = args.render_out or out_path.with_name(f"{out_path.stem}_render.jsonl")
+        overrides = {
+            key: value
+            for key, value in (
+                ("negative_rate", args.negative_rate),
+                ("grounding_rate", args.grounding_rate),
+                ("max_absence_rate", args.max_absence_rate),
+            )
+            if value is not None
+        }
         config = GeneratorConfig(
+            **overrides,
             count=args.count,
             seed=args.seed,
             output_path=out_path,
@@ -1923,8 +1970,9 @@ def main() -> int:
             token_budget=args.token_budget,
             exclude_prompts_path=args.exclude_prompts,
             real_home_path=args.real_home,
-            real_home_rate=args.real_home_rate,
+            real_home_rate=real_home_rate,
             real_home_entity_cap=args.real_home_entity_cap,
+            synthetic_only=args.synthetic_only,
         )
         result = run_generation(config)
         rendered = [render_for_trl(row) for row in result["rows"]]

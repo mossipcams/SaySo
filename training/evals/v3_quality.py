@@ -1145,7 +1145,19 @@ def excluded_train_prompts() -> set[str]:
     excluded = {_normalized(text) for text in gold_user_prompts()}
     excluded.update(_normalized(text) for text in shadow_user_prompts())
     excluded.update(_normalized(text) for text in recipe_lock_prompts())
+    excluded.update(_normalized(text) for text in _grounding_prompts())
     return excluded
+
+
+def _grounding_prompts() -> list[str]:
+    """Entity-grounding regressions. Imported lazily: evals.grounding_eval imports
+    the generators, which import this module for the exclusion set.
+    """
+    try:
+        from evals.grounding_eval import grounding_user_prompts
+    except ImportError:  # pragma: no cover - eval package incomplete
+        return []
+    return grounding_user_prompts()
 
 
 def build_gold_examples() -> list[dict[str, Any]]:

@@ -5,7 +5,14 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from generators.capability_registry import CAPABILITIES, OperationSpec, SupportLevel, trainable_operations
+from generators.capability_registry import (
+    CAPABILITIES,
+    OperationSpec,
+    SupportLevel,
+    entities_supporting,
+    entity_supports,
+    trainable_operations,
+)
 from generators.homes import entities_in_area, entities_of_capability
 from generators.tools import build_call_for_operation
 
@@ -44,6 +51,30 @@ def expected_no_action(response: str, **extra: Any) -> dict[str, Any]:
     return payload
 
 
+def expected_device_unsupported(
+    entities: list[dict[str, Any]],
+    capability: str,
+    operation: str,
+    rng: random.Random,
+) -> dict[str, Any]:
+    """The devices are there, exposed, and cannot do it.
+
+    Distinct from ``area_unavailable`` (nothing of that type in the room) and from
+    ``unsupported`` (Home Assistant did not supply the tool at all): here the tool
+    is offered and the entity's supported_features simply lack the action.
+    """
+    target = entities[0]
+    requested = {
+        "kind": "action",
+        "calls": [build_call_for_operation(target, capability, operation, rng)],
+    }
+    return expected_no_action(
+        "device_unsupported",
+        requested=requested,
+        unsupported_names=[entity["name"] for entity in entities],
+    )
+
+
 def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str, Any]:
     """Derive authoritative expected behavior from a structured scenario."""
     home = scenario["home"]
@@ -68,10 +99,10 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
             blocker=op_spec.blocker if op_spec else cap_spec.blocker,
         )
 
-    if capability == "timers" and operation in {"cancel_all", "start", "pause", "status"}:
+    if capability == "timers" and op_spec is not None and op_spec.support is SupportLevel.SUPPORTED:
         area = scenario.get("area")
         call = build_call_for_operation(None, capability, operation, rng, area=area)
-        if operation in {"start", "pause", "status"}:
+        if operation != "cancel_all":
             call["arguments"]["name"] = rng.choice((
                 "tea", "rice", "pasta", "bread", "coffee", "workout",
                 "homework", "stretching", "watering", "roast", "cookies", "meditation",
@@ -89,8 +120,11 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
 
     if targeting == "area":
         area = scenario.get("area") or home["sayso_entity_area"]
-        matches = entities_in_area(home, capability, area)
+        present = entities_in_area(home, capability, area)
+        matches = entities_supporting(present, capability, operation)
         if not matches:
+            if present:
+                return expected_device_unsupported(present, capability, operation, rng)
             return expected_no_action(
                 "area_unavailable",
                 unavailable={"area": area.casefold(), "type": _type_label(capability)},
@@ -103,20 +137,31 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
 
     if targeting == "floor":
         floor = scenario.get("floor") or "Upstairs"
-        matches = [e for e in entities_of_capability(home, capability) if e["floor"] == floor]
+        on_floor = [e for e in entities_of_capability(home, capability) if e["floor"] == floor]
+        matches = entities_supporting(on_floor, capability, operation)
         if not matches:
             return expected_no_action("clarify")
         call = build_call_for_operation(None, capability, operation, rng, floor=floor)
         return {"kind": "action", "calls": [call]}
 
     if targeting == "multiple":
-        targets = scenario.get("target_entities") or entities_of_capability(home, capability)[:2]
+        targets = scenario.get("target_entities") or entities_supporting(
+            entities_of_capability(home, capability), capability, operation
+        )[:2]
+        if not targets:
+            return expected_no_action("clarify")
         calls, script_targets = [], []
         for entity in targets:
             entity_cap = entity["capability"]
             chosen_op = operation
-            if entity_cap != capability:
-                chosen_op = rng.choice(trainable_operations(CAPABILITIES[entity_cap])).name
+            if entity_cap != capability or not entity_supports(entity, entity_cap, operation):
+                usable = [
+                    op for op in trainable_operations(CAPABILITIES[entity_cap])
+                    if entity_supports(entity, entity_cap, op.name)
+                ]
+                if not usable:
+                    return expected_no_action("clarify")
+                chosen_op = rng.choice(usable).name
             action = expected_action(entity, chosen_op, rng)
             calls.extend(action["calls"])
             script_targets.extend(action.get("script_targets", []))
@@ -129,11 +174,13 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
 
 
 def _pick_entity(scenario: dict[str, Any], rng: random.Random) -> dict[str, Any] | None:
-    if scenario.get("target_entity"):
-        return scenario["target_entity"]
     capability = scenario["capability"]
+    operation = scenario["operation"]
+    target = scenario.get("target_entity")
+    if target and entity_supports(target, capability, operation):
+        return target
     home = scenario["home"]
-    matches = entities_of_capability(home, capability)
+    matches = entities_supporting(entities_of_capability(home, capability), capability, operation)
     if not matches:
         return None
     return matches[scenario.get("target_index", 0) % len(matches)]
@@ -149,8 +196,11 @@ def _ambiguous_gold(
         # Script tools expose friendly names, not their hidden HA area assignments.
         return expected_no_action("clarify")
     area = home["sayso_entity_area"]
-    matches = entities_in_area(home, capability, area)
+    present = entities_in_area(home, capability, area)
+    matches = entities_supporting(present, capability, operation)
     if len(matches) == 0:
+        if present:
+            return expected_device_unsupported(present, capability, operation, rng)
         return expected_no_action(
             "area_unavailable",
             unavailable={"area": area.casefold(), "type": _type_label(capability)},

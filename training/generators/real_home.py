@@ -50,6 +50,28 @@ def split_entities(
     return sorted(selected, key=lambda e: e["entity_id"])
 
 
+# A snapshot may mix in only when Home Assistant's own Assist exposure list was
+# applied. "domain_filter" means the exporter guessed from the domain, which can
+# put an entity the assistant cannot see into the corpus.
+LIVE_EXPOSURE_SOURCES = frozenset({"assist_exposure"})
+TESTABLE_EXPOSURE_SOURCES = frozenset({"assist_exposure", "synthetic_fixture"})
+
+
+def exposure_source(path: str | Path) -> str:
+    return json.loads(Path(path).read_text(encoding="utf-8")).get("exposure_source", "unknown")
+
+
+def require_exposure_source(path: str | Path, *, allowed: frozenset[str] = LIVE_EXPOSURE_SOURCES) -> None:
+    """Fail loudly rather than train a home recipe on a stale or unfiltered export."""
+    source = exposure_source(path)
+    if source not in allowed:
+        raise ValueError(
+            f"{path} has exposure_source={source!r}; the home-specific recipe needs one of "
+            f"{sorted(allowed)}. Refresh it with scripts/fetch_ha_home.py against the live "
+            "Home Assistant instance."
+        )
+
+
 @lru_cache(maxsize=4)
 def _load(path: str, split: str) -> dict[str, Any]:
     home = json.loads(Path(path).read_text(encoding="utf-8"))

@@ -1,0 +1,1366 @@
+{
+  "accepted": 1200,
+  "achieved_stt_rate": 0.1467,
+  "attempts": 1330,
+  "by_capability": {
+    "buttons": 20,
+    "climate": 115,
+    "covers": 69,
+    "fans": 80,
+    "lawn_mowers": 20,
+    "lights": 254,
+    "locks": 62,
+    "media_players": 161,
+    "scenes": 60,
+    "scripts": 60,
+    "switches": 104,
+    "timers": 115,
+    "todo_lists": 20,
+    "vacuums": 60
+  },
+  "by_difficulty": {
+    "alias_distractor": 47,
+    "ambiguity": 52,
+    "exclusion": 13,
+    "large_home": 48,
+    "multi_action": 19,
+    "ordinary": 942,
+    "similar_name": 43,
+    "unsupported": 36
+  },
+  "by_home_size": {
+    "1": 6,
+    "2": 4,
+    "5": 1,
+    "8": 104,
+    "16": 358,
+    "21": 120,
+    "32": 358,
+    "64": 249
+  },
+  "by_operation": {
+    "activate": 30,
+    "cancel": 14,
+    "cancel_all": 15,
+    "clean_area": 15,
+    "close": 22,
+    "control": 3,
+    "decrease": 14,
+    "increase": 14,
+    "lock": 21,
+    "mute": 12,
+    "next_track": 13,
+    "open": 22,
+    "pause": 28,
+    "play": 13,
+    "previous_track": 12,
+    "query_state": 283,
+    "return_home": 15,
+    "run": 57,
+    "search_and_play": 12,
+    "set_brightness": 42,
+    "set_color": 42,
+    "set_color_temperature": 42,
+    "set_position": 3,
+    "set_speed": 20,
+    "set_temperature": 29,
+    "start": 30,
+    "status": 14,
+    "turn_off": 140,
+    "turn_on": 140,
+    "unlock": 21,
+    "unmute": 12,
+    "unpause": 14,
+    "volume_down": 12,
+    "volume_set": 12,
+    "volume_up": 12
+  },
+  "by_tier": {
+    "1": 960,
+    "2": 180,
+    "3": 60
+  },
+  "config": {
+    "count": 1200,
+    "grounding_rate": 0.03,
+    "home_size_weights": {
+      "8": 10,
+      "16": 35,
+      "32": 35,
+      "64": 20
+    },
+    "max_absence_rate": 0.1,
+    "min_positive_per_operation": 1,
+    "min_positive_per_tool": 1,
+    "near_duplicate_limit": 8,
+    "negative_rate": 0.12,
+    "ordinary_rate": 0.75,
+    "output_path": "training/datasets/coverage_smoke.jsonl",
+    "paraphrase_enabled": false,
+    "paraphrase_variants": 0,
+    "real_home_entity_cap": 0,
+    "real_home_path": "training/fixtures/synthetic_reference_home.json",
+    "real_home_rate": 0.1,
+    "seed": 20260911,
+    "split": "train",
+    "stt_noise_rate": 0.15,
+    "synthetic_only": false,
+    "tier_proportions": {
+      "1": 0.8,
+      "2": 0.15,
+      "3": 0.05
+    },
+    "token_budget": 4096
+  },
+  "deterministic": 1200,
+  "grounding": {
+    "achieved_rate": 0.0092,
+    "by_family": {
+      "ground_alias_alias": 1,
+      "ground_domain_absent": 1,
+      "ground_domain_present": 1,
+      "ground_features_capable": 1,
+      "ground_features_incapable": 1,
+      "ground_light_pair": 1,
+      "ground_light_single": 1,
+      "ground_media_a_distractors": 1,
+      "ground_media_a_moved": 1,
+      "ground_media_a_present": 1,
+      "ground_media_a_renamed": 1
+    },
+    "requested_rate": 0.03,
+    "rows": 11
+  },
+  "paraphrased": 0,
+  "quality_audit": {
+    "absence_rate": 0.0175,
+    "alias_rows": 21,
+    "by_outcome": {
+      "absence": 21,
+      "action": 864,
+      "clarify": 9,
+      "status": 261,
+      "unsupported": 45
+    },
+    "by_targeting": {
+      "area": 41,
+      "floor": 91,
+      "individual": 993,
+      "none": 75
+    },
+    "by_tool": {
+      "GetLiveContext": 261,
+      "HassCancelAllTimers": 15,
+      "HassCancelTimer": 14,
+      "HassClimateSetTemperature": 28,
+      "HassDecreaseTimer": 13,
+      "HassFanSetSpeed": 18,
+      "HassIncreaseTimer": 13,
+      "HassLightSet": 125,
+      "HassMediaNext": 11,
+      "HassMediaPause": 13,
+      "HassMediaPlayerMute": 11,
+      "HassMediaPlayerUnmute": 12,
+      "HassMediaPrevious": 11,
+      "HassMediaSearchAndPlay": 12,
+      "HassMediaUnpause": 13,
+      "HassPauseTimer": 15,
+      "HassSetVolume": 11,
+      "HassSetVolumeRelative": 23,
+      "HassStartTimer": 15,
+      "HassTimerStatus": 14,
+      "HassTurnOff": 176,
+      "HassTurnOn": 206,
+      "HassUnpauseTimer": 13,
+      "HassVacuumCleanArea": 15,
+      "HassVacuumReturnToBase": 14,
+      "HassVacuumStart": 14,
+      "all_lights_off": 2,
+      "basement_evening_lighting": 1,
+      "bathroom_lights_on": 1,
+      "bedtime": 2,
+      "craft_room_lights_on": 1,
+      "entryway_evening_lighting": 2,
+      "evening_cleanup": 7,
+      "feed_the_cat": 3,
+      "garage_evening_lighting": 1,
+      "good_morning": 7,
+      "good_night": 4,
+      "guest_bedroom_lights_off": 1,
+      "hallway_lights_on": 3,
+      "kids_room_evening_lighting": 1,
+      "kitchen_evening_lighting": 2,
+      "leaving_home": 4,
+      "living_room_evening_lighting": 1,
+      "living_room_lights_off": 1,
+      "master_bedroom_lights_off": 1,
+      "movie_time": 6,
+      "water_the_plants": 3,
+      "welcome_home": 3
+    },
+    "call": 1125,
+    "casing": {
+      "call": {
+        "lower": 563,
+        "upper": 562
+      },
+      "no_call": {
+        "lower": 38,
+        "upper": 37
+      }
+    },
+    "conversational_rows": 580,
+    "exclusion_rows": 13,
+    "fallback_rows": 605,
+    "multi_call_rows": 84,
+    "negatives_by_reason": {
+      "area_unavailable": 21,
+      "clarify": 9,
+      "device_unsupported": 1,
+      "unsupported": 44
+    },
+    "no_call": 75,
+    "ohf_rows": 541,
+    "ohf_source_count": 26,
+    "ohf_sources": {
+      "sentences/en/HassCancelAllTimers/area_only.yaml": 15,
+      "sentences/en/HassCancelTimer/name_only.yaml": 14,
+      "sentences/en/HassClimateSetTemperature/floor_temperature.yaml": 2,
+      "sentences/en/HassClimateSetTemperature/name_temperature.yaml": 27,
+      "sentences/en/HassDecreaseTimer/name_minutes.yaml": 13,
+      "sentences/en/HassIncreaseTimer/name_minutes.yaml": 13,
+      "sentences/en/HassLightSet/area_brightness.yaml": 9,
+      "sentences/en/HassLightSet/area_color.yaml": 1,
+      "sentences/en/HassLightSet/area_temperature.yaml": 1,
+      "sentences/en/HassLightSet/floor_brightness.yaml": 4,
+      "sentences/en/HassLightSet/name_brightness.yaml": 30,
+      "sentences/en/HassLightSet/name_color.yaml": 45,
+      "sentences/en/HassLightSet/name_temperature.yaml": 40,
+      "sentences/en/HassPauseTimer/name_only.yaml": 15,
+      "sentences/en/HassSetVolumeRelative/floor_only.yaml": 6,
+      "sentences/en/HassSetVolumeRelative/name_only.yaml": 19,
+      "sentences/en/HassStartTimer/name_minutes.yaml": 15,
+      "sentences/en/HassTimerStatus/name_only.yaml": 14,
+      "sentences/en/HassTurnOff/area_domain.yaml": 8,
+      "sentences/en/HassTurnOff/floor_domain.yaml": 4,
+      "sentences/en/HassTurnOff/name_only.yaml": 126,
+      "sentences/en/HassTurnOn/area_domain.yaml": 3,
+      "sentences/en/HassTurnOn/floor_domain.yaml": 6,
+      "sentences/en/HassTurnOn/name_only.yaml": 131,
+      "sentences/en/HassTurnOn/name_scene.yaml": 26,
+      "sentences/en/HassUnpauseTimer/name_only.yaml": 13
+    },
+    "ohf_template_count": 66,
+    "positive_by_domain_targeting": {
+      "buttons/query_state/individual": 18,
+      "climate/query_state/individual": 25,
+      "climate/set_temperature/floor": 2,
+      "climate/set_temperature/individual": 25,
+      "climate/turn_off/floor": 5,
+      "climate/turn_off/individual": 24,
+      "climate/turn_on/floor": 5,
+      "climate/turn_on/individual": 23,
+      "covers/close/floor": 2,
+      "covers/close/individual": 18,
+      "covers/open/floor": 2,
+      "covers/open/individual": 19,
+      "covers/query_state/individual": 21,
+      "fans/query_state/individual": 18,
+      "fans/set_speed/floor": 8,
+      "fans/set_speed/individual": 10,
+      "fans/turn_off/area": 1,
+      "fans/turn_off/floor": 4,
+      "fans/turn_off/individual": 13,
+      "fans/turn_on/floor": 2,
+      "fans/turn_on/individual": 17,
+      "lawn_mowers/query_state/individual": 19,
+      "lights/query_state/individual": 38,
+      "lights/set_brightness/area": 9,
+      "lights/set_brightness/floor": 4,
+      "lights/set_brightness/individual": 27,
+      "lights/set_color/area": 1,
+      "lights/set_color/floor": 3,
+      "lights/set_color/individual": 37,
+      "lights/set_color_temperature/area": 1,
+      "lights/set_color_temperature/floor": 8,
+      "lights/set_color_temperature/individual": 32,
+      "lights/turn_off/area": 7,
+      "lights/turn_off/floor": 4,
+      "lights/turn_off/individual": 30,
+      "lights/turn_on/area": 3,
+      "lights/turn_on/floor": 6,
+      "lights/turn_on/individual": 32,
+      "locks/lock/floor": 3,
+      "locks/lock/individual": 15,
+      "locks/query_state/individual": 18,
+      "locks/unlock/floor": 2,
+      "locks/unlock/individual": 16,
+      "media_players/mute/floor": 1,
+      "media_players/mute/individual": 10,
+      "media_players/next_track/floor": 2,
+      "media_players/next_track/individual": 9,
+      "media_players/pause/floor": 3,
+      "media_players/pause/individual": 10,
+      "media_players/play/individual": 12,
+      "media_players/previous_track/floor": 1,
+      "media_players/previous_track/individual": 10,
+      "media_players/query_state/individual": 12,
+      "media_players/search_and_play/individual": 12,
+      "media_players/turn_off/floor": 1,
+      "media_players/turn_off/individual": 11,
+      "media_players/turn_on/floor": 3,
+      "media_players/turn_on/individual": 9,
+      "media_players/unmute/individual": 12,
+      "media_players/volume_down/floor": 3,
+      "media_players/volume_down/individual": 9,
+      "media_players/volume_set/floor": 1,
+      "media_players/volume_set/individual": 10,
+      "media_players/volume_up/floor": 3,
+      "media_players/volume_up/individual": 8,
+      "scenes/activate/floor": 3,
+      "scenes/activate/individual": 25,
+      "scenes/query_state/individual": 29,
+      "scripts/run/individual": 53,
+      "switches/query_state/individual": 31,
+      "switches/turn_off/area": 3,
+      "switches/turn_off/floor": 5,
+      "switches/turn_off/individual": 26,
+      "switches/turn_on/area": 1,
+      "switches/turn_on/floor": 2,
+      "switches/turn_on/individual": 31,
+      "timers/cancel/individual": 14,
+      "timers/cancel_all/area": 15,
+      "timers/decrease/individual": 13,
+      "timers/increase/individual": 13,
+      "timers/pause/individual": 15,
+      "timers/start/individual": 15,
+      "timers/status/individual": 14,
+      "timers/unpause/individual": 13,
+      "todo_lists/query_state/individual": 17,
+      "vacuums/clean_area/individual": 15,
+      "vacuums/query_state/individual": 15,
+      "vacuums/return_home/individual": 14,
+      "vacuums/start/floor": 3,
+      "vacuums/start/individual": 11
+    },
+    "positive_by_operation": {
+      "(1, 'climate', 'query_state')": 25,
+      "(1, 'climate', 'set_temperature')": 27,
+      "(1, 'climate', 'turn_off')": 29,
+      "(1, 'climate', 'turn_on')": 28,
+      "(1, 'covers', 'close')": 20,
+      "(1, 'covers', 'open')": 21,
+      "(1, 'covers', 'query_state')": 21,
+      "(1, 'fans', 'query_state')": 18,
+      "(1, 'fans', 'set_speed')": 18,
+      "(1, 'fans', 'turn_off')": 18,
+      "(1, 'fans', 'turn_on')": 19,
+      "(1, 'lights', 'query_state')": 38,
+      "(1, 'lights', 'set_brightness')": 40,
+      "(1, 'lights', 'set_color')": 41,
+      "(1, 'lights', 'set_color_temperature')": 41,
+      "(1, 'lights', 'turn_off')": 41,
+      "(1, 'lights', 'turn_on')": 41,
+      "(1, 'locks', 'lock')": 18,
+      "(1, 'locks', 'query_state')": 18,
+      "(1, 'locks', 'unlock')": 18,
+      "(1, 'media_players', 'mute')": 11,
+      "(1, 'media_players', 'next_track')": 11,
+      "(1, 'media_players', 'pause')": 13,
+      "(1, 'media_players', 'play')": 12,
+      "(1, 'media_players', 'previous_track')": 11,
+      "(1, 'media_players', 'query_state')": 12,
+      "(1, 'media_players', 'search_and_play')": 12,
+      "(1, 'media_players', 'turn_off')": 12,
+      "(1, 'media_players', 'turn_on')": 12,
+      "(1, 'media_players', 'unmute')": 12,
+      "(1, 'media_players', 'volume_down')": 12,
+      "(1, 'media_players', 'volume_set')": 11,
+      "(1, 'media_players', 'volume_up')": 11,
+      "(1, 'switches', 'query_state')": 31,
+      "(1, 'switches', 'turn_off')": 34,
+      "(1, 'switches', 'turn_on')": 34,
+      "(1, 'timers', 'cancel')": 14,
+      "(1, 'timers', 'cancel_all')": 15,
+      "(1, 'timers', 'decrease')": 13,
+      "(1, 'timers', 'increase')": 13,
+      "(1, 'timers', 'pause')": 15,
+      "(1, 'timers', 'start')": 15,
+      "(1, 'timers', 'status')": 14,
+      "(1, 'timers', 'unpause')": 13,
+      "(2, 'scenes', 'activate')": 28,
+      "(2, 'scenes', 'query_state')": 29,
+      "(2, 'scripts', 'run')": 53,
+      "(2, 'vacuums', 'clean_area')": 15,
+      "(2, 'vacuums', 'query_state')": 15,
+      "(2, 'vacuums', 'return_home')": 14,
+      "(2, 'vacuums', 'start')": 14,
+      "(3, 'buttons', 'query_state')": 18,
+      "(3, 'lawn_mowers', 'query_state')": 19,
+      "(3, 'todo_lists', 'query_state')": 17
+    },
+    "positive_by_tool": {
+      "GetLiveContext": 261,
+      "HassCancelAllTimers": 15,
+      "HassCancelTimer": 14,
+      "HassClimateSetTemperature": 27,
+      "HassDecreaseTimer": 13,
+      "HassFanSetSpeed": 18,
+      "HassIncreaseTimer": 13,
+      "HassLightSet": 122,
+      "HassMediaNext": 11,
+      "HassMediaPause": 13,
+      "HassMediaPlayerMute": 11,
+      "HassMediaPlayerUnmute": 12,
+      "HassMediaPrevious": 11,
+      "HassMediaSearchAndPlay": 12,
+      "HassMediaUnpause": 12,
+      "HassPauseTimer": 15,
+      "HassSetVolume": 11,
+      "HassSetVolumeRelative": 23,
+      "HassStartTimer": 15,
+      "HassTimerStatus": 14,
+      "HassTurnOff": 172,
+      "HassTurnOn": 201,
+      "HassUnpauseTimer": 13,
+      "HassVacuumCleanArea": 15,
+      "HassVacuumReturnToBase": 14,
+      "HassVacuumStart": 14,
+      "__script__": 53
+    },
+    "real_home_rows": 120,
+    "rows": 1200,
+    "tool_calls": 1209,
+    "unique_requests": 1164
+  },
+  "quota": {
+    "achieved": {
+      "capability": {
+        "(1, 'climate')": 115,
+        "(1, 'covers')": 69,
+        "(1, 'fans')": 80,
+        "(1, 'lights')": 254,
+        "(1, 'locks')": 62,
+        "(1, 'media_players')": 161,
+        "(1, 'switches')": 104,
+        "(1, 'timers')": 115,
+        "(2, 'scenes')": 60,
+        "(2, 'scripts')": 60,
+        "(2, 'vacuums')": 60,
+        "(3, 'buttons')": 20,
+        "(3, 'lawn_mowers')": 20,
+        "(3, 'todo_lists')": 20
+      },
+      "negative": {
+        "(1, 'climate', 'query_state')": 3,
+        "(1, 'climate', 'set_temperature')": 2,
+        "(1, 'climate', 'turn_on')": 1,
+        "(1, 'covers', 'close')": 2,
+        "(1, 'covers', 'open')": 1,
+        "(1, 'covers', 'query_state')": 1,
+        "(1, 'covers', 'set_position')": 3,
+        "(1, 'fans', 'query_state')": 2,
+        "(1, 'fans', 'set_speed')": 2,
+        "(1, 'fans', 'turn_off')": 2,
+        "(1, 'fans', 'turn_on')": 1,
+        "(1, 'lights', 'query_state')": 4,
+        "(1, 'lights', 'set_brightness')": 2,
+        "(1, 'lights', 'set_color')": 1,
+        "(1, 'lights', 'set_color_temperature')": 1,
+        "(1, 'lights', 'turn_off')": 2,
+        "(1, 'lights', 'turn_on')": 2,
+        "(1, 'locks', 'lock')": 3,
+        "(1, 'locks', 'query_state')": 2,
+        "(1, 'locks', 'unlock')": 3,
+        "(1, 'media_players', 'mute')": 1,
+        "(1, 'media_players', 'next_track')": 2,
+        "(1, 'media_players', 'play')": 1,
+        "(1, 'media_players', 'previous_track')": 1,
+        "(1, 'media_players', 'turn_off')": 1,
+        "(1, 'media_players', 'turn_on')": 1,
+        "(1, 'media_players', 'volume_set')": 1,
+        "(1, 'media_players', 'volume_up')": 1,
+        "(1, 'switches', 'query_state')": 3,
+        "(1, 'switches', 'turn_off')": 1,
+        "(1, 'switches', 'turn_on')": 1,
+        "(1, 'timers', 'decrease')": 1,
+        "(1, 'timers', 'increase')": 1,
+        "(1, 'timers', 'unpause')": 1,
+        "(2, 'scenes', 'activate')": 2,
+        "(2, 'scenes', 'query_state')": 1,
+        "(2, 'scripts', 'query_state')": 3,
+        "(2, 'scripts', 'run')": 4,
+        "(2, 'vacuums', 'return_home')": 1,
+        "(2, 'vacuums', 'start')": 1,
+        "(3, 'buttons', 'control')": 1,
+        "(3, 'buttons', 'query_state')": 1,
+        "(3, 'lawn_mowers', 'control')": 1,
+        "(3, 'todo_lists', 'control')": 1,
+        "(3, 'todo_lists', 'query_state')": 2
+      },
+      "operation": {
+        "(1, 'climate', 'query_state')": 28,
+        "(1, 'climate', 'set_temperature')": 29,
+        "(1, 'climate', 'turn_off')": 29,
+        "(1, 'climate', 'turn_on')": 29,
+        "(1, 'covers', 'close')": 22,
+        "(1, 'covers', 'open')": 22,
+        "(1, 'covers', 'query_state')": 22,
+        "(1, 'covers', 'set_position')": 3,
+        "(1, 'fans', 'query_state')": 20,
+        "(1, 'fans', 'set_speed')": 20,
+        "(1, 'fans', 'turn_off')": 20,
+        "(1, 'fans', 'turn_on')": 20,
+        "(1, 'lights', 'query_state')": 42,
+        "(1, 'lights', 'set_brightness')": 42,
+        "(1, 'lights', 'set_color')": 42,
+        "(1, 'lights', 'set_color_temperature')": 42,
+        "(1, 'lights', 'turn_off')": 43,
+        "(1, 'lights', 'turn_on')": 43,
+        "(1, 'locks', 'lock')": 21,
+        "(1, 'locks', 'query_state')": 20,
+        "(1, 'locks', 'unlock')": 21,
+        "(1, 'media_players', 'mute')": 12,
+        "(1, 'media_players', 'next_track')": 13,
+        "(1, 'media_players', 'pause')": 13,
+        "(1, 'media_players', 'play')": 13,
+        "(1, 'media_players', 'previous_track')": 12,
+        "(1, 'media_players', 'query_state')": 12,
+        "(1, 'media_players', 'search_and_play')": 12,
+        "(1, 'media_players', 'turn_off')": 13,
+        "(1, 'media_players', 'turn_on')": 13,
+        "(1, 'media_players', 'unmute')": 12,
+        "(1, 'media_players', 'volume_down')": 12,
+        "(1, 'media_players', 'volume_set')": 12,
+        "(1, 'media_players', 'volume_up')": 12,
+        "(1, 'switches', 'query_state')": 34,
+        "(1, 'switches', 'turn_off')": 35,
+        "(1, 'switches', 'turn_on')": 35,
+        "(1, 'timers', 'cancel')": 14,
+        "(1, 'timers', 'cancel_all')": 15,
+        "(1, 'timers', 'decrease')": 14,
+        "(1, 'timers', 'increase')": 14,
+        "(1, 'timers', 'pause')": 15,
+        "(1, 'timers', 'start')": 15,
+        "(1, 'timers', 'status')": 14,
+        "(1, 'timers', 'unpause')": 14,
+        "(2, 'scenes', 'activate')": 30,
+        "(2, 'scenes', 'query_state')": 30,
+        "(2, 'scripts', 'query_state')": 3,
+        "(2, 'scripts', 'run')": 57,
+        "(2, 'vacuums', 'clean_area')": 15,
+        "(2, 'vacuums', 'query_state')": 15,
+        "(2, 'vacuums', 'return_home')": 15,
+        "(2, 'vacuums', 'start')": 15,
+        "(3, 'buttons', 'control')": 1,
+        "(3, 'buttons', 'query_state')": 19,
+        "(3, 'lawn_mowers', 'control')": 1,
+        "(3, 'lawn_mowers', 'query_state')": 19,
+        "(3, 'todo_lists', 'control')": 1,
+        "(3, 'todo_lists', 'query_state')": 19
+      },
+      "outcome": {
+        "absence": 21,
+        "action": 864,
+        "clarify": 9,
+        "status": 261,
+        "unsupported": 45
+      },
+      "positive": {
+        "(1, 'climate', 'query_state')": 25,
+        "(1, 'climate', 'set_temperature')": 27,
+        "(1, 'climate', 'turn_off')": 29,
+        "(1, 'climate', 'turn_on')": 28,
+        "(1, 'covers', 'close')": 20,
+        "(1, 'covers', 'open')": 21,
+        "(1, 'covers', 'query_state')": 21,
+        "(1, 'fans', 'query_state')": 18,
+        "(1, 'fans', 'set_speed')": 18,
+        "(1, 'fans', 'turn_off')": 18,
+        "(1, 'fans', 'turn_on')": 19,
+        "(1, 'lights', 'query_state')": 38,
+        "(1, 'lights', 'set_brightness')": 40,
+        "(1, 'lights', 'set_color')": 41,
+        "(1, 'lights', 'set_color_temperature')": 41,
+        "(1, 'lights', 'turn_off')": 41,
+        "(1, 'lights', 'turn_on')": 41,
+        "(1, 'locks', 'lock')": 18,
+        "(1, 'locks', 'query_state')": 18,
+        "(1, 'locks', 'unlock')": 18,
+        "(1, 'media_players', 'mute')": 11,
+        "(1, 'media_players', 'next_track')": 11,
+        "(1, 'media_players', 'pause')": 13,
+        "(1, 'media_players', 'play')": 12,
+        "(1, 'media_players', 'previous_track')": 11,
+        "(1, 'media_players', 'query_state')": 12,
+        "(1, 'media_players', 'search_and_play')": 12,
+        "(1, 'media_players', 'turn_off')": 12,
+        "(1, 'media_players', 'turn_on')": 12,
+        "(1, 'media_players', 'unmute')": 12,
+        "(1, 'media_players', 'volume_down')": 12,
+        "(1, 'media_players', 'volume_set')": 11,
+        "(1, 'media_players', 'volume_up')": 11,
+        "(1, 'switches', 'query_state')": 31,
+        "(1, 'switches', 'turn_off')": 34,
+        "(1, 'switches', 'turn_on')": 34,
+        "(1, 'timers', 'cancel')": 14,
+        "(1, 'timers', 'cancel_all')": 15,
+        "(1, 'timers', 'decrease')": 13,
+        "(1, 'timers', 'increase')": 13,
+        "(1, 'timers', 'pause')": 15,
+        "(1, 'timers', 'start')": 15,
+        "(1, 'timers', 'status')": 14,
+        "(1, 'timers', 'unpause')": 13,
+        "(2, 'scenes', 'activate')": 28,
+        "(2, 'scenes', 'query_state')": 29,
+        "(2, 'scripts', 'run')": 53,
+        "(2, 'vacuums', 'clean_area')": 15,
+        "(2, 'vacuums', 'query_state')": 15,
+        "(2, 'vacuums', 'return_home')": 14,
+        "(2, 'vacuums', 'start')": 14,
+        "(3, 'buttons', 'query_state')": 18,
+        "(3, 'lawn_mowers', 'query_state')": 19,
+        "(3, 'todo_lists', 'query_state')": 17
+      },
+      "targeting": {
+        "area": 41,
+        "floor": 91,
+        "individual": 993,
+        "none": 75
+      },
+      "tier": {
+        "1": 960,
+        "2": 180,
+        "3": 60
+      },
+      "tool": {
+        "GetLiveContext": 261,
+        "HassCancelAllTimers": 15,
+        "HassCancelTimer": 14,
+        "HassClimateSetTemperature": 28,
+        "HassDecreaseTimer": 13,
+        "HassFanSetSpeed": 18,
+        "HassIncreaseTimer": 13,
+        "HassLightSet": 125,
+        "HassMediaNext": 11,
+        "HassMediaPause": 13,
+        "HassMediaPlayerMute": 11,
+        "HassMediaPlayerUnmute": 12,
+        "HassMediaPrevious": 11,
+        "HassMediaSearchAndPlay": 12,
+        "HassMediaUnpause": 13,
+        "HassPauseTimer": 15,
+        "HassSetVolume": 11,
+        "HassSetVolumeRelative": 23,
+        "HassStartTimer": 15,
+        "HassTimerStatus": 14,
+        "HassTurnOff": 176,
+        "HassTurnOn": 206,
+        "HassUnpauseTimer": 13,
+        "HassVacuumCleanArea": 15,
+        "HassVacuumReturnToBase": 14,
+        "HassVacuumStart": 14,
+        "all_lights_off": 2,
+        "basement_evening_lighting": 1,
+        "bathroom_lights_on": 1,
+        "bedtime": 2,
+        "craft_room_lights_on": 1,
+        "entryway_evening_lighting": 2,
+        "evening_cleanup": 7,
+        "feed_the_cat": 3,
+        "garage_evening_lighting": 1,
+        "good_morning": 7,
+        "good_night": 4,
+        "guest_bedroom_lights_off": 1,
+        "hallway_lights_on": 3,
+        "kids_room_evening_lighting": 1,
+        "kitchen_evening_lighting": 2,
+        "leaving_home": 4,
+        "living_room_evening_lighting": 1,
+        "living_room_lights_off": 1,
+        "master_bedroom_lights_off": 1,
+        "movie_time": 6,
+        "water_the_plants": 3,
+        "welcome_home": 3
+      }
+    },
+    "negative_rate": 0.12,
+    "requested": {
+      "capability": {
+        "(1, 'climate')": 115,
+        "(1, 'covers')": 69,
+        "(1, 'fans')": 80,
+        "(1, 'lights')": 254,
+        "(1, 'locks')": 62,
+        "(1, 'media_players')": 161,
+        "(1, 'switches')": 104,
+        "(1, 'timers')": 115,
+        "(2, 'scenes')": 60,
+        "(2, 'scripts')": 60,
+        "(2, 'vacuums')": 60,
+        "(3, 'buttons')": 20,
+        "(3, 'lawn_mowers')": 20,
+        "(3, 'todo_lists')": 20
+      },
+      "negative": {
+        "(1, 'covers', 'set_position')": 3,
+        "(2, 'scripts', 'query_state')": 3,
+        "(3, 'buttons', 'control')": 1,
+        "(3, 'lawn_mowers', 'control')": 1,
+        "(3, 'todo_lists', 'control')": 1
+      },
+      "operation": {
+        "(1, 'climate', 'query_state')": 28,
+        "(1, 'climate', 'set_temperature')": 29,
+        "(1, 'climate', 'turn_off')": 29,
+        "(1, 'climate', 'turn_on')": 29,
+        "(1, 'covers', 'close')": 22,
+        "(1, 'covers', 'open')": 22,
+        "(1, 'covers', 'query_state')": 22,
+        "(1, 'covers', 'set_position')": 3,
+        "(1, 'fans', 'query_state')": 20,
+        "(1, 'fans', 'set_speed')": 20,
+        "(1, 'fans', 'turn_off')": 20,
+        "(1, 'fans', 'turn_on')": 20,
+        "(1, 'lights', 'query_state')": 42,
+        "(1, 'lights', 'set_brightness')": 42,
+        "(1, 'lights', 'set_color')": 42,
+        "(1, 'lights', 'set_color_temperature')": 42,
+        "(1, 'lights', 'turn_off')": 43,
+        "(1, 'lights', 'turn_on')": 43,
+        "(1, 'locks', 'lock')": 21,
+        "(1, 'locks', 'query_state')": 20,
+        "(1, 'locks', 'unlock')": 21,
+        "(1, 'media_players', 'mute')": 12,
+        "(1, 'media_players', 'next_track')": 13,
+        "(1, 'media_players', 'pause')": 13,
+        "(1, 'media_players', 'play')": 13,
+        "(1, 'media_players', 'previous_track')": 12,
+        "(1, 'media_players', 'query_state')": 12,
+        "(1, 'media_players', 'search_and_play')": 12,
+        "(1, 'media_players', 'turn_off')": 13,
+        "(1, 'media_players', 'turn_on')": 13,
+        "(1, 'media_players', 'unmute')": 12,
+        "(1, 'media_players', 'volume_down')": 12,
+        "(1, 'media_players', 'volume_set')": 12,
+        "(1, 'media_players', 'volume_up')": 12,
+        "(1, 'switches', 'query_state')": 34,
+        "(1, 'switches', 'turn_off')": 35,
+        "(1, 'switches', 'turn_on')": 35,
+        "(1, 'timers', 'cancel')": 14,
+        "(1, 'timers', 'cancel_all')": 15,
+        "(1, 'timers', 'decrease')": 14,
+        "(1, 'timers', 'increase')": 14,
+        "(1, 'timers', 'pause')": 15,
+        "(1, 'timers', 'start')": 15,
+        "(1, 'timers', 'status')": 14,
+        "(1, 'timers', 'unpause')": 14,
+        "(2, 'scenes', 'activate')": 30,
+        "(2, 'scenes', 'query_state')": 30,
+        "(2, 'scripts', 'query_state')": 3,
+        "(2, 'scripts', 'run')": 57,
+        "(2, 'vacuums', 'clean_area')": 15,
+        "(2, 'vacuums', 'query_state')": 15,
+        "(2, 'vacuums', 'return_home')": 15,
+        "(2, 'vacuums', 'start')": 15,
+        "(3, 'buttons', 'control')": 1,
+        "(3, 'buttons', 'query_state')": 19,
+        "(3, 'lawn_mowers', 'control')": 1,
+        "(3, 'lawn_mowers', 'query_state')": 19,
+        "(3, 'todo_lists', 'control')": 1,
+        "(3, 'todo_lists', 'query_state')": 19
+      },
+      "positive": {
+        "(1, 'climate', 'query_state')": 25,
+        "(1, 'climate', 'set_temperature')": 26,
+        "(1, 'climate', 'turn_off')": 26,
+        "(1, 'climate', 'turn_on')": 26,
+        "(1, 'covers', 'close')": 19,
+        "(1, 'covers', 'open')": 19,
+        "(1, 'covers', 'query_state')": 19,
+        "(1, 'fans', 'query_state')": 18,
+        "(1, 'fans', 'set_speed')": 18,
+        "(1, 'fans', 'turn_off')": 18,
+        "(1, 'fans', 'turn_on')": 18,
+        "(1, 'lights', 'query_state')": 37,
+        "(1, 'lights', 'set_brightness')": 37,
+        "(1, 'lights', 'set_color')": 37,
+        "(1, 'lights', 'set_color_temperature')": 37,
+        "(1, 'lights', 'turn_off')": 38,
+        "(1, 'lights', 'turn_on')": 38,
+        "(1, 'locks', 'lock')": 18,
+        "(1, 'locks', 'query_state')": 18,
+        "(1, 'locks', 'unlock')": 18,
+        "(1, 'media_players', 'mute')": 11,
+        "(1, 'media_players', 'next_track')": 11,
+        "(1, 'media_players', 'pause')": 11,
+        "(1, 'media_players', 'play')": 11,
+        "(1, 'media_players', 'previous_track')": 11,
+        "(1, 'media_players', 'query_state')": 11,
+        "(1, 'media_players', 'search_and_play')": 11,
+        "(1, 'media_players', 'turn_off')": 11,
+        "(1, 'media_players', 'turn_on')": 11,
+        "(1, 'media_players', 'unmute')": 11,
+        "(1, 'media_players', 'volume_down')": 11,
+        "(1, 'media_players', 'volume_set')": 11,
+        "(1, 'media_players', 'volume_up')": 11,
+        "(1, 'switches', 'query_state')": 30,
+        "(1, 'switches', 'turn_off')": 31,
+        "(1, 'switches', 'turn_on')": 31,
+        "(1, 'timers', 'cancel')": 12,
+        "(1, 'timers', 'cancel_all')": 13,
+        "(1, 'timers', 'decrease')": 12,
+        "(1, 'timers', 'increase')": 12,
+        "(1, 'timers', 'pause')": 13,
+        "(1, 'timers', 'start')": 13,
+        "(1, 'timers', 'status')": 12,
+        "(1, 'timers', 'unpause')": 12,
+        "(2, 'scenes', 'activate')": 26,
+        "(2, 'scenes', 'query_state')": 26,
+        "(2, 'scripts', 'run')": 50,
+        "(2, 'vacuums', 'clean_area')": 13,
+        "(2, 'vacuums', 'query_state')": 13,
+        "(2, 'vacuums', 'return_home')": 13,
+        "(2, 'vacuums', 'start')": 13,
+        "(3, 'buttons', 'query_state')": 17,
+        "(3, 'lawn_mowers', 'query_state')": 17,
+        "(3, 'todo_lists', 'query_state')": 17
+      },
+      "tier": {
+        "1": 960,
+        "2": 180,
+        "3": 60
+      }
+    },
+    "shortfall": {
+      "capability": {},
+      "negative": {},
+      "operation": {},
+      "positive": {},
+      "tier": {}
+    },
+    "uncovered_operations": []
+  },
+  "real_home": {
+    "achieved_rate": 0.1,
+    "entities_used": 20,
+    "entity_cap": 24,
+    "most_common": [
+      [
+        "TV",
+        11
+      ],
+      [
+        "Floor Lamp",
+        7
+      ],
+      [
+        "Robot Vacuum",
+        7
+      ],
+      [
+        "Robot Mower",
+        6
+      ],
+      [
+        "Ceiling Fan",
+        6
+      ]
+    ],
+    "path": "training/fixtures/synthetic_reference_home.json",
+    "requested_rate": 0.1,
+    "rows": 120,
+    "synthetic_only": false,
+    "target_counts": {
+      "Ceiling Fan": 6,
+      "Charger Plug": 3,
+      "Console Outlet": 3,
+      "Counter Lights": 5,
+      "Floor Lamp": 7,
+      "Front Door Lock": 4,
+      "Groceries": 2,
+      "Hallway Button": 3,
+      "Hallway Light": 2,
+      "Hallway Thermostat": 5,
+      "Kettle Plug": 4,
+      "Kitchen Speaker": 6,
+      "Leaving Home": 2,
+      "Living Room Blinds": 5,
+      "Living Room Ceiling Lights": 2,
+      "Movie Night": 5,
+      "Movie Time": 2,
+      "Robot Mower": 6,
+      "Robot Vacuum": 7,
+      "TV": 11
+    }
+  },
+  "registry": {
+    "buttons": {
+      "blocker": "no button tool in Assist schema",
+      "operations": [
+        {
+          "blocker": "no button press tool in Assist schema",
+          "name": "control",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "unavailable",
+      "tier": 3
+    },
+    "climate": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "set_temperature",
+          "support": "supported",
+          "tool": "HassClimateSetTemperature"
+        },
+        {
+          "blocker": null,
+          "name": "turn_on",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "turn_off",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "covers": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "open",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "close",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": "no position tool in Assist schema",
+          "name": "set_position",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "fans": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "turn_on",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "turn_off",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": null,
+          "name": "set_speed",
+          "support": "supported",
+          "tool": "HassFanSetSpeed"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "lawn_mowers": {
+      "blocker": "no lawn mower tool in Assist schema",
+      "operations": [
+        {
+          "blocker": "no lawn mower tool in Assist schema",
+          "name": "control",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "unavailable",
+      "tier": 3
+    },
+    "lights": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "turn_on",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "turn_off",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": null,
+          "name": "set_brightness",
+          "support": "supported",
+          "tool": "HassLightSet"
+        },
+        {
+          "blocker": null,
+          "name": "set_color",
+          "support": "supported",
+          "tool": "HassLightSet"
+        },
+        {
+          "blocker": null,
+          "name": "set_color_temperature",
+          "support": "supported",
+          "tool": "HassLightSet"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "locks": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "lock",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "unlock",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "media_players": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "turn_on",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "turn_off",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": null,
+          "name": "play",
+          "support": "supported",
+          "tool": "HassMediaUnpause"
+        },
+        {
+          "blocker": null,
+          "name": "pause",
+          "support": "supported",
+          "tool": "HassMediaPause"
+        },
+        {
+          "blocker": null,
+          "name": "next_track",
+          "support": "supported",
+          "tool": "HassMediaNext"
+        },
+        {
+          "blocker": null,
+          "name": "previous_track",
+          "support": "supported",
+          "tool": "HassMediaPrevious"
+        },
+        {
+          "blocker": null,
+          "name": "volume_set",
+          "support": "supported",
+          "tool": "HassSetVolume"
+        },
+        {
+          "blocker": null,
+          "name": "volume_up",
+          "support": "supported",
+          "tool": "HassSetVolumeRelative"
+        },
+        {
+          "blocker": null,
+          "name": "volume_down",
+          "support": "supported",
+          "tool": "HassSetVolumeRelative"
+        },
+        {
+          "blocker": null,
+          "name": "mute",
+          "support": "supported",
+          "tool": "HassMediaPlayerMute"
+        },
+        {
+          "blocker": null,
+          "name": "unmute",
+          "support": "supported",
+          "tool": "HassMediaPlayerUnmute"
+        },
+        {
+          "blocker": null,
+          "name": "search_and_play",
+          "support": "supported",
+          "tool": "HassMediaSearchAndPlay"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "scenes": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "activate",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 2
+    },
+    "scripts": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "run",
+          "support": "supported",
+          "tool": "__script__"
+        },
+        {
+          "blocker": "GetLiveContext excludes the script domain",
+          "name": "query_state",
+          "support": "unavailable",
+          "tool": null
+        }
+      ],
+      "support": "supported",
+      "tier": 2
+    },
+    "switches": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "turn_on",
+          "support": "supported",
+          "tool": "HassTurnOn"
+        },
+        {
+          "blocker": null,
+          "name": "turn_off",
+          "support": "supported",
+          "tool": "HassTurnOff"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "timers": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "cancel_all",
+          "support": "supported",
+          "tool": "HassCancelAllTimers"
+        },
+        {
+          "blocker": null,
+          "name": "start",
+          "support": "supported",
+          "tool": "HassStartTimer"
+        },
+        {
+          "blocker": null,
+          "name": "pause",
+          "support": "supported",
+          "tool": "HassPauseTimer"
+        },
+        {
+          "blocker": null,
+          "name": "unpause",
+          "support": "supported",
+          "tool": "HassUnpauseTimer"
+        },
+        {
+          "blocker": null,
+          "name": "cancel",
+          "support": "supported",
+          "tool": "HassCancelTimer"
+        },
+        {
+          "blocker": null,
+          "name": "increase",
+          "support": "supported",
+          "tool": "HassIncreaseTimer"
+        },
+        {
+          "blocker": null,
+          "name": "decrease",
+          "support": "supported",
+          "tool": "HassDecreaseTimer"
+        },
+        {
+          "blocker": null,
+          "name": "status",
+          "support": "supported",
+          "tool": "HassTimerStatus"
+        }
+      ],
+      "support": "supported",
+      "tier": 1
+    },
+    "todo_lists": {
+      "blocker": "no todo tool in Assist schema",
+      "operations": [
+        {
+          "blocker": "no todo list tool in Assist schema",
+          "name": "control",
+          "support": "unavailable",
+          "tool": null
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "unavailable",
+      "tier": 3
+    },
+    "vacuums": {
+      "blocker": null,
+      "operations": [
+        {
+          "blocker": null,
+          "name": "start",
+          "support": "supported",
+          "tool": "HassVacuumStart"
+        },
+        {
+          "blocker": null,
+          "name": "return_home",
+          "support": "supported",
+          "tool": "HassVacuumReturnToBase"
+        },
+        {
+          "blocker": null,
+          "name": "clean_area",
+          "support": "supported",
+          "tool": "HassVacuumCleanArea"
+        },
+        {
+          "blocker": null,
+          "name": "query_state",
+          "support": "supported",
+          "tool": "GetLiveContext"
+        }
+      ],
+      "support": "supported",
+      "tier": 2
+    }
+  },
+  "rejected": 130,
+  "rejection_reasons": {
+    "duplicate_semantic_id": 28,
+    "extra_argument": 1,
+    "missing_excluded_target": 2,
+    "missing_expected_value": 13,
+    "missing_multiple_actions": 64,
+    "quality_eval_overlap": 2,
+    "quota_negative_full": 7,
+    "status_not_query": 13
+  },
+  "requested": 1200,
+  "requested_stt_rate": 0.15,
+  "stt_corrupted": 176,
+  "unique_semantic_ids": 1200
+}
