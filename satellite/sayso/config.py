@@ -31,6 +31,19 @@ class AudioCfg:
     channels: int
     noise_suppression: int
     auto_gain: int
+    # Native capture rate requested from the device. The Snowball-class USB mic
+    # runs at 44.1 kHz; asking the audio server for 16 kHz makes it resample
+    # implicitly, so we capture at the device rate and resample exactly once.
+    capture_rate: int = 44100
+    # Fixed linear gain applied once, in place of LVA's runtime mic_volume
+    # multiply, so the command path does not change under Home Assistant.
+    mic_gain_db: float = 0.0
+    # Settle delay after playback ends before the mic opens. Stands in for AEC,
+    # which webrtc-noise-gain does not provide.
+    aec_gate_ms: int = 0
+    # Directory for exact post-processing STT PCM (milestone 0 artifact).
+    stt_capture_dir: Path | None = None
+    stt_capture_enabled: bool = True
 
 
 @dataclass
@@ -94,6 +107,15 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
         channels=int(_req(raw, "audio", "channels")),
         noise_suppression=int(_req(raw, "audio", "noise_suppression")),
         auto_gain=int(_req(raw, "audio", "auto_gain")),
+        capture_rate=int(raw.get("audio", {}).get("capture_rate", 44100)),
+        mic_gain_db=float(raw.get("audio", {}).get("mic_gain_db", 0.0)),
+        aec_gate_ms=int(raw.get("audio", {}).get("aec_gate_ms", 0)),
+        stt_capture_dir=(
+            Path(raw["audio"]["stt_capture_dir"])
+            if raw.get("audio", {}).get("stt_capture_dir")
+            else None
+        ),
+        stt_capture_enabled=bool(raw.get("audio", {}).get("stt_capture_enabled", True)),
     )
     ww = WakeWordCfg(
         provider=str(_req(raw, "wake_word", "provider")),
@@ -142,6 +164,12 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append(f"home_assistant.port {cfg.home_assistant.port} is not a valid TCP port")
     if cfg.audio.sample_rate != 16000:
         errors.append("audio.sample_rate must be 16000")
+    if cfg.audio.capture_rate not in (16000, 44100, 48000):
+        errors.append("audio.capture_rate must be one of 16000, 44100, 48000")
+    if not (-12.0 <= cfg.audio.mic_gain_db <= 60.0):
+        errors.append("audio.mic_gain_db must be between -12 and 60")
+    if not (0 <= cfg.audio.aec_gate_ms <= 2000):
+        errors.append("audio.aec_gate_ms must be between 0 and 2000")
     if cfg.audio.channels != 1:
         errors.append("audio.channels must be 1")
     if cfg.audio.noise_suppression not in (0, 1, 2, 3, 4):

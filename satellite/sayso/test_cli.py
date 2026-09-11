@@ -223,3 +223,58 @@ def test_cmd_test_wake_importable_with_satellite_on_pythonpath(
     monkeypatch.setitem(sys.modules, "livekit.wakeword", fake_wakeword)
 
     assert deployed_cli.cmd_test_wake(SimpleNamespace()) == 0
+
+
+def test_mic_check_records_at_native_capture_rate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = SimpleNamespace(
+        audio=SimpleNamespace(
+            input_device="pulse/configured-mic",
+            output_device="pulse/configured-speaker",
+            sample_rate=16000,
+            capture_rate=44100,
+            channels=1,
+            mic_gain_db=6.0,
+        ),
+        sounds=SimpleNamespace(wake=tmp_path / "wake.wav"),
+    )
+    monkeypatch.setattr(cli, "load_config", lambda: cfg)
+    record = Mock(return_value=124)
+    monkeypatch.setattr(cli.subprocess, "call", record)
+    monkeypatch.setattr(cli, "_level_report", Mock())
+    monkeypatch.setattr(cli, "_play_sound", Mock(return_value=0), raising=False)
+    monkeypatch.setattr(cli, "_write_processed_copy", Mock(return_value=True))
+    monkeypatch.setattr(cli, "CHECK_DIR", tmp_path)
+
+    assert cli.cmd_test_mic(SimpleNamespace()) == 0
+    command = record.call_args.args[0]
+    # The sanity check must record the native device rate, not the transport rate.
+    assert command[command.index("--rate") + 1] == "44100"
+
+
+def test_processed_copy_applies_gain_and_resamples_to_16k(tmp_path: Path) -> None:
+    import numpy as np
+    import wave
+
+    src = tmp_path / "native.wav"
+    samples = np.full(4410, 1000, dtype="<i2")
+    with wave.open(str(src), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(44100)
+        wf.writeframes(samples.tobytes())
+
+    cfg = SimpleNamespace(
+        audio=SimpleNamespace(sample_rate=16000, mic_gain_db=6.0),
+    )
+    dst = tmp_path / "processed.wav"
+    assert cli._write_processed_copy(src, dst, cfg) is True
+
+    with wave.open(str(dst), "rb") as wf:
+        assert wf.getframerate() == 16000
+        assert wf.getnchannels() == 1
+        out = np.frombuffer(wf.readframes(wf.getnframes()), dtype="<i2")
+    # ~100 ms of audio, and 6 dB (2x) gain applied.
+    assert abs(out.size - 1600) <= 8
+    assert int(np.max(out)) > 1000
