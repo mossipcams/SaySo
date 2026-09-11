@@ -107,7 +107,11 @@ class LiveKitWakeWordProvider:
         self.stop()
         self._model = None
 
-    def predict_window(self, window: np.ndarray) -> Optional[Detection]:
+    def predict_window(
+        self,
+        window: np.ndarray,
+        sample_index: int | None = None,
+    ) -> Optional[Detection]:
         if not self._available or self._model is None:
             return None
         if not self._enabled or self._suspended:
@@ -161,7 +165,12 @@ class LiveKitWakeWordProvider:
 
         self._last_fire = now
         _LOGGER.info("Wake phrase detected phrase=%r confidence=%.3f (no audio retained)", self._phrase, score)
-        return Detection(phrase=self._phrase, confidence=score, timestamp=now)
+        return Detection(
+            phrase=self._phrase,
+            confidence=score,
+            timestamp=now,
+            sample_index=sample_index,
+        )
 
     def process_pcm(self, pcm_s16le: bytes, sample_rate: int = 16000) -> Optional[Detection]:
         """Synchronous helper retained for tests and diagnostics."""

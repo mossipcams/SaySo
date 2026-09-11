@@ -11,8 +11,30 @@ Linux Voice Assistant (LVA) owns microphone capture, volume normalization,
 WebRTC audio processing, Home Assistant transport, and speaker playback. After
 each processed audio block, LVA forwards the same PCM to registered external
 wake providers. The SaySo overlay registers an external wake hook for LiveKit
-wake-word detection on that feed. It does not wrap LVA’s `record()` path or
+wake-word detection on that feed. It does not wrap LVA's `record()` path or
 create a second capture path.
+
+The overlay owns one deliberate resample and the capture timeline:
+
+- Upstream LVA hardcodes `samplerate=16000`, which makes the audio server
+  resample the device implicitly. The overlay wraps `process_audio`, opens the
+  recorder at `audio.capture_rate` (44.1 kHz for a Snowball-class mic), and
+  resamples **once** to 16 kHz through a continuous polyphase resampler
+  (`satellite/sayso/wake/capture.py`). No per-block interpolation.
+- One `WakeCaptureRing` is the single source of truth for sample order. Wake
+  inference reads a window from it, the detection carries the window's end
+  sample index, and the wake→STT handoff drains
+  `[detection_index - wake_skip_ms, end)` atomically. Each sample reaches Home
+  Assistant exactly once, in order, regardless of when the detection thread
+  runs. See `satellite/sayso/wake/hook.py`.
+- The microphone does not open until any in-flight playback has genuinely
+  finished, plus `audio.aec_gate_ms`. There is no AEC on this path
+  (`webrtc-noise-gain` exposes AGC/NS only), so the gate is the fail-safe
+  against capturing the speaker.
+- Gain is a single fixed `audio.mic_gain_db` multiply applied once, not a
+  runtime lookup. AGC and NS are pinned from config; the default is NS off.
+- The exact PCM sent to Home Assistant is retained. See
+  `docs/STT_AUDIO_CAPTURE.md` for the milestone-0 listening check.
 
 Upstream LVA lives in `linux-voice-assistant/` and must stay mergeable. Custom
 code is only under `sayso/` plus patches:
@@ -90,4 +112,5 @@ sayso-satellite test-mic
 sayso-satellite test-speaker
 sayso-satellite test-wake-word   # recorded-audio eval (see satellite/eval/README.md)
 python3 satellite/eval/run.py --model /path/to/sayso.onnx
+python3 satellite/benchmarks/run.py --model large-v3  # 20-command STT benchmark
 ```

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
 from .ring_buffer import Int16RingBuffer
@@ -81,33 +83,102 @@ class WakeAudioBuffer:
         return buf[start:stop] if start >= 0 else buf[:stop]
 
 
+@dataclass(frozen=True)
+class PrerollFlush:
+    """Result of trimming preroll up to a detection boundary.
+
+    ``start_index``/``end_index`` are absolute capture sample indices, so the
+    caller can move its STT cursor to exactly where this flush ended instead of
+    guessing from wall-clock time.
+    """
+
+    pcm: bytes
+    start_index: int
+    end_index: int
+    underflow: bool = False
+
+
 class WakePrerollLookback:
-    """Rolling PCM lookback for post-wake STT preroll flush."""
+    """Absolute-index PCM lookback for post-wake STT preroll flush.
+
+    The trim is anchored to the sample index the classifier actually scored,
+    not to the moment the flush happens to run. Detection runs off-thread, so
+    the flush call can arrive hundreds of samples after the detection boundary;
+    trimming from the end of the ring at flush time silently folded that
+    variable latency into the cut. Anchoring to ``detection_index`` makes the
+    emitted window a pure function of the audio, not of thread scheduling.
+
+    Superseded on the live path by ``WakeCaptureRing`` (see ``wake/capture.py``),
+    which backs both wake windows and the atomic STT handoff. Retained as a
+    standalone, independently tested trim primitive.
+    """
 
     def __init__(self, preroll_ms: int, sample_rate: int = 16000) -> None:
         capacity = max(0, preroll_ms * sample_rate // 1000)
         self._ring = Int16RingBuffer(capacity) if capacity > 0 else None
         self._sample_rate = sample_rate
+        # Absolute index of the first sample ever appended.
+        self._end_index = 0
 
-    def clear(self) -> None:
+    @property
+    def end_index(self) -> int:
+        return self._end_index
+
+    @property
+    def sample_rate(self) -> int:
+        return self._sample_rate
+
+    @property
+    def available_span(self) -> tuple[int, int]:
+        if self._ring is None:
+            return (self._end_index, self._end_index)
+        held = min(self._end_index, self._ring.size)
+        return (self._end_index - held, self._end_index)
+
+    def clear(self, *, keep_index: bool = False) -> None:
         if self._ring is not None:
             self._ring.clear()
+        if not keep_index:
+            self._end_index = 0
 
     def feed(self, pcm_s16le: bytes) -> None:
-        if self._ring is None or not pcm_s16le:
+        if not pcm_s16le:
             return
         samples = np.frombuffer(pcm_s16le, dtype="<i2")
-        self._ring.extend(samples)
+        if samples.size == 0:
+            return
+        self._end_index += int(samples.size)
+        if self._ring is not None:
+            self._ring.extend(samples)
 
-    def flush_bytes(self, wake_skip_ms: int) -> bytes:
+    def flush_until(self, detection_index: int, skip_ms: int) -> PrerollFlush:
+        """Emit ``[detection_index - skip, end)`` clamped to what is held.
+
+        Underflow means the requested start predates the oldest sample the
+        lookback still holds, so the requested trim cannot be honoured. It is
+        reported (and no audio is emitted) instead of silently substituting a
+        trailing window: a wrong trim must be visible in the capture sidecar,
+        not guessed at from the transcript.
+        """
         if self._ring is None or self._ring.size == 0:
-            return b""
-        skip_samples = wake_skip_ms * self._sample_rate // 1000
+            return PrerollFlush(b"", self._end_index, self._end_index, underflow=False)
+
+        skip_samples = max(0, skip_ms) * self._sample_rate // 1000
+        requested_start = int(detection_index) - skip_samples
+        span_start, span_end = self.available_span
+        if requested_start < span_start:
+            return PrerollFlush(b"", span_end, span_end, underflow=True)
+        start = requested_start
+        if start >= span_end:
+            return PrerollFlush(b"", span_end, span_end, underflow=False)
+
         window = self._ring.view()
-        if skip_samples >= window.size:
-            trail_samples = min(
-                250 * self._sample_rate // 1000,
-                window.size,
-            )
-            return window[-trail_samples:].astype("<i2", copy=False).tobytes()
-        return window[skip_samples:].astype("<i2", copy=False).tobytes()
+        # Ring view is [span_start, span_end); offset the start into it.
+        offset = start - span_start
+        tail = window[offset:]
+        return PrerollFlush(
+            tail.astype("<i2", copy=False).tobytes(),
+            start,
+            span_end,
+            underflow=False,
+        )

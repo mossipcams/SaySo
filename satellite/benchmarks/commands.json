@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "description": "Fixed 20-command STT benchmark. Difficult multi-word entity names are included deliberately: they are where a smeared or resampled signal shows up as an articulation error rather than a decode failure.",
+  "commands": [
+    {"id": "living-room-light-switch", "text": "turn on the living room light switch", "entity": "light.living_room_light_switch", "difficulty": "hard"},
+    {"id": "bedroom-tv", "text": "turn on the bedroom TV", "entity": "media_player.bedroom_tv", "difficulty": "hard"},
+    {"id": "kitchen-counter-lights", "text": "turn off the kitchen counter lights", "entity": "light.kitchen_counter", "difficulty": "hard"},
+    {"id": "hallway-motion-sensor", "text": "what is the hallway motion sensor showing", "entity": "binary_sensor.hallway_motion", "difficulty": "hard"},
+    {"id": "living-room-ceiling-fan", "text": "turn on the living room ceiling fan", "entity": "fan.living_room_ceiling", "difficulty": "hard"},
+    {"id": "garage-door-opener", "text": "close the garage door opener", "entity": "cover.garage_door", "difficulty": "hard"},
+    {"id": "bathroom-exhaust-fan", "text": "turn off the bathroom exhaust fan", "entity": "fan.bathroom_exhaust", "difficulty": "hard"},
+    {"id": "dining-room-chandelier", "text": "dim the dining room chandelier to fifty percent", "entity": "light.dining_room_chandelier", "difficulty": "hard"},
+    {"id": "office-desk-lamp", "text": "turn on the office desk lamp", "entity": "light.office_desk_lamp", "difficulty": "medium"},
+    {"id": "front-door-lock", "text": "lock the front door", "entity": "lock.front_door", "difficulty": "medium"},
+    {"id": "thermostat-temperature", "text": "what is the thermostat temperature", "entity": "climate.thermostat", "difficulty": "medium"},
+    {"id": "coffee-maker", "text": "turn on the coffee maker", "entity": "switch.coffee_maker", "difficulty": "medium"},
+    {"id": "washer-dryer", "text": "is the washer dryer still running", "entity": "sensor.washer_dryer", "difficulty": "hard"},
+    {"id": "backyard-sprinklers", "text": "turn off the backyard sprinklers", "entity": "switch.backyard_sprinklers", "difficulty": "hard"},
+    {"id": "nursery-white-noise", "text": "turn on the nursery white noise machine", "entity": "switch.nursery_white_noise", "difficulty": "hard"},
+    {"id": "living-room-light", "text": "turn on the living room light", "entity": "light.living_room", "difficulty": "easy"},
+    {"id": "bedroom-lamp", "text": "turn off the bedroom lamp", "entity": "light.bedroom_lamp", "difficulty": "easy"},
+    {"id": "all-lights-off", "text": "turn off all the lights", "entity": "script.all_lights_off", "difficulty": "easy"},
+    {"id": "seven-thirty-alarm", "text": "set an alarm for seven thirty in the morning", "entity": "script.set_alarm", "difficulty": "hard"},
+    {"id": "downstairs-temperature", "text": "what is the temperature downstairs", "entity": "sensor.downstairs_temperature", "difficulty": "medium"}
+  ]
+}
