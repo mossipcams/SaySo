@@ -43,6 +43,10 @@ Defer if they threaten the voice path:
 
 ## Workflow
 
+- Always save an md plan before implementing. Write the plan to disk (e.g.
+  `docs/PLAN_<feature>.md` or a sibling scratch file in the repo) and review
+  it before any code changes — it must list scope, files to touch, the TDD
+  unit, and verification steps before implementation begins.
 - Read `ARCHITECTURE.md` at the repo root before changing runtime wiring or
   assuming topology. It documents boundaries and the integration shape.
 - Offline eval cases and runners live in `evals/` (`evals/cases/`,
