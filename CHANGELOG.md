@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/mossipcams/SaySo/compare/1.0.0...1.0.1) (2026-09-11)
+
+
+### Documentation
+
+* **agents:** always save an md plan before implementing ([9deb72c](https://github.com/mossipcams/SaySo/commit/9deb72c3e8cef2865fcd158f7d7f42caf596cd96))
+
 ## [1.0.0](https://github.com/mossipcams/SaySo/compare/0.7.0...1.0.0) (2026-09-10)
 
 
