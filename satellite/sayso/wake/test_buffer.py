@@ -30,7 +30,11 @@ def test_preroll_lookback_drops_wake_skip_prefix_on_flush() -> None:
     lookback.feed(wake_samples.tobytes())
     lookback.feed(command_samples.tobytes())
 
-    flushed = np.frombuffer(lookback.flush_bytes(wake_skip_ms=500), dtype="<i2")
+    # Detection on the last captured sample; a 500 ms skip trims the wake word
+    # from the emitted window, leaving only the command.
+    flushed = np.frombuffer(
+        lookback.flush_until(16000, skip_ms=500).pcm, dtype="<i2"
+    )
 
     assert flushed.size == 8000
     assert np.all(flushed == 7)
@@ -43,13 +47,16 @@ def test_preroll_lookback_equal_skip_flushes_trailing_audio() -> None:
     lookback.feed(wake_samples.tobytes())
     lookback.feed(command_samples.tobytes())
 
-    flushed = np.frombuffer(lookback.flush_bytes(wake_skip_ms=500), dtype="<i2")
+    flushed = np.frombuffer(
+        lookback.flush_until(4000, skip_ms=250).pcm, dtype="<i2"
+    )
 
-    assert flushed.size == 4000
-    assert np.all(flushed == 7)
+    assert flushed.size == 8000
+    assert np.all(flushed[:4000] == 0)
+    assert np.all(flushed[4000:] == 7)
 
 
 def test_preroll_lookback_zero_ms_is_noop() -> None:
     lookback = WakePrerollLookback(preroll_ms=0)
     lookback.feed(np.ones(160, dtype="<i2").tobytes())
-    assert lookback.flush_bytes(wake_skip_ms=0) == b""
+    assert lookback.flush_until(160, skip_ms=0).pcm == b""

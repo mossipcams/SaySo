@@ -183,6 +183,7 @@ def test_launcher_passes_device_name_separate_from_friendly_name(
     package.__path__ = []  # type: ignore[attr-defined]
     upstream = ModuleType("linux_voice_assistant.__main__")
     upstream.run = Mock()  # type: ignore[attr-defined]
+    upstream.process_audio = Mock()  # type: ignore[attr-defined]
     satellite_module = ModuleType("linux_voice_assistant.satellite")
     satellite_module.VoiceSatelliteProtocol = object  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
@@ -242,6 +243,7 @@ def test_launcher_rejects_unavailable_wake_provider(monkeypatch: pytest.MonkeyPa
     webrtc.WebRTCProcessor = object  # type: ignore[attr-defined]
     upstream = ModuleType("linux_voice_assistant.__main__")
     upstream.run = Mock()  # type: ignore[attr-defined]
+    upstream.process_audio = Mock()  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.models", models)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.webrtc", webrtc)
