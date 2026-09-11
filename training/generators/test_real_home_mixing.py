@@ -45,7 +45,7 @@ def _mixed_run(**overrides):
     if key not in _RUNS:
         _RUNS[key] = run_generation(
             GeneratorConfig(
-                count=800,
+                count=1500,
                 seed=515,
                 real_home_path=FIXTURE,
                 real_home_rate=0.25,
@@ -103,7 +103,7 @@ def test_the_manifest_records_requested_and_achieved_mixing():
     real = report["real_home"]
     assert real["requested_rate"] == 0.25
     assert real["achieved_rate"] == 0.25
-    assert real["rows"] == 200
+    assert real["rows"] == 375
     assert real["rows"] == sum(
         1 for row in _mixed_run()["rows"] if row["metadata"]["real_home"]
     )
@@ -145,7 +145,7 @@ def test_an_explicit_cap_binds():
     result = _mixed_run(real_home_entity_cap=3)
     counts = result["stats"]["real_home"]["target_counts"]
     assert counts and max(counts.values()) <= 3
-    assert result["stats"]["accepted"] == 800  # capping redistributes, never shrinks
+    assert result["stats"]["accepted"] == 1500  # capping redistributes, never shrinks
 
 
 def test_synthetic_only_is_an_explicit_override():

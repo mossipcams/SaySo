@@ -71,6 +71,18 @@ def _call(name, arguments):
     return {"function": {"name": name, "arguments": json.dumps(arguments)}}
 
 
+def test_distinct_phrasings_may_repeat_one_semantic_scenario_up_to_the_cap():
+    tracker = DuplicateTracker(near_limit=2)
+    home = {"entities": []}
+    for utterance in ("turn on the light", "switch the light on"):
+        spec = {"utterance": utterance, "home": home, "semantic_id": "same-action"}
+        assert tracker.would_reject(spec) is None
+        tracker.record(spec)
+    assert tracker.would_reject(
+        {"utterance": "enable the light", "home": home, "semantic_id": "same-action"}
+    ) == "duplicate_semantic_id"
+
+
 # 1. Refusals cannot fill a positive quota -------------------------------------
 
 
