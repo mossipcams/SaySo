@@ -161,3 +161,47 @@ def test_command_audio_keeps_streaming_after_the_flush() -> None:
         assert np.all(delivered[after_flush:] == 42)
     finally:
         hook.shutdown()
+
+
+def test_cold_start_after_rearm_is_not_reported_as_underflow() -> None:
+    """A wake soon after a rearm asks for audio that never existed.
+
+    The ring re-anchors on every rearm, so a 500 ms trim reaches back past the
+    start of the epoch. That is not the ring dropping audio, and stamping it as
+    underflow would put a false defect marker on a good command's sidecar.
+    """
+    hook = _hook_with_detection()
+    satellite = _RecordingSatellite()
+    state = SimpleNamespace(satellite=satellite)
+
+    hook.rearm()
+    # Only 100 ms of audio since the rearm, far less than the 500 ms skip.
+    hook.feed_pcm(state, np.zeros(1600, dtype="<i2").tobytes())
+    hook._detection_index = hook._ring.end_index
+
+    result = hook.flush_preroll(satellite)
+    assert result.underflow is False
+
+
+def test_genuine_ring_overwrite_is_still_reported_as_underflow() -> None:
+    """Audio the ring held and lost must stay visible as a real defect."""
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    hook = SaySoExternalWakeHook(provider, preroll_ms=1000, wake_skip_ms=500)
+    satellite = _RecordingSatellite()
+    satellite._is_streaming_audio = False
+    state = SimpleNamespace(satellite=satellite)
+
+    # Overrun the ring so the oldest audio of this epoch is genuinely gone.
+    block = np.ones(4096, dtype="<i2").tobytes()
+    for _ in range((hook._ring.capacity // 4096) + 4):
+        hook.feed_pcm(state, block)
+
+    span_start = hook._ring.available_span()[0]
+    assert span_start > hook._ring.origin, "ring did not actually wrap"
+    # Ask for a trim inside the epoch but below what is still held.
+    hook._detection_index = span_start
+    hook._wake_skip_ms = 500
+
+    result = hook.flush_preroll(satellite)
+    assert result.underflow is True

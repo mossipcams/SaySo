@@ -7,6 +7,14 @@ block and leaves a discontinuity at every boundary; :class:`CaptureResampler`
 keeps one continuous windowed-sinc history so the output is a seamless 16 kHz
 stream regardless of how the audio server chunks it.
 
+Output sample timing is exact. 44100/16000 reduces to 441/160, so an output
+sample lands on a whole input sample only once every 160 outputs; the other 159
+fall between two of them. Rounding those to the nearest input sample -- which is
+what convolving a single integer-spaced kernel centred on ``floor(position)``
+does -- is +/-11 us of sample jitter, and it measures as roughly -33 dBc of
+in-band spurs on a 1 kHz tone. Each of the 160 fractional phases therefore gets
+its own kernel, evaluated at that phase's true offset (:func:`_phase_kernels`).
+
 Every block appended to :class:`WakeCaptureRing` is stamped with its absolute
 end sample index. Wake detection, preroll trimming, and the STT handoff all
 reference that index, so nothing depends on when a thread happened to run.
@@ -16,12 +24,13 @@ from __future__ import annotations
 
 import math
 import threading
+from math import gcd
 
 import numpy as np
 
 # Half-width, in input samples, of the windowed-sinc low-pass used when
-# decimating. 16 taps is ample for speech-band audio and cheap enough to run on
-# a Pi-class CPU without disturbing the capture cadence.
+# decimating. 16 taps is ample for speech-band audio, and because the kernels
+# are precomputed per phase the per-block cost is one gather plus one einsum.
 _FILTER_HALF_TAPS = 16
 
 
@@ -36,35 +45,53 @@ def gain_scalar_from_db(gain_db: float, ceiling: float = 8.0) -> float:
     return float(min(ceiling, max(0.0, 10.0 ** (gain_db / 20.0))))
 
 
-def _sinc_kernel(
+def _phase_kernels(
+    phases: int,
     input_rate: int,
     output_rate: int,
     half_taps: int = _FILTER_HALF_TAPS,
 ) -> np.ndarray:
-    """Build the anti-alias low-pass used by the streaming resampler.
+    """Build one anti-alias kernel per fractional output phase.
 
-    Cutoff is the *output* Nyquist relative to the input rate, so the kernel
-    attenuates everything a downsample would otherwise fold back into the speech
-    band. A Blackman window keeps the stopband well below speech level.
+    Row ``p`` resamples an output sample sitting ``p / phases`` of an input
+    sample after ``floor(position)``. Cutoff is the *output* Nyquist relative to
+    the input rate, so the kernel attenuates everything a downsample would
+    otherwise fold back into the speech band. A Blackman window, evaluated
+    continuously rather than on the integer grid, keeps the stopband well below
+    speech level at every phase.
+
+    Each row is normalised to unit sum so DC gain is 1.0 regardless of phase; an
+    unnormalised bank makes the output amplitude wobble at the phase rate.
     """
     cutoff = min(0.5, 0.5 * output_rate / input_rate)
     taps = 2 * half_taps + 1
-    n = np.arange(taps, dtype=np.float64) - half_taps
-    kernel = 2.0 * cutoff * np.sinc(2.0 * cutoff * n)
-    window = np.blackman(taps)
-    kernel *= window
-    total = float(np.sum(kernel))
-    if total != 0.0:
-        kernel /= total
-    return kernel
+    # Distance from the output position to each contributing input sample.
+    offsets = np.arange(taps, dtype=np.float64) - half_taps
+    fractions = np.arange(phases, dtype=np.float64) / float(phases)
+    distance = offsets[None, :] - fractions[:, None]
+    kernels = 2.0 * cutoff * np.sinc(2.0 * cutoff * distance)
+    # Blackman over the support [-(half+1), half+1], so a tap that lands at the
+    # very edge is windowed to zero instead of truncated mid-ripple.
+    u = distance / float(half_taps + 1)
+    kernels *= 0.42 + 0.5 * np.cos(np.pi * u) + 0.08 * np.cos(2.0 * np.pi * u)
+    totals = kernels.sum(axis=1, keepdims=True)
+    np.divide(kernels, totals, out=kernels, where=totals != 0.0)
+    return kernels
 
 
 class CaptureResampler:
-    """Streaming windowed-sinc resampler with continuous filter state.
+    """Streaming polyphase resampler with continuous filter state.
 
-    Input and output are int16 little-endian PCM. Output sample timing is
-    tracked with an exact rational accumulator, so long runs do not drift the
-    way a floating-point ratio would.
+    Input and output are int16 little-endian PCM. Output position is an exact
+    integer ratio (``output k`` sits at input ``k * M / L`` for the reduced
+    fraction ``input_rate/output_rate = M/L``), so long runs cannot drift the
+    way a floating-point accumulator would, and the phase ``k % L`` selects a
+    kernel built for that exact fractional offset.
+
+    An output sample is emitted only once every tap it needs has arrived, so the
+    result is identical no matter how the audio server chunks the stream. The
+    cost is ``half_taps`` input samples of latency (0.36 ms at 44.1 kHz), paid
+    once at the start rather than per block.
     """
 
     def __init__(
@@ -79,18 +106,25 @@ class CaptureResampler:
         self._output_rate = int(output_rate)
         self._passthrough = self._input_rate == self._output_rate
         self._half_taps = int(half_taps)
-        self._kernel = (
+        # Reduced ratio: output k sits at input k * _step / _phases.
+        divisor = gcd(self._input_rate, self._output_rate)
+        self._step = self._input_rate // divisor
+        self._phases = self._output_rate // divisor
+        self._kernels = (
             None
             if self._passthrough
-            else _sinc_kernel(self._input_rate, self._output_rate, self._half_taps)
+            else _phase_kernels(
+                self._phases, self._input_rate, self._output_rate, self._half_taps
+            )
         )
+        self._taps = 2 * self._half_taps + 1
         self._history = np.zeros(0, dtype=np.float64)
         # Absolute input sample index of history[0]. Trimming advances this so
         # indices are always interpreted against the retained window.
         self._history_start = 0
-        # Exact rational output position: numerator/denominator in input samples.
-        self._position_num = 0
-        self._denominator = self._output_rate
+        # Index of the next output sample to produce.
+        self._position = 0
+        self._primed = False
 
     @property
     def input_rate(self) -> int:
@@ -103,7 +137,8 @@ class CaptureResampler:
     def reset(self) -> None:
         self._history = np.zeros(0, dtype=np.float64)
         self._history_start = 0
-        self._position_num = 0
+        self._position = 0
+        self._primed = False
 
     def process(self, pcm_s16le: bytes) -> bytes:
         """Append input PCM and return every output sample now computable."""
@@ -115,56 +150,57 @@ class CaptureResampler:
         if self._passthrough:
             return incoming.astype("<i2", copy=False).tobytes()
 
-        self._history = np.concatenate(
-            (self._history, incoming.astype(np.float64))
+        if not self._primed:
+            # Prime with a half-window of silence so the very first output
+            # samples have full left context. Without it the stream opens with
+            # `half_taps` samples filtered by a truncated kernel, which is the
+            # same defect as a per-block reset, just confined to the start.
+            self._history = np.zeros(self._half_taps, dtype=np.float64)
+            self._history_start = -self._half_taps
+            self._primed = True
+
+        self._history = np.concatenate((self._history, incoming.astype(np.float64)))
+
+        # Emit only while every tap is present: the newest sample an output at
+        # input index c needs is c + half_taps.
+        last_full = self._history_start + self._history.size - 1 - self._half_taps
+        count = self._outputs_through(last_full) - self._position
+        if count <= 0:
+            self._trim_history()
+            return b""
+
+        indices = np.arange(
+            self._position, self._position + count, dtype=np.int64
         )
-        # The oldest retained sample sits at absolute index `_history_start`.
-        base = self._history_start
+        numerators = indices * self._step
+        # Offset of each output's leftmost tap within the retained history.
+        starts = numerators // self._phases - self._half_taps - self._history_start
+        taps = starts[:, None] + np.arange(self._taps, dtype=np.int64)[None, :]
+        assert self._kernels is not None
+        kernels = self._kernels[numerators % self._phases]
+        values = np.einsum("ij,ij->i", self._history[taps], kernels)
+        self._position += count
 
-        outputs: list[float] = []
-        last_needed = self._history.size - 1 + base
-        while True:
-            # Output sample k sits at input index k * input_rate / output_rate.
-            centre = (
-                self._position_num * self._input_rate
-            ) / self._denominator
-            if centre > last_needed:
-                break
-            outputs.append(self._sample_at(centre, base))
-            self._position_num += 1
-
-        if outputs:
-            out = np.clip(np.rint(np.asarray(outputs)), -32768, 32767).astype("<i2")
-        else:
-            out = np.zeros(0, dtype="<i2")
-
+        out = np.clip(np.rint(values), -32768, 32767).astype("<i2")
         # Drop history that can no longer contribute to a future output sample.
         self._trim_history()
         return out.tobytes()
 
-    def _sample_at(self, centre: float, base: int) -> float:
-        assert self._kernel is not None
-        left = int(math.floor(centre)) - self._half_taps
-        offsets = np.arange(left, left + self._kernel.size, dtype=np.int64)
-        indices = offsets - base
-        valid = (indices >= 0) & (indices < self._history.size)
-        if not np.any(valid):
-            return 0.0
-        taps = self._kernel[valid]
-        values = self._history[indices[valid]]
-        # Normalise by the taps actually available so a partially covered
-        # window near the stream edge does not attenuate the signal.
-        weight = float(np.sum(taps))
-        if weight == 0.0:
-            return 0.0
-        return float(np.dot(values, taps) / weight)
+    def _outputs_through(self, last_input_index: int) -> int:
+        """Number of output samples whose position is <= ``last_input_index``.
+
+        ``k * step // phases <= n`` iff ``k <= ((n + 1) * phases - 1) // step``,
+        so the count is available in closed form instead of by stepping.
+        """
+        if last_input_index < 0:
+            return 0
+        return ((last_input_index + 1) * self._phases - 1) // self._step + 1
+
     def _trim_history(self) -> None:
-        # Keep one filter half-width of samples behind the earliest position
-        # that can still be evaluated, and drop the rest.
-        next_centre = (
-            self._position_num * self._input_rate
-        ) / self._denominator
-        keep_from = int(math.floor(next_centre)) - self._half_taps - 1
+        # Keep everything the next output sample still needs, and drop the rest.
+        keep_from = (
+            self._position * self._step
+        ) // self._phases - self._half_taps
         drop = keep_from - self._history_start
         if drop > 0:
             drop = min(drop, self._history.size)
@@ -194,6 +230,9 @@ class WakeCaptureRing:
         self._write_pos = 0
         self._valid_since_reset = 0
         self._stt_cursor = 0
+        # Absolute index where the current capture epoch began. Audio before it
+        # was never held by this ring, as opposed to held and then overwritten.
+        self._origin = 0
         self._lock = threading.RLock()
     @property
     def capacity(self) -> int:
@@ -209,6 +248,18 @@ class WakeCaptureRing:
         with self._lock:
             return self._stt_cursor
 
+    @property
+    def origin(self) -> int:
+        """Absolute index at which the current capture epoch began.
+
+        A read below this never existed in the ring, so failing to satisfy it is
+        a cold start rather than a shortfall. A read between here and
+        ``available_span()[0]`` is audio the ring did hold and has since
+        overwritten -- that one is a real underflow.
+        """
+        with self._lock:
+            return self._origin
+
     def reset(self, *, end_index: int | None = None) -> None:
         """Clear audio and re-anchor the timeline.
 
@@ -217,10 +268,10 @@ class WakeCaptureRing:
         """
         with self._lock:
             self._data.fill(0)
-            self._write_pos = 0
             anchor = self._end_index if end_index is None else int(end_index)
             self._end_index = anchor
             self._stt_cursor = anchor
+            self._origin = anchor
             # No audio is held after a re-anchor: the timeline advances but the
             # ring contents are gone, so spanning must not claim the pre-rearm
             # samples are still readable.

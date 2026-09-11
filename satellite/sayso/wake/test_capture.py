@@ -14,14 +14,20 @@ from satellite.sayso.wake.capture import (
 # most ~33 input samples, i.e. ~11 output samples at 48k->16k.
 _FILTER_SPREAD = 40
 
+# An output sample is emitted only once all 16 of its right-hand taps have
+# arrived, so the stream runs a fixed 16 input samples behind: exactly
+# 16 * 160 // 441 = 5 output samples at 44.1 kHz. Constant, never cumulative.
+_FILTER_DELAY_44K = 5
+
 
 def test_resampler_produces_expected_length_for_44100_to_16000() -> None:
     resampler = CaptureResampler(input_rate=44100, output_rate=16000)
     block = np.zeros(441, dtype="<i2")
     out = b"".join(resampler.process(block.tobytes()) for _ in range(10))
     samples = np.frombuffer(out, dtype="<i2")
-    # 4410 input samples at 44.1 kHz is exactly 100 ms, so 1600 output samples.
-    assert abs(samples.size - 1600) <= 1
+    # 4410 input samples at 44.1 kHz is exactly 100 ms, so 1600 output samples
+    # once the fixed filter delay is accounted for.
+    assert samples.size == 1600 - _FILTER_DELAY_44K
 
 
 def test_resampler_preserves_length_across_many_small_blocks() -> None:
@@ -29,8 +35,20 @@ def test_resampler_preserves_length_across_many_small_blocks() -> None:
     total = 0
     for _ in range(100):
         total += len(resampler.process(np.zeros(441, dtype="<i2").tobytes()))
-    # Allow one sample of latency slack from the streaming filter state.
-    assert abs(total // 2 - 16000) <= 4
+    # The delay is paid once at the start, not per block: 100 blocks lag by the
+    # same 5 samples one block does.
+    assert total // 2 == 16000 - _FILTER_DELAY_44K
+
+
+def test_resampler_delay_does_not_accumulate_over_a_long_run() -> None:
+    """The shortfall must stay constant; anything else is drift."""
+    resampler = CaptureResampler(input_rate=44100, output_rate=16000)
+    block = np.zeros(441, dtype="<i2").tobytes()
+    produced = 0
+    for elapsed_ms in range(10, 60_001, 10):
+        produced += len(resampler.process(block)) // 2
+        expected = elapsed_ms * 16 - _FILTER_DELAY_44K
+        assert produced == expected, f"drifted at {elapsed_ms} ms"
 
 
 def test_resampler_is_continuous_across_block_boundaries() -> None:
@@ -75,6 +93,65 @@ def test_resampler_single_impulse_matches_one_block_impulse() -> None:
     out_split = np.frombuffer(b"".join(parts), dtype="<i2")
     assert out_whole.size == out_split.size
     assert np.array_equal(out_whole, out_split)
+
+
+def _tone(freq: float, seconds: float, rate: int, amplitude: float = 0.5) -> np.ndarray:
+    t = np.arange(int(rate * seconds)) / float(rate)
+    return (amplitude * np.sin(2.0 * np.pi * freq * t) * 30000).astype("<i2")
+
+
+def test_resampler_output_is_identical_for_any_block_size() -> None:
+    """A dense signal, not a sparse impulse: every block seam is exercised.
+
+    An impulse surrounded by zeros cannot detect a truncated filter at a seam,
+    because the missing taps multiply silence. Two tones do.
+    """
+    rate = 44100
+    t = np.arange(rate) / float(rate)
+    signal = (
+        (0.4 * np.sin(2 * np.pi * 440 * t) + 0.3 * np.sin(2 * np.pi * 1500 * t)) * 20000
+    ).astype("<i2")
+
+    def run(chunk: int) -> np.ndarray:
+        resampler = CaptureResampler(input_rate=rate, output_rate=16000)
+        parts = [
+            resampler.process(signal[i : i + chunk].tobytes())
+            for i in range(0, signal.size, chunk)
+        ]
+        return np.frombuffer(b"".join(parts), dtype="<i2")
+
+    reference = run(signal.size)
+    for chunk in (441, 1024, 4096):
+        assert np.array_equal(run(chunk), reference), f"chunk {chunk} diverged"
+
+
+def test_resampler_does_not_fold_spurs_into_the_speech_band() -> None:
+    """Fractional output phases must use their own kernel, not the nearest one.
+
+    An output sample lands on a whole input sample only 1 time in 160 at
+    44.1 kHz. Rounding the other 159 to the nearest input sample is sample
+    jitter, and it shows up as in-band spurs tens of dB above the noise floor.
+    1000 Hz is an exact bin of an 8192-point analysis at 16 kHz, so a rectangular
+    window leaks nothing and any spur found is genuinely the resampler's.
+    """
+    pcm = _tone(1000.0, 3.0, 44100)
+    out = np.frombuffer(
+        CaptureResampler(input_rate=44100, output_rate=16000).process(pcm.tobytes()),
+        dtype="<i2",
+    ).astype(np.float64)
+
+    segment = out[4000:12192]
+    assert segment.size == 8192
+    spectrum = np.abs(np.fft.rfft(segment))
+    fundamental = int(np.argmax(spectrum))
+    assert np.fft.rfftfreq(8192, 1 / 16000)[fundamental] == 1000.0
+
+    residual = spectrum.copy()
+    residual[fundamental - 1 : fundamental + 2] = 0.0
+    worst_dbc = 20.0 * np.log10(residual.max() / spectrum[fundamental])
+    # Phase-correct kernels put the worst spur near the int16 floor (~-96 dBc).
+    # Discarding the fractional phase measured -33 dBc at 2900 Hz.
+    assert worst_dbc < -80.0, f"in-band spur at {worst_dbc:.1f} dBc"
 
 
 def test_resampler_rejects_non_integer_ratio_passthrough() -> None:

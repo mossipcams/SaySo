@@ -102,6 +102,7 @@ class _FakeRecorder:
         self.rate = rate
         self.channels = channels
         self.block = block
+        self.requested: list[int] = []
 
     def __enter__(self):
         return self
@@ -110,21 +111,44 @@ class _FakeRecorder:
         return False
 
     def record(self, numframes: int) -> Any:
+        self.requested.append(numframes)
         return np.zeros((numframes, self.channels), dtype=np.float32)
 
 
 def test_recorder_opens_at_native_rate_and_outputs_16k() -> None:
     inner = _FakeRecorder(44100, 1, 1024)
-    rec = _ResamplingRecorder(inner, native_rate=44100, block_size=1024, channels=1, gain=1.0)
-    # 441 native samples is 10 ms, so 160 output samples.
-    out = rec.record(441)
-    assert out.shape[1] == 1
-    assert abs(out.shape[0] - 160) <= 1
+    rec = _ResamplingRecorder(inner, native_rate=44100, channels=1, gain=1.0)
+    # Upstream calls mic_in.record(block_size) expecting block_size frames of
+    # 16 kHz audio, so 160 frames out means reading 441 native frames in.
+    out = rec.record(160)
+    assert out.shape == (160, 1)
+    assert inner.requested and inner.requested[0] >= 441
+
+
+def test_recorder_returns_exactly_the_frames_requested_every_call() -> None:
+    """A short block would desynchronise anything upstream that reshapes it."""
+    inner = _FakeRecorder(44100, 1, 1024)
+    rec = _ResamplingRecorder(inner, native_rate=44100, channels=1, gain=1.0)
+    for _ in range(50):
+        assert rec.record(160).shape == (160, 1)
+
+
+def test_recorder_reads_native_frames_not_output_frames() -> None:
+    """Requesting output frames 1:1 from a 44.1 kHz device starves the pipeline.
+
+    160 output frames is 10 ms of audio; 160 *native* frames is 3.6 ms. Reading
+    the latter would hand upstream roughly a third of the audio it asked for.
+    """
+    inner = _FakeRecorder(44100, 1, 1024)
+    rec = _ResamplingRecorder(inner, native_rate=44100, channels=1, gain=1.0)
+    rec.record(160)
+    # 441 native frames per 160 output frames, so never fewer than 441.
+    assert sum(inner.requested) >= 441
 
 
 def test_recorder_passthrough_when_already_16k() -> None:
     inner = _FakeRecorder(16000, 1, 1024)
-    rec = _ResamplingRecorder(inner, native_rate=16000, block_size=1024, channels=1, gain=1.0)
+    rec = _ResamplingRecorder(inner, native_rate=16000, channels=1, gain=1.0)
     out = rec.record(320)
     assert out.shape == (320, 1)
 
@@ -135,7 +159,7 @@ def test_fixed_gain_is_applied_and_clipping_counted() -> None:
             return np.full((numframes, 1), 0.9, dtype=np.float32)
 
     rec = _ResamplingRecorder(
-        _LoudRecorder(16000, 1, 320), native_rate=16000, block_size=320, channels=1, gain=4.0
+        _LoudRecorder(16000, 1, 320), native_rate=16000, channels=1, gain=4.0
     )
     out = rec.record(320)
     assert float(np.max(out)) <= 1.0
@@ -145,7 +169,7 @@ def test_fixed_gain_is_applied_and_clipping_counted() -> None:
 def test_gain_is_not_applied_by_the_audio_server() -> None:
     """Gain is one deterministic multiply here, not a runtime state lookup."""
     rec = _ResamplingRecorder(
-        _FakeRecorder(16000, 1, 320), native_rate=16000, block_size=320, channels=1, gain=2.0
+        _FakeRecorder(16000, 1, 320), native_rate=16000, channels=1, gain=2.0
     )
     # Replace the inner recorder's output with a known constant.
     rec._recorder.record = lambda n: np.full((n, 1), 0.25, dtype=np.float32)
@@ -174,7 +198,7 @@ def test_install_wraps_process_audio_and_forces_native_recorder_rate() -> None:
     lva_main.process_audio = fake_process_audio  # type: ignore[attr-defined]
 
     install_native_rate_capture(
-        lva_main, capture_rate=44100, gain_db=0.0, block_size=1024, channels=1
+        lva_main, capture_rate=44100, gain_db=0.0, channels=1
     )
 
     state = SimpleNamespace(channels=1, calls=[])
@@ -200,7 +224,7 @@ def test_install_restores_original_recorder_after_run() -> None:
 
     lva_main = ModuleType("linux_voice_assistant.__main__")
     lva_main.process_audio = fake_process_audio  # type: ignore[attr-defined]
-    install_native_rate_capture(lva_main, capture_rate=44100, gain_db=0.0, block_size=1024, channels=1)
+    install_native_rate_capture(lva_main, capture_rate=44100, gain_db=0.0, channels=1)
 
     mic = _Mic()
     original = mic.recorder

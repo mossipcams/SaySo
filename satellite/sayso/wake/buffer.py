@@ -43,6 +43,20 @@ class WakeAudioBuffer:
     def filled(self) -> bool:
         return self._total >= self._window_samples
 
+    @property
+    def pending_lag(self) -> int:
+        """Samples fed after the end of the window :meth:`window` will return.
+
+        Windows land on an internal hop grid, so the newest one generally ends
+        *before* the last sample fed -- by however far the arriving chunk
+        overshot the grid point. A caller stamping that window with its own
+        end-of-stream index would place the detection up to one hop late.
+        Subtract this to get the index of the window's final sample.
+        """
+        if self._pending_end is None:
+            return 0
+        return self._total - self._pending_end
+
     def clear(self) -> None:
         self._ring.clear()
         self._total = 0

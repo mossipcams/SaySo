@@ -36,14 +36,23 @@ class _ResamplingRecorder:
     """Wrap a soundcard recorder so ``record()`` returns 16 kHz float32.
 
     The underlying recorder is opened at the native rate; each block is scaled
-    by the fixed gain and resampled once. Output keeps LVA's contract: float32
-    in ``[-1, 1]`` shaped ``(block_size, channels)`` at 16 kHz.
+    by the fixed gain and resampled once. Output keeps LVA's contract exactly:
+    ``record(n)`` returns float32 in ``[-1, 1]`` shaped ``(n, channels)`` at
+    16 kHz, because that is what upstream asks for when it calls
+    ``mic_in.record(block_size)``.
+
+    Honouring that needs two things the native rate makes awkward. Reading ``n``
+    frames of *output* means reading ``n * native / 16000`` frames of input --
+    at 44.1 kHz that is 2.76x as many, so requesting ``n`` directly would return
+    barely a third of the audio asked for. And the ratio is not an integer, so a
+    fixed read returns ``n`` or ``n +/- 1`` output frames depending on phase.
+    Surplus frames are therefore held over to the next call rather than handed
+    back as a short block.
     """
 
-    def __init__(self, recorder: Any, *, native_rate: int, block_size: int, channels: int, gain: float) -> None:
+    def __init__(self, recorder: Any, *, native_rate: int, channels: int, gain: float) -> None:
         self._recorder = recorder
         self._native_rate = native_rate
-        self._block_size = block_size
         self._channels = channels
         self._gain = gain
         # One resampler per channel: each channel is an independent stream, and
@@ -54,6 +63,7 @@ class _ResamplingRecorder:
             else [CaptureResampler(native_rate, TARGET_RATE) for _ in range(max(1, channels))]
         )
         self._clip_events = 0
+        self._pending: Any = None
 
     def __enter__(self) -> "_ResamplingRecorder":
         self._recorder.__enter__()
@@ -72,17 +82,45 @@ class _ResamplingRecorder:
     def record(self, numframes: int) -> Any:
         import numpy as np
 
-        raw = self._recorder.record(numframes)
-        if raw is None:
-            return raw
-        data = np.asarray(raw, dtype=np.float32)
-        if self._gain != 1.0:
-            data = data * self._gain
-            if float(np.max(np.abs(data))) > 1.0:
-                self._clip_events += 1
-            data = np.clip(data, -1.0, 1.0)
         if self._resamplers is None:
+            raw = self._recorder.record(numframes)
+            return raw if raw is None else self._apply_gain(np.asarray(raw, dtype=np.float32))
+
+        # Read native audio until enough output frames exist to satisfy the
+        # caller. The first call reads slightly extra to cover the resampler's
+        # fixed start-up delay; after that the loop runs once.
+        native_frames = max(1, -(-numframes * self._native_rate // TARGET_RATE))
+        while self._pending is None or self._pending.shape[0] < numframes:
+            raw = self._recorder.record(native_frames)
+            if raw is None:
+                # Device closed mid-stream: hand back whatever is buffered so
+                # the caller sees the stream end rather than a silent stall.
+                pending, self._pending = self._pending, None
+                return pending
+            block = self._resample(self._apply_gain(np.asarray(raw, dtype=np.float32)))
+            if block.shape[0] == 0:
+                continue
+            self._pending = (
+                block if self._pending is None else np.concatenate((self._pending, block))
+            )
+
+        out = self._pending[:numframes]
+        self._pending = self._pending[numframes:]
+        return out
+
+    def _apply_gain(self, data: Any) -> Any:
+        import numpy as np
+
+        if self._gain == 1.0:
             return data
+        data = data * self._gain
+        if float(np.max(np.abs(data))) > 1.0:
+            self._clip_events += 1
+        return np.clip(data, -1.0, 1.0)
+
+    def _resample(self, data: Any) -> Any:
+        import numpy as np
+
         n_channels = data.shape[1] if data.ndim > 1 else 1
         resampled = []
         for ch in range(n_channels):
@@ -99,7 +137,6 @@ def install_native_rate_capture(
     *,
     capture_rate: int,
     gain_db: float,
-    block_size: int,
     channels: int,
 ) -> Any:
     """Wrap ``lva_main.process_audio`` to capture natively and resample once."""
@@ -119,7 +156,6 @@ def install_native_rate_capture(
             return _ResamplingRecorder(
                 inner,
                 native_rate=capture_rate,
-                block_size=blocksize,
                 channels=channels_arg,
                 gain=gain,
             )
