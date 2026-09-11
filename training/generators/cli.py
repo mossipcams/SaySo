@@ -43,9 +43,42 @@ def main(argv: list[str] | None = None) -> int:
         default=0,
         help="Max rows one real entity may be the target of (0 derives it)",
     )
+    parser.add_argument(
+        "--synthetic-only",
+        action="store_true",
+        help="Explicitly disable real-home mixing, overriding --real-home",
+    )
+    parser.add_argument(
+        "--allow-stale-home",
+        action="store_true",
+        help="Mix a home snapshot that was not filtered by Home Assistant's Assist "
+             "exposure list (see scripts/fetch_ha_home.py --allow-unexposed)",
+    )
+    parser.add_argument("--negative-rate", type=float, default=None)
+    parser.add_argument("--grounding-rate", type=float, default=None)
+    parser.add_argument("--max-absence-rate", type=float, default=None)
     args = parser.parse_args(argv)
 
+    if args.real_home and not args.synthetic_only:
+        from generators.real_home import TESTABLE_EXPOSURE_SOURCES, require_exposure_source
+
+        if not args.allow_stale_home:
+            require_exposure_source(args.real_home, allowed=TESTABLE_EXPOSURE_SOURCES)
+
+    overrides = {
+        key: value
+        for key, value in (
+            ("negative_rate", args.negative_rate),
+            ("grounding_rate", args.grounding_rate),
+            ("max_absence_rate", args.max_absence_rate),
+        )
+        if value is not None
+    }
+    if args.real_home_rate and not args.real_home and not args.synthetic_only:
+        parser.error("--real-home-rate needs --real-home")
     config = GeneratorConfig(
+        synthetic_only=args.synthetic_only,
+        **overrides,
         count=args.count,
         seed=args.seed,
         split=args.split,
@@ -59,8 +92,6 @@ def main(argv: list[str] | None = None) -> int:
         real_home_rate=args.real_home_rate,
         real_home_entity_cap=args.real_home_entity_cap,
     )
-    if args.real_home_rate and not args.real_home:
-        parser.error("--real-home-rate needs --real-home")
     result = run_generation(config)
     write_jsonl(config.output_path, result["rows"])
     write_manifest(config.manifest_path, result["stats"])

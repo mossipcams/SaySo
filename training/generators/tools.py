@@ -7,13 +7,17 @@ import zlib
 from typing import Any
 
 from adapters.schema import ALLOWED_HASS_TOOLS, v2_openai_tools
-from generators.capability_registry import CAPABILITIES
+from generators.capability_registry import CAPABILITIES, TRAINING_COVERAGE_EXCLUDED
 
 # Home Assistant supplies only the tools exposed for a request, so a row offers a
 # candidate set rather than the whole catalog. All 27 tools cost ~4k tokens a row
 # (66% of the prompt) and teach nothing about selection. Argument validation still
 # runs against the full pinned v2 contract -- only the prompt is compacted.
-AMBIENT_TOOLS = ("GetDateTime", "GetLiveContext")
+#
+# GetDateTime left the ambient pair with TRAINING_COVERAGE_EXCLUDED: offering a
+# tool that no row ever calls teaches "never call this", which is worse at runtime
+# than never having seen it. Home Assistant still supplies it to the model.
+AMBIENT_TOOLS = ("GetLiveContext",)
 DEFAULT_TOOLS_PER_ROW = 8
 
 
@@ -77,7 +81,7 @@ def offered_tools(
     catalog = {tool["function"]["name"]: tool for tool in v2_openai_tools()}
     for tool in extra_tools or []:
         catalog[tool["function"]["name"]] = tool
-    for name in excluded_names or []:
+    for name in (*(excluded_names or []), *TRAINING_COVERAGE_EXCLUDED):
         catalog.pop(name, None)
     keep = {name for name in called_names if name in catalog}
     keep.update(name for name in AMBIENT_TOOLS if name in catalog)
@@ -171,6 +175,42 @@ def build_media_mute(entity: dict[str, Any]) -> dict[str, Any]:
     return {"name": "HassMediaPlayerMute", "arguments": _media_player_args(entity)}
 
 
+def build_media_unmute(entity: dict[str, Any]) -> dict[str, Any]:
+    return {"name": "HassMediaPlayerUnmute", "arguments": _media_player_args(entity)}
+
+
+def build_media_next(entity: dict[str, Any]) -> dict[str, Any]:
+    return {"name": "HassMediaNext", "arguments": _media_player_args(entity)}
+
+
+def build_media_previous(entity: dict[str, Any]) -> dict[str, Any]:
+    return {"name": "HassMediaPrevious", "arguments": _media_player_args(entity)}
+
+
+# Titles a household actually asks for, paired with the media_class Home Assistant
+# would search. Names, not adjectives: the point is a realistic search_query slot.
+MEDIA_SEARCHES: tuple[tuple[str, str], ...] = (
+    ("jazz", "music"),
+    ("the news", "channel"),
+    ("Fleetwood Mac", "artist"),
+    ("the morning playlist", "playlist"),
+    ("nature documentaries", "tv_show"),
+    ("Bluey", "tv_show"),
+    ("relaxing piano", "music"),
+    ("the football game", "channel"),
+)
+
+
+def build_media_search_and_play(entity: dict[str, Any], rng: random.Random) -> dict[str, Any]:
+    query, media_class = rng.choice(MEDIA_SEARCHES)
+    # No domain/device_class in this tool's contract: the pinned schema takes
+    # search_query, media_class and a target only.
+    return {
+        "name": "HassMediaSearchAndPlay",
+        "arguments": {"name": entity["name"], "search_query": query, "media_class": media_class},
+    }
+
+
 def build_vacuum_start(entity: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": "HassVacuumStart",
@@ -196,9 +236,10 @@ def build_query(entity: dict[str, Any]) -> dict[str, Any]:
     args: dict[str, Any] = {}
     if entity.get("name"):
         args["name"] = entity["name"]
-    domain = entity.get("domain")
-    if domain in {"light", "fan", "switch", "climate", "media_player", "vacuum", "scene", "script"}:
-        args["domain"] = domain if isinstance(domain, str) else domain
+    # GetLiveContext takes any domain string; naming it keeps a cover or lock query
+    # as identifiable as a light query.
+    if entity.get("domain"):
+        args["domain"] = entity["domain"]
     return {"name": "GetLiveContext", "arguments": args}
 
 
@@ -230,6 +271,29 @@ def build_timer_status(*, name: str | None = None) -> dict[str, Any]:
     return {"name": "HassTimerStatus", "arguments": args}
 
 
+def build_unpause_timer(*, name: str | None = None) -> dict[str, Any]:
+    args: dict[str, Any] = {}
+    if name:
+        args["name"] = name
+    return {"name": "HassUnpauseTimer", "arguments": args}
+
+
+def build_cancel_timer(*, name: str | None = None) -> dict[str, Any]:
+    args: dict[str, Any] = {}
+    if name:
+        args["name"] = name
+    return {"name": "HassCancelTimer", "arguments": args}
+
+
+def build_adjust_timer(rng: random.Random, *, direction: str, name: str | None = None) -> dict[str, Any]:
+    """HassIncreaseTimer / HassDecreaseTimer: a duration delta on a running timer."""
+    args: dict[str, Any] = {"minutes": rng.choice((1, 2, 5, 10, 15))}
+    if name:
+        args["name"] = name
+    tool = "HassIncreaseTimer" if direction == "increase" else "HassDecreaseTimer"
+    return {"name": tool, "arguments": args}
+
+
 def build_area_call(
     capability: str,
     operation: str,
@@ -248,6 +312,10 @@ def build_area_call(
     elif cap.device_class:
         args["device_class"] = [cap.device_class]
     tool = _operation_tool(operation, capability)
+    # Tools whose pinned contract carries no domain/device_class filter.
+    if tool in {"HassMediaSearchAndPlay", "HassSetVolumeRelative", "HassClimateSetTemperature"}:
+        args.pop("domain", None)
+        args.pop("device_class", None)
     if tool == "HassLightSet" and rng:
         settings = build_light_set({"name": "", "domain": "light"}, rng, operation)["arguments"]
         args.update({key: value for key, value in settings.items() if key not in {"name", "domain"}})
@@ -258,7 +326,11 @@ def build_area_call(
     if tool == "HassSetVolume" and rng:
         args["volume_level"] = rng.randrange(20, 80)
     if tool == "HassSetVolumeRelative":
-        args["volume_step"] = "up"
+        args["volume_step"] = "down" if operation == "volume_down" else "up"
+    if tool == "HassMediaSearchAndPlay" and rng:
+        query, media_class = rng.choice(MEDIA_SEARCHES)
+        args["search_query"] = query
+        args["media_class"] = media_class
     return {"name": tool, "arguments": args}
 
 
@@ -279,18 +351,29 @@ def _operation_tool(operation: str, capability: str) -> str:
         "set_temperature": "HassClimateSetTemperature",
         "play": "HassMediaUnpause",
         "pause": "HassMediaPause",
+        "next_track": "HassMediaNext",
+        "previous_track": "HassMediaPrevious",
         "volume_set": "HassSetVolume",
         "volume_up": "HassSetVolumeRelative",
+        "volume_down": "HassSetVolumeRelative",
         "mute": "HassMediaPlayerMute",
+        "unmute": "HassMediaPlayerUnmute",
+        "search_and_play": "HassMediaSearchAndPlay",
         "start": "HassVacuumStart" if capability == "vacuums" else "HassStartTimer",
         "return_home": "HassVacuumReturnToBase",
         "clean_area": "HassVacuumCleanArea",
         "cancel_all": "HassCancelAllTimers",
+        "cancel": "HassCancelTimer",
+        "unpause": "HassUnpauseTimer",
+        "increase": "HassIncreaseTimer",
+        "decrease": "HassDecreaseTimer",
         "status": "HassTimerStatus",
         "query_state": "GetLiveContext",
     }
     if operation == "pause" and capability == "timers":
         return "HassPauseTimer"
+    if operation not in mapping:
+        raise KeyError(f"no tool mapped for {capability!r} operation {operation!r}")
     return mapping[operation]
 
 
@@ -310,6 +393,12 @@ def build_call_for_operation(
             return build_start_timer(rng)
         if operation == "pause":
             return build_pause_timer()
+        if operation == "unpause":
+            return build_unpause_timer()
+        if operation == "cancel":
+            return build_cancel_timer()
+        if operation in {"increase", "decrease"}:
+            return build_adjust_timer(rng, direction=operation)
         if operation == "status":
             return build_timer_status()
     if operation == "query_state":
@@ -341,8 +430,18 @@ def build_call_for_operation(
         return build_set_volume(entity, rng)
     if operation == "volume_up":
         return build_volume_relative(entity, direction="up")
+    if operation == "volume_down":
+        return build_volume_relative(entity, direction="down")
     if operation == "mute":
         return build_media_mute(entity)
+    if operation == "unmute":
+        return build_media_unmute(entity)
+    if operation == "next_track":
+        return build_media_next(entity)
+    if operation == "previous_track":
+        return build_media_previous(entity)
+    if operation == "search_and_play":
+        return build_media_search_and_play(entity, rng)
     if operation == "start" and capability == "vacuums":
         return build_vacuum_start(entity)
     if operation == "return_home":

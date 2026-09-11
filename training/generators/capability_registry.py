@@ -29,6 +29,19 @@ MIN_OPERATION_COVERAGE: int = 3
 # Minimum fraction of a capability quota reserved per supported operation at scale
 MIN_OPERATION_FRACTION: float = 0.08
 
+# Share of accepted rows reserved for supervision that is not a successful action:
+# refusals, clarifications and absence answers. Positive operation quotas are
+# allocated over the remaining rows, so a refusal can never fill one.
+DEFAULT_NEGATIVE_RATE: float = 0.12
+
+# Pinned-contract tools this corpus deliberately does not teach. GetDateTime
+# answers "what time is it" from no entity, no area and no home state, so an
+# entity-graph generator has no scenario that produces it. Home Assistant still
+# supplies it at runtime -- this set bounds only what the dataset claims to
+# cover, and generators.tools keeps these tools out of distractor sampling so a
+# row never trains "this tool is never the answer".
+TRAINING_COVERAGE_EXCLUDED: frozenset[str] = frozenset({"GetDateTime"})
+
 
 class SupportLevel(str, Enum):
     SUPPORTED = "supported"
@@ -122,14 +135,34 @@ def _lock_ops() -> tuple[OperationSpec, ...]:
 
 
 def _media_ops() -> tuple[OperationSpec, ...]:
+    """Media players differ far more than lights: an Echo Dot has no power control
+    and a dumb TV cannot search. Every operation names the entity feature it needs
+    so generation never labels an action the device cannot perform.
+    """
     return (
-        OperationSpec("turn_on", SupportLevel.SUPPORTED, "HassTurnOn"),
-        OperationSpec("turn_off", SupportLevel.SUPPORTED, "HassTurnOff"),
-        OperationSpec("play", SupportLevel.SUPPORTED, "HassMediaUnpause"),
-        OperationSpec("pause", SupportLevel.SUPPORTED, "HassMediaPause"),
-        OperationSpec("volume_set", SupportLevel.SUPPORTED, "HassSetVolume"),
-        OperationSpec("volume_up", SupportLevel.SUPPORTED, "HassSetVolumeRelative"),
-        OperationSpec("mute", SupportLevel.SUPPORTED, "HassMediaPlayerMute"),
+        OperationSpec("turn_on", SupportLevel.SUPPORTED, "HassTurnOn", requires_features=("on",)),
+        OperationSpec("turn_off", SupportLevel.SUPPORTED, "HassTurnOff", requires_features=("off",)),
+        OperationSpec("play", SupportLevel.SUPPORTED, "HassMediaUnpause", requires_features=("play",)),
+        OperationSpec("pause", SupportLevel.SUPPORTED, "HassMediaPause", requires_features=("pause",)),
+        OperationSpec("next_track", SupportLevel.SUPPORTED, "HassMediaNext", requires_features=("next",)),
+        OperationSpec(
+            "previous_track", SupportLevel.SUPPORTED, "HassMediaPrevious", requires_features=("previous",)
+        ),
+        OperationSpec("volume_set", SupportLevel.SUPPORTED, "HassSetVolume", requires_features=("volume",)),
+        OperationSpec(
+            "volume_up", SupportLevel.SUPPORTED, "HassSetVolumeRelative", requires_features=("volume_step",)
+        ),
+        OperationSpec(
+            "volume_down", SupportLevel.SUPPORTED, "HassSetVolumeRelative", requires_features=("volume_step",)
+        ),
+        OperationSpec("mute", SupportLevel.SUPPORTED, "HassMediaPlayerMute", requires_features=("mute",)),
+        OperationSpec("unmute", SupportLevel.SUPPORTED, "HassMediaPlayerUnmute", requires_features=("mute",)),
+        OperationSpec(
+            "search_and_play",
+            SupportLevel.SUPPORTED,
+            "HassMediaSearchAndPlay",
+            requires_features=("search",),
+        ),
         OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
     )
 
@@ -139,6 +172,10 @@ def _timer_ops() -> tuple[OperationSpec, ...]:
         OperationSpec("cancel_all", SupportLevel.SUPPORTED, "HassCancelAllTimers"),
         OperationSpec("start", SupportLevel.SUPPORTED, "HassStartTimer"),
         OperationSpec("pause", SupportLevel.SUPPORTED, "HassPauseTimer"),
+        OperationSpec("unpause", SupportLevel.SUPPORTED, "HassUnpauseTimer"),
+        OperationSpec("cancel", SupportLevel.SUPPORTED, "HassCancelTimer"),
+        OperationSpec("increase", SupportLevel.SUPPORTED, "HassIncreaseTimer"),
+        OperationSpec("decrease", SupportLevel.SUPPORTED, "HassDecreaseTimer"),
         OperationSpec("status", SupportLevel.SUPPORTED, "HassTimerStatus"),
     )
 
@@ -354,6 +391,66 @@ DIFFICULTY_TAGS: tuple[str, ...] = (
 
 def capabilities_for_tier(tier: int) -> list[CapabilitySpec]:
     return [cap for cap in CAPABILITIES.values() if cap.tier == tier]
+
+
+def operation_spec(capability: str, operation: str) -> OperationSpec | None:
+    cap = CAPABILITIES.get(capability)
+    if cap is None:
+        return None
+    return next((op for op in cap.operations if op.name == operation), None)
+
+
+def entity_supports(entity: dict[str, Any] | None, capability: str, operation: str) -> bool:
+    """Whether this entity can actually perform the operation.
+
+    Home Assistant refuses an action the entity's ``supported_features`` does not
+    carry, so a label that assumes every media player has power, pause, volume and
+    mute teaches the model to emit calls the runtime rejects.
+    """
+    op = operation_spec(capability, operation)
+    if op is None:
+        return False
+    if not op.requires_features:
+        return True
+    if entity is None:
+        return False
+    return set(op.requires_features) <= set(entity.get("capabilities") or ())
+
+
+def entities_supporting(
+    entities: list[dict[str, Any]], capability: str, operation: str
+) -> list[dict[str, Any]]:
+    return [e for e in entities if entity_supports(e, capability, operation)]
+
+
+def required_features(capability: str, operation: str) -> tuple[str, ...]:
+    op = operation_spec(capability, operation)
+    return op.requires_features if op else ()
+
+
+def covered_tool_names() -> frozenset[str]:
+    """Pinned-contract tools this corpus promises to produce positive rows for.
+
+    ``SCRIPT_ACTION_TOOL`` stands in for the per-home script tools, whose real
+    names are the scripts' object ids (see generators.tools.script_tool_name).
+    """
+    names = {
+        op.tool_name
+        for cap in CAPABILITIES.values()
+        for op in cap.operations
+        if op.tool_name and op.support is not SupportLevel.UNAVAILABLE
+    }
+    return frozenset(names - TRAINING_COVERAGE_EXCLUDED)
+
+
+def unavailable_operations() -> list[tuple[str, str]]:
+    """(capability, operation) pairs whose only correct answer is a refusal."""
+    return [
+        (cap.name, op.name)
+        for cap in CAPABILITIES.values()
+        for op in cap.operations
+        if op.support is SupportLevel.UNAVAILABLE
+    ]
 
 
 def supported_operations(cap: CapabilitySpec) -> list[OperationSpec]:

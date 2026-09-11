@@ -1,0 +1,606 @@
+{
+  "home_id": "synthetic_reference_home",
+  "size": 30,
+  "sayso_entity_area": "Living Room",
+  "entities": [
+    {
+      "entity_id": "media_player.living_room_tv",
+      "name": "TV",
+      "aliases": [
+        "TV",
+        "Living Room TV",
+        "the telly"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "playing",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous",
+        "search"
+      ]
+    },
+    {
+      "entity_id": "media_player.kitchen_speaker",
+      "name": "Kitchen Speaker",
+      "aliases": [
+        "Kitchen Speaker",
+        "Echo Dot"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "idle",
+      "capabilities": [
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    },
+    {
+      "entity_id": "media_player.bedroom_soundbar",
+      "name": "Bedroom Soundbar",
+      "aliases": [
+        "Bedroom Soundbar"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "area": "Master Bedroom",
+      "floor": "Upstairs",
+      "state": "idle",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute"
+      ]
+    },
+    {
+      "entity_id": "media_player.study_monitor",
+      "name": "Study Monitor",
+      "aliases": [
+        "Study Monitor"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Study",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "light.living_room_floor_lamp",
+      "name": "Floor Lamp",
+      "aliases": [
+        "Floor Lamp",
+        "reading lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    },
+    {
+      "entity_id": "light.living_room_ceiling",
+      "name": "Living Room Ceiling Lights",
+      "aliases": [
+        "Living Room Ceiling Lights"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    },
+    {
+      "entity_id": "light.kitchen_counter",
+      "name": "Counter Lights",
+      "aliases": [
+        "Counter Lights"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color_temp"
+      ]
+    },
+    {
+      "entity_id": "light.bedroom_bedside",
+      "name": "Bedside Lamp",
+      "aliases": [
+        "Bedside Lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Master Bedroom",
+      "floor": "Upstairs",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    },
+    {
+      "entity_id": "light.hallway_ceiling",
+      "name": "Hallway Light",
+      "aliases": [
+        "Hallway Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Hallway",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "light.study_desk_lamp",
+      "name": "Desk Lamp",
+      "aliases": [
+        "Desk Lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Study",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color"
+      ]
+    },
+    {
+      "entity_id": "switch.living_room_console",
+      "name": "Console Outlet",
+      "aliases": [
+        "Console Outlet"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.kitchen_kettle",
+      "name": "Kettle Plug",
+      "aliases": [
+        "Kettle Plug"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.study_charger",
+      "name": "Charger Plug",
+      "aliases": [
+        "Charger Plug"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Study",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.garage_freezer",
+      "name": "Freezer Plug",
+      "aliases": [
+        "Freezer Plug"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Garage",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "fan.living_room_ceiling_fan",
+      "name": "Ceiling Fan",
+      "aliases": [
+        "Ceiling Fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "capability": "fans",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    },
+    {
+      "entity_id": "fan.bathroom_extractor",
+      "name": "Extractor Fan",
+      "aliases": [
+        "Extractor Fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "capability": "fans",
+      "device_class": null,
+      "area": "Bathroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "cover.living_room_blinds",
+      "name": "Living Room Blinds",
+      "aliases": [
+        "Living Room Blinds"
+      ],
+      "domain": "cover",
+      "kind": "cover",
+      "capability": "covers",
+      "device_class": "blind",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "open",
+      "capabilities": [
+        "open",
+        "close"
+      ]
+    },
+    {
+      "entity_id": "cover.bedroom_blinds",
+      "name": "Bedroom Blinds",
+      "aliases": [
+        "Bedroom Blinds"
+      ],
+      "domain": "cover",
+      "kind": "cover",
+      "capability": "covers",
+      "device_class": "blind",
+      "area": "Master Bedroom",
+      "floor": "Upstairs",
+      "state": "closed",
+      "capabilities": [
+        "open",
+        "close"
+      ]
+    },
+    {
+      "entity_id": "lock.front_door",
+      "name": "Front Door Lock",
+      "aliases": [
+        "Front Door Lock"
+      ],
+      "domain": "lock",
+      "kind": "lock",
+      "capability": "locks",
+      "device_class": "door",
+      "area": "Entryway",
+      "floor": "Main Floor",
+      "state": "locked",
+      "capabilities": [
+        "lock",
+        "unlock"
+      ]
+    },
+    {
+      "entity_id": "lock.back_door",
+      "name": "Back Door Lock",
+      "aliases": [
+        "Back Door Lock"
+      ],
+      "domain": "lock",
+      "kind": "lock",
+      "capability": "locks",
+      "device_class": "door",
+      "area": "Mudroom",
+      "floor": "Main Floor",
+      "state": "locked",
+      "capabilities": [
+        "lock",
+        "unlock"
+      ]
+    },
+    {
+      "entity_id": "climate.hallway_thermostat",
+      "name": "Hallway Thermostat",
+      "aliases": [
+        "Hallway Thermostat"
+      ],
+      "domain": "climate",
+      "kind": "climate",
+      "capability": "climate",
+      "device_class": null,
+      "area": "Hallway",
+      "floor": "Main Floor",
+      "state": "heat",
+      "capabilities": [
+        "heat",
+        "cool",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "vacuum.downstairs_robot",
+      "name": "Robot Vacuum",
+      "aliases": [
+        "Robot Vacuum"
+      ],
+      "domain": "vacuum",
+      "kind": "vacuum",
+      "capability": "vacuums",
+      "device_class": null,
+      "area": "Hallway",
+      "floor": "Main Floor",
+      "state": "docked",
+      "capabilities": [
+        "start",
+        "stop"
+      ]
+    },
+    {
+      "entity_id": "scene.movie_night",
+      "name": "Movie Night",
+      "aliases": [
+        "Movie Night"
+      ],
+      "domain": "scene",
+      "kind": "scene",
+      "capability": "scenes",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "activate"
+      ]
+    },
+    {
+      "entity_id": "scene.dinner_lights",
+      "name": "Dinner Lights",
+      "aliases": [
+        "Dinner Lights"
+      ],
+      "domain": "scene",
+      "kind": "scene",
+      "capability": "scenes",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "activate"
+      ]
+    },
+    {
+      "entity_id": "script.good_morning",
+      "name": "Good Morning",
+      "aliases": [
+        "Good Morning"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "capability": "scripts",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    },
+    {
+      "entity_id": "script.leaving_home",
+      "name": "Leaving Home",
+      "aliases": [
+        "Leaving Home"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "capability": "scripts",
+      "device_class": null,
+      "area": "Entryway",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    },
+    {
+      "entity_id": "script.movie_time",
+      "name": "Movie Time",
+      "aliases": [
+        "Movie Time"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "capability": "scripts",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    },
+    {
+      "entity_id": "lawn_mower.garden_mower",
+      "name": "Robot Mower",
+      "aliases": [
+        "Robot Mower"
+      ],
+      "domain": "lawn_mower",
+      "kind": "lawn_mower",
+      "capability": "lawn_mowers",
+      "device_class": null,
+      "area": "Garden",
+      "floor": "Main Floor",
+      "state": "docked",
+      "capabilities": [
+        "start",
+        "stop"
+      ]
+    },
+    {
+      "entity_id": "todo.groceries",
+      "name": "Groceries",
+      "aliases": [
+        "Groceries"
+      ],
+      "domain": "todo",
+      "kind": "todo",
+      "capability": "todo_lists",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "idle",
+      "capabilities": [
+        "add"
+      ]
+    },
+    {
+      "entity_id": "button.hallway_scene_button",
+      "name": "Hallway Button",
+      "aliases": [
+        "Hallway Button"
+      ],
+      "domain": "button",
+      "kind": "button",
+      "capability": "buttons",
+      "device_class": null,
+      "area": "Hallway",
+      "floor": "Main Floor",
+      "state": "idle",
+      "capabilities": [
+        "press"
+      ]
+    }
+  ],
+  "active_timers": [
+    {
+      "name": "Pasta",
+      "remaining_seconds": 420,
+      "area": "Kitchen"
+    }
+  ],
+  "areas": [
+    "Living Room",
+    "Kitchen",
+    "Master Bedroom",
+    "Study",
+    "Hallway",
+    "Garage",
+    "Bathroom",
+    "Entryway",
+    "Mudroom",
+    "Garden"
+  ],
+  "area_floors": {
+    "Living Room": "Main Floor",
+    "Kitchen": "Main Floor",
+    "Master Bedroom": "Upstairs",
+    "Study": "Main Floor",
+    "Hallway": "Main Floor",
+    "Garage": "Main Floor",
+    "Bathroom": "Main Floor",
+    "Entryway": "Main Floor",
+    "Mudroom": "Main Floor",
+    "Garden": "Main Floor"
+  },
+  "owners": [],
+  "exposure_source": "synthetic_fixture"
+}
