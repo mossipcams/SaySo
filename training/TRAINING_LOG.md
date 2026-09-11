@@ -553,3 +553,40 @@ an optimizer update. The inference server remained running during both trials.
 workload, so the earlier estimated six-hour saving is not available with this
 configuration. The bundle retains `benchmark.py`, both configs/logs, sampled
 GPU usage, the passing adapter, and `memory-benchmark.json`.
+## Run 013: 40k grounded gauntlet v4, fresh Base
+
+- **Generator:** `6fdd46b`, seed `20260911`, 40,000 rows, v3 pipeline.
+- **Canonical SHA256:** `c181ca96eb1a584142ea9605f56819cc7ef8731f86b71234dacd73b7abf47a15`.
+- **TRL render SHA256:** `8fde3c75faf28b0c79c7c85f61ebfa8a5601f948c418e2b68b1f59682a4f9ccc`.
+- **Manifest SHA256:** `bdb08d8c1d3065d29e448d538601713df7e34c5af2a6350082b36e6592307a04`.
+- **Data:** `/srv/datasets/sayso_40k_grounded_gauntlet_20260911/`.
+- **Bundle:** `/srv/training-runs/sayso_40k_grounded_gauntlet_20260911-source/`.
+- **Output:** `/srv/training-runs/SaySo-LFM2.5-230M-40k-grounded-gauntlet`.
+- **Recipe:** fresh `/srv/models/LFM2.5-230M-Base`, two epochs, rank/alpha 32,
+  rsLoRA, FP16/SDPA, learning rate 2e-4 cosine, batch 1 / accumulation 16,
+  assistant-only loss, no packing, maximum 8,192 tokens. Saving every 250
+  steps, retaining 20 checkpoints. No Run 011 or Run 012 adapter is resumed.
+
+The 40k corpus regenerated cleanly. Both files contain exactly 40,000 rows.
+Manifest gates pass: no quota shortfall; `uncovered_operations` empty;
+real-home rate requested 10.0% achieved 10.0%; 16 grounding families present
+(88 rows total, requested 3% achieved 0.22%); 35,642 tool calls positive,
+4,871 negative. The held-out gauntlet eval (15 rows), recipe-lock (35 rows),
+v3 gold (35 rows), and v3 shadow (100 rows) show zero overlap with the
+v4 corpus.
+
+Token audit confirms 40,000 rows; min 1,552 / median 2,476 / max 3,795
+tokens; zero truncated rows; zero empty assistant masks; assistant content
+and tool-call names verified inside decoded target on every row. The 12-step
+GPU smoke on the longest 3,795-token row passed: finite losses (1.362 to
+0.001071), finite gradients after initial FP16 loss-scaler backoff,
+finite saved tensors, nonzero learned LoRA B weights. Per-optimizer-step
+time ~25 s on the GTX 1070; peak GPU memory 4,687 MiB / 8 GiB.
+
+The full run then loaded Base and its fresh output directory.
+
+- **Started:** 2026-09-11 18:47:45 UTC, after the fresh 12-step GPU smoke passed.
+- **Launcher PID:** `162739`.
+- **Status:** training in progress; epoch results remain pending. Both epoch
+  checkpoints (step 2,500 and step 5,000) will be evaluated against the four
+  frozen eval suites; no automatic model promotion or early stop.
