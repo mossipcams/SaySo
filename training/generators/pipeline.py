@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import random
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from generators.capability_registry import CAPABILITIES, registry_summary
+from generators.capability_registry import (
+    CAPABILITIES,
+    SupportLevel,
+    operation_spec,
+    registry_summary,
+)
 from generators.config import GeneratorConfig
-from generators.duplicates import DuplicateTracker
+from generators.coverage import classify_row
+from generators.duplicates import DuplicateTracker, pair_hash
+from generators.grounding import pick_variant, required_training_variants
 from generators.labels import render_example, scenario_to_spec
 from generators.gold import target_names_from_expected
 from generators.homes import make_entity, _ENTITY_TEMPLATES
@@ -23,8 +31,33 @@ from generators.sampling import QuotaTracker
 from generators.scenarios import build_scenario, pick_robustness, pick_targeting
 from generators.stats import empty_stats, finalize_stats, record_accept, record_reject
 from generators.stt_noise import apply_stt_noise
-from generators.utterances import expand_utterance, request_seed_from_spec, vary_training_utterance
+from generators.utterances import (
+    apply_generic_wording,
+    expand_utterance,
+    request_seed_from_spec,
+    vary_training_utterance,
+)
 from generators.validate import validate_row
+
+
+# Operations Home Assistant supplies no tool for. They have no call to render, so
+# the request they refuse has to be written out; the refusal itself still comes
+# from the registry (SupportLevel.UNAVAILABLE), not from this table.
+_UNAVAILABLE_REQUESTS: dict[tuple[str, str], str] = {
+    ("lawn_mowers", "control"): "start mowing the lawn with {name}",
+    ("todo_lists", "control"): "add milk to {name}",
+    ("buttons", "control"): "press {name}",
+    ("covers", "set_position"): "set {name} to 40 percent open",
+    ("scripts", "query_state"): "what is the status of {name}",
+}
+
+
+# Requiring every grounding contrast family needs slack, not parity. A family
+# lands only when a slot of its capability/operation comes up *and* that bucket
+# still has room for its outcome; the refusal families (`moved`, `incapable`)
+# additionally compete for a bucket's small negative allowance. At parity a
+# 400-row run fails closed on a gate it was never large enough to meet.
+GROUNDING_FAMILY_SLACK = 2
 
 
 def _unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
@@ -36,6 +69,7 @@ def _unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
             "target_names": target_names_from_expected(requested),
         })
     capability = spec["capability"]
+    operation = spec["operation"]
     area = spec["home"]["sayso_entity_area"]
     entity = None
     if capability != "timers":
@@ -43,10 +77,15 @@ def _unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
             name=f"the {area} {'routine' if capability == 'scripts' else _ENTITY_TEMPLATES[capability][0].lower()}",
             capability=capability, area=area, floor="Main Floor", rng=rng,
         )
-    call = build_call_for_operation(entity, capability, spec["operation"], rng, area=area)
+    template = _UNAVAILABLE_REQUESTS.get((capability, operation))
+    if template:
+        spec["linguistics"] = [{"source": "sayso_fallback", "intent": f"{capability}.{operation}"}]
+        return template.format(name=entity["name"] if entity else "it")
+    call = build_call_for_operation(entity, capability, operation, rng, area=area)
     return request_seed_from_spec({
         "expected": {"kind": "action", "calls": [call]},
         "target_names": [entity["name"]] if entity else [""],
+        "phrasing_seed": spec.get("phrasing_seed"),
     })
 
 
@@ -114,6 +153,12 @@ def generate_row(
     rows_remaining: int = 1,
     real_home_targets: Counter[str] | None = None,
     real_home_entity_cap: int = 0,
+    real_home_names: frozenset[str] = frozenset(),
+    real_home_usage: Counter[str] | None = None,
+    quota: Any | None = None,
+    grounding_required: bool = False,
+    real_home_selected: bool | None = None,
+    grounding_variants: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any] | None, str | None]:
     capability = slot["capability"]
     operation = slot["operation"]
@@ -127,8 +172,35 @@ def generate_row(
     # ponytail: deep-copied per row because build_scenario mutates the home.
     # Cheap next to utterance expansion; cache the split lists if it ever isn't.
     home = None
-    if config.real_home_path and rng.random() < config.real_home_rate:
+    real_home_row = False
+    grounding_family = None
+    inject_missing = True
+    select_real_home = (
+        rng.random() < config.real_home_rate
+        if real_home_selected is None else real_home_selected
+    )
+    # Rotate even while forcing the missing families: two of them can share one
+    # capability/operation pool, and a fixed index would keep retrying the first
+    # until it lands, leaving the second unreachable.
+    variant = (
+        pick_variant(capability, operation, slot["index"] + attempt, variants=grounding_variants)
+        if grounding_variants else None
+    )
+    if variant is not None:
+        # A still-missing contrast family outranks the real-home draw: real rows
+        # are a rate that self-corrects across the run, a missing family is a gate.
+        pass
+    elif config.real_home_path and select_real_home:
         home = load_real_home(config.real_home_path, split="train")
+        real_home_row = True
+    elif config.grounding_rate and (grounding_required or rng.random() < config.grounding_rate):
+        variant = pick_variant(capability, operation, slot["index"] + attempt)
+    if variant is not None:
+        home = copy.deepcopy(variant["home"])
+        targeting = variant["targeting"]
+        robustness = variant["robustness"]
+        grounding_family = variant["family"]
+        inject_missing = variant.get("inject_missing", True)
 
     scenario = build_scenario(
         index=slot["index"] + attempt * 10000,
@@ -141,16 +213,20 @@ def generate_row(
         split=config.split,
         attempt=attempt,
         home=home,
+        inject_missing=inject_missing,
+        # Only the real home reuses its entities across rows, so only it needs the
+        # least-used tie-break; synthetic homes are fresh each row.
+        target_usage=real_home_usage if real_home_row else None,
     )
+    if grounding_family:
+        scenario["phrasing_seed"] = variant["phrasing_seed"]
 
     spec = scenario_to_spec(scenario)
     expected = spec.get("expected") or {}
     if expected.get("kind") == "no_action":
         spec["request_hint"] = _unique_no_action_hint(spec, rng)
-    elif robustness == "ambiguity" and capability != "timers":
-        area = spec["home"]["sayso_entity_area"]
-        noun = _ENTITY_TEMPLATES[capability][0].lower()
-        spec["spoken_targets"] = {name: f"the {area} {noun}" for name in spec["target_names"]}
+    elif robustness == "ambiguity":
+        apply_generic_wording(spec)
     spec["utterance"] = expand_utterance(spec)
 
     # Check before style/noise transforms too: variants of held-out requests stay held out.
@@ -194,11 +270,20 @@ def generate_row(
     if reject:
         return None, reject
 
+    # One semantic scenario may appear more than once, so the row id is the
+    # scenario, the utterance+home pair, and how many rows already share that
+    # pair. Deterministic because generation is sequential. semantic_id keeps
+    # identifying the scenario itself.
+    spec["candidate_id"] = (
+        f"{spec['semantic_id']}_{pair_hash(spec['utterance'], spec['home'])[:8]}"
+        f"_{dup_tracker.occurrences(spec)}"
+    )
+
     # A rejected real-home row is retried, and the retry re-rolls the real/synthetic
     # draw, so capping converts surplus rows for one entity into synthetic rows
     # rather than shrinking the corpus.
     targets = spec.get("target_names") or []
-    if home is not None and real_home_entity_cap and real_home_targets is not None:
+    if real_home_row and real_home_entity_cap and real_home_targets is not None:
         if any(real_home_targets[name] >= real_home_entity_cap for name in targets):
             return None, "real_home_entity_cap"
 
@@ -207,30 +292,63 @@ def generate_row(
     except ValueError as exc:
         return None, str(exc)
 
+    row["metadata"]["real_home"] = real_home_row
+    row["metadata"]["grounding_family"] = grounding_family
+    # Ask the quota before recording the row anywhere: a bucket that is already
+    # full must not consume the duplicate tracker's budget for the next attempt.
+    if quota is not None:
+        reason = quota.wants(classify_row(row))
+        if reason:
+            return None, reason
     dup_tracker.record(spec)
-    if home is not None and real_home_targets is not None:
-        real_home_targets.update(targets)
+    if real_home_row and real_home_targets is not None:
+        real = [name for name in targets if not real_home_names or name in real_home_names]
+        real_home_targets.update(real)
+        if real_home_usage is not None:
+            real_home_usage.update(real)
     return row, None
 
 
 def run_generation(config: GeneratorConfig) -> dict[str, Any]:
     """Generate accepted training rows up to config.count."""
     rng = random.Random(config.seed)
-    quota = QuotaTracker(config.count, config.seed, config.tier_proportions)
+    quota = QuotaTracker(
+        config.count, config.seed, config.tier_proportions, negative_rate=config.negative_rate
+    )
 
     excluded = _load_excluded_prompts(config.exclude_prompts_path)
     dup_tracker = DuplicateTracker(near_limit=config.near_duplicate_limit)
     real_home_targets: Counter[str] = Counter()
+    # Per operation, so "the TV has had three turn_on rows" cannot crowd out its
+    # first pause row. The flat counter above still backs the entity cap.
+    real_home_usage: defaultdict[tuple[str, str], Counter[str]] = defaultdict(Counter)
+    real_home_names: frozenset[str] = frozenset()
     real_home_entity_cap = config.real_home_entity_cap
-    if config.real_home_path and not real_home_entity_cap:
-        real_home_entity_cap = derive_entity_cap(
-            config.count,
-            config.real_home_rate,
-            len(load_real_home(config.real_home_path, split="train")["entities"]),
-        )
+    if config.real_home_path:
+        real_entities = load_real_home(config.real_home_path, split="train")["entities"]
+        # build_scenario injects an entity for a capability the real home lacks;
+        # that name is synthetic, so it must not inflate the real-entity counts.
+        real_home_names = frozenset(entity["name"] for entity in real_entities)
+        if not real_home_entity_cap:
+            real_home_entity_cap = derive_entity_cap(
+                config.count, config.real_home_rate, len(real_entities)
+            )
     stats = empty_stats()
     accepted: list[dict[str, Any]] = []
     semantic_ids: set[str] = set()
+    real_home_rows = 0
+    grounding_rows: Counter[str] = Counter()
+    required_grounding = required_training_variants()
+    grounding_missing = (
+        {variant["family"]: variant for variant in required_grounding}
+        if config.count * config.grounding_rate
+        >= GROUNDING_FAMILY_SLACK * len(required_grounding)
+        else {}
+    )
+    real_home_target = int(round(config.count * config.real_home_rate))
+    balance_real_home = bool(
+        config.real_home_path and config.real_home_rate and config.real_home_entity_cap == 0
+    )
     attempts = 0
     max_attempts = config.max_attempts()
 
@@ -239,6 +357,11 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
 
     while not quota.is_complete() and attempts < max_attempts:
         slot = quota.next_slot()
+        rows_remaining = max(1, config.count - quota.accepted_total())
+        real_home_selected = None
+        if balance_real_home:
+            real_home_remaining = max(0, real_home_target - real_home_rows)
+            real_home_selected = rng.random() < real_home_remaining / rows_remaining
         row, reason = generate_row(
             slot,
             config,
@@ -247,9 +370,15 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
             dup_tracker=dup_tracker,
             attempt=attempts,
             stt_remaining=max(0, stt_target - stats["stt_corrupted"]),
-            rows_remaining=max(1, config.count - quota.accepted_total()),
+            rows_remaining=rows_remaining,
             real_home_targets=real_home_targets,
             real_home_entity_cap=real_home_entity_cap,
+            real_home_names=real_home_names,
+            real_home_usage=real_home_usage[(slot["capability"], slot["operation"])],
+            quota=quota,
+            grounding_required=config.grounding_rate > 0 and not grounding_rows,
+            real_home_selected=real_home_selected,
+            grounding_variants=list(grounding_missing.values()) if grounding_missing else None,
         )
         attempts += 1
         if row is None:
@@ -261,15 +390,25 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
         quota.record_accept(row)
         accepted.append(row)
         record_accept(stats, row)
+        real_home_rows += bool(row["metadata"].get("real_home"))
+        if row["metadata"].get("grounding_family"):
+            family = row["metadata"]["grounding_family"]
+            grounding_rows[family] += 1
+            grounding_missing.pop(family, None)
 
     if not quota.is_complete():
         raise RuntimeError(
             f"failed to meet accepted-row quota: accepted {quota.accepted_total()}/{config.count} "
             f"after {attempts} attempts; shortfall={quota.shortfall()}; "
+            f"missing_grounding={sorted(grounding_missing)}; "
             f"rejections={dict(stats['rejection_reasons'])}"
         )
 
     quota.verify_complete()
+    if grounding_missing:
+        raise RuntimeError(
+            f"missing required grounding families: {sorted(grounding_missing)}"
+        )
     # Balance within each label so small refusal samples cannot acquire a case shortcut by chance.
     for has_calls in (False, True):
         users = [next(message for message in row["messages"] if message["role"] == "user")
@@ -284,17 +423,39 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
     report["requested"] = config.count
     report["attempts"] = attempts
     report["config"] = config.to_dict()
+    report["grounding"] = {
+        "requested_rate": config.grounding_rate,
+        "rows": sum(grounding_rows.values()),
+        "achieved_rate": round(sum(grounding_rows.values()) / max(len(accepted), 1), 4),
+        "by_family": dict(sorted(grounding_rows.items())),
+    }
     if config.real_home_path:
         report["real_home"] = {
+            "path": str(config.real_home_path),
+            "requested_rate": config.real_home_rate,
+            "synthetic_only": config.synthetic_only,
+            # One row is one row: a multi-target row names several entities but is
+            # still a single real-home example.
+            "rows": real_home_rows,
+            "achieved_rate": round(real_home_rows / max(len(accepted), 1), 4),
             "entity_cap": real_home_entity_cap,
-            "rows": sum(real_home_targets.values()),
             "entities_used": len(real_home_targets),
+            "target_counts": dict(sorted(real_home_targets.items())),
             "most_common": real_home_targets.most_common(5),
         }
     report["registry"] = registry_summary()
     from generators.audit import audit_rows
 
-    report["quality_audit"] = audit_rows(accepted, expected_count=config.count)
+    report["quality_audit"] = audit_rows(
+        accepted,
+        expected_count=config.count,
+        required_operations={
+            key for key, target in quota.targets["positive"].items() if target > 0
+        },
+        min_positive_per_operation=config.min_positive_per_operation,
+        min_positive_per_tool=config.min_positive_per_tool,
+        max_absence_rate=config.max_absence_rate,
+    )
     return {"rows": accepted, "stats": report}
 
 

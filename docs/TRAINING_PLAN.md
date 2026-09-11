@@ -60,6 +60,30 @@ Do not train on:
 Synthetic generation in `training/scripts/build_synthetic_dataset.py` owns
 utterance diversity; schema validation remains authoritative for every label.
 
+Quotas are accounted on the supervision a row carries, not on its metadata.
+`training/generators/coverage.py` classifies each accepted row by outcome
+(action, state query, clarification, absence, unsupported), tool, domain and
+targeting mode. A row satisfies an operation's positive quota only when it calls
+that operation's tool on that capability's domain against a real target;
+refusals fill a separate negative allowance, and offering a tool in the schema is
+never coverage. Every retained supported tool and valid domain/action combination
+must have positive rows, or generation fails. Tools deliberately outside the
+declared coverage (`TRAINING_COVERAGE_EXCLUDED`) are also withheld from distractor
+sampling, which is a dataset-scope decision and says nothing about which tools
+Home Assistant supplies at runtime.
+
+Generate actions only where the contract and the entity permit them. Operations
+declare the entity features they need and Home Assistant's `supported_features`
+supplies them, so a media player without power control never receives a
+`HassTurnOn` label.
+
+`training/generators/grounding.py` holds paired scenarios in which the request is
+fixed and the entity graph moves — renamed, relocated, aliased, re-domained, or
+differently capable targets, with individual and area targeting, genuine
+ambiguity and presence/absence pairs. Expected behavior is derived from the
+supplied graph and the current tool contract before any OHF wording or
+paraphrasing is applied.
+
 Both synthetic rendering paths share `training/generators/utterances.py`.
 English phrasing uses a pinned OHF-Voice/intents subset through Hassil, with
 literal home names and aliases bound to grammar slots. The adapter must preserve
@@ -156,6 +180,24 @@ scorer produced each result.
 `training/scripts/generate_balanced_test_data.py` builds the 2,500-example
 held-out set. Do not train on those prompts.
 
+`training/evals/grounding_eval.py` holds the entity-grounding regressions,
+including Living Room + `media_player.living_room_tv` named "TV" →
+`HassTurnOn(name="TV", domain=["media_player"])` in the production prompt,
+context and tool-schema format, plus held-out variations with different names,
+ids, areas, distractors and presence/absence conditions. Check targets and
+arguments, not tool selection alone. Its prompts belong to
+`excluded_train_prompts()`; neither they nor near-duplicate scenario variants may
+be trained on.
+
+Home Assistant is authoritative for which entities exist, which are exposed to
+Assist, and what each can do. `fetch_ha_home.py` records `exposure_source` on
+every snapshot, and only `assist_exposure` is a valid input for the home-specific
+recipe. That recipe enables real-home mixing at an explicit nonzero rate;
+`--synthetic-only` is the deliberate override. Entity-frequency caps and the
+per-capability holdout still apply, and the manifest records requested versus
+achieved mixing, real-home rows (rows, never targets), per-entity target counts,
+positive coverage and the negative distribution.
+
 Which checkpoint is currently promoted, what each run scored, and which corpus
 it used belong in [training/TRAINING_LOG.md](../training/TRAINING_LOG.md), not
 here.
@@ -195,6 +237,9 @@ to:
 | Concern | Location |
 |---|---|
 | Dataset generation | `training/generators/`, `training/scripts/build_synthetic_dataset.py`, `training/scripts/generate_training_supplement.py`, `training/scripts/generate_balanced_test_data.py` |
+| Coverage accounting and audit | `training/generators/coverage.py`, `training/generators/sampling.py`, `training/generators/audit.py` |
+| Entity-grounding families | `training/generators/grounding.py`, `training/evals/grounding_eval.py` |
+| Real-home export and mixing | `training/scripts/fetch_ha_home.py`, `training/scripts/ha_websocket.py`, `training/generators/real_home.py` |
 | Recipe-lock gold | `training/evals/recipe_lock.py`, `training/scripts/generate_recipe_lock_eval.py` |
 | V3 quality gold + shadow | `training/evals/v3_quality.py`, `training/scripts/generate_v3_quality_eval.py` |
 | Raw tool-call parse | `training/evals/lfm_python_parse.py` |

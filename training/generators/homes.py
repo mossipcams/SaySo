@@ -26,7 +26,8 @@ _ROLES = {
     "switches": ("Plug", "Outlet", "Lamp Plug", "Charger Plug"),
     "covers": ("Window Blinds", "Left Window Blinds", "Right Window Blinds", "Roller Blinds"),
     "locks": ("Front Door Lock", "Back Door Lock", "Side Door Lock", "Entry Door Lock"),
-    "media_players": ("TV", "Television", "OLED TV", "Streaming TV"),
+    "media_players": ("TV", "Television", "OLED TV", "Streaming TV",
+                      "Speaker", "Soundbar", "Smart Speaker", "Echo Dot"),
     "climate": ("Thermostat", "Heating", "Heat Pump", "Air Conditioner"),
     "vacuums": ("Robot Vacuum", "Vacuum", "Robot Cleaner"),
     "scripts": ("Good Morning", "Good Night", "Leaving Home", "Welcome Home", "Movie Time",
@@ -106,7 +107,9 @@ _ENTITY_TEMPLATES: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
     "switches": ("Outlet", ("on", "off"), ("on", "off")),
     "covers": ("Blinds", ("open", "closed"), ("open", "close")),
     "locks": ("Door Lock", ("locked", "unlocked"), ("lock", "unlock")),
-    "media_players": ("TV", ("off", "idle", "playing"), ("on", "off")),
+    "media_players": ("TV", ("off", "idle", "playing"),
+                      ("on", "off", "play", "pause", "volume", "volume_step", "mute",
+                       "next", "previous", "search")),
     "climate": ("Thermostat", ("heat", "cool", "off"), ("heat", "cool", "off")),
     "vacuums": ("Vacuum", ("docked", "cleaning"), ("start", "stop")),
     "scenes": ("Scene", ("off", "on"), ("activate",)),
@@ -157,6 +160,39 @@ def _device_class_for(cap: CapabilitySpec) -> str | None:
     return cap.device_class or mapping.get(cap.name)
 
 
+# A real home's media players are not interchangeable: a TV has power control and
+# no search, a voice speaker has neither power nor a remote. Deriving the profile
+# from the fixture's own name keeps the context, the device class and the feature
+# set describing one plausible device.
+_MEDIA_PROFILES: tuple[tuple[tuple[str, ...], str, tuple[str, ...]], ...] = (
+    (
+        ("echo", "smart speaker", "google nest", "homepod"),
+        "speaker",
+        ("play", "pause", "volume", "volume_step", "mute", "next", "previous", "search"),
+    ),
+    (
+        ("speaker", "soundbar", "sonos", "stereo", "receiver"),
+        "speaker",
+        ("on", "off", "play", "pause", "volume", "volume_step", "mute", "next", "previous"),
+    ),
+    (
+        ("streaming tv", "roku", "apple tv", "chromecast", "shield"),
+        "tv",
+        ("on", "off", "play", "pause", "volume", "volume_step", "mute", "next", "previous", "search"),
+    ),
+)
+_MEDIA_DEFAULT = ("on", "off", "play", "pause", "volume", "volume_step", "mute", "next", "previous")
+
+
+def media_player_profile(name: str) -> tuple[str, tuple[str, ...]]:
+    """Return (device_class, features) implied by a media player's name."""
+    lowered = name.casefold()
+    for keywords, device_class, features in _MEDIA_PROFILES:
+        if any(keyword in lowered for keyword in keywords):
+            return device_class, features
+    return "tv", _MEDIA_DEFAULT
+
+
 def make_entity(
     *,
     name: str,
@@ -167,13 +203,18 @@ def make_entity(
     aliases: list[str] | None = None,
     features: tuple[str, ...] | None = None,
     state: str | None = None,
+    device_class: str | None = None,
 ) -> dict[str, Any]:
     """Create one entity dict aligned with inference context serialization."""
     cap = CAPABILITIES[capability]
     kind = _KIND_MAP[capability]
     noun, states, default_features = _ENTITY_TEMPLATES[capability]
     domain = cap.domain
-    device_class = _device_class_for(cap)
+    if capability == "media_players" and (device_class is None or features is None):
+        profiled_class, profiled_features = media_player_profile(name)
+        device_class = device_class or profiled_class
+        features = features or profiled_features
+    device_class = device_class or _device_class_for(cap)
     return {
         "entity_id": f"{domain}.{_slug(name)}",
         "name": name,
@@ -343,6 +384,10 @@ def generate_home(
         "entities": entities,
         "active_timers": _synthetic_timers(rng) if rng.random() < 0.3 else [],
         "areas": rooms, "area_floors": floors, "owners": owners,
+        # Where the entity list came from. A fetched home records whether Home
+        # Assistant's Assist exposure list was applied; a synthetic one is exposed
+        # by construction. Kept on both so the two shapes stay interchangeable.
+        "exposure_source": "synthetic",
     }
 
 

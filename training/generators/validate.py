@@ -8,11 +8,31 @@ from typing import Any
 
 from adapters.schema import tool_schema_map, validate_tool_arguments, v2_openai_tools
 from generators.tools import script_tool_name
-from generators.capability_registry import CAPABILITIES, SupportLevel
+from generators.capability_registry import CAPABILITIES, SupportLevel, entity_supports
 from generators.gold import _type_label
 from generators.stt_noise import _int_to_words
 
 _BANNED = re.compile(r"<tool_call>|evals/cases/|tool_call_start", re.I)
+
+# Timer tools take the timer's own name, which is not a Home Assistant entity.
+_TIMER_NAME_TOOLS = frozenset({
+    "HassStartTimer", "HassPauseTimer", "HassUnpauseTimer", "HassCancelTimer",
+    "HassIncreaseTimer", "HassDecreaseTimer", "HassTimerStatus",
+})
+
+
+def _entity_can_run(entity: dict[str, Any], tool: str) -> bool:
+    """True when some registry operation maps this tool onto this entity's features."""
+    capability = entity.get("capability")
+    cap = CAPABILITIES.get(capability)
+    if cap is None:
+        return True
+    candidates = [op for op in cap.operations if op.tool_name == tool]
+    if not candidates:
+        # Cross-domain tools (HassTurnOn on a scene, GetLiveContext anywhere) are
+        # governed by the pinned schema, not by the entity's feature list.
+        return True
+    return any(entity_supports(entity, capability, op.name) for op in candidates)
 
 
 def validate_spec(spec: dict[str, Any]) -> str | None:
@@ -31,6 +51,16 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
             withheld = set(expected.get("unavailable_tools", []))
             if not requested or any(call["name"] not in withheld for call in requested):
                 return "unsupported_without_withheld_tool"
+        if expected.get("response") == "device_unsupported":
+            named = expected.get("unsupported_names") or []
+            by_name = {e["name"]: e for e in spec.get("home", {}).get("entities", [])}
+            if not named:
+                return "device_unsupported_without_names"
+            for name in named:
+                if name not in by_name:
+                    return "unknown_canonical_entity"
+                if entity_supports(by_name[name], spec.get("capability"), spec.get("operation")):
+                    return "contradictory_device_support"
     if any(call.get("name") == "GetLiveContext" for call in calls) and expected.get("kind") != "status":
         return "state_query_requires_status_label"
     entities = {entity["name"]: entity for entity in spec.get("home", {}).get("entities", [])}
@@ -70,12 +100,12 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
         if reason:
             return reason
         target = arguments.get("name")
-        if target is not None and target not in entities and name not in {
-            "HassStartTimer", "HassPauseTimer", "HassTimerStatus",
-        }:
+        if target is not None and target not in entities and name not in _TIMER_NAME_TOOLS:
             return "unknown_canonical_entity"
         if target in excluded:
             return "excluded_entity_called"
+        if target in entities and not _entity_can_run(entities[target], name):
+            return "entity_lacks_capability"
     for canonical, spoken in (spec.get("spoken_targets") or {}).items():
         if canonical not in entities or not str(spoken).strip():
             return "invalid_spoken_target"
