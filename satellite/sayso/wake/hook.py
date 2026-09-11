@@ -97,6 +97,18 @@ class SaySoExternalWakeHook:
         self._provider.reset()
         self.resume()
 
+    def discard_detection(self) -> None:
+        """Drop a published boundary whose wake never reached the microphone.
+
+        ``feed_pcm`` stops forwarding live audio as soon as a detection publishes
+        its boundary, because delivery from that point belongs to
+        ``flush_preroll``. If the wake is abandoned instead, nothing would ever
+        call the flush and live forwarding would stay blocked until the next
+        successful wake or rearm. Releasing the boundary hands the stream back to
+        the live path immediately.
+        """
+        self._detection_index = None
+
     def flush_preroll(self, satellite: Any) -> PrerollFlush:
         """Atomically hand ``[detection-skip, end)`` to the satellite STT path.
 
@@ -114,12 +126,21 @@ class SaySoExternalWakeHook:
         # The flush emits from the later of the requested trim and what the live
         # path has already delivered, so report that as the true start.
         emitted_start = max(trim_index, self._ring.stt_cursor, span_start)
+        # Underflow means the ring held the requested audio and overwrote it
+        # before the flush ran. A trim reaching back past the start of this
+        # capture epoch is a cold start instead -- the ring re-anchors on every
+        # rearm, so any wake within wake_skip_ms of a TTS response asks for audio
+        # that never existed. Flagging that would stamp a spurious `underflow`
+        # on the sidecar of a perfectly good command and blunt the one signal
+        # the capture artifact exists to carry.
+        origin = self._ring.origin
+        underflow = origin <= trim_index < span_start
         pcm = self._ring.flush_from(trim_index)
         result = PrerollFlush(
             pcm=pcm,
             start_index=emitted_start,
             end_index=self._ring.end_index,
-            underflow=not self._ring.covers(trim_index),
+            underflow=underflow,
         )
         if result.underflow:
             _LOGGER.warning(
@@ -127,6 +148,12 @@ class SaySoExternalWakeHook:
                 detection_index,
                 trim_index,
                 self._ring.available_span(),
+            )
+        elif trim_index < origin:
+            _LOGGER.debug(
+                "Preroll cold start: trim_index=%s predates epoch origin=%s",
+                trim_index,
+                origin,
             )
         if result.pcm and satellite is not None and hasattr(satellite, "handle_audio"):
             satellite.handle_audio(result.pcm, None)
@@ -155,7 +182,15 @@ class SaySoExternalWakeHook:
         if self._suspended:
             return
         if self._buffer.feed(pcm_s16le):
-            self._worker.submit(self._buffer.window(), end_index)
+            # Stamp the window with the index of *its* last sample, not the last
+            # sample appended. Windows land on a hop grid, so an arriving chunk
+            # usually overshoots it; using end_index directly would place the
+            # detection boundary up to one hop (160 ms) late and shift the
+            # preroll trim by that much, varying with the audio server's chunk
+            # size -- exactly the coupling the capture timeline exists to remove.
+            self._worker.submit(
+                self._buffer.window(), end_index - self._buffer.pending_lag
+            )
 
     def _forward_live(self, state: Any) -> None:
         satellite = state.satellite if state is not None else None
@@ -170,6 +205,10 @@ class SaySoExternalWakeHook:
             self._detection_index = detection.sample_index
         satellite = self._get_satellite() if self._get_satellite else None
         if satellite is None or getattr(satellite, "_pipeline_active", False):
+            # No wakeup will run, so no flush will claim this boundary. Release
+            # it rather than leaving the live path blocked behind a handoff that
+            # is never going to happen.
+            self.discard_detection()
             return
         try:
             satellite.wakeup(_WakePhrase(detection.phrase))

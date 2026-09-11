@@ -146,12 +146,23 @@ trim a function of the detection boundary rather than the flush wall clock.
 
 ### 2. Preroll trimmed to the real detection boundary
 
-`WakePrerollLookback.flush_bytes` is replaced by
-`flush_until(detection_index, skip_samples)` which:
-- computes `start = detection_index - skip_samples`,
-- emits `[start, ring_end]` (the audio from just before wake through now),
-- falls back to a bounded trailing window only when the ring no longer covers
-  `start` (logged as an explicit `preroll_underflow`, never silently).
+On the live path this is `WakeCaptureRing.flush_from(trim_index)`, reached via
+`SaySoExternalWakeHook.flush_preroll`, which:
+- computes `trim_index = detection_index - skip_samples`,
+- emits `[max(trim_index, stt_cursor, span_start), ring_end]` under the ring
+  lock, clamped to what is held and never below what the live path already
+  delivered,
+- distinguishes two ways the trim can fall short. Audio the ring held and then
+  overwrote is a real `preroll_underflow`, flagged on the sidecar and logged as
+  a warning. A trim reaching back past `ring.origin` — the anchor set by the
+  most recent rearm — is a cold start, because a wake arriving within
+  `wake_skip_ms` of a TTS response asks for audio that never existed. That is
+  logged at debug and is not flagged, so the sidecar's `underflow` stays a
+  signal rather than noise on every first command.
+
+`WakePrerollLookback.flush_until` in `wake/buffer.py` is the standalone trim
+primitive, kept independently tested but not on the live path; it reports
+underflow by emitting nothing rather than by clamping.
 
 ### 3. AEC or block listening until TTS is truly finished
 

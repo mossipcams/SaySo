@@ -86,6 +86,12 @@ the benchmark's gain recommendation. If it does not, the sidecar's `peak`,
 `rms_dbfs`, and `clip_count` say whether the cause is level, and the
 `underflow` flag says whether the preroll trim was wrong.
 
+`underflow` is set only when the capture ring held the requested preroll and
+overwrote it before the handoff ran — a real defect worth chasing. It is *not*
+set when the trim simply reaches back before the last rearm, which happens
+whenever a wake lands within `wake_skip_ms` of a response finishing; that case
+is logged at debug level as a cold start.
+
 ## Confirming the file equals what Home Assistant got
 
 The tap is covered by byte-equality tests

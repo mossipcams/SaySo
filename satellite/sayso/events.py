@@ -34,13 +34,37 @@ def _chain_chime_play(player: Any, path: str, done_callback: Callable[[], None] 
     player.play(str(path), done_callback=done_callback)
 
 
-def _defer_until_playback_idle(player: Any, action: Callable[[], None]) -> None:
+# Ceiling on how long a wake will wait behind in-flight playback before giving
+# up. Only chimes and timer sounds can be in flight here -- a wake arriving
+# during a TTS response is rejected outright by `wakeup` -- and those run well
+# under a second, so this only ever trips on a callback that was lost.
+PLAYBACK_HANDOFF_TIMEOUT_S = 5.0
+
+
+def _defer_until_playback_idle(
+    player: Any,
+    action: Callable[[], None],
+    on_timeout: Callable[[], None] | None = None,
+    timeout: float = PLAYBACK_HANDOFF_TIMEOUT_S,
+) -> None:
     """Run ``action`` once the player is idle, without stealing its callback.
 
     If the player is mid-track the action is chained behind the callback it
     already holds; if it is idle the action runs immediately. This is what keeps
     the microphone shut until response audio is genuinely finished instead of
     approximately finished.
+
+    Reading the slot and writing the chained callback cannot be made atomic --
+    the player fires and clears it from its own thread. If playback ends in that
+    window, ``existing`` has already run and the chained callback is installed on
+    a finished player, where it will never fire. The player exposes no idle flag
+    to distinguish that from a genuinely armed callback, so instead the wait is
+    bounded: ``on_timeout`` runs if nothing fired in ``timeout`` seconds.
+
+    It deliberately does not open the microphone on timeout. Doing so could
+    capture live speaker output, which is the defect this deferral exists to
+    prevent; the caller aborts the wake instead. A dropped wake is recoverable,
+    a pipeline wedged mid-handoff is not.
     """
     if player is None or not getattr(player, "_done_callback", None):
         action()
@@ -52,6 +76,10 @@ def _defer_until_playback_idle(player: Any, action: Callable[[], None]) -> None:
         action()
 
     player._done_callback = _chained
+    if on_timeout is not None and timeout > 0:
+        watchdog = threading.Timer(timeout, on_timeout)
+        watchdog.daemon = True
+        watchdog.start()
 
 
 def _schedule_chime_play(
@@ -165,14 +193,50 @@ def install_voice_handlers(
         self.duck()
         trace.upload_started()
 
+        # The mic opens once per wake, from whichever path gets there first: the
+        # player's done callback, the settle timer, or the handoff watchdog.
+        settled = threading.Lock()
+        claimed: list[bool] = [False]
+
+        def _claim() -> bool:
+            with settled:
+                if claimed[0]:
+                    return False
+                claimed[0] = True
+                return True
+
+        def _abandon(reason: str) -> None:
+            """Release the wake without opening the microphone."""
+            if not _claim():
+                return
+            _LOGGER.warning("Abandoning wake before microphone open: %s", reason)
+            # Clear the pipeline flag, or every later wake is rejected as
+            # "pipeline already active" and the satellite goes deaf for good.
+            self._pipeline_active = False
+            # wakeup() ducked any playing media. Nothing downstream will unduck
+            # it now, because the pipeline teardown that normally does never
+            # runs for a wake that was abandoned here.
+            unduck = getattr(self, "unduck", None)
+            if callable(unduck):
+                try:
+                    unduck()
+                except Exception:
+                    _LOGGER.exception("Could not unduck after abandoned wake")
+            if wake_hook is not None:
+                wake_hook.discard_detection()
+                wake_hook.resume()
+
         def _open_microphone() -> None:
             # Guard the deferral: the pipeline can be torn down while the chime
             # and settle delay are still pending.
             if self.state.muted or not self._pipeline_active:
                 # The wake was abandoned before the mic opened; release the
                 # suspended hook so the next detection is not swallowed.
-                if wake_hook is not None:
+                if _claim() and wake_hook is not None:
+                    wake_hook.discard_detection()
                     wake_hook.resume()
+                return
+            if not _claim():
                 return
             # Start the capture tap at the true command boundary so the WAV
             # begins exactly where command audio begins.
@@ -204,7 +268,11 @@ def install_voice_handlers(
         if player is None:
             _after_settle()
         else:
-            _defer_until_playback_idle(player, _after_settle)
+            _defer_until_playback_idle(
+                player,
+                _after_settle,
+                lambda: _abandon("playback done callback never fired"),
+            )
 
     def handle_voice_event(
         self,
