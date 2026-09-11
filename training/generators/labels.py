@@ -28,6 +28,9 @@ def _final_text(spec: dict[str, Any]) -> str:
         return "Done."
     if expected.get("response") == "clarify" and spec.get("capability") == "scripts":
         return "Which routine did you mean?"
+    if expected.get("response") == "device_unsupported":
+        names = expected.get("unsupported_names") or []
+        return f"{names[0]} does not support that." if names else "That device does not support that."
     if expected.get("response") == "area_unavailable":
         unavailable = expected.get("unavailable") or {}
         area = unavailable.get("area", "this area")
@@ -54,6 +57,7 @@ def scenario_to_spec(scenario: dict[str, Any]) -> dict[str, Any]:
         "spoken_targets": scenario.get("spoken_targets", {}),
         "excluded_names": scenario.get("excluded_names", []),
         "contrastive_group": scenario.get("contrastive_group"),
+        "phrasing_seed": scenario.get("phrasing_seed"),
         "request_hint": scenario.get("request_hint", ""),
         "stt_corruption": scenario.get("stt_corruption"),
         "utterance": scenario.get("utterance"),
@@ -133,6 +137,7 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         "tier": spec.get("tier"),
         "home_id": spec["home"]["home_id"],
         "home_size": spec["home"].get("size"),
+        "expected_target_names": spec.get("target_names", []),
         "contrastive_group": spec.get("contrastive_group"),
         "stt_corruption": spec.get("stt_corruption"),
         "paraphrase_source": spec.get("paraphrase_source"),

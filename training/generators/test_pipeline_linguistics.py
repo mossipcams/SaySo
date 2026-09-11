@@ -82,7 +82,8 @@ def test_generated_requests_are_grammatical_english():
         core = re.sub(r"^(?:hey|okay|please|could you|can you|when you get a chance),?\s+",
                       "", request.strip(), flags=re.I)
         assert re.match(r"(?:turn|switch|set|change|make|open|close|lock|lok|unlock|start|stop|"
-                        r"run|activate|transition|bring|play|pause|unpause|resume|mute|dim|"
+                        r"run|activate|transition|bring|play|pause|unpause|resume|mute|unmute|dim|"
                         r"brighten|increase|decrease|adjust|raise|lower|cancel|vacuum|clean|"
+                        r"skip|go|search|add|take|press|remove|continue|"
                         r"send|create|begin|check|tell|what|how|is|are|which|do|does|could|can|"
                         r"please|when|i)\b", core, re.I), request

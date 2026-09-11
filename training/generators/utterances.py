@@ -59,6 +59,31 @@ def vary_training_utterance(text: str, rng: random.Random) -> str:
     return template.format(action=text)
 
 
+def apply_generic_wording(spec: dict[str, Any]) -> dict[str, Any]:
+    """Speak the target as "the <area> <noun>" instead of its canonical name.
+
+    This is what keeps a grounding pair honest: the request is fixed and only the
+    entity graph moves, so the model cannot read the answer off the wording.
+    """
+    from generators.homes import _ENTITY_TEMPLATES
+
+    capability = spec.get("capability")
+    if capability in (None, "timers") or not spec.get("target_names"):
+        return spec
+    area = spec["home"]["sayso_entity_area"]
+    by_name = {entity["name"]: entity for entity in spec.get("home", {}).get("entities", [])}
+    default_noun = _ENTITY_TEMPLATES[capability][0].lower()
+    spoken = {}
+    for name in spec["target_names"]:
+        # "the porch speaker", not "the porch tv": the device class is the noun a
+        # household would use when it does not say the device's name.
+        device_class = (by_name.get(name) or {}).get("device_class")
+        noun = device_class if capability == "media_players" and device_class else default_noun
+        spoken[name] = f"the {area} {noun}"
+    spec["spoken_targets"] = spoken
+    return spec
+
+
 def request_seed_from_spec(spec: dict[str, Any]) -> str:
     """Derive compact semantic seed from expected behavior."""
     provenance: list[dict[str, Any]] = []
@@ -87,7 +112,10 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
             target = spec["spoken_targets"][canonical]
         elif canonical in spec.get("target_names", []):
             target = canonical
-        phrases.append(_phrase_for_call(target, call, f"{spec.get('candidate_id', '')}:{index}", provenance))
+        # phrasing_seed lets a grounding pair share one request while their labels
+        # differ; everything else keys phrasing off the row's own id.
+        seed_key = spec.get("phrasing_seed") or spec.get("candidate_id", "")
+        phrases.append(_phrase_for_call(target, call, f"{seed_key}:{index}", provenance))
     seed = " and ".join(phrases)
     excluded = spec.get("excluded_names") or []
     if excluded:
@@ -177,6 +205,16 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
         return f"adjust {target} volume"
     if name == "HassMediaPlayerMute":
         return f"mute {target}"
+    if name == "HassMediaPlayerUnmute":
+        return f"unmute {target}"
+    if name == "HassMediaNext":
+        return f"skip to the next track on {target}"
+    if name == "HassMediaPrevious":
+        return f"go back to the previous track on {target}"
+    if name == "HassMediaSearchAndPlay":
+        # "search for X on Y", not "play X on Y": vary_training_utterance rewrites a
+        # leading "play " to "resume ", which would relabel a search as an unpause.
+        return f"search for {arguments['search_query']} on {target}"
     if name == "HassStartTimer":
         duration = " and ".join(f"{arguments[unit]} {unit}" for unit in ("hours", "minutes", "seconds") if arguments.get(unit))
         suffix = f" called {arguments['name']}" if arguments.get("name") else ""
@@ -187,6 +225,19 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
     if name == "HassPauseTimer":
         scope = "".join(f" {preposition} {arguments[key]}" for key, preposition in (("area", "in"), ("floor", "on")) if arguments.get(key))
         return f"pause the {arguments.get('name', '')} timer{scope}".replace("  ", " ")
+    if name == "HassUnpauseTimer":
+        scope = "".join(f" {preposition} {arguments[key]}" for key, preposition in (("area", "in"), ("floor", "on")) if arguments.get(key))
+        return f"resume the {arguments.get('name', '')} timer{scope}".replace("  ", " ")
+    if name == "HassCancelTimer":
+        scope = "".join(f" {preposition} {arguments[key]}" for key, preposition in (("area", "in"), ("floor", "on")) if arguments.get(key))
+        return f"cancel the {arguments.get('name', '')} timer{scope}".replace("  ", " ")
+    if name in {"HassIncreaseTimer", "HassDecreaseTimer"}:
+        delta = " and ".join(
+            f"{arguments[unit]} {unit}" for unit in ("hours", "minutes", "seconds") if arguments.get(unit)
+        )
+        verb = "add" if name == "HassIncreaseTimer" else "take"
+        preposition = "to" if name == "HassIncreaseTimer" else "off"
+        return f"{verb} {delta} {preposition} the {arguments.get('name', '')} timer".replace("  ", " ")
     if name == "HassTimerStatus":
         scope = "".join(f" {preposition} {arguments[key]}" for key, preposition in (("area", "in"), ("floor", "on")) if arguments.get(key))
         return f"what is the {arguments.get('name', '')} timer status{scope}".replace("  ", " ")

@@ -6,16 +6,47 @@ import hashlib
 import json
 import random
 import zlib
+from collections import Counter
 from typing import Any
 
 from generators.capability_registry import (
     CAPABILITIES,
     CapabilitySpec,
     SupportLevel,
+    entities_supporting,
+    entity_supports,
+    required_features,
     trainable_operations,
 )
 from generators.gold import gold_from_scenario, target_names_from_expected
-from generators.homes import entities_of_capability, generate_home, make_entity, _random_entity_name, device_areas, remove_canonical_alias_collisions
+from generators.homes import (
+    _ENTITY_TEMPLATES,
+    _random_entity_name,
+    device_areas,
+    entities_of_capability,
+    generate_home,
+    make_entity,
+    remove_canonical_alias_collisions,
+)
+
+
+def home_areas(home: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
+    """Areas and their floors, derived from the entities when the home omits them.
+
+    ``generate_home`` records both; a home exported from a live Home Assistant by
+    an older ``fetch_ha_home`` does not, and injecting a missing capability into
+    one used to raise KeyError mid-run.
+    """
+    areas = home.get("areas")
+    floors = home.get("area_floors")
+    if areas and floors:
+        return list(areas), dict(floors)
+    derived: dict[str, str] = {}
+    for entity in home.get("entities", []):
+        derived.setdefault(entity["area"], entity.get("floor") or "Main Floor")
+    if not derived:
+        derived[home.get("sayso_entity_area") or "Living Room"] = "Main Floor"
+    return list(derived), derived
 
 
 def semantic_id(scenario: dict[str, Any]) -> str:
@@ -45,6 +76,26 @@ def semantic_id(scenario: dict[str, Any]) -> str:
     return f"sem_{digest}"
 
 
+def pick_target(
+    cap_entities: list[dict[str, Any]], index: int, usage: Counter[str] | None
+) -> dict[str, Any]:
+    """Rotate targets by row index, or take the least-used entity when tracking usage.
+
+    ``index`` is the global accepted-row count, so plain rotation spreads targets
+    across a *synthetic* home well -- every row draws a fresh home anyway. A real
+    home is one fixed set of names reused all run, and only a handful of its rows
+    land on any one operation, so rotation covers a specific device/operation pair
+    by luck: the TV would get ``turn_off`` and never ``turn_on``. Counting how often
+    each entity has already been the target *for this operation* makes that coverage
+    structural. Ties keep the rotation order, so a seed still reproduces exactly.
+    """
+    rotation = index % len(cap_entities)
+    rotated = cap_entities[rotation:] + cap_entities[:rotation]
+    if usage is None:
+        return rotated[0]
+    return min(rotated, key=lambda entity: usage[entity["name"]])
+
+
 def build_scenario(
     *,
     index: int,
@@ -57,9 +108,15 @@ def build_scenario(
     split: str = "train",
     attempt: int = 0,
     home: dict[str, Any] | None = None,
+    inject_missing: bool = True,
+    target_usage: Counter[str] | None = None,
 ) -> dict[str, Any]:
     """Build one scenario. `home` overrides synthetic generation and is mutated
     (missing capabilities get an injected entity), so callers pass a fresh copy.
+
+    ``inject_missing=False`` leaves the graph exactly as supplied. A grounding pair
+    that tests absence needs that: injecting the very device whose absence is the
+    point would turn the refusal back into an action.
     """
     # crc32, not builtin hash(): str hashing is randomized per process and would
     # make the same seed generate a different dataset on every run.
@@ -75,21 +132,34 @@ def build_scenario(
     cap_entities = entities_of_capability(home, capability)
     if capability == "timers":
         cap_entities = []
-    elif not cap_entities and operation not in {"cancel_all"}:
-        area = rng.choice(device_areas(capability, home["areas"]))
-        floor = home["area_floors"][area]
-        name = _random_entity_name(capability, area, 0, index, rng, owners=home["owners"])
-        injected = make_entity(
-            name=name,
-            capability=capability,
-            area=area,
-            floor=floor,
-            rng=rng,
-        )
-        home["entities"].append(injected)
-        cap_entities = [injected]
+    else:
+        # Only entities that can actually perform the operation are candidate
+        # targets; the rest stay in the home as distractors.
+        cap_entities = entities_supporting(cap_entities, capability, operation)
+        if inject_missing and not cap_entities and operation not in {"cancel_all"}:
+            areas, floors = home_areas(home)
+            allowed = device_areas(capability, areas) or areas
+            area = rng.choice(allowed)
+            floor = floors.get(area, "Main Floor")
+            owners = tuple(home.get("owners") or ())
+            name = _random_entity_name(
+                capability, area, 0, index, rng,
+                taken={e["entity_id"].split(".", 1)[1] for e in home["entities"]},
+                **({"owners": owners} if owners else {}),
+            )
+            needed = set(_ENTITY_TEMPLATES[capability][2]) | set(required_features(capability, operation))
+            injected = make_entity(
+                name=name,
+                capability=capability,
+                area=area,
+                floor=floor,
+                rng=rng,
+                features=tuple(sorted(needed)),
+            )
+            home["entities"].append(injected)
+            cap_entities = [injected]
     remove_canonical_alias_collisions(home["entities"])
-    target_entity = cap_entities[index % len(cap_entities)] if cap_entities else None
+    target_entity = pick_target(cap_entities, index, target_usage) if cap_entities else None
     scenario: dict[str, Any] = {
         "scenario_index": index,
         "attempt": attempt,
@@ -101,7 +171,10 @@ def build_scenario(
         "robustness": robustness,
         "home": home,
         "target_entity": target_entity,
-        "target_index": index % max(len(cap_entities), 1),
+        "target_index": (
+            next(i for i, e in enumerate(cap_entities) if e is target_entity)
+            if target_entity else 0
+        ),
         "area": target_entity["area"] if target_entity else home["sayso_entity_area"],
         "floor": target_entity["floor"] if target_entity else None,
         "excluded_names": [],
