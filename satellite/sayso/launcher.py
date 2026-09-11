@@ -9,10 +9,11 @@ import sys
 from .config import load_config
 from .events import install_voice_handlers
 from .playback import configure_pulse_mpv, install_playback_recovery
-from .process_audio import install_wake_audio_path
+from .process_audio import install_native_rate_capture, install_wake_audio_path
 from .wake.hook import SaySoExternalWakeHook
 from .wake.livekit import LiveKitWakeWordProvider
 from .wake.mining import HardNegativeMiner
+from .wake.stt_capture import SttAudioRecorder
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,10 +100,42 @@ def main() -> None:
         preroll_ms=cfg.wake_word.preroll_ms,
         wake_skip_ms=cfg.wake_word.wake_skip_ms,
     )
+
+    capture = None
+    if getattr(cfg.audio, "stt_capture_enabled", False):
+        capture_dir = getattr(cfg.audio, "stt_capture_dir", None)
+        sample_rate = getattr(cfg.audio, "sample_rate", 16000)
+        capture = SttAudioRecorder(
+            capture_dir,
+            sample_rate=sample_rate,
+            capture_rate=getattr(cfg.audio, "capture_rate", sample_rate),
+            mic_gain_db=getattr(cfg.audio, "mic_gain_db", 0.0),
+            noise_suppression=cfg.audio.noise_suppression,
+            auto_gain=cfg.audio.auto_gain,
+        )
+        capture.start()
+
+    install_native_rate_capture(
+        lva_main,
+        capture_rate=getattr(cfg.audio, "capture_rate", getattr(cfg.audio, "sample_rate", 16000)),
+        gain_db=getattr(cfg.audio, "mic_gain_db", 0.0),
+        block_size=getattr(cfg.audio, "block_size", 1024),
+        channels=cfg.audio.channels,
+    )
     install_wake_audio_path(lva_main, wake_hook)
-    install_voice_handlers(VoiceSatelliteProtocol, cfg.sounds, wake_hook)
+    install_voice_handlers(
+        VoiceSatelliteProtocol,
+        cfg.sounds,
+        wake_hook,
+        aec_gate_ms=float(getattr(cfg.audio, "aec_gate_ms", 0)),
+        stt_capture=capture,
+    )
     _configure_mpv()
-    lva_main.run()
+    try:
+        lva_main.run()
+    finally:
+        if capture is not None:
+            capture.stop()
 
 
 if __name__ == "__main__":

@@ -71,3 +71,39 @@ def test_worker_survives_predict_and_callback_exceptions() -> None:
         assert calls["callback"] == 1
     finally:
         worker.shutdown()
+
+
+def test_worker_forwards_sample_index_to_predict() -> None:
+    seen: list[int | None] = []
+
+    def predict(window: np.ndarray, sample_index: int | None = None):
+        seen.append(sample_index)
+        return None
+
+    worker = WakeInferenceWorker(predict, poll_timeout=0.05)
+    worker.start(lambda _detection: None)
+    try:
+        worker.submit(np.array([1], dtype=np.int16), 4096)
+        deadline = threading.Event()
+        deadline.wait(0.5)
+    finally:
+        worker.shutdown()
+    assert seen == [4096]
+
+
+def test_worker_tolerates_predict_without_sample_index() -> None:
+    seen: list[int] = []
+
+    def predict(window: np.ndarray):
+        seen.append(int(window[0]))
+        return None
+
+    worker = WakeInferenceWorker(predict, poll_timeout=0.05)
+    worker.start(lambda _detection: None)
+    try:
+        worker.submit(np.array([5], dtype=np.int16), 123)
+        deadline = threading.Event()
+        deadline.wait(0.5)
+    finally:
+        worker.shutdown()
+    assert seen == [5]

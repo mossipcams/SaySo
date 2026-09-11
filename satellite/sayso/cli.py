@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from .config import CONFIG_PATH, load_config, validate_config
 
@@ -122,8 +123,11 @@ def _play_sound(path: Path | str, device: str, timeout: float = 15.0) -> int:
 def cmd_test_mic(_: argparse.Namespace) -> int:
     cfg = load_config()
     CHECK_DIR.mkdir(parents=True, exist_ok=True)
+    native = getattr(cfg.audio, "capture_rate", cfg.audio.sample_rate)
     wav = CHECK_DIR / "mic-check.wav"
-    print("Recording 5 seconds from the configured microphone…")
+    print(f"Recording 5 seconds from the configured microphone at {native} Hz…")
+    # Record at the device's native rate: this is the sanity check for the
+    # capture path itself, so it must not hide the audio server's resampling.
     rc = subprocess.call(
         [
             "timeout",
@@ -133,7 +137,7 @@ def cmd_test_mic(_: argparse.Namespace) -> int:
             _pulse_device(cfg.audio.input_device),
             "--file-format=wav",
             "--rate",
-            str(cfg.audio.sample_rate),
+            str(native),
             "--channels",
             str(cfg.audio.channels),
             "--format=s16le",
@@ -144,8 +148,48 @@ def cmd_test_mic(_: argparse.Namespace) -> int:
         print("parecord failed", rc)
         return rc or 1
     _level_report(wav)
+    # Also write the post-processing 16 kHz rendition the pipeline actually
+    # sends, so the operator can compare native capture against what STT sees.
+    processed = CHECK_DIR / "mic-check-16k.wav"
+    if _write_processed_copy(wav, processed, cfg):
+        print(f"processed (sent to HA): {processed}")
+        _level_report(processed)
     print("Playing recording on the configured speaker…")
     return _play_sound(wav, cfg.audio.output_device)
+
+
+def _write_processed_copy(src: Path, dst: Path, cfg: Any) -> bool:
+    """Apply the production gain + single resample and write a 16 kHz copy."""
+    import wave
+
+    import numpy as np
+
+    from .wake.capture import CaptureResampler, gain_scalar_from_db
+
+    try:
+        with wave.open(str(src), "rb") as wf:
+            rate = wf.getframerate()
+            channels = wf.getnchannels()
+            frames = wf.readframes(wf.getnframes())
+        data = np.frombuffer(frames, dtype="<i2")
+        if channels > 1:
+            data = data.reshape(-1, channels)[:, 0]
+        gain = gain_scalar_from_db(getattr(cfg.audio, "mic_gain_db", 0.0))
+        scaled = np.clip(data.astype(np.float64) * gain, -32768, 32767).astype("<i2")
+        target = cfg.audio.sample_rate
+        if rate != target:
+            pcm = CaptureResampler(rate, target).process(scaled.tobytes())
+        else:
+            pcm = scaled.tobytes()
+        with wave.open(str(dst), "wb") as out:
+            out.setnchannels(1)
+            out.setsampwidth(2)
+            out.setframerate(target)
+            out.writeframes(pcm)
+        return True
+    except Exception as exc:  # pragma: no cover - diagnostic helper
+        print(f"could not write processed copy: {exc}")
+        return False
 
 
 def cmd_test_speaker(_: argparse.Namespace) -> int:
