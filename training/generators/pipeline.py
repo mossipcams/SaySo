@@ -19,7 +19,7 @@ from generators.capability_registry import (
 )
 from generators.config import GeneratorConfig
 from generators.coverage import classify_row
-from generators.duplicates import DuplicateTracker
+from generators.duplicates import DuplicateTracker, pair_hash
 from generators.grounding import pick_variant, required_training_variants
 from generators.labels import render_example, scenario_to_spec
 from generators.gold import target_names_from_expected
@@ -179,27 +179,28 @@ def generate_row(
         rng.random() < config.real_home_rate
         if real_home_selected is None else real_home_selected
     )
-    if config.real_home_path and select_real_home:
+    # Rotate even while forcing the missing families: two of them can share one
+    # capability/operation pool, and a fixed index would keep retrying the first
+    # until it lands, leaving the second unreachable.
+    variant = (
+        pick_variant(capability, operation, slot["index"] + attempt, variants=grounding_variants)
+        if grounding_variants else None
+    )
+    if variant is not None:
+        # A still-missing contrast family outranks the real-home draw: real rows
+        # are a rate that self-corrects across the run, a missing family is a gate.
+        pass
+    elif config.real_home_path and select_real_home:
         home = load_real_home(config.real_home_path, split="train")
         real_home_row = True
-    elif config.grounding_rate:
-        grounding_selected = bool(grounding_variants) or rng.random() < config.grounding_rate
-        if grounding_required or grounding_selected:
-            # Rotate even while forcing the missing families: two of them can share
-            # one capability/operation pool, and a fixed index would keep retrying
-            # the first until it lands, leaving the second unreachable.
-            variant = pick_variant(
-                capability,
-                operation,
-                slot["index"] + attempt,
-                variants=grounding_variants,
-            )
-            if variant is not None:
-                home = copy.deepcopy(variant["home"])
-                targeting = variant["targeting"]
-                robustness = variant["robustness"]
-                grounding_family = variant["family"]
-                inject_missing = variant.get("inject_missing", True)
+    elif config.grounding_rate and (grounding_required or rng.random() < config.grounding_rate):
+        variant = pick_variant(capability, operation, slot["index"] + attempt)
+    if variant is not None:
+        home = copy.deepcopy(variant["home"])
+        targeting = variant["targeting"]
+        robustness = variant["robustness"]
+        grounding_family = variant["family"]
+        inject_missing = variant.get("inject_missing", True)
 
     scenario = build_scenario(
         index=slot["index"] + attempt * 10000,
@@ -268,6 +269,15 @@ def generate_row(
     reject = dup_tracker.would_reject(spec)
     if reject:
         return None, reject
+
+    # One semantic scenario may appear more than once, so the row id is the
+    # scenario, the utterance+home pair, and how many rows already share that
+    # pair. Deterministic because generation is sequential. semantic_id keeps
+    # identifying the scenario itself.
+    spec["candidate_id"] = (
+        f"{spec['semantic_id']}_{pair_hash(spec['utterance'], spec['home'])[:8]}"
+        f"_{dup_tracker.occurrences(spec)}"
+    )
 
     # A rejected real-home row is retried, and the retry re-rolls the real/synthetic
     # draw, so capping converts surplus rows for one entity into synthetic rows
