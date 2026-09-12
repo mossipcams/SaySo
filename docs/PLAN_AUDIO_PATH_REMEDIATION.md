@@ -360,7 +360,7 @@ LVA as the capture owner and SaySo as a thin overlay, so no invariant changes.
 | 1. Sample-ordered, atomic wake→STT handoff | `wake/capture.py` (`WakeCaptureRing`), `wake/hook.py` | `wake/test_handoff.py`, `wake/test_capture.py` |
 | 2. Preroll trimmed at the detection boundary | `wake/buffer.py` (`flush_until`), `wake/hook.py` | `wake/test_preroll.py`, `wake/test_buffer.py` |
 | 3. Block listening until playback is truly done | `events.py` (`_defer_until_playback_idle`, `aec_gate_ms`) | `test_wake_gating.py` |
-| 4. Deterministic gain/AGC/NS | `process_audio.py` (`_ResamplingRecorder`), `config.py` | `test_process_audio.py`, `test_config.py` |
+| 4. Deterministic gain/AGC/NS | `process_audio.py` (`_ResamplingRecorder`, `_pin_audio_settings`), `config.py` | `test_process_audio.py`, `test_config.py` |
 | 5. Native 44.1 kHz capture, one deliberate resample | `process_audio.py`, `wake/capture.py` (`CaptureResampler`) | `wake/test_capture.py`, `test_process_audio.py` |
 | 6. Retain the exact STT PCM + failure WAVs | `wake/stt_capture.py`, `events.py` (`handle_audio` tap) | `wake/test_stt_capture.py`, `test_stt_tap.py` |
 | 20-command benchmark | `benchmarks/run.py`, `benchmarks/commands.json` | `benchmarks/test_benchmark_run.py` |
