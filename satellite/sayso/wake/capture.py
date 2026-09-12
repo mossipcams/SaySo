@@ -29,9 +29,20 @@ from math import gcd
 import numpy as np
 
 # Half-width, in input samples, of the windowed-sinc low-pass used when
-# decimating. 16 taps is ample for speech-band audio, and because the kernels
-# are precomputed per phase the per-block cost is one gather plus one einsum.
-_FILTER_HALF_TAPS = 16
+# decimating. Sized by alias rejection in the sibilant band, not by feel: a
+# 44.1 kHz mic carries real /s/ and /sh/ energy at 8.5-11 kHz, and whatever the
+# filter fails to reject there folds straight back on top of the 5-7.5 kHz that
+# distinguishes those consonants. Measured rejection at 9 kHz / 10 kHz:
+#
+#     half_taps=16   -13.7 dB  -27.0 dB   <- audible sibilant smear
+#     half_taps=32   -26.0 dB  -78.0 dB
+#     half_taps=48   -47.3 dB  -85.1 dB   <- chosen
+#
+# 48 also flattens the passband to -0.04 dB at 7 kHz (16 was -2.0 dB). The
+# kernels are precomputed per phase, so the per-block cost is one gather plus
+# one einsum either way: 10 s of audio costs 41 ms instead of 24 ms.
+# ponytail: 48 taps, revisit only if a Pi-class CPU can't hold the capture cadence.
+_FILTER_HALF_TAPS = 48
 
 
 def gain_scalar_from_db(gain_db: float, ceiling: float = 8.0) -> float:
@@ -90,7 +101,7 @@ class CaptureResampler:
 
     An output sample is emitted only once every tap it needs has arrived, so the
     result is identical no matter how the audio server chunks the stream. The
-    cost is ``half_taps`` input samples of latency (0.36 ms at 44.1 kHz), paid
+    cost is ``half_taps`` input samples of latency (1.1 ms at 44.1 kHz), paid
     once at the start rather than per block.
     """
 
@@ -175,6 +186,10 @@ class CaptureResampler:
         numerators = indices * self._step
         # Offset of each output's leftmost tap within the retained history.
         starts = numerators // self._phases - self._half_taps - self._history_start
+        # _trim_history never drops below the next output's leftmost tap, so this
+        # holds. It is asserted because a negative start would not raise: numpy
+        # would wrap to the end of the history and silently resample stale audio.
+        assert starts[0] >= 0, "history trimmed past a tap still needed"
         taps = starts[:, None] + np.arange(self._taps, dtype=np.int64)[None, :]
         assert self._kernels is not None
         kernels = self._kernels[numerators % self._phases]

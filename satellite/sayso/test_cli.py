@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, Mock, call
 import pytest
 
 from satellite.sayso import cli
+from satellite.sayso.wake.capture import _FILTER_HALF_TAPS
 
 
 def _config(tmp_path=None):
@@ -275,6 +276,7 @@ def test_processed_copy_applies_gain_and_resamples_to_16k(tmp_path: Path) -> Non
         assert wf.getframerate() == 16000
         assert wf.getnchannels() == 1
         out = np.frombuffer(wf.readframes(wf.getnframes()), dtype="<i2")
-    # ~100 ms of audio, and 6 dB (2x) gain applied.
-    assert abs(out.size - 1600) <= 8
+    # 100 ms of audio less the resampler's fixed right-hand tap delay, and
+    # 6 dB (2x) gain applied.
+    assert out.size == 1600 - (_FILTER_HALF_TAPS * 16000 // 44100)
     assert int(np.max(out)) > 1000

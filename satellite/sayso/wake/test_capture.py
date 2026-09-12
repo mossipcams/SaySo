@@ -5,19 +5,20 @@ from __future__ import annotations
 import numpy as np
 
 from satellite.sayso.wake.capture import (
+    _FILTER_HALF_TAPS,
     CaptureResampler,
     WakeCaptureRing,
     gain_scalar_from_db,
 )
 
-# Window half-width 16 taps => 33-tap kernel, so one impulse spreads over at
-# most ~33 input samples, i.e. ~11 output samples at 48k->16k.
-_FILTER_SPREAD = 40
+# One impulse spreads over the full kernel, i.e. 2 * half_taps + 1 input
+# samples, which is a third as many output samples at 48k->16k.
+_FILTER_SPREAD = (2 * _FILTER_HALF_TAPS + 1) // 3 + 2
 
-# An output sample is emitted only once all 16 of its right-hand taps have
-# arrived, so the stream runs a fixed 16 input samples behind: exactly
-# 16 * 160 // 441 = 5 output samples at 44.1 kHz. Constant, never cumulative.
-_FILTER_DELAY_44K = 5
+# An output sample is emitted only once all of its right-hand taps have arrived,
+# so the stream runs a fixed `half_taps` input samples behind. Derived, not
+# hardcoded: retuning the filter must not require editing a magic number here.
+_FILTER_DELAY_44K = _FILTER_HALF_TAPS * 160 // 441
 
 
 def test_resampler_produces_expected_length_for_44100_to_16000() -> None:

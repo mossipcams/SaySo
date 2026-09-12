@@ -230,3 +230,86 @@ def test_install_restores_original_recorder_after_run() -> None:
     original = mic.recorder
     lva_main.process_audio(SimpleNamespace(), mic, 1024)  # type: ignore[attr-defined]
     assert mic.recorder == original
+
+
+class _FakeServerState:
+    """The shape of upstream's ServerState that the capture loop actually reads.
+
+    Upstream reads ``state.mic_volume`` and ``state.preferences.mic_*`` on every
+    block, and Home Assistant writes them through these three persist methods.
+    """
+
+    def __init__(self) -> None:
+        self.mic_volume = 100
+        self.mic_auto_gain = 0
+        self.mic_noise_suppression = 0
+        self.preferences = SimpleNamespace(
+            mic_volume=100, mic_auto_gain=0, mic_noise_suppression=0
+        )
+        self.saved = 0
+
+    def persist_mic_volume(self, volume: float) -> None:
+        self.mic_volume = int(volume)
+        self.preferences.mic_volume = int(volume)
+        self.saved += 1
+
+    def persist_mic_gain(self, gain: float) -> None:
+        self.mic_auto_gain = int(gain)
+        self.preferences.mic_auto_gain = int(gain)
+        self.saved += 1
+
+    def persist_mic_noise(self, noise: float) -> None:
+        self.mic_noise_suppression = int(noise)
+        self.preferences.mic_noise_suppression = int(noise)
+        self.saved += 1
+
+
+def _install_and_pin(*, auto_gain: int = 0, noise_suppression: int = 0) -> _FakeServerState:
+    lva_main = ModuleType("linux_voice_assistant.__main__")
+    lva_main.process_audio = lambda state, mic, blocksize: None  # type: ignore[attr-defined]
+    install_native_rate_capture(
+        lva_main,
+        capture_rate=44100,
+        gain_db=0.0,
+        channels=1,
+        auto_gain=auto_gain,
+        noise_suppression=noise_suppression,
+    )
+    state = _FakeServerState()
+    lva_main.process_audio(state, SimpleNamespace(recorder=Mock()), 1024)  # type: ignore[attr-defined]
+    return state
+
+
+def test_mic_volume_is_pinned_so_upstream_gain_multiply_is_a_no_op() -> None:
+    """Upstream scales every block by mic_volume/100, clamped to at most 1.0.
+
+    Left at anything below 100 it can only attenuate, silently undoing
+    audio.mic_gain_db. Pinning it to 100 makes that multiply exactly 1.0.
+    """
+    state = _install_and_pin()
+    assert state.mic_volume == 100
+    assert max(0.1, min(1.0, state.mic_volume / 100.0)) == 1.0
+
+
+def test_home_assistant_cannot_change_the_pinned_audio_settings() -> None:
+    """A slider drag in HA must not reach the audio path mid-stream."""
+    state = _install_and_pin(auto_gain=0, noise_suppression=0)
+
+    state.persist_mic_volume(30)
+    state.persist_mic_gain(15)
+    state.persist_mic_noise(4)
+
+    assert state.mic_volume == 100
+    assert state.preferences.mic_auto_gain == 0
+    assert state.preferences.mic_noise_suppression == 0
+    # Upstream reads preferences, not the ServerState mirror, inside the loop.
+    assert state.preferences.mic_volume == 100
+
+
+def test_configured_agc_and_ns_are_what_upstream_reads() -> None:
+    state = _install_and_pin(auto_gain=3, noise_suppression=2)
+    assert state.preferences.mic_auto_gain == 3
+    assert state.preferences.mic_noise_suppression == 2
+    # Pinning must not reconfigure the processor mid-stream either.
+    state.persist_mic_gain(31)
+    assert state.preferences.mic_auto_gain == 3

@@ -53,6 +53,13 @@ audio:
   stt_capture_dir: /var/lib/sayso-satellite/stt_capture
 ```
 
+`mic_gain_db`, `noise_suppression`, and `auto_gain` are pinned from this file at
+startup and cannot be changed at runtime. Home Assistant still shows its mic
+volume, auto gain, and noise suppression entities, but writing them is a no-op:
+upstream re-reads all three inside the capture loop, so leaving them live would
+let a slider drag re-scale the audio Whisper sees and re-instantiate the WebRTC
+processor mid-stream. Change these in config and restart the service.
+
 Capture is **on by default** so the milestone artifact exists. Writes happen on a
 dedicated thread with a bounded queue; a slow disk drops the oldest pending
 capture rather than stalling the audio thread. Retention is bounded by count
