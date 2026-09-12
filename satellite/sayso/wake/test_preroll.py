@@ -74,3 +74,39 @@ def test_preroll_reports_emitted_span_for_cursor_sync() -> None:
     assert result.start_index == 8000
     assert result.end_index == 16000
     assert result.underflow is False
+
+
+def test_detection_index_tracks_the_window_not_the_chunk_boundary() -> None:
+    """The scored window's end index must not depend on the caller's chunk size.
+
+    Windows are emitted on a hop grid. Whatever chunk size the audio server
+    happens to use, the same sample of audio must produce the same detection
+    index, or the preroll trim moves with the chunking.
+    """
+    from unittest.mock import MagicMock
+
+    from satellite.sayso.wake.hook import SaySoExternalWakeHook
+    from satellite.sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES
+
+    def indices_for(chunk: int) -> list[int]:
+        provider = MagicMock(available=True)
+        provider.predict_window.return_value = None
+        hook = SaySoExternalWakeHook(provider, preroll_ms=1000, wake_skip_ms=500)
+        seen: list[int] = []
+        hook._worker.submit = lambda window, sample_index=None: seen.append(sample_index)
+        total = WINDOW_SAMPLES + 4 * HOP_SAMPLES
+        block = np.zeros(chunk, dtype="<i2").tobytes()
+        for _ in range(total // chunk):
+            hook.feed_pcm(None, block)
+        return seen
+
+    # 371 is what a 1024-frame 44.1 kHz block resamples to; 512 and 2560 bracket it.
+    reference = indices_for(320)
+    assert reference, "no windows were submitted"
+    for chunk in (371, 512, 2560):
+        common = min(len(reference), len(indices_for(chunk)))
+        assert indices_for(chunk)[:common] == reference[:common], f"chunk {chunk}"
+
+    # And each index must sit on the hop grid, not wherever a chunk happened to end.
+    for index in reference:
+        assert (index - WINDOW_SAMPLES) % HOP_SAMPLES == 0

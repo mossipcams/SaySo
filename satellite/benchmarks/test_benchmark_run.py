@@ -26,6 +26,12 @@ from benchmarks.run import (  # noqa: E402
     word_error_rate,
     write_wav,
 )
+from sayso.wake.capture import _FILTER_HALF_TAPS  # noqa: E402
+
+# The resampler withholds its right-hand taps, so a finished stream is short by
+# a fixed, known amount. Asserting the exact figure rather than a loose slack
+# keeps these length checks able to catch real drift.
+_RESAMPLE_DELAY_44K = _FILTER_HALF_TAPS * 16000 // 44100
 
 
 def test_load_commands_has_twenty_fixed_commands() -> None:
@@ -63,7 +69,7 @@ def test_character_error_rate_is_finer_grained_than_wer() -> None:
 def test_correct_resample_preserves_length() -> None:
     samples = np.sin(np.linspace(0, 40 * np.pi, 44100)).astype(np.float32)
     out = correct_resample(samples, 44100, 16000)
-    assert abs(out.size - 16000) <= 8
+    assert out.size == 16000 - _RESAMPLE_DELAY_44K
 
 
 def test_correct_resample_keeps_a_tone_clean_where_naive_aliases() -> None:
@@ -92,8 +98,8 @@ def test_naive_resample_is_the_uncorrected_comparison() -> None:
     naive = naive_resample(samples, rate, 16000)
     corrected = correct_resample(samples, rate, 16000)
     assert naive.size > 0 and corrected.size > 0
-    # Both roughly the same length; their content differs.
-    assert abs(naive.size - corrected.size) <= 8
+    # Same length up to the corrected path's filter delay; content differs.
+    assert naive.size - corrected.size == _RESAMPLE_DELAY_44K
     n = min(naive.size, corrected.size)
     assert not np.allclose(naive[:n], corrected[:n], atol=1e-3)
 

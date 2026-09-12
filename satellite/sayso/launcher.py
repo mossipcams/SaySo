@@ -119,8 +119,9 @@ def main() -> None:
         lva_main,
         capture_rate=getattr(cfg.audio, "capture_rate", getattr(cfg.audio, "sample_rate", 16000)),
         gain_db=getattr(cfg.audio, "mic_gain_db", 0.0),
-        block_size=getattr(cfg.audio, "block_size", 1024),
         channels=cfg.audio.channels,
+        auto_gain=cfg.audio.auto_gain,
+        noise_suppression=cfg.audio.noise_suppression,
     )
     install_wake_audio_path(lva_main, wake_hook)
     install_voice_handlers(

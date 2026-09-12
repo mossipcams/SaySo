@@ -53,6 +53,13 @@ audio:
   stt_capture_dir: /var/lib/sayso-satellite/stt_capture
 ```
 
+`mic_gain_db`, `noise_suppression`, and `auto_gain` are pinned from this file at
+startup and cannot be changed at runtime. Home Assistant still shows its mic
+volume, auto gain, and noise suppression entities, but writing them is a no-op:
+upstream re-reads all three inside the capture loop, so leaving them live would
+let a slider drag re-scale the audio Whisper sees and re-instantiate the WebRTC
+processor mid-stream. Change these in config and restart the service.
+
 Capture is **on by default** so the milestone artifact exists. Writes happen on a
 dedicated thread with a bounded queue; a slow disk drops the oldest pending
 capture rather than stalling the audio thread. Retention is bounded by count
@@ -85,6 +92,12 @@ If it does, the audio path is not the articulation problem and the next lever is
 the benchmark's gain recommendation. If it does not, the sidecar's `peak`,
 `rms_dbfs`, and `clip_count` say whether the cause is level, and the
 `underflow` flag says whether the preroll trim was wrong.
+
+`underflow` is set only when the capture ring held the requested preroll and
+overwrote it before the handoff ran — a real defect worth chasing. It is *not*
+set when the trim simply reaches back before the last rearm, which happens
+whenever a wake lands within `wake_skip_ms` of a response finishing; that case
+is logged at debug level as a cold start.
 
 ## Confirming the file equals what Home Assistant got
 
