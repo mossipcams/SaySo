@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, Mock, call
 
 import pytest
 
-from satellite.sayso import cli
-from satellite.sayso.wake.capture import _FILTER_HALF_TAPS
+from sayso import cli
+from sayso.wake.capture import _FILTER_HALF_TAPS
 
 
 def _config(tmp_path=None):
@@ -69,8 +69,8 @@ def test_play_sound_uses_repaired_mpv_and_reports_errors(
     expected: int,
 ) -> None:
     configured = Mock()
-    monkeypatch.setattr("satellite.sayso.playback.configure_pulse_mpv", configured)
-    monkeypatch.setattr("satellite.sayso.playback.install_playback_recovery", Mock())
+    monkeypatch.setattr("sayso.playback.configure_pulse_mpv", configured)
+    monkeypatch.setattr("sayso.playback.install_playback_recovery", Mock())
 
     class FakeLibMpvPlayer:
         def _on_end_file(self, _event) -> None:
@@ -101,8 +101,8 @@ def test_play_sound_uses_repaired_mpv_and_reports_errors(
 
 
 def test_play_sound_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("satellite.sayso.playback.configure_pulse_mpv", Mock())
-    monkeypatch.setattr("satellite.sayso.playback.install_playback_recovery", Mock())
+    monkeypatch.setattr("sayso.playback.configure_pulse_mpv", Mock())
+    monkeypatch.setattr("sayso.playback.install_playback_recovery", Mock())
 
     class FakeLibMpvPlayer:
         def _on_end_file(self, _event) -> None:
@@ -166,7 +166,7 @@ def test_cmd_test_wake_runs_recorded_eval(
     )
     monkeypatch.setattr(cli, "load_config", lambda: cfg)
     monkeypatch.setattr(
-        "satellite.sayso.wake.eval.satellite_eval_root",
+        "sayso.wake.eval.satellite_eval_root",
         lambda: eval_root,
     )
 

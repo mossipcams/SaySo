@@ -9,9 +9,9 @@ from unittest.mock import MagicMock, Mock
 import numpy as np
 import pytest
 
-from satellite.sayso.config import SoundsCfg
-from satellite.sayso.events import install_voice_handlers
-from satellite.sayso.wake.hook import SaySoExternalWakeHook
+from sayso.config import SoundsCfg
+from sayso.events import install_voice_handlers
+from sayso.wake.hook import SaySoExternalWakeHook
 
 
 class _EventType:

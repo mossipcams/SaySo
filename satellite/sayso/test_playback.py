@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from satellite.sayso.playback import (
+from sayso.playback import (
     END_FILE_ABORT,
     END_FILE_EOF,
     END_FILE_ERROR,
@@ -117,8 +117,8 @@ def test_play_sound_reports_explicit_outcomes(
     reason: int,
     expected: int,
 ) -> None:
-    monkeypatch.setattr("satellite.sayso.playback.configure_pulse_mpv", Mock())
-    monkeypatch.setattr("satellite.sayso.playback.install_playback_recovery", Mock())
+    monkeypatch.setattr("sayso.playback.configure_pulse_mpv", Mock())
+    monkeypatch.setattr("sayso.playback.install_playback_recovery", Mock())
 
     class FakeLibMpvPlayer:
         def _on_end_file(self, _event) -> None:
@@ -148,8 +148,8 @@ def test_play_sound_reports_explicit_outcomes(
 
 
 def test_play_sound_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("satellite.sayso.playback.configure_pulse_mpv", Mock())
-    monkeypatch.setattr("satellite.sayso.playback.install_playback_recovery", Mock())
+    monkeypatch.setattr("sayso.playback.configure_pulse_mpv", Mock())
+    monkeypatch.setattr("sayso.playback.install_playback_recovery", Mock())
 
     class FakeLibMpvPlayer:
         def _on_end_file(self, _event) -> None:

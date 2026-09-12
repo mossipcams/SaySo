@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from satellite.sayso.wake.buffer import WakeAudioBuffer, WakePrerollLookback
-from satellite.sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES
+from sayso.wake.buffer import WakeAudioBuffer, WakePrerollLookback
+from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES
 
 
 def test_rearm_latency_prefers_silence_prefill_over_clean_window() -> None:

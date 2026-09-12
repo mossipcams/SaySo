@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from satellite.sayso.wake.capture import (
+from sayso.wake.capture import (
     _FILTER_HALF_TAPS,
     CaptureResampler,
     WakeCaptureRing,

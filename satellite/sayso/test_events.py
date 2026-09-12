@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, Mock
 import numpy as np
 import pytest
 
-from satellite.sayso.config import SoundsCfg
-from satellite.sayso.wake.hook import SaySoExternalWakeHook
+from sayso.config import SoundsCfg
+from sayso.wake.hook import SaySoExternalWakeHook
 
 
 class _EventType:
@@ -32,7 +32,7 @@ def _install_test_handlers(monkeypatch: pytest.MonkeyPatch, sounds: SoundsCfg, w
     monkeypatch.setitem(sys.modules, "aioesphomeapi.model", model)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.events", events)
 
-    from satellite.sayso.events import install_voice_handlers
+    from sayso.events import install_voice_handlers
 
     protocol = type(
         "VoiceSatelliteProtocol",

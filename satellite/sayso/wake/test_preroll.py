@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from satellite.sayso.wake.buffer import WakePrerollLookback
+from sayso.wake.buffer import WakePrerollLookback
 
 
 def test_preroll_trim_is_relative_to_detection_index_not_flush_time() -> None:
@@ -85,8 +85,8 @@ def test_detection_index_tracks_the_window_not_the_chunk_boundary() -> None:
     """
     from unittest.mock import MagicMock
 
-    from satellite.sayso.wake.hook import SaySoExternalWakeHook
-    from satellite.sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES
+    from sayso.wake.hook import SaySoExternalWakeHook
+    from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES
 
     def indices_for(chunk: int) -> list[int]:
         provider = MagicMock(available=True)

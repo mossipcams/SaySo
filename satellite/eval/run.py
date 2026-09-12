@@ -7,7 +7,11 @@ import json
 import sys
 from pathlib import Path
 
-from satellite.sayso.wake.eval import run_wake_eval, satellite_eval_root
+# Run by path (`python3 satellite/eval/run.py`), so only this file's own
+# directory is on sys.path; `sayso` lives one level up, at `satellite/`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from sayso.wake.eval import run_wake_eval, satellite_eval_root
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -49,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     model_path = args.model
     if model_path is None:
         try:
-            from satellite.sayso.config import load_config
+            from sayso.config import load_config
 
             model_path = load_config().wake_word.model
         except Exception:

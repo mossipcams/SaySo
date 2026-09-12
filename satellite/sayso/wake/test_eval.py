@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from satellite.sayso.wake.eval import (
+from sayso.wake.eval import (
     CHUNK_SAMPLES,
     WakeEvalCase,
     compute_latency_percentiles,
@@ -24,7 +24,7 @@ from satellite.sayso.wake.eval import (
     transcript_matches,
     write_synthetic_wav,
 )
-from satellite.sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES, LiveKitWakeWordProvider
+from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES, LiveKitWakeWordProvider
 
 
 def test_compute_latency_percentiles() -> None:
@@ -45,7 +45,7 @@ def test_read_wav_pcm_resamples_to_16k(tmp_path: Path) -> None:
     path = tmp_path / "tmp.wav"
     write_synthetic_wav(path, samples, sample_rate=8000)
     pcm, rate = read_wav_pcm(path)
-    from satellite.sayso.wake.livekit import SAMPLE_RATE
+    from sayso.wake.livekit import SAMPLE_RATE
 
     assert rate == SAMPLE_RATE
     assert len(pcm) == 16000 * 2

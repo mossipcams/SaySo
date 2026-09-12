@@ -6,7 +6,7 @@ import struct
 import wave
 from pathlib import Path
 
-from satellite.sayso.generate_sounds import (
+from sayso.generate_sounds import (
     FAILURE_DURATION,
     FAILURE_FREQS,
     NOTIFICATION_VOLUME,

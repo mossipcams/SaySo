@@ -191,7 +191,7 @@ def test_launcher_passes_device_name_separate_from_friendly_name(
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.satellite", satellite_module)
     monkeypatch.delenv("SAYSO_STABLE_NAME", raising=False)
 
-    launcher = importlib.import_module("satellite.sayso.launcher")
+    launcher = importlib.import_module("sayso.launcher")
     cfg = SimpleNamespace(
         satellite=_satellite_cfg(),
         home_assistant=SimpleNamespace(port=6053),
@@ -249,7 +249,7 @@ def test_launcher_rejects_unavailable_wake_provider(monkeypatch: pytest.MonkeyPa
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.webrtc", webrtc)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.__main__", upstream)
 
-    launcher = importlib.import_module("satellite.sayso.launcher")
+    launcher = importlib.import_module("sayso.launcher")
     cfg = SimpleNamespace(
         satellite=_satellite_cfg(),
         home_assistant=SimpleNamespace(port=6053),
@@ -299,7 +299,7 @@ def test_launcher_keeps_wakeup_sound_out_of_stt(
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.__main__", upstream)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.satellite", satellite_module)
 
-    launcher = importlib.import_module("satellite.sayso.launcher")
+    launcher = importlib.import_module("sayso.launcher")
     cfg = SimpleNamespace(
         satellite=_satellite_cfg(),
         home_assistant=SimpleNamespace(port=6053),
@@ -398,9 +398,9 @@ def test_configure_mpv_uses_pulse_and_recovers_from_playback_errors(
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player", player_package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player.libmpv", libmpv)
 
-    from satellite.sayso.playback import END_FILE_ABORT, END_FILE_ERROR
+    from sayso.playback import END_FILE_ABORT, END_FILE_ERROR
 
-    launcher = importlib.import_module("satellite.sayso.launcher")
+    launcher = importlib.import_module("sayso.launcher")
     launcher._configure_mpv()
 
     player = FakeLibMpvPlayer(device="pulse/speaker")

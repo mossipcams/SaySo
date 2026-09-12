@@ -11,8 +11,8 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from satellite.sayso.events import install_voice_handlers
-from satellite.sayso.wake.stt_capture import SttAudioRecorder
+from sayso.events import install_voice_handlers
+from sayso.wake.stt_capture import SttAudioRecorder
 
 
 class _EventType:

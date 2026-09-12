@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from satellite.sayso.wake.ring_buffer import Int16RingBuffer
+from sayso.wake.ring_buffer import Int16RingBuffer
 
 
 def test_ring_buffer_preserves_chronological_order_when_wrapped() -> None:
@@ -33,7 +33,7 @@ def test_ring_buffer_extend_uses_vectorized_writes(monkeypatch) -> None:
         return arr.view(NoIterArray)
 
     monkeypatch.setattr(
-        "satellite.sayso.wake.ring_buffer.np.asarray",
+        "sayso.wake.ring_buffer.np.asarray",
         asarray_no_iter,
     )
     ring = Int16RingBuffer(4)

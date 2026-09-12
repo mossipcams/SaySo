@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from satellite.sayso.events import install_voice_handlers
-from satellite.sayso.wake.hook import SaySoExternalWakeHook
+from sayso.events import install_voice_handlers
+from sayso.wake.hook import SaySoExternalWakeHook
 
 
 class _EventType:
@@ -113,7 +113,7 @@ def test_settle_delay_runs_before_streaming_starts(monkeypatch) -> None:
         def start(self):
             pass
 
-    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
+    monkeypatch.setattr("sayso.events.threading.Timer", _Timer)
 
     satellite = _satellite()
     protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))  # type: ignore[attr-defined]
@@ -200,7 +200,7 @@ def test_lost_done_callback_does_not_wedge_the_pipeline(monkeypatch) -> None:
         def start(self):
             pass
 
-    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
+    monkeypatch.setattr("sayso.events.threading.Timer", _Timer)
 
     player = SimpleNamespace(play=Mock(), stop=Mock())
     satellite = _satellite(state=SimpleNamespace(muted=False, tts_player=player))
@@ -236,7 +236,7 @@ def test_watchdog_cannot_open_the_mic_after_the_callback_already_did(monkeypatch
         def start(self):
             pass
 
-    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
+    monkeypatch.setattr("sayso.events.threading.Timer", _Timer)
 
     player = SimpleNamespace(play=Mock(), stop=Mock())
     satellite = _satellite(state=SimpleNamespace(muted=False, tts_player=player))
@@ -289,7 +289,7 @@ def test_abandoned_wake_unducks_media(monkeypatch) -> None:
         def start(self):
             pass
 
-    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
+    monkeypatch.setattr("sayso.events.threading.Timer", _Timer)
 
     player = SimpleNamespace(play=Mock(), stop=Mock())
     satellite = _satellite(state=SimpleNamespace(muted=False, tts_player=player))

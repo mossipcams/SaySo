@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 import numpy as np
 
-from satellite.sayso.wake.hook import SaySoExternalWakeHook
-from satellite.sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES
+from sayso.wake.hook import SaySoExternalWakeHook
+from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES
 
 
 class _RecordingSatellite:

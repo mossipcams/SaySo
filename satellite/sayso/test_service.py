@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from satellite.sayso import cli
+from sayso import cli
 
 UNIT_NAME = "sayso-satellite.service"
 SERVICE = Path(__file__).parents[1] / "systemd" / UNIT_NAME

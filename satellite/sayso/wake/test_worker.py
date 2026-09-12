@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from satellite.sayso.wake.worker import LatestWindowQueue, WakeInferenceWorker
+from sayso.wake.worker import LatestWindowQueue, WakeInferenceWorker
 
 
 def test_latest_window_queue_replaces_stale_window() -> None:

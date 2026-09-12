@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from satellite.sayso.wake.stt_capture import SttAudioRecorder
+from sayso.wake.stt_capture import SttAudioRecorder
 
 
 def _read_wav(path: Path) -> np.ndarray:
