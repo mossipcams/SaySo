@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.0](https://github.com/mossipcams/SaySo/compare/1.0.1...1.1.0) (2026-09-12)
+
+
+### Features
+
+* **training:** ground generation in actual labels and real-home topology ([7e9776f](https://github.com/mossipcams/SaySo/commit/7e9776f5f48569097b9524931df5eaa938f11b3e))
+* **training:** stage 40k grounded gauntlet prep on ajax/new-data-generation ([b8203c7](https://github.com/mossipcams/SaySo/commit/b8203c747be58cae355ea0312d549fb10e9f42e3))
+
+
+### Bug Fixes
+
+* **satellite:** native-rate capture, sample-ordered handoff, STT audio capture ([43c4548](https://github.com/mossipcams/SaySo/commit/43c454854d9c6d5870c3b783f390399c688ef07d))
+* **satellite:** phase-correct resampling, exact record() contract, unwedgeable wake handoff ([a3709f0](https://github.com/mossipcams/SaySo/commit/a3709f03f02294a8b7d3b4d9961f784892ba7fc6))
+* **satellite:** pin mic gain/AGC/NS against HA, widen the anti-alias filter ([8a1ffd6](https://github.com/mossipcams/SaySo/commit/8a1ffd67121c83d0f9e3bbbcc3c88829b32f4c8b))
+
+
+### Documentation
+
+* **training:** record 40k grounded gauntlet v4 launch ([8ef7be3](https://github.com/mossipcams/SaySo/commit/8ef7be3902e95d5c001a76df4fb8f4aff11e79c4))
+
 ## [1.0.1](https://github.com/mossipcams/SaySo/compare/1.0.0...1.0.1) (2026-09-11)
 
 
