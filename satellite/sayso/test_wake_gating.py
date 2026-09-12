@@ -175,3 +175,128 @@ def test_deferred_open_is_cancelled_when_pipeline_tears_down(monkeypatch) -> Non
     player._done_callback()
 
     satellite._start_audio_streaming.assert_not_called()
+
+
+def test_lost_done_callback_does_not_wedge_the_pipeline(monkeypatch) -> None:
+    """An orphaned player callback must release the wake, not deafen the satellite.
+
+    `_defer_until_playback_idle` reads the player's callback slot and then writes
+    a chained one. If playback ends in between, the chained callback is installed
+    on a finished player and never fires. Without a watchdog the pipeline stays
+    flagged active and every later wake is dropped.
+    """
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    hook = SaySoExternalWakeHook(provider)
+    protocol = _install(monkeypatch, hook)
+
+    watchdogs: list[tuple[float, object]] = []
+
+    class _Timer:
+        def __init__(self, interval, fn):
+            watchdogs.append((interval, fn))
+            self.daemon = False
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
+
+    player = SimpleNamespace(play=Mock(), stop=Mock())
+    satellite = _satellite(state=SimpleNamespace(muted=False, tts_player=player))
+    satellite.state.tts_player._done_callback = Mock()
+
+    protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))  # type: ignore[attr-defined]
+    assert satellite._pipeline_active is True
+
+    # The callback is never invoked: playback had already finished.
+    assert watchdogs, "no watchdog was armed for the deferred open"
+    watchdogs[0][1]()
+
+    # The mic must NOT have opened -- that could capture live speaker output.
+    satellite._start_audio_streaming.assert_not_called()
+    # But the pipeline must be released so the next wake is heard.
+    assert satellite._pipeline_active is False
+
+
+def test_watchdog_cannot_open_the_mic_after_the_callback_already_did(monkeypatch) -> None:
+    """Exactly one path opens the microphone per wake."""
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    hook = SaySoExternalWakeHook(provider)
+    protocol = _install(monkeypatch, hook)
+
+    watchdogs: list[tuple[float, object]] = []
+
+    class _Timer:
+        def __init__(self, interval, fn):
+            watchdogs.append((interval, fn))
+            self.daemon = False
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
+
+    player = SimpleNamespace(play=Mock(), stop=Mock())
+    satellite = _satellite(state=SimpleNamespace(muted=False, tts_player=player))
+    satellite.state.tts_player._done_callback = Mock()
+
+    protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))  # type: ignore[attr-defined]
+    player._done_callback()
+    satellite._start_audio_streaming.assert_called_once_with("SaySo")
+
+    # A late watchdog must be a no-op, not a second open or a teardown.
+    watchdogs[0][1]()
+    satellite._start_audio_streaming.assert_called_once_with("SaySo")
+    assert satellite._pipeline_active is True
+
+
+def test_abandoned_wake_releases_the_detection_boundary(monkeypatch) -> None:
+    """A boundary nobody will flush must not block live forwarding forever."""
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    hook = SaySoExternalWakeHook(provider)
+    protocol = _install(monkeypatch, hook)
+
+    player = SimpleNamespace(play=Mock(), stop=Mock())
+    satellite = _satellite(state=SimpleNamespace(muted=False, tts_player=player))
+    satellite.state.tts_player._done_callback = Mock()
+
+    protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))  # type: ignore[attr-defined]
+    hook._detection_index = 12345
+    satellite._pipeline_active = False
+    player._done_callback()
+
+    satellite._start_audio_streaming.assert_not_called()
+    assert hook.last_detection_index is None
+
+
+def test_abandoned_wake_unducks_media(monkeypatch) -> None:
+    """wakeup() ducks; the abort path is the only thing left to undo it."""
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    hook = SaySoExternalWakeHook(provider)
+    protocol = _install(monkeypatch, hook)
+
+    watchdogs: list[tuple[float, object]] = []
+
+    class _Timer:
+        def __init__(self, interval, fn):
+            watchdogs.append((interval, fn))
+            self.daemon = False
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
+
+    player = SimpleNamespace(play=Mock(), stop=Mock())
+    satellite = _satellite(state=SimpleNamespace(muted=False, tts_player=player))
+    satellite.unduck = Mock()
+    satellite.state.tts_player._done_callback = Mock()
+
+    protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))  # type: ignore[attr-defined]
+    satellite.duck.assert_called_once()
+    watchdogs[0][1]()
+    satellite.unduck.assert_called_once()
