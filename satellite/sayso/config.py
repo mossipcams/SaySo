@@ -56,11 +56,11 @@ class WakeWordCfg:
     preroll_ms: int
     post_tts_cooldown_ms: int
     # Lookback, not a skip: the STT handoff starts this far *before* the
-    # detection boundary. Raising it prepends more of the wake phrase to the
-    # transcript; lowering it cuts the onset off a command spoken without a
-    # pause. It must stay above the measured detection lag -- see
-    # wake/hook.py:DEFAULT_WAKE_SKIP_MS, which test_handoff pins to this value.
-    wake_skip_ms: int = 500
+    # detection boundary. Too low truncates a pauseless command's onset; too
+    # high prepends wake-word audio that opens Home Assistant's VAD early. Both
+    # bounds are measured -- see wake/hook.py:DEFAULT_WAKE_SKIP_MS, which
+    # test_handoff pins to this value.
+    wake_skip_ms: int = 250
     # Hard-negative mining. Off unless mine_dir is set. mine_threshold should sit
     # well below threshold so near-misses are captured, not just fires.
     mine_dir: Path | None = None

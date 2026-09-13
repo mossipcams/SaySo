@@ -26,29 +26,37 @@ _RING_HEADROOM_SAMPLES = SAMPLE_RATE * 5
 # pre-detection audio rather than removing any. Lowering it does not remove the
 # wake phrase from the transcript first -- it removes the command's onset.
 #
-# The value has to cover the detection lag: the gap between the wake phrase
-# ending and the classifier publishing a boundary for it. Measured on the
-# living-room satellite from 23 production captures (issue #49) -- each WAV
-# starts at ``detection_index - 500 ms``, so the offset at which the leading
-# wake-phrase burst ends gives the lag directly:
+# The value is bounded on both sides.
 #
-#     median lag ~295 ms, worst observed ~490 ms
+# Lower bound -- the detection lag, the gap between the wake phrase ending and
+# the classifier publishing a boundary for it. A lookback under the lag starts
+# the handoff after the phrase has already ended, which truncates the onset of
+# a command spoken straight through the wake word ("SaySo turn on the TV").
+# Measured from mined 2 s windows (``wake_word.mine_dir``), which end exactly
+# at ``detection_index``, so the last voiced frame gives the lag directly:
 #
-# It is not one hop. The window grid bounds how late a window *ends*, not how
-# many windows the model needs before it scores above threshold. A lookback
-# under the lag silently truncates the start of any command spoken straight
-# through the wake word ("SaySo turn on the TV"), which is unrecoverable; a
-# lookback over it only prepends the phrase tail, which STT tolerates (the
-# one well-levelled capture in that set transcribed as "So turn on the living
-# room T V" -- prefix present, command intact). The costs are asymmetric, so
-# this sits above the worst observed lag, not at the median.
+#     fired detections: 160, 220, 240 ms   (n=3, living room, issue #49)
 #
-# ponytail: a fixed duration cannot be right for both speaking styles. Trimming
-# to the actual phrase end (issue #49 item 3) needs a per-detection phrase
-# boundary the classifier does not currently report. Do that only if the
-# leading "So" is shown to change an intent result; it had not, as of this
-# measurement.
-DEFAULT_WAKE_SKIP_MS = 500
+# It is not one hop, and it is not the ~295/490 ms an earlier pass inferred
+# from the STT captures alone -- that proxy could only see audio after
+# ``detection_index - 500 ms``, so it mistook mid-command gaps for the phrase
+# end. The mined windows see the whole phrase and supersede it.
+#
+# Upper bound -- anything earlier than the phrase end prepends a burst of
+# wake-word audio, and that burst is not cosmetic. Home Assistant's VAD opens
+# on it and then hits its silence timeout during the speaker's natural pause
+# before the command, closing the STT window before the command arrives. In
+# three logged runs HA accepted 447/768/766 ms as speech while the capture held
+# 2000-3300 ms, and two transcribed as just "So."
+#
+# So: just above the worst observed lag. Never truncates the command; shrinks
+# the prepended burst from ~280 ms to under 90 ms.
+#
+# ponytail: n=3, and a fixed duration cannot be right for every speaking style.
+# Trimming to the real phrase end (issue #49 item 3) needs a per-detection
+# phrase boundary the classifier does not report. Re-measure from mined clips
+# before moving this; the procedure is in docs/STT_AUDIO_CAPTURE.md.
+DEFAULT_WAKE_SKIP_MS = 250
 
 
 class _WakePhrase:

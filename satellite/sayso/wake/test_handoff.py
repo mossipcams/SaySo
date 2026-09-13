@@ -125,18 +125,19 @@ def test_flush_preroll_uses_detection_index_not_flush_time() -> None:
     assert np.frombuffer(late.pcm, dtype="<i2").size == 8640
 
 
-MEASURED_WORST_DETECTION_LAG_MS = 490
+# Lag of each fired detection, from mined 2 s windows that end at
+# detection_index (issue #49). The default must clear the worst of them.
+MEASURED_DETECTION_LAGS_MS = (160, 220, 240)
+MEASURED_WORST_DETECTION_LAG_MS = max(MEASURED_DETECTION_LAGS_MS)
 
 
 def test_default_lookback_covers_the_measured_detection_lag() -> None:
     """A pauseless command must keep its onset at the worst observed lag.
 
-    The classifier publishes its boundary well after the wake phrase ends --
-    ~295 ms median, ~490 ms worst over 23 living-room captures (issue #49).
-    With "SaySo turn on the TV" spoken in one breath, every millisecond of that
-    lag is command audio, so a lookback below it truncates the command instead
-    of the wake word. Dropping this default to one hop, as the issue proposed,
-    would have cut ~330 ms off the median command.
+    The classifier publishes its boundary after the wake phrase ends. With
+    "SaySo turn on the TV" spoken in one breath, every millisecond of that lag
+    is command audio, so a lookback below it truncates the command instead of
+    the wake word -- unrecoverably, since HA never sees those samples.
     """
     provider = MagicMock(available=True)
     provider.predict_window.return_value = None
@@ -158,6 +159,25 @@ def test_default_lookback_covers_the_measured_detection_lag() -> None:
     # No command sample is lost; the wake-phrase tail ahead of it is the price.
     emitted = np.frombuffer(result.pcm, dtype="<i2")
     assert np.array_equal(emitted[-lag:], command)
+
+
+def test_default_lookback_does_not_prepend_a_vad_openable_burst() -> None:
+    """The lookback must not reach far back into the wake phrase.
+
+    Audio prepended ahead of the phrase end is wake-word speech, and Home
+    Assistant's VAD opens on it, then hits its silence timeout during the
+    speaker's pause before the command -- closing the STT window before the
+    command is ever sent. Three logged runs at a 500 ms lookback had HA accept
+    447/768/766 ms as speech while the capture held 2000-3300 ms; two
+    transcribed as just "So." The margin over the fastest detection is what
+    reaches back into the phrase, so it is what has to stay small.
+    """
+    overshoot = DEFAULT_WAKE_SKIP_MS - min(MEASURED_DETECTION_LAGS_MS)
+    assert 0 < DEFAULT_WAKE_SKIP_MS
+    assert overshoot <= 100, (
+        f"lookback reaches {overshoot} ms into the wake phrase on the fastest "
+        "observed detection; HA's VAD opens on that burst"
+    )
 
 
 def test_config_default_matches_the_hook_default() -> None:

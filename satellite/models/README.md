@@ -46,8 +46,8 @@ Two gaps worth closing before trusting a retrain:
   case. There is no recorded-audio regression test for this model. Populate it
   with real Blue Snowball recordings from the living room.
 - `flush_preroll` hands STT `[detection_index - wake_skip_ms, end)` with
-  `wake_skip_ms` only a 500 ms margin, so a false-positive transcript shows
-  mostly what was said *after* the trigger, not the trigger itself. Set
+  `wake_skip_ms` only a 250 ms margin, so a false-positive transcript shows
+  what was said *after* the trigger, not the trigger itself. Set
   `wake_word.mine_dir`
   to have `HardNegativeMiner` write the exact 2 s window the classifier scored;
   the hard negatives in the training config predate it and are still phonetic
