@@ -20,6 +20,55 @@ _LOGGER = logging.getLogger(__name__)
 # wake window plus the preroll lookback plus one hop of slack.
 _RING_HEADROOM_SAMPLES = SAMPLE_RATE * 5
 
+# How far *before* the detection boundary the STT handoff starts. The knob is
+# named "skip" for history, but it is a lookback: the flush emits
+# ``[detection_index - wake_skip_ms, end)``, so raising it prepends more
+# pre-detection audio rather than removing any. Lowering it does not remove the
+# wake phrase from the transcript first -- it removes the command's onset.
+#
+# The value is bounded on both sides.
+#
+# Lower bound -- the detection lag, the gap between the wake phrase ending and
+# the classifier publishing a boundary for it. Below it the handoff starts after
+# the phrase has ended and truncates the onset of a command spoken straight
+# through the wake word ("SaySo turn on the TV").
+#
+# Upper bound -- above the lag the handoff reaches back into the phrase and
+# prepends wake-word speech. That is not cosmetic. Across the captures, a
+# leading burst followed by a gap transcribes as the burst alone: at a 500 ms
+# lookback, two runs whose audio held 2000-3300 ms of speech after a ~2 s pause
+# came back as just "So." Runs with no gap transcribe the whole utterance.
+#
+# The mechanism is HA's VAD opening on the burst and timing out across the
+# pause. Note the STT_VAD_START/END events do not themselves bound what gets
+# transcribed -- a later run logged a 384 ms VAD window and still returned a
+# six-word transcript -- so the evidence is the burst-plus-gap correlation,
+# not the event durations.
+#
+# The lag is measured by scoring mined clips (``wake_word.mine_dir``), which end
+# exactly at ``detection_index``. Cut k ms off the tail, pad the front to keep
+# the window 2 s, re-score: the score holds while the cut removes only
+# post-phrase audio and collapses once it reaches the phrase. The largest k that
+# holds is the lag. See ``scripts/wake_lag_probe.py``.
+#
+#     n=7, living room:  0, 40, 80, 80, 120, 120, 240 ms   (median 80)
+#
+# Do not measure this off an energy envelope. Three separate attempts to do so
+# gave three different answers on the same clips: a gate cannot tell a phrase
+# end from an inter-syllable gap or from room background, and at this SNR it
+# mostly finds the background.
+#
+# ponytail: THE BOUNDS DO NOT OVERLAP. Never truncating needs >= 240; not
+# prepending a VAD-openable burst needs <= ~100, given a lag that reaches 0. No
+# fixed duration satisfies both, so this value only chooses which way to fail.
+# It fails toward truncation: that is partial and recoverable, since Whisper
+# still sees most of the command, whereas a VAD latch drops the command whole --
+# and the latch is the failure actually observed in production. Trimming to the
+# real phrase end (issue #49 item 3) is the fix, and is now required rather than
+# optional. It needs a per-detection phrase boundary the classifier does not
+# report.
+DEFAULT_WAKE_SKIP_MS = 120
+
 
 class _WakePhrase:
     def __init__(self, phrase: str) -> None:
@@ -43,7 +92,7 @@ class SaySoExternalWakeHook:
         provider: LiveKitWakeWordProvider,
         *,
         preroll_ms: int = 0,
-        wake_skip_ms: int = 500,
+        wake_skip_ms: int = DEFAULT_WAKE_SKIP_MS,
         capture_ring: WakeCaptureRing | None = None,
     ) -> None:
         self._provider = provider
@@ -110,12 +159,16 @@ class SaySoExternalWakeHook:
         self._detection_index = None
 
     def flush_preroll(self, satellite: Any) -> PrerollFlush:
-        """Atomically hand ``[detection-skip, end)`` to the satellite STT path.
+        """Atomically hand ``[detection - wake_skip_ms, end)`` to the STT path.
 
         The detection boundary is the sample index the classifier actually
         scored, so the trim does not depend on how long the wakeup path took to
         reach this call. Emitted samples are marked delivered by the ring's STT
         cursor, so the live path resumes after them instead of replaying them.
+
+        ``wake_skip_ms`` moves the start *earlier*, not later: it is the margin
+        that keeps a command spoken straight through the wake word from losing
+        its onset. See :data:`DEFAULT_WAKE_SKIP_MS` for how it was measured.
         """
         detection_index = self._detection_index
         if detection_index is None:

@@ -7,8 +7,9 @@ from unittest.mock import MagicMock
 
 import numpy as np
 
-from satellite.sayso.wake.hook import SaySoExternalWakeHook
-from satellite.sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES
+from satellite.sayso.config import WakeWordCfg
+from satellite.sayso.wake.hook import DEFAULT_WAKE_SKIP_MS, SaySoExternalWakeHook
+from satellite.sayso.wake.livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
 
 
 class _RecordingSatellite:
@@ -122,6 +123,73 @@ def test_flush_preroll_uses_detection_index_not_flush_time() -> None:
     assert np.frombuffer(early.pcm, dtype="<i2").size == 8000
     # The extra latency audio is retained, not dropped.
     assert np.frombuffer(late.pcm, dtype="<i2").size == 8640
+
+
+# Detection lag of each fired mined clip, measured by re-scoring the clip with
+# the wake model under a growing tail cut (scripts/wake_lag_probe.py). Not from
+# an energy envelope -- a gate cannot separate the phrase from an inter-syllable
+# gap or from room background at this SNR.
+MEASURED_DETECTION_LAGS_MS = (0, 40, 80, 80, 120, 120, 240)
+# Burst that demonstrably opened HA's VAD and cost the whole command.
+OBSERVED_VAD_LATCH_BURST_MS = 280
+
+
+def test_lookback_bounds_do_not_overlap() -> None:
+    """Pin the fact that no fixed lookback is correct, so it is not re-argued.
+
+    Never truncating a pauseless command needs the lookback at or above the
+    worst lag. Never prepending a VAD-openable burst needs it at or near the
+    smallest lag, which is 0. Those cannot both hold, so DEFAULT_WAKE_SKIP_MS
+    is only a choice of which way to fail -- and trimming to the real phrase
+    end (issue #49 item 3) is the actual fix.
+
+    If a future measurement makes these overlap, this test fails and the
+    fixed-duration approach becomes defensible again.
+    """
+    assert max(MEASURED_DETECTION_LAGS_MS) > min(MEASURED_DETECTION_LAGS_MS) + 100
+
+
+def test_default_lookback_fails_toward_truncation_not_vad_latch() -> None:
+    """The chosen failure mode is the recoverable one.
+
+    A short lookback clips the command's onset: partial, and Whisper still sees
+    the rest. Too long a one prepends wake-word speech, HA's VAD opens on it and
+    times out during the speaker's pause, and the command is dropped whole --
+    the failure actually seen in production, where a leading burst followed by
+    a ~2 s gap came back as just "So" while the audio held 2000-3300 ms of
+    speech. So the default sits near the median lag, far below that burst.
+    """
+    worst_prepend = DEFAULT_WAKE_SKIP_MS - min(MEASURED_DETECTION_LAGS_MS)
+    assert 0 < DEFAULT_WAKE_SKIP_MS
+    assert worst_prepend < OBSERVED_VAD_LATCH_BURST_MS, (
+        f"worst-case prepend {worst_prepend} ms is at or above the {OBSERVED_VAD_LATCH_BURST_MS} ms "
+        "burst that closed HA's STT window"
+    )
+
+
+def test_flush_emits_from_the_lookback_boundary() -> None:
+    """Whatever the value, the flush must start exactly one lookback early."""
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    hook = SaySoExternalWakeHook(provider, preroll_ms=2000)
+    satellite = _RecordingSatellite()
+
+    lookback = DEFAULT_WAKE_SKIP_MS * SAMPLE_RATE // 1000
+    detection = 32000
+    hook._ring.append(np.arange(1, detection + 1, dtype="<i2").tobytes())
+    hook._detection_index = detection
+
+    result = hook.flush_preroll(satellite)
+
+    assert result.start_index == detection - lookback
+    emitted = np.frombuffer(result.pcm, dtype="<i2")
+    assert emitted.size == lookback
+    assert emitted[0] == np.int16(detection - lookback + 1)
+
+
+def test_config_default_matches_the_hook_default() -> None:
+    """config.py keeps the value as a literal to stay yaml-only; pin them."""
+    assert WakeWordCfg.wake_skip_ms == DEFAULT_WAKE_SKIP_MS
 
 
 def test_rearm_reanchors_timeline_without_zeroing_index() -> None:
