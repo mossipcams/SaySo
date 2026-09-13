@@ -125,63 +125,66 @@ def test_flush_preroll_uses_detection_index_not_flush_time() -> None:
     assert np.frombuffer(late.pcm, dtype="<i2").size == 8640
 
 
-# Lag of each fired detection, from mined 2 s windows that end at
-# detection_index (issue #49). The default must clear the worst of them.
-MEASURED_DETECTION_LAGS_MS = (160, 220, 240, 260)
-MEASURED_WORST_DETECTION_LAG_MS = max(MEASURED_DETECTION_LAGS_MS)
+# Detection lag of each fired mined clip, measured by re-scoring the clip with
+# the wake model under a growing tail cut (scripts/wake_lag_probe.py). Not from
+# an energy envelope -- a gate cannot separate the phrase from an inter-syllable
+# gap or from room background at this SNR.
+MEASURED_DETECTION_LAGS_MS = (0, 40, 80, 80, 120, 120, 240)
+# Burst that demonstrably opened HA's VAD and cost the whole command.
+OBSERVED_VAD_LATCH_BURST_MS = 280
 
 
-def test_default_lookback_covers_the_measured_detection_lag() -> None:
-    """A pauseless command must keep its onset at the worst observed lag.
+def test_lookback_bounds_do_not_overlap() -> None:
+    """Pin the fact that no fixed lookback is correct, so it is not re-argued.
 
-    The classifier publishes its boundary after the wake phrase ends. With
-    "SaySo turn on the TV" spoken in one breath, every millisecond of that lag
-    is command audio, so a lookback below it truncates the command instead of
-    the wake word -- unrecoverably, since HA never sees those samples.
+    Never truncating a pauseless command needs the lookback at or above the
+    worst lag. Never prepending a VAD-openable burst needs it at or near the
+    smallest lag, which is 0. Those cannot both hold, so DEFAULT_WAKE_SKIP_MS
+    is only a choice of which way to fail -- and trimming to the real phrase
+    end (issue #49 item 3) is the actual fix.
+
+    If a future measurement makes these overlap, this test fails and the
+    fixed-duration approach becomes defensible again.
     """
+    assert max(MEASURED_DETECTION_LAGS_MS) > min(MEASURED_DETECTION_LAGS_MS) + 100
+
+
+def test_default_lookback_fails_toward_truncation_not_vad_latch() -> None:
+    """The chosen failure mode is the recoverable one.
+
+    A short lookback clips the command's onset: partial, and Whisper still sees
+    the rest. Too long a one prepends wake-word speech, HA's VAD opens on it and
+    times out during the speaker's pause, and the command is dropped whole --
+    the failure actually seen in production (447/768/766 ms accepted as speech
+    while the capture held 2000-3300 ms; two transcripts were just "So").
+    So the default sits near the median lag, far below the burst known to latch.
+    """
+    worst_prepend = DEFAULT_WAKE_SKIP_MS - min(MEASURED_DETECTION_LAGS_MS)
+    assert 0 < DEFAULT_WAKE_SKIP_MS
+    assert worst_prepend < OBSERVED_VAD_LATCH_BURST_MS, (
+        f"worst-case prepend {worst_prepend} ms is at or above the {OBSERVED_VAD_LATCH_BURST_MS} ms "
+        "burst that closed HA's STT window"
+    )
+
+
+def test_flush_emits_from_the_lookback_boundary() -> None:
+    """Whatever the value, the flush must start exactly one lookback early."""
     provider = MagicMock(available=True)
     provider.predict_window.return_value = None
     hook = SaySoExternalWakeHook(provider, preroll_ms=2000)
     satellite = _RecordingSatellite()
 
-    lag = MEASURED_WORST_DETECTION_LAG_MS * SAMPLE_RATE // 1000
-    phrase_end = 32000
-    hook._ring.append(np.zeros(phrase_end, dtype="<i2").tobytes())
-    # The command runs straight on from the phrase, through the whole lag.
-    command = np.arange(1, lag + 1, dtype="<i2")
-    hook._ring.append(command.tobytes())
-    hook._detection_index = phrase_end + lag
+    lookback = DEFAULT_WAKE_SKIP_MS * SAMPLE_RATE // 1000
+    detection = 32000
+    hook._ring.append(np.arange(1, detection + 1, dtype="<i2").tobytes())
+    hook._detection_index = detection
 
     result = hook.flush_preroll(satellite)
 
-    assert DEFAULT_WAKE_SKIP_MS >= MEASURED_WORST_DETECTION_LAG_MS
-    assert result.start_index <= phrase_end
-    # No command sample is lost; the wake-phrase tail ahead of it is the price.
+    assert result.start_index == detection - lookback
     emitted = np.frombuffer(result.pcm, dtype="<i2")
-    assert np.array_equal(emitted[-lag:], command)
-
-
-def test_default_lookback_does_not_prepend_a_vad_openable_burst() -> None:
-    """The lookback must not reach far back into the wake phrase.
-
-    Audio prepended ahead of the phrase end is wake-word speech, and Home
-    Assistant's VAD opens on it, then hits its silence timeout during the
-    speaker's pause before the command -- closing the STT window before the
-    command is ever sent. Three logged runs at a 500 ms lookback had HA accept
-    447/768/766 ms as speech while the capture held 2000-3300 ms; two
-    transcribed as just "So." The margin over the fastest detection is what
-    reaches back into the phrase, so it is what has to stay small.
-
-    The 100 ms budget is chosen, not measured: the latch was observed at a
-    ~280 ms burst, and nothing yet establishes the smallest burst HA will open
-    on. It is deliberately well under the one that is known to fail.
-    """
-    overshoot = DEFAULT_WAKE_SKIP_MS - min(MEASURED_DETECTION_LAGS_MS)
-    assert 0 < DEFAULT_WAKE_SKIP_MS
-    assert overshoot <= 100, (
-        f"lookback reaches {overshoot} ms into the wake phrase on the fastest "
-        "observed detection; HA's VAD opens on that burst"
-    )
+    assert emitted.size == lookback
+    assert emitted[0] == np.int16(detection - lookback + 1)
 
 
 def test_config_default_matches_the_hook_default() -> None:
