@@ -35,7 +35,7 @@ _RING_HEADROOM_SAMPLES = SAMPLE_RATE * 5
 # Measured from mined 2 s windows (``wake_word.mine_dir``), which end exactly
 # at ``detection_index``, so the last voiced frame gives the lag directly:
 #
-#     fired detections: 160, 220, 240 ms   (n=3, living room, issue #49)
+#     fired detections: 160, 220, 240, 260 ms   (n=4, living room, issue #49)
 #
 # It is not one hop, and it is not the ~295/490 ms an earlier pass inferred
 # from the STT captures alone -- that proxy could only see audio after
@@ -49,14 +49,19 @@ _RING_HEADROOM_SAMPLES = SAMPLE_RATE * 5
 # three logged runs HA accepted 447/768/766 ms as speech while the capture held
 # 2000-3300 ms, and two transcribed as just "So."
 #
-# So: just above the worst observed lag. Never truncates the command; shrinks
-# the prepended burst from ~280 ms to under 90 ms.
+# So: the worst observed lag exactly. Never truncates the command; the burst it
+# prepends at the fastest observed detection is 100 ms, against the ~280 ms that
+# demonstrably opened HA's VAD.
 #
-# ponytail: n=3, and a fixed duration cannot be right for every speaking style.
-# Trimming to the real phrase end (issue #49 item 3) needs a per-detection
-# phrase boundary the classifier does not report. Re-measure from mined clips
-# before moving this; the procedure is in docs/STT_AUDIO_CAPTURE.md.
-DEFAULT_WAKE_SKIP_MS = 250
+# ponytail: the two bounds have met. The lag spread is 160-260 ms, so the lower
+# bound is now 260 and the burst budget puts the upper bound at 260 too -- there
+# is exactly one value left, at n=4. One more detection outside that spread and
+# no fixed duration satisfies both, which is the point at which trimming to the
+# real phrase end (issue #49 item 3) stops being optional. It needs a
+# per-detection phrase boundary the classifier does not currently report.
+# Re-measure from mined clips before moving this; procedure in
+# docs/STT_AUDIO_CAPTURE.md.
+DEFAULT_WAKE_SKIP_MS = 260
 
 
 class _WakePhrase:

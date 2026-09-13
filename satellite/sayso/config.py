@@ -60,7 +60,7 @@ class WakeWordCfg:
     # high prepends wake-word audio that opens Home Assistant's VAD early. Both
     # bounds are measured -- see wake/hook.py:DEFAULT_WAKE_SKIP_MS, which
     # test_handoff pins to this value.
-    wake_skip_ms: int = 250
+    wake_skip_ms: int = 260
     # Hard-negative mining. Off unless mine_dir is set. mine_threshold should sit
     # well below threshold so near-misses are captured, not just fires.
     mine_dir: Path | None = None

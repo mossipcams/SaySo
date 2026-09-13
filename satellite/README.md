@@ -30,10 +30,10 @@ The overlay owns one deliberate resample and the capture timeline:
 - `wake_word.wake_skip_ms` is a **lookback**, not a skip: it starts the handoff
   that far *before* the detection boundary so a command spoken straight through
   the wake word ("SaySo turn on the TV") keeps its onset. It is bounded on both
-  sides: below by the detection lag (160/220/240 ms measured from mined
+  sides: below by the detection lag (160/220/240/260 ms measured from mined
   windows), above by Home Assistant's VAD, which opens on any prepended
   wake-word audio and then times out during the speaker's pause, closing STT
-  before the command arrives. Hence the 250 ms default. Re-measure from
+  before the command arrives. Hence the 260 ms default. Re-measure from
   `wake_word.mine_dir` clips before changing it.
 - The microphone does not open until any in-flight playback has genuinely
   finished, plus `audio.aec_gate_ms`. There is no AEC on this path
