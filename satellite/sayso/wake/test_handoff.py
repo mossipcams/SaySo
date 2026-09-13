@@ -7,8 +7,9 @@ from unittest.mock import MagicMock
 
 import numpy as np
 
-from satellite.sayso.wake.hook import SaySoExternalWakeHook
-from satellite.sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES
+from satellite.sayso.config import WakeWordCfg
+from satellite.sayso.wake.hook import DEFAULT_WAKE_SKIP_MS, SaySoExternalWakeHook
+from satellite.sayso.wake.livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
 
 
 class _RecordingSatellite:
@@ -122,6 +123,46 @@ def test_flush_preroll_uses_detection_index_not_flush_time() -> None:
     assert np.frombuffer(early.pcm, dtype="<i2").size == 8000
     # The extra latency audio is retained, not dropped.
     assert np.frombuffer(late.pcm, dtype="<i2").size == 8640
+
+
+MEASURED_WORST_DETECTION_LAG_MS = 490
+
+
+def test_default_lookback_covers_the_measured_detection_lag() -> None:
+    """A pauseless command must keep its onset at the worst observed lag.
+
+    The classifier publishes its boundary well after the wake phrase ends --
+    ~295 ms median, ~490 ms worst over 23 living-room captures (issue #49).
+    With "SaySo turn on the TV" spoken in one breath, every millisecond of that
+    lag is command audio, so a lookback below it truncates the command instead
+    of the wake word. Dropping this default to one hop, as the issue proposed,
+    would have cut ~330 ms off the median command.
+    """
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    hook = SaySoExternalWakeHook(provider, preroll_ms=2000)
+    satellite = _RecordingSatellite()
+
+    lag = MEASURED_WORST_DETECTION_LAG_MS * SAMPLE_RATE // 1000
+    phrase_end = 32000
+    hook._ring.append(np.zeros(phrase_end, dtype="<i2").tobytes())
+    # The command runs straight on from the phrase, through the whole lag.
+    command = np.arange(1, lag + 1, dtype="<i2")
+    hook._ring.append(command.tobytes())
+    hook._detection_index = phrase_end + lag
+
+    result = hook.flush_preroll(satellite)
+
+    assert DEFAULT_WAKE_SKIP_MS >= MEASURED_WORST_DETECTION_LAG_MS
+    assert result.start_index <= phrase_end
+    # No command sample is lost; the wake-phrase tail ahead of it is the price.
+    emitted = np.frombuffer(result.pcm, dtype="<i2")
+    assert np.array_equal(emitted[-lag:], command)
+
+
+def test_config_default_matches_the_hook_default() -> None:
+    """config.py keeps the value as a literal to stay yaml-only; pin them."""
+    assert WakeWordCfg.wake_skip_ms == DEFAULT_WAKE_SKIP_MS
 
 
 def test_rearm_reanchors_timeline_without_zeroing_index() -> None:

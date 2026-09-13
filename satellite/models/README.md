@@ -45,9 +45,10 @@ Two gaps worth closing before trusting a retrain:
   `negative_natural_say_so` and `negative_tv_conversation` cases — skips every
   case. There is no recorded-audio regression test for this model. Populate it
   with real Blue Snowball recordings from the living room.
-- The satellite never retains the audio that fired a detection, and
-  `flush_preroll` skips `wake_skip_ms` before STT, so false-positive transcripts
-  show what was said *after* the trigger, not the trigger itself. The hard
-  negatives in the training config are therefore phonetic inference, not
-  measured. A debug mode that saves the 2 s window on detection would turn the
-  next round of negatives into real data.
+- `flush_preroll` hands STT `[detection_index - wake_skip_ms, end)` with
+  `wake_skip_ms` only a 500 ms margin, so a false-positive transcript shows
+  mostly what was said *after* the trigger, not the trigger itself. Set
+  `wake_word.mine_dir`
+  to have `HardNegativeMiner` write the exact 2 s window the classifier scored;
+  the hard negatives in the training config predate it and are still phonetic
+  inference, not measured.
