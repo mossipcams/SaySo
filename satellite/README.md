@@ -27,6 +27,12 @@ The overlay owns one deliberate resample and the capture timeline:
   `[detection_index - wake_skip_ms, end)` atomically. Each sample reaches Home
   Assistant exactly once, in order, regardless of when the detection thread
   runs. See `satellite/sayso/wake/hook.py`.
+- `wake_word.wake_skip_ms` is a **lookback**, not a skip: it starts the handoff
+  that far *before* the detection boundary so a command spoken straight through
+  the wake word ("SaySo turn on the TV") keeps its onset. It must stay above
+  the detection lag — measured at ~295 ms median / ~490 ms worst on the
+  living-room satellite — hence the 500 ms default. Lowering it truncates
+  commands; it does not remove the wake word from the transcript.
 - The microphone does not open until any in-flight playback has genuinely
   finished, plus `audio.aec_gate_ms`. There is no AEC on this path
   (`webrtc-noise-gain` exposes AGC/NS only), so the gate is the fail-safe

@@ -55,6 +55,11 @@ class WakeWordCfg:
     refractory_seconds: float
     preroll_ms: int
     post_tts_cooldown_ms: int
+    # Lookback, not a skip: the STT handoff starts this far *before* the
+    # detection boundary. Raising it prepends more of the wake phrase to the
+    # transcript; lowering it cuts the onset off a command spoken without a
+    # pause. It must stay above the measured detection lag -- see
+    # wake/hook.py:DEFAULT_WAKE_SKIP_MS, which test_handoff pins to this value.
     wake_skip_ms: int = 500
     # Hard-negative mining. Off unless mine_dir is set. mine_threshold should sit
     # well below threshold so near-misses are captured, not just fires.
@@ -125,7 +130,9 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
         refractory_seconds=float(_req(raw, "wake_word", "refractory_seconds")),
         preroll_ms=int(_req(raw, "wake_word", "preroll_ms")),
         post_tts_cooldown_ms=int(_req(raw, "wake_word", "post_tts_cooldown_ms")),
-        wake_skip_ms=int(raw.get("wake_word", {}).get("wake_skip_ms", 500)),
+        wake_skip_ms=int(
+            raw.get("wake_word", {}).get("wake_skip_ms", WakeWordCfg.wake_skip_ms)
+        ),
         mine_dir=(
             Path(raw["wake_word"]["mine_dir"])
             if raw.get("wake_word", {}).get("mine_dir")
@@ -190,6 +197,10 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append("wake_word.refractory_seconds must be >= 0")
     if cfg.wake_word.preroll_ms < 0:
         errors.append("wake_word.preroll_ms must be >= 0")
+    # The hook clamps a negative lookback to zero, so a typed minus sign would
+    # otherwise change nothing and report nothing.
+    if cfg.wake_word.wake_skip_ms < 0:
+        errors.append("wake_word.wake_skip_ms must be >= 0")
     if not (0.0 < cfg.wake_word.mine_threshold < 1.0):
         errors.append("wake_word.mine_threshold must be between 0 and 1 exclusive")
     if cfg.wake_word.mine_dir is not None and cfg.wake_word.mine_threshold >= cfg.wake_word.threshold:

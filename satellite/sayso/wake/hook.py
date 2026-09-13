@@ -20,6 +20,36 @@ _LOGGER = logging.getLogger(__name__)
 # wake window plus the preroll lookback plus one hop of slack.
 _RING_HEADROOM_SAMPLES = SAMPLE_RATE * 5
 
+# How far *before* the detection boundary the STT handoff starts. The knob is
+# named "skip" for history, but it is a lookback: the flush emits
+# ``[detection_index - wake_skip_ms, end)``, so raising it prepends more
+# pre-detection audio rather than removing any. Lowering it does not remove the
+# wake phrase from the transcript first -- it removes the command's onset.
+#
+# The value has to cover the detection lag: the gap between the wake phrase
+# ending and the classifier publishing a boundary for it. Measured on the
+# living-room satellite from 23 production captures (issue #49) -- each WAV
+# starts at ``detection_index - 500 ms``, so the offset at which the leading
+# wake-phrase burst ends gives the lag directly:
+#
+#     median lag ~295 ms, worst observed ~490 ms
+#
+# It is not one hop. The window grid bounds how late a window *ends*, not how
+# many windows the model needs before it scores above threshold. A lookback
+# under the lag silently truncates the start of any command spoken straight
+# through the wake word ("SaySo turn on the TV"), which is unrecoverable; a
+# lookback over it only prepends the phrase tail, which STT tolerates (the
+# one well-levelled capture in that set transcribed as "So turn on the living
+# room T V" -- prefix present, command intact). The costs are asymmetric, so
+# this sits above the worst observed lag, not at the median.
+#
+# ponytail: a fixed duration cannot be right for both speaking styles. Trimming
+# to the actual phrase end (issue #49 item 3) needs a per-detection phrase
+# boundary the classifier does not currently report. Do that only if the
+# leading "So" is shown to change an intent result; it had not, as of this
+# measurement.
+DEFAULT_WAKE_SKIP_MS = 500
+
 
 class _WakePhrase:
     def __init__(self, phrase: str) -> None:
@@ -43,7 +73,7 @@ class SaySoExternalWakeHook:
         provider: LiveKitWakeWordProvider,
         *,
         preroll_ms: int = 0,
-        wake_skip_ms: int = 500,
+        wake_skip_ms: int = DEFAULT_WAKE_SKIP_MS,
         capture_ring: WakeCaptureRing | None = None,
     ) -> None:
         self._provider = provider
@@ -110,12 +140,16 @@ class SaySoExternalWakeHook:
         self._detection_index = None
 
     def flush_preroll(self, satellite: Any) -> PrerollFlush:
-        """Atomically hand ``[detection-skip, end)`` to the satellite STT path.
+        """Atomically hand ``[detection - wake_skip_ms, end)`` to the STT path.
 
         The detection boundary is the sample index the classifier actually
         scored, so the trim does not depend on how long the wakeup path took to
         reach this call. Emitted samples are marked delivered by the ring's STT
         cursor, so the live path resumes after them instead of replaying them.
+
+        ``wake_skip_ms`` moves the start *earlier*, not later: it is the margin
+        that keeps a command spoken straight through the wake word from losing
+        its onset. See :data:`DEFAULT_WAKE_SKIP_MS` for how it was measured.
         """
         detection_index = self._detection_index
         if detection_index is None:
