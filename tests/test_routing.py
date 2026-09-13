@@ -123,6 +123,44 @@ class TestIdentifyCommandDomain:
 
         assert identify_command_domain("turn on the kitchen", catalog) is None
 
+    def test_control_domain_wins_over_non_control_name_collision(self) -> None:
+        catalog = _catalog(
+            _entity(
+                "media_player.living_room_tv", domain="media_player", name="TV"
+            ),
+            _entity("remote.living_room_tv", domain="remote", name="TV"),
+        )
+
+        assert identify_command_domain("turn on the tv", catalog) == "media_player"
+        assert (
+            identify_command_domain("turn off the living room tv", catalog)
+            == "media_player"
+        )
+
+    def test_control_domain_wins_over_update_name_collision(self) -> None:
+        catalog = _catalog(
+            _entity("light.kitchen_light", domain="light", name="Kitchen light"),
+            _entity("update.kitchen_light", domain="update", name="Kitchen light"),
+        )
+
+        assert identify_command_domain("turn on kitchen light", catalog) == "light"
+
+    def test_two_control_domains_still_return_unknown(self) -> None:
+        catalog = _catalog(
+            _entity("light.kitchen", domain="light", name="Kitchen Light"),
+            _entity("switch.kitchen", domain="switch", name="Kitchen Light"),
+        )
+
+        assert identify_command_domain("turn on kitchen light", catalog) is None
+
+    def test_only_non_control_domains_return_unknown(self) -> None:
+        catalog = _catalog(
+            _entity("update.kitchen_light", domain="update", name="Kitchen light"),
+            _entity("remote.kitchen_light", domain="remote", name="Kitchen light"),
+        )
+
+        assert identify_command_domain("turn on kitchen light", catalog) is None
+
     def test_unknown_term_returns_unknown(self) -> None:
         catalog = _catalog(
             _entity("light.living_room", domain="light", name="Living Room"),
@@ -271,6 +309,34 @@ class TestAreaAndFloorEvidence:
                 registries=registries,
             )
             is None
+        )
+
+    def test_area_evidence_prefers_control_domain_over_non_control(self) -> None:
+        catalog = _catalog(
+            _entity(
+                "media_player.living_room_tv",
+                domain="media_player",
+                name="TV",
+                area_id="area_living_room",
+            ),
+            _entity(
+                "remote.living_room_tv",
+                domain="remote",
+                name="TV",
+                area_id="area_living_room",
+            ),
+        )
+        registries = _registries(
+            areas=(RoutingArea("area_living_room", "Living Room"),),
+        )
+
+        assert (
+            identify_command_domain(
+                "turn on the living room",
+                catalog,
+                registries=registries,
+            )
+            == "media_player"
         )
 
     def test_preferred_satellite_area_resolves_duplicate_area_names(self) -> None:
