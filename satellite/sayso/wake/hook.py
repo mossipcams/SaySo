@@ -29,39 +29,40 @@ _RING_HEADROOM_SAMPLES = SAMPLE_RATE * 5
 # The value is bounded on both sides.
 #
 # Lower bound -- the detection lag, the gap between the wake phrase ending and
-# the classifier publishing a boundary for it. A lookback under the lag starts
-# the handoff after the phrase has already ended, which truncates the onset of
-# a command spoken straight through the wake word ("SaySo turn on the TV").
-# Measured from mined 2 s windows (``wake_word.mine_dir``), which end exactly
-# at ``detection_index``, so the last voiced frame gives the lag directly:
+# the classifier publishing a boundary for it. Below it the handoff starts after
+# the phrase has ended and truncates the onset of a command spoken straight
+# through the wake word ("SaySo turn on the TV").
 #
-#     fired detections: 160, 220, 240, 260 ms   (n=4, living room, issue #49)
+# Upper bound -- above the lag the handoff reaches back into the phrase and
+# prepends wake-word speech. That is not cosmetic: HA's VAD opens on the burst,
+# then hits its silence timeout during the speaker's pause before the command,
+# closing the STT window before the command arrives. Three logged runs at a
+# 500 ms lookback had HA accept 447/768/766 ms as speech while the capture held
+# 2000-3300 ms; two transcribed as just "So."
 #
-# It is not one hop, and it is not the ~295/490 ms an earlier pass inferred
-# from the STT captures alone -- that proxy could only see audio after
-# ``detection_index - 500 ms``, so it mistook mid-command gaps for the phrase
-# end. The mined windows see the whole phrase and supersede it.
+# The lag is measured by scoring mined clips (``wake_word.mine_dir``), which end
+# exactly at ``detection_index``. Cut k ms off the tail, pad the front to keep
+# the window 2 s, re-score: the score holds while the cut removes only
+# post-phrase audio and collapses once it reaches the phrase. The largest k that
+# holds is the lag. See ``scripts/wake_lag_probe.py``.
 #
-# Upper bound -- anything earlier than the phrase end prepends a burst of
-# wake-word audio, and that burst is not cosmetic. Home Assistant's VAD opens
-# on it and then hits its silence timeout during the speaker's natural pause
-# before the command, closing the STT window before the command arrives. In
-# three logged runs HA accepted 447/768/766 ms as speech while the capture held
-# 2000-3300 ms, and two transcribed as just "So."
+#     n=7, living room:  0, 40, 80, 80, 120, 120, 240 ms   (median 80)
 #
-# So: the worst observed lag exactly. Never truncates the command; the burst it
-# prepends at the fastest observed detection is 100 ms, against the ~280 ms that
-# demonstrably opened HA's VAD.
+# Do not measure this off an energy envelope. Three separate attempts to do so
+# gave three different answers on the same clips: a gate cannot tell a phrase
+# end from an inter-syllable gap or from room background, and at this SNR it
+# mostly finds the background.
 #
-# ponytail: the two bounds have met. The lag spread is 160-260 ms, so the lower
-# bound is now 260 and the burst budget puts the upper bound at 260 too -- there
-# is exactly one value left, at n=4. One more detection outside that spread and
-# no fixed duration satisfies both, which is the point at which trimming to the
-# real phrase end (issue #49 item 3) stops being optional. It needs a
-# per-detection phrase boundary the classifier does not currently report.
-# Re-measure from mined clips before moving this; procedure in
-# docs/STT_AUDIO_CAPTURE.md.
-DEFAULT_WAKE_SKIP_MS = 260
+# ponytail: THE BOUNDS DO NOT OVERLAP. Never truncating needs >= 240; not
+# prepending a VAD-openable burst needs <= ~100, given a lag that reaches 0. No
+# fixed duration satisfies both, so this value only chooses which way to fail.
+# It fails toward truncation: that is partial and recoverable, since Whisper
+# still sees most of the command, whereas a VAD latch drops the command whole --
+# and the latch is the failure actually observed in production. Trimming to the
+# real phrase end (issue #49 item 3) is the fix, and is now required rather than
+# optional. It needs a per-detection phrase boundary the classifier does not
+# report.
+DEFAULT_WAKE_SKIP_MS = 120
 
 
 class _WakePhrase:
