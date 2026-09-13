@@ -56,6 +56,47 @@ _CONTROL_VERBS = frozenset(
     }
 )
 
+# Domains a Home Assistant Assist/SaySo tool can act on. Non-control entities
+# (remote, update, select, sensor, ...) may share a friendly name with one of
+# these; they must not suppress the control domain hint.
+_CONTROL_DOMAINS = frozenset(
+    {
+        "alarm_control_panel",
+        "button",
+        "climate",
+        "cover",
+        "fan",
+        "humidifier",
+        "lawn_mower",
+        "light",
+        "lock",
+        "media_player",
+        "scene",
+        "script",
+        "siren",
+        "switch",
+        "todo",
+        "vacuum",
+        "valve",
+        "water_heater",
+    }
+)
+
+
+def _resolve_domain_hint(matched_domains: set[str]) -> str | None:
+    """Return the domain hint, preferring a lone control domain.
+
+    A non-control entity that shares a friendly name with a control entity
+    (``remote.living_room_tv`` vs ``media_player.living_room_tv``) must not
+    suppress the hint. Two control domains stay ambiguous.
+    """
+    if len(matched_domains) == 1:
+        return next(iter(matched_domains))
+    control_domains = matched_domains & _CONTROL_DOMAINS
+    if len(control_domains) == 1:
+        return next(iter(control_domains))
+    return None
+
 
 @dataclass(frozen=True, slots=True)
 class RoutingArea:
@@ -211,9 +252,7 @@ def _identify_from_entity_and_domain_terms(
         command_tokens,
     ) | _domains_from_domain_terms(catalog, command_tokens)
 
-    if len(matched_domains) == 1:
-        return next(iter(matched_domains))
-    return None
+    return _resolve_domain_hint(matched_domains)
 
 
 def _devices_by_id(registries: RoutingRegistries) -> dict[str, RoutingDevice]:
@@ -390,9 +429,7 @@ def _identify_from_area_and_floor_evidence(
         return None
 
     matched_domains = _domains_for_area_ids(catalog, area_ids, devices)
-    if len(matched_domains) == 1:
-        return next(iter(matched_domains))
-    return None
+    return _resolve_domain_hint(matched_domains)
 
 
 def identify_command_domain(
