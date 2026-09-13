@@ -34,11 +34,16 @@ _RING_HEADROOM_SAMPLES = SAMPLE_RATE * 5
 # through the wake word ("SaySo turn on the TV").
 #
 # Upper bound -- above the lag the handoff reaches back into the phrase and
-# prepends wake-word speech. That is not cosmetic: HA's VAD opens on the burst,
-# then hits its silence timeout during the speaker's pause before the command,
-# closing the STT window before the command arrives. Three logged runs at a
-# 500 ms lookback had HA accept 447/768/766 ms as speech while the capture held
-# 2000-3300 ms; two transcribed as just "So."
+# prepends wake-word speech. That is not cosmetic. Across the captures, a
+# leading burst followed by a gap transcribes as the burst alone: at a 500 ms
+# lookback, two runs whose audio held 2000-3300 ms of speech after a ~2 s pause
+# came back as just "So." Runs with no gap transcribe the whole utterance.
+#
+# The mechanism is HA's VAD opening on the burst and timing out across the
+# pause. Note the STT_VAD_START/END events do not themselves bound what gets
+# transcribed -- a later run logged a 384 ms VAD window and still returned a
+# six-word transcript -- so the evidence is the burst-plus-gap correlation,
+# not the event durations.
 #
 # The lag is measured by scoring mined clips (``wake_word.mine_dir``), which end
 # exactly at ``detection_index``. Cut k ms off the tail, pad the front to keep
