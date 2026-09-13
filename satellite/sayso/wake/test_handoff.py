@@ -155,9 +155,9 @@ def test_default_lookback_fails_toward_truncation_not_vad_latch() -> None:
     A short lookback clips the command's onset: partial, and Whisper still sees
     the rest. Too long a one prepends wake-word speech, HA's VAD opens on it and
     times out during the speaker's pause, and the command is dropped whole --
-    the failure actually seen in production (447/768/766 ms accepted as speech
-    while the capture held 2000-3300 ms; two transcripts were just "So").
-    So the default sits near the median lag, far below the burst known to latch.
+    the failure actually seen in production, where a leading burst followed by
+    a ~2 s gap came back as just "So" while the audio held 2000-3300 ms of
+    speech. So the default sits near the median lag, far below that burst.
     """
     worst_prepend = DEFAULT_WAKE_SKIP_MS - min(MEASURED_DETECTION_LAGS_MS)
     assert 0 < DEFAULT_WAKE_SKIP_MS
