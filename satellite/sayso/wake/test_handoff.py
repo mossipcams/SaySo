@@ -127,7 +127,7 @@ def test_flush_preroll_uses_detection_index_not_flush_time() -> None:
 
 # Lag of each fired detection, from mined 2 s windows that end at
 # detection_index (issue #49). The default must clear the worst of them.
-MEASURED_DETECTION_LAGS_MS = (160, 220, 240)
+MEASURED_DETECTION_LAGS_MS = (160, 220, 240, 260)
 MEASURED_WORST_DETECTION_LAG_MS = max(MEASURED_DETECTION_LAGS_MS)
 
 
@@ -171,6 +171,10 @@ def test_default_lookback_does_not_prepend_a_vad_openable_burst() -> None:
     447/768/766 ms as speech while the capture held 2000-3300 ms; two
     transcribed as just "So." The margin over the fastest detection is what
     reaches back into the phrase, so it is what has to stay small.
+
+    The 100 ms budget is chosen, not measured: the latch was observed at a
+    ~280 ms burst, and nothing yet establishes the smallest burst HA will open
+    on. It is deliberately well under the one that is known to fail.
     """
     overshoot = DEFAULT_WAKE_SKIP_MS - min(MEASURED_DETECTION_LAGS_MS)
     assert 0 < DEFAULT_WAKE_SKIP_MS
