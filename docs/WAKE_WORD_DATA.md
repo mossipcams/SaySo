@@ -22,10 +22,16 @@ else, so all five cases in `satellite/eval/cases.json` — including
 
 The satellite never retained detection audio. Its own log says so:
 `Wake phrase detected ... (no audio retained)`. Worse for diagnosis,
-`flush_preroll()` drops `wake_skip_ms` before handing audio to STT, so the
-transcript attached to a false positive describes what was said *after* the
-trigger. The audio that actually fired the model was never observed, by anyone,
-at any point.
+`flush_preroll()` hands STT only `[detection_index - wake_skip_ms, end)`, and
+`wake_skip_ms` is a 120 ms margin sized to the detection lag, so the
+transcript attached to a false positive describes what was said *after*
+the trigger. The audio that actually fired the model was never observed, by
+anyone, at any point.
+
+Since `2861fa6` this is fixed: setting `wake_word.mine_dir` makes
+`HardNegativeMiner` write the exact 2 s window the classifier scored
+(`satellite/sayso/wake/mining.py`). The paragraphs below record the state of
+the world before that landed.
 
 This is why every previous attempt to fix false positives had to guess at hard
 negatives. The hard negatives in `satellite/models/sayso-training.yaml` are
