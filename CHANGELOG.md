@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.1.0](https://github.com/mossipcams/SaySo/compare/1.0.1...1.1.0) (2026-09-13)
+
+
+### Features
+
+* **training:** ground generation in actual labels and real-home topology ([7e9776f](https://github.com/mossipcams/SaySo/commit/7e9776f5f48569097b9524931df5eaa938f11b3e))
+* **training:** stage 40k grounded gauntlet prep on ajax/new-data-generation ([b8203c7](https://github.com/mossipcams/SaySo/commit/b8203c747be58cae355ea0312d549fb10e9f42e3))
+
+
+### Bug Fixes
+
+* **routing:** prefer control domains over non-control name collisions ([ad7b818](https://github.com/mossipcams/SaySo/commit/ad7b818b27e3420adbdbea49f86cf9dbca8a6d7a))
+* **satellite:** correct wake_skip_ms docs and pin it to the measured lag ([3a035cd](https://github.com/mossipcams/SaySo/commit/3a035cdebb6e39bc1b43666089072e3d71f9093f))
+* **satellite:** measure the detection lag with the model, not an envelope ([95ef71f](https://github.com/mossipcams/SaySo/commit/95ef71f2e579d21bb994c61d0b6d2527b78effa1))
+* **satellite:** native-rate capture, sample-ordered handoff, STT audio capture ([43c4548](https://github.com/mossipcams/SaySo/commit/43c454854d9c6d5870c3b783f390399c688ef07d))
+* **satellite:** phase-correct resampling, exact record() contract, unwedgeable wake handoff ([a3709f0](https://github.com/mossipcams/SaySo/commit/a3709f03f02294a8b7d3b4d9961f784892ba7fc6))
+* **satellite:** pin mic gain/AGC/NS against HA, widen the anti-alias filter ([8a1ffd6](https://github.com/mossipcams/SaySo/commit/8a1ffd67121c83d0f9e3bbbcc3c88829b32f4c8b))
+* **satellite:** raise the wake lookback to the 4th measured lag ([9a0600e](https://github.com/mossipcams/SaySo/commit/9a0600eae55520fe31373ae4cb79cde530b92b8a))
+* **satellite:** size the wake lookback from mined clips, not inference ([e14ed4e](https://github.com/mossipcams/SaySo/commit/e14ed4e2745a9d2f7a8f0747a53f6d83859d3124))
+
+
+### Documentation
+
+* **satellite:** state the VAD-latch evidence correctly ([ded2aff](https://github.com/mossipcams/SaySo/commit/ded2affa078e958b66e3596cce604c33cb21a0fe))
+* **training:** record 40k grounded gauntlet v4 launch ([8ef7be3](https://github.com/mossipcams/SaySo/commit/8ef7be3902e95d5c001a76df4fb8f4aff11e79c4))
+
 ## [1.0.1](https://github.com/mossipcams/SaySo/compare/1.0.0...1.0.1) (2026-09-11)
 
 
