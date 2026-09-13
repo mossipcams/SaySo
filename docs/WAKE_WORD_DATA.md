@@ -23,8 +23,8 @@ else, so all five cases in `satellite/eval/cases.json` — including
 The satellite never retained detection audio. Its own log says so:
 `Wake phrase detected ... (no audio retained)`. Worse for diagnosis,
 `flush_preroll()` hands STT only `[detection_index - wake_skip_ms, end)`, and
-`wake_skip_ms` is a 500 ms margin that mostly covers the detection lag, so the
-transcript attached to a false positive describes mostly what was said *after*
+`wake_skip_ms` is a 250 ms margin sized to the detection lag, so the
+transcript attached to a false positive describes what was said *after*
 the trigger. The audio that actually fired the model was never observed, by
 anyone, at any point.
 
