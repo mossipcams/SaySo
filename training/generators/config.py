@@ -43,7 +43,43 @@ class GeneratorConfig:
     # can never fill one.
     negative_rate: float = DEFAULT_NEGATIVE_RATE
     # Rows drawn from generators.grounding: same request, different entity graph.
-    grounding_rate: float = 0.03
+    # The reachable ceiling is the catalogue size times near_duplicate_limit
+    # (pipeline._grounding_capacity), checked before the build. v1 requested 0.03
+    # against a 120-row catalogue ceiling and shipped 0.0022 reporting success.
+    grounding_rate: float = 0.028
+    # Share of accepted rows where the utterance DESCRIBES the target entity
+    # without naming it, with same-domain same-area peers present in context.
+    # This is the entity-discrimination skill the eval measures. v1 corpora
+    # shipped with only 3.7% of rows doing this, so the model learned to echo a
+    # name rather than resolve a device.
+    discrimination_rate: float = 0.0
+    # Fail the build when achieved grounding share falls below this fraction of
+    # the reachable ceiling. v1 requested 3% and shipped 0.22% with no error, so
+    # the gate must catch order-of-magnitude shortfalls. It must not trip on the
+    # normal run-to-run variance of the family rotation, which measured 2.4-2.8%
+    # against a 2.8% ceiling (a spread of roughly 15%), hence 0.75 rather than a
+    # tight fraction.
+    min_rate_achieved_fraction: float = 0.75
+    # Share of accepted rows rendered in the Home Assistant 2026.9 tool contract
+    # (`intent__HassTurnOn`) instead of the pinned bare names. Measured at the
+    # llama.cpp boundary for issue #52: with the namespaced list the deployed
+    # model picks the wrong tool on 2 of 3 TV utterances, with bare names and the
+    # same schema it picks the right one. Bare names stay the majority because the
+    # pinned contract and the recipe-lock gold still use them.
+    #
+    # Opt-in (see --namespaced-tool-rate), for the same reason as
+    # full_catalog_rate: switching contracts changes what every existing recipe
+    # generates. The issue #52 recipe passes 0.35.
+    namespaced_tool_rate: float = 0.0
+    # Share of accepted rows offered the whole catalogue rather than a sampled
+    # subset. A subset is built by keeping the expected answer first, so a corpus
+    # made only of subsets never shows a tool list that was not pre-filtered to
+    # contain the answer; production sends ~23 tools.
+    #
+    # Opt-in (see --full-catalog-rate): a full catalogue costs ~4k tokens a row
+    # and changes what every existing recipe generates, so an old recipe keeps
+    # producing the corpus it always did. The issue #52 recipe passes 0.35.
+    full_catalog_rate: float = 0.0
     # Dataset-level audit gates (generators.audit).
     min_positive_per_operation: int = 1
     min_positive_per_tool: int = 1
@@ -66,6 +102,21 @@ class GeneratorConfig:
             self.real_home_rate = 0.0
         if self.real_home_rate and not self.real_home_path:
             raise ValueError("real_home_rate needs real_home_path")
+        for name in ("grounding_rate", "discrimination_rate", "ordinary_rate",
+                     "namespaced_tool_rate", "full_catalog_rate"):
+            value = getattr(self, name)
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{name} must be within [0, 1], got {value}")
+        if self.grounding_rate + self.discrimination_rate > 1.0:
+            raise ValueError(
+                "grounding_rate + discrimination_rate must be <= 1: "
+                f"{self.grounding_rate} + {self.discrimination_rate}"
+            )
+        if not 0.0 <= self.min_rate_achieved_fraction <= 1.0:
+            raise ValueError(
+                "min_rate_achieved_fraction must be within [0, 1], got "
+                f"{self.min_rate_achieved_fraction}"
+            )
 
     def max_attempts(self) -> int:
         return self.count * self.max_attempts_multiplier
@@ -86,6 +137,10 @@ class GeneratorConfig:
             "ordinary_rate": self.ordinary_rate,
             "negative_rate": self.negative_rate,
             "grounding_rate": self.grounding_rate,
+            "discrimination_rate": self.discrimination_rate,
+            "namespaced_tool_rate": self.namespaced_tool_rate,
+            "full_catalog_rate": self.full_catalog_rate,
+            "min_rate_achieved_fraction": self.min_rate_achieved_fraction,
             "min_positive_per_operation": self.min_positive_per_operation,
             "min_positive_per_tool": self.min_positive_per_tool,
             "max_absence_rate": self.max_absence_rate,

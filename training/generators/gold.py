@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import random
 from typing import Any
 
@@ -110,7 +112,7 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
         return {"kind": "action", "calls": [call]}
 
     if scenario.get("robustness") == "ambiguity":
-        return _ambiguous_gold(home, capability, operation, rng)
+        return _ambiguous_gold(home, capability, operation, rng, scenario.get("request_intent"))
 
     if operation == "query_state":
         entity = _pick_entity(scenario, rng)
@@ -186,21 +188,59 @@ def _pick_entity(scenario: dict[str, Any], rng: random.Random) -> dict[str, Any]
     return matches[scenario.get("target_index", 0) % len(matches)]
 
 
+def names_of(entity: dict[str, Any]) -> list[str]:
+    return [entity["name"], *(entity.get("aliases") or [])]
+
+
+def refers_to(entity: dict[str, Any], noun: str | None) -> bool:
+    """Does the request's device noun refer to this entity?
+
+    A whole-word match against the canonical name or any alias, so "TV" picks out
+    ``TV`` and ``Living Room TV`` but never ``Living Room Media Player``. Without
+    this, a room that holds a TV and a speaker reads as ambiguous, and a room that
+    holds only a speaker reads as "turn on the speaker" -- both of which are how
+    issue #52's home would have been labelled.
+    """
+    if not noun:
+        return True
+    pattern = re.compile(rf"\b{re.escape(noun.casefold())}\b")
+    return any(pattern.search(name.casefold()) for name in names_of(entity))
+
+
+def _requested(
+    home: dict[str, Any], capability: str, intent: dict[str, Any] | None
+) -> tuple[str, list[dict[str, Any]]]:
+    """(area the request means, entities the request could refer to)."""
+    intent = intent or {}
+    area = intent.get("area") or home["sayso_entity_area"]
+    present = entities_in_area(home, capability, area)
+    return area, [item for item in present if refers_to(item, intent.get("name"))]
+
+
 def _ambiguous_gold(
     home: dict[str, Any],
     capability: str,
     operation: str,
     rng: random.Random,
+    intent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if capability == "scripts":
         # Script tools expose friendly names, not their hidden HA area assignments.
         return expected_no_action("clarify")
-    area = home["sayso_entity_area"]
-    present = entities_in_area(home, capability, area)
+    area, present = _requested(home, capability, intent)
     matches = entities_supporting(present, capability, operation)
     if len(matches) == 0:
         if present:
             return expected_device_unsupported(present, capability, operation, rng)
+        noun = (intent or {}).get("name")
+        if noun:
+            # The room has media players, just not the one that was asked for.
+            # Saying "no media players available" here would be the fabricated
+            # absence reported in issue #52.
+            return expected_no_action(
+                "device_absent",
+                unavailable={"area": area.casefold(), "type": noun},
+            )
         return expected_no_action(
             "area_unavailable",
             unavailable={"area": area.casefold(), "type": _type_label(capability)},

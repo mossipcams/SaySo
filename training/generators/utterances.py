@@ -301,6 +301,77 @@ def _direct_utterance(target: str, call: dict[str, Any]) -> str:
     return phrase[0].upper() + phrase[1:] if phrase else phrase
 
 
+# Description templates for entity-discrimination rows. The user refers to a
+# device by a property of it instead of its name, so the model must resolve a
+# description against the static context rather than echo a name it was handed.
+#
+# {domain} is a pluralised device noun, {place} is an area name, {mod} is the
+# entity's own descriptive token ("Ceiling", "Pendant", "Wall", "Vanity"),
+# {brand} is a manufacturer token when the entity has one ("Nanoleaf",
+# "Lutron"). Every slot is filled from data that exists in the home fixture; see
+# ``pipeline._entity_descriptors``. Nothing here invents a position or location
+# that the fixture does not model.
+_DESCRIPTIONS: tuple[str, ...] = (
+    "the {mod} {domain} in the {place}",
+    "the {mod} {domain} in my {place}",
+    "the {place} {mod} {domain}",
+    "the {brand} {domain} in the {place}",
+    "the {brand} {domain} in my {place}",
+    "the {place} {brand} {domain}",
+)
+
+# Tokens that mark a manufacturer or line rather than a placement. Used to fill
+# the {brand} slot and excluded from the {mod} slot so a name is never split into
+# two leaking halves.
+_BRAND_TOKENS: frozenset[str] = frozenset(
+    {"nanoleaf", "lutron", "ikea", "govee", "lifx", "hue", "sengled", "wiz"}
+)
+
+# Generic words that do not discriminate (they are the domain noun or filler).
+_STOP_TOKENS: frozenset[str] = frozenset(
+    {"light", "lights", "lamp", "lamps", "lighting", "the", "a", "an", "s",
+     "tv", "television", "outlet", "outlets", "plug", "plugs", "blinds",
+     "blind", "shade", "shades", "curtain", "curtains", "thermostat",
+     "thermostats", "lock", "locks", "fan", "fans", "vacuum", "scene",
+     "script", "button", "and", "of", "my", "in", "on", "for"}
+)
+
+
+def describe_target(
+    domain: str,
+    place: str,
+    rng: random.Random,
+    modifier: str | None = None,
+    brand: str | None = None,
+) -> str:
+    """Render a description of a device that does not name it.
+
+    Deterministic given ``rng``. ``modifier`` and ``brand`` must come from the
+    entity's own name (see ``pipeline._entity_descriptors``); passing None picks
+    whichever slots the chosen template needs from what was supplied. Returns
+    None-safe output only when the caller supplied a usable slot value. The
+    caller is responsible for uniqueness against siblings.
+    """
+    noun = _plural(domain) if domain else "devices"
+    order = list(range(len(_DESCRIPTIONS)))
+    rng.shuffle(order)
+    for index in order:
+        template = _DESCRIPTIONS[index]
+        needs_mod = "{mod}" in template
+        needs_brand = "{brand}" in template
+        if needs_mod and not modifier:
+            continue
+        if needs_brand and not brand:
+            continue
+        return template.format(
+            domain=noun,
+            place=place or "room",
+            mod=modifier or "",
+            brand=brand or "",
+        )
+    return ""
+
+
 def protected_slots(spec: dict[str, Any]) -> list[tuple[str, str]]:
     slots: list[tuple[str, str]] = []
     for index, name in enumerate(spec.get("target_names") or [], start=1):

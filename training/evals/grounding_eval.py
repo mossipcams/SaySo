@@ -40,6 +40,25 @@ def eval_variants() -> list[dict[str, Any]]:
         elsewhere="Bedroom",
         entity_id="media_player.living_room_tv",
     )
+    # Issue #52 verbatim. media_presence_family above says "turn on the living
+    # room media player", which is not what a user says and not what was
+    # reported; these three are the utterances from the issue, against the real
+    # entity (named "TV", area "Living Room" held separately).
+    for prefix, operation, utterance, away in (
+        ("issue52_tv_on", "turn_on", "Turn on the TV.", False),
+        ("issue52_tv_off_room", "turn_off", "Turn off the living room TV.", False),
+        ("issue52_tv_on_in_room", "turn_on", "Turn on the TV in the living room.", True),
+    ):
+        variants += grounding.named_device_family(
+            prefix=prefix,
+            area="Living Room",
+            elsewhere="Bedroom",
+            device="TV",
+            entity_id="media_player.living_room_tv",
+            operation=operation,
+            utterance=utterance,
+            from_elsewhere=away,
+        )
     # Same four shapes, different name, id, area and aliases.
     variants += grounding.media_presence_family(
         prefix="grounding_office_display",

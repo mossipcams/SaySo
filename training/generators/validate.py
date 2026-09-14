@@ -161,6 +161,13 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
                 if spoken not in lowered and name.casefold() not in lowered:
                     area = (calls[0].get("arguments") or {}).get("area")
                     if not area or str(area).casefold() not in lowered:
+                        # An entity-discrimination row refers to its target by a
+                        # description, not by name. The pipeline only sets this
+                        # flag after verifying the description is unique to the
+                        # target and contains no entity name or alias, so the
+                        # name-presence check does not apply.
+                        if spec.get("discrimination"):
+                            continue
                         return "missing_expected_target"
         for name in spec.get("excluded_names") or []:
             if "leave" not in lowered or name.casefold() not in lowered:
