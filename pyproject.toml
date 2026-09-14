@@ -9,12 +9,14 @@ description = "Fully local Home Assistant conversation agent using llama.cpp"
 requires-python = ">=3.12"
 dependencies = [
     "homeassistant>=2026.8.3",
-    "voluptuous-openapi==0.4.1",
 ]
 
 [project.optional-dependencies]
 test = [
     "homeassistant>=2026.8.3",
+    # Only Home Assistant <= 2026.8 ships this; kept so the legacy conversion
+    # path in schema.py stays covered on newer Home Assistant.
+    "voluptuous-openapi>=0.4.1",
     "hassil>=2.0.5",
     "home-assistant-intents>=2024.12.4",
     "pytest>=8.0",

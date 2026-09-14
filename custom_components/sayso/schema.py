@@ -13,7 +13,17 @@ from typing import Any, Literal
 
 import voluptuous as vol
 from homeassistant.helpers import llm
-from voluptuous_openapi import UNSUPPORTED, convert
+
+try:  # Home Assistant >= 2026.9 validates with probatio, installed as voluptuous.
+    from probatio import to_openapi as _to_openapi
+except ImportError:  # pragma: no cover - older Home Assistant
+    _to_openapi = None
+
+try:  # Home Assistant <= 2026.8 converted tool schemas with voluptuous_openapi.
+    from voluptuous_openapi import UNSUPPORTED, convert
+except ImportError:  # pragma: no cover - Home Assistant >= 2026.9 dropped it
+    UNSUPPORTED = object()
+    convert = None
 
 from .exceptions import SaySoInvalidToolEnvelopeError
 
@@ -22,7 +32,6 @@ COMPILE_CACHE_MAXSIZE = 32
 _FUNCTION_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 _UNSUPPORTED_OPENAPI_FALLBACK: dict[str, str] = {"type": "string"}
-_PARAMETERS_ROOT_FALLBACK: dict[str, Any] = {"type": "object", "properties": {}}
 
 
 def _is_unsupported_node(node: Any) -> bool:
@@ -30,6 +39,50 @@ def _is_unsupported_node(node: Any) -> bool:
     if node is UNSUPPORTED:
         return True
     return type(node).__name__ == "_Unsupported"
+
+
+def _convert_parameters(
+    schema: Any,
+    *,
+    custom_serializer: Callable[[Any], Any] | None = None,
+) -> dict[str, Any]:
+    """Convert one tool's parameter schema to OpenAPI, or fail closed.
+
+    Home Assistant 2026.9 swapped voluptuous for ``probatio`` and installs it
+    under the ``voluptuous`` name, so ``tool.parameters`` is a
+    ``probatio.schema.Schema``. ``voluptuous_openapi.convert`` does not
+    understand that and returns its unsupported marker for *every* Home
+    Assistant tool. The previous code answered that with an empty
+    ``{"type": "object", "properties": {}}``, which offers the model a tool it
+    cannot pass a target to -- ``HassTurnOn(name="TV")`` becomes unexpressible
+    and the model falls back to prose (issue #52). Prefer probatio's own
+    ``to_openapi``, which Home Assistant's bundled integrations use, and raise
+    rather than silently shipping a tool stripped of its arguments.
+
+    A genuinely argument-free tool still converts to an empty ``properties``
+    mapping and is returned normally; only a failed conversion raises.
+    """
+    converted: Any = UNSUPPORTED
+    if convert is not None:
+        converted = convert(schema, custom_serializer=custom_serializer)
+    if (_is_unsupported_node(converted) or not isinstance(converted, dict)) and (
+        _to_openapi is not None
+    ):
+        try:
+            converted = _to_openapi(schema, custom_serializer=custom_serializer)
+        except Exception:  # noqa: BLE001 - reported as a closed failure below
+            converted = UNSUPPORTED
+    if _is_unsupported_node(converted) or not isinstance(converted, dict):
+        raise SaySoInvalidToolEnvelopeError(
+            "Home Assistant tool parameters could not be compiled to OpenAPI; "
+            "refusing to offer the tool without its arguments"
+        )
+    sanitized = sanitize_openapi_schema(converted)
+    if not isinstance(sanitized, dict):
+        raise SaySoInvalidToolEnvelopeError(
+            "Compiled tool parameters are not a JSON object"
+        )
+    return sanitized
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,18 +194,6 @@ def sanitize_openapi_schema(node: Any) -> Any:
         return node
 
     return dict(_UNSUPPORTED_OPENAPI_FALLBACK)
-
-
-def _sanitize_convert_output(converted: Any) -> dict[str, Any]:
-    """Sanitize convert() output for tool parameter schemas."""
-    if _is_unsupported_node(converted):
-        return dict(_PARAMETERS_ROOT_FALLBACK)
-    if not isinstance(converted, dict):
-        return dict(_PARAMETERS_ROOT_FALLBACK)
-    sanitized = sanitize_openapi_schema(converted)
-    if not isinstance(sanitized, dict):
-        return dict(_PARAMETERS_ROOT_FALLBACK)
-    return sanitized
 
 
 def normalize_schema(
@@ -293,9 +334,7 @@ def compile_parameters(
 ) -> dict[str, Any]:
     """Compile a Voluptuous schema to OpenAPI parameters."""
     normalized = normalize_schema(
-        _sanitize_convert_output(
-            convert(schema, custom_serializer=custom_serializer),
-        ),
+        _convert_parameters(schema, custom_serializer=custom_serializer),
         top_level=True,
     )
     return canonicalize_schema(normalized)
@@ -331,11 +370,9 @@ def _emit_tool_source_entry(
     custom_serializer: Callable[[Any], Any] | None = None,
 ) -> dict[str, Any]:
     """Return one tool's canonical source payload for cache keys."""
-    converted = _sanitize_convert_output(
-        convert(
-            tool.parameters,
-            custom_serializer=custom_serializer,
-        ),
+    converted = _convert_parameters(
+        tool.parameters,
+        custom_serializer=custom_serializer,
     )
     return {
         "description": tool.description or "",
