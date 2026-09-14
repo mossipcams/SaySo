@@ -50,12 +50,27 @@ def row_calls(row: dict[str, Any]) -> list[dict[str, Any]]:
     return calls
 
 
+def bare_tool_name(name: str | None) -> str:
+    """Strip the Home Assistant 2026.9 namespace from a tool name.
+
+    ``intent__HassTurnOn`` and ``HassTurnOn`` are the same tool rendered under two
+    contracts, so coverage must count them as one. Comparing raw names made every
+    namespaced row fail its positive quota and get rejected, which silently held
+    the namespaced share at a third of the requested rate.
+    """
+    return (name or "").rsplit("__", 1)[-1]
+
+
 def row_script_tools(row: dict[str, Any]) -> set[str]:
-    """Per-home script tools offered to this row (named after the script, not Hass*)."""
+    """Per-home script tools offered to this row (named after the script, not Hass*).
+
+    A script tool keeps its bare object id under both contracts: Home Assistant's
+    ``ScriptTool`` overrides the ``domain__action`` name.
+    """
     return {
         tool["function"]["name"]
         for tool in row.get("tools") or []
-        if not tool["function"]["name"].startswith(("Hass", "Get"))
+        if not bare_tool_name(tool["function"]["name"]).startswith(("Hass", "Get"))
     }
 
 
@@ -147,7 +162,7 @@ def classify_row(row: dict[str, Any]) -> dict[str, Any]:
         return facets
     script_tools = row_script_tools(row)
     for call in calls:
-        name = call["name"]
+        name = bare_tool_name(call["name"])
         if wanted == SCRIPT_ACTION_TOOL:
             if name in script_tools:
                 facets["positive"] = True
