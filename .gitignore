@@ -35,3 +35,14 @@ training/hf_cache/
 *.bin
 *.pt
 *.ckpt
+
+# Recorded wake-word audio. Real household speech in a public repo: the corpus
+# definition (satellite/eval/cases.json) is tracked, the recordings are not.
+# Build a corpus outside the repo with scripts/wake_prepare_real_data.py and pass
+# it to satellite/eval/run.py --eval-root.
+satellite/eval/audio/*
+!satellite/eval/audio/.gitkeep
+
+# livekit-wakeword run artifacts (relative to the CWD the CLI runs in)
+/data/
+/output/

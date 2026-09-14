@@ -13,6 +13,19 @@
 # Baseline to beat (satellite/models/sayso_eval.json):
 #   aut 0.0084 | recall 0.598 @ t=0.5 | optimal_threshold 0.19 | fpph 0.2467
 #
+# Wake rule (decided 2026-09-14): the phrase /seI soU/ wakes only in isolation
+# -- any word in front of it disqualifies the wake, a word after it does not.
+# This config is where that rule is encoded: `target_phrases` carries both
+# realizations, and `custom_negative_phrases` carries the carriers. Read
+# docs/WAKE_WORD_DATA.md before editing either list.
+#
+# Two item-5 levers are NOT configurable here and need an upstream patch:
+# `AudioAugmentor` has no gain/level transform (EQ, tanh distortion, RIR,
+# background at 5-15 dB SNR only) and `align_clip_to_end` hardcodes 0-200 ms
+# jitter as a function default. Production audio sits ~22 dB below the TTS
+# positives, so level robustness matters; do it by patching the installed
+# package or vendoring `data/augment.py`, not by hoping a YAML key exists.
+#
 # Why the numbers below are small: 126.8 hours of production telemetry put the
 # bulk of conversational audio at p50 0.0039 and p99.9 0.0311. The model is not
 # broadly confused -- 99.99% of real audio is already below 0.19. The entire
@@ -21,8 +34,19 @@
 # specific confusion is the only lever that matters.
 
 model_name: sayso
+# Both realizations of /seɪ soʊ/, both targets. They are different acoustic
+# events -- one token vs two stress groups with a possible juncture -- so both
+# must be generated; augmentation cannot derive one from the other.
+#
+# What the real spool attests: 78 of 152 mined windows transcribe as two-word
+# "say so" and 0 as fused "Sayso". The fused token is therefore the rendering
+# with the least evidence behind it, not the default to extrapolate from. Do not
+# drop it: `wake_word.phrase` is "SaySo" and the brand name is spoken that way.
+# Do not add an onset word ("Hey Sayso") -- under the isolation rule that is not
+# a wake at all.
 target_phrases:
   - "Sayso"
+  - "say so"
 
 # Below the upstream default of 10000/2000, not above it. More synthetic
 # positives of the same character do not add coverage; the corpus already
@@ -31,41 +55,67 @@ n_samples: 8000
 n_samples_val: 2000
 n_background_samples: 300
 n_background_samples_val: 80
-tts_batch_size: 50
+# Measured on the retrain host, and the lever that decides whether this run is
+# 1 hour or 36: the VITS decoder pads every sequence in a batch to the longest
+# one, so batching a 2-word phrase costs far more than it saves.
+#   batch 8 -> 0.35 s/clip | batch 16 -> 3.9 s/clip | batch 50 -> 10.4 s/clip
+# Keep this small unless the backend's padding behaviour changes.
+tts_batch_size: 8
 
-# Speaker diversity is a quality axis, so this is the one place worth spending.
-# Piper diversifies by SLERP-blending a fixed speaker table, which produces many
-# samples from few underlying voices -- exactly the redundancy this config is
-# trying to avoid. VoxCPM generates from free-text persona prompts instead.
-# Fewer clips, more distinct speakers.
-tts_backend: voxcpm
+# VoxCPM was the original choice: it generates from free-text persona prompts,
+# so more distinct underlying voices than Piper's SLERP-blended speaker table.
+# It is no longer affordable on the retrain host. Measured on an M1: VoxCPM2 is
+# 184 s per clip, so 8000 samples x 2 realizations plus the negatives is ~42
+# days; Piper is 0.21 s per clip, ~1.2 h for the same 20000-clip set. Revisit on
+# a CUDA host -- switch this line back and re-run setup (~5 GB of weights).
+tts_backend: piper_vits
 
-# The one high-value negative set: the /seI soU/ collision.
+# The one high-value negative set: /seI soU/ said after another word.
 #
-# "Sayso" overlaps "say so", an ordinary English construction. Upstream's eval
-# corpus already carries a negative_natural_say_so category, so the collision
-# was known at design time and never fed back into training.
+# Wake rule (decided): the phrase must be ISOLATED. Any word in front of it
+# disqualifies the wake; a word after it does not ("SaySo turn on the TV" is
+# still a wake -- that is the continuous-command shape the product needs). This
+# list is where that rule is taught, so the entries below split into exactly two
+# kinds and nothing else.
 #
-# Generic fillers ("okay", "yeah", "hello", "no") are deliberately NOT here.
-# They are what livekit falls back to when no adversarial phrases exist, they
-# are trivially separable, and thousands of them is precisely the "large corpus,
-# poor effective coverage" failure this file exists to avoid.
+# 1. CARRIERS -- the phrase with a word in front of it. These are the only
+#    places the model ever sees the target preceded by speech. "say so" itself
+#    is NOT here: it is a target now, and listing a target as its own negative
+#    is the contradiction that parked the whole /seI soU/ family on the decision
+#    boundary. Do not re-add it.
 #
-# PROVENANCE WARNING: these are phonetic inference, not measurement. No audio of
-# a real false activation has ever been captured, so nobody knows what actually
-# fires this model. Hard-negative mining is now live on the satellite
-# (wake_word.mine_dir); once the spool has labelled clips, replace this list
-# with the real confusions and delete this warning.
+# 2. NEAR-MISSES -- different sounds that score like the target. Measured, not
+#    guessed: "stay so" scores 0.792 on clean TTS against a 0.647-0.715 positive
+#    band, "see you soon" 0.313 on TTS and 0.643 on real living-room audio.
+#
+# Generic fillers ("okay", "yeah", "hello", "no") are still deliberately NOT
+# here: they are what livekit falls back to when no adversarial phrases exist,
+# they are trivially separable, and thousands of them is precisely the "large
+# corpus, poor effective coverage" failure this file exists to avoid.
+#
+# PROVENANCE: these are still synthetic TTS phrases, not captures of real false
+# activations. Measured real negatives now exist in the mine spool
+# (/var/lib/sayso-satellite/wake-mining: "Good boy", "So so.", "New players
+# available", "Home Assistant") and belong in `data/negative_train` as clips
+# once labelled -- see docs/PLAN_WAKE_WORD_REAL_DATA.md item 3. Do not grow this
+# list to cover them; a TTS rendering of a dog barking teaches nothing.
 custom_negative_phrases:
-  - "say so"
-  - "says so"
-  - "said so"
-  - "saying so"
+  # Carriers: the phrase with a word in front of it.
   - "if you say so"
   - "just say so"
   - "you don't say so"
-  - "so so"
+  - "they say so"
+  # Near-misses: distinct sounds that score in the target's band. "saying so"
+  # was measured before being kept (it is not a carrier -- nothing precedes the
+  # phrase): 0.308 against 0.540 for "say so" on the same voice and the same
+  # sliding-window path, i.e. near-miss band, well under the 0.647-0.715 real
+  # positive band. Re-measure if it is ever suspected of carrying the target.
+  - "says so"
+  - "said so"
+  - "saying so"
   - "stay so"
+  - "see you soon"
+  - "so so"
   - "same so"
   - "safe so"
   - "say slow"
@@ -74,7 +124,6 @@ custom_negative_phrases:
   - "say something"
   - "essay so"
   - "hey so"
-  - "they say so"
   - "lasso"
 
 noise_scales: [0.98]
@@ -91,7 +140,11 @@ augmentation:
   # Two passes, not one: the satellite mic is a Blue Snowball across a living
   # room, so reverb and background robustness are real coverage, not padding.
   rounds: 2
-  background_paths: ["./data/backgrounds"]
+  # Two background sources: MUSAN for generic noise, and the live room's own
+  # phrase-free captures so the model hears the actual microphone, reverb and
+  # household clutter it will be deployed in. --live-backgrounds fills the
+  # second directory; augmentation picks between them at random.
+  background_paths: ["./data/backgrounds", "./data/live-backgrounds"]
   rir_paths: ["./data/rirs"]
 
 model:
@@ -115,6 +168,13 @@ max_negative_weight: 3000.0
 # mess: the model could not meet even that, so find_best_threshold() fell
 # through to its max-balanced-accuracy fallback and emitted 0.19. At 0.02 the
 # trainer must actually earn its threshold or double max_negative_weight trying.
+#
+# Caveat for this run: it is seeded with `setup --skip-acav`. ACAV100M is a
+# single 17.5 GB features file and the retrain host had 20.4 GB free, so the
+# fpph estimate rests on validation_set_features.npy plus the synthetic and real
+# negatives instead of 2000 hours of general speech. Re-run setup without
+# --skip-acav on a host with the disk before quoting the absolute fpph figure;
+# the specific confusion this model fails on is covered either way.
 target_fp_per_hour: 0.02
 
 batch_n_per_class:

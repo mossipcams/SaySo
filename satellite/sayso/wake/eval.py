@@ -7,7 +7,7 @@ import time
 import wave
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 import numpy as np
 
@@ -17,12 +17,18 @@ from .livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES, LiveKitWakeWordPr
 WAKE_EVAL_CATEGORIES = frozenset(
     {
         "positive_sayso",
+        "positive_say_so_two_word",
         "continuous_command",
-        "negative_natural_say_so",
+        "negative_say_so_carrier",
         "negative_tv_conversation",
         "negative_distance_noise",
     }
 )
+
+# Categories whose definition is "the phrase said after another word". The wake
+# rule is isolation, so these must never expect a detection, whatever the model
+# currently scores. Pinned by a test against cases.json.
+CARRIER_CATEGORIES = frozenset({"negative_say_so_carrier"})
 
 CHUNK_SAMPLES = 512
 
@@ -50,6 +56,37 @@ def compute_latency_percentiles(latencies_ms: list[float]) -> dict[str, float]:
     return {"p50": _percentile(ordered, 0.5), "p95": _percentile(ordered, 0.95)}
 
 
+def summarise_by_category(results: Iterable["WakeCaseResult"]) -> dict[str, dict[str, Any]]:
+    """Per-category counts plus ``detection_rate``.
+
+    ``detection_rate`` is the fraction of *scored* cases in the category where
+    the wake fired, regardless of what the case expected. For a positive
+    category that is recall; for a negative category it is the false-positive
+    rate. Both are per-category on purpose: a single aggregate hides the
+    difference between "the model rejects carriers" and "the model rejects the
+    wake word", which the isolation rule needs to keep apart.
+    """
+    grouped: dict[str, list[WakeCaseResult]] = {}
+    for result in results:
+        grouped.setdefault(result.category, []).append(result)
+
+    summary: dict[str, dict[str, Any]] = {}
+    for category in sorted(grouped):
+        entries = grouped[category]
+        scored = [entry for entry in entries if entry.detected is not None]
+        summary[category] = {
+            "total": len(entries),
+            "passed": sum(1 for entry in entries if entry.status == "passed"),
+            "failed": sum(1 for entry in entries if entry.status == "failed"),
+            "skipped": sum(1 for entry in entries if entry.status == "skipped"),
+            "errors": sum(1 for entry in entries if entry.status == "error"),
+            "detection_rate": (
+                sum(1 for entry in scored if entry.detected) / len(scored) if scored else 0.0
+            ),
+        }
+    return summary
+
+
 @dataclass(frozen=True)
 class WakeEvalCase:
     id: str
@@ -61,6 +98,7 @@ class WakeEvalCase:
     transcript_fixture: Optional[str] = None
     speech_end_ms: Optional[float] = None
     expect_missing_first_word: Optional[bool] = None
+    notes: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -104,6 +142,7 @@ def _parse_case(raw: dict[str, Any]) -> WakeEvalCase:
             if raw.get("expect_missing_first_word") is not None
             else None
         ),
+        notes=raw.get("notes"),
     )
 
 
@@ -326,6 +365,7 @@ def run_wake_eval(
                 "skipped": 0,
                 "errors": 0,
             },
+            "by_category": {},
             "aggregate": {
                 "pi_inference_ms": {"p50": 0.0, "p95": 0.0},
             },
@@ -373,6 +413,7 @@ def run_wake_eval(
     return {
         "version": case_set.version,
         "summary": summary,
+        "by_category": summarise_by_category(results),
         "aggregate": {
             "pi_inference_ms": compute_latency_percentiles(all_inference_ms),
         },

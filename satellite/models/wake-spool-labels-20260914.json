@@ -1,0 +1,1412 @@
+{
+  "cluster_count": 66,
+  "clusters": [
+    {
+      "best_score": 0.341417,
+      "best_stem": "20260913T153857_026_s0.3414",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 0.795,
+      "fired": false,
+      "index": 0,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T15:38:57Z",
+      "stems": [
+        "20260913T153857_026_s0.3414",
+        "20260913T153857_136_s0.2571",
+        "20260913T153857_821_s0.2773"
+      ],
+      "transcripts": [
+        "Okay, so turn",
+        "Okay, so turn on the web.",
+        "Say so."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.482521,
+      "best_stem": "20260913T153903_747_s0.4825",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 1.321,
+      "fired": false,
+      "index": 1,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T15:39:03Z",
+      "stems": [
+        "20260913T153903_529_s0.2311",
+        "20260913T153903_747_s0.4825",
+        "20260913T153904_058_s0.1698",
+        "20260913T153904_850_s0.3851"
+      ],
+      "transcripts": [
+        "Say so.",
+        "Seizo."
+      ],
+      "windows": 4
+    },
+    {
+      "best_score": 0.309677,
+      "best_stem": "20260913T153913_138_s0.3097",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.437,
+      "fired": false,
+      "index": 2,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T15:39:13Z",
+      "stems": [
+        "20260913T153913_023_s0.1342",
+        "20260913T153913_138_s0.3097",
+        "20260913T153913_346_s0.2909",
+        "20260913T153913_460_s0.2120"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 4
+    },
+    {
+      "best_score": 0.517212,
+      "best_stem": "20260913T153923_710_s0.5172",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.129,
+      "fired": true,
+      "index": 3,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T15:39:23Z",
+      "stems": [
+        "20260913T153923_581_s0.4839",
+        "20260913T153923_710_s0.5172"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.625809,
+      "best_stem": "20260913T153937_904_s0.6258",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 4,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T15:39:37Z",
+      "stems": [
+        "20260913T153937_904_s0.6258"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.252226,
+      "best_stem": "20260913T153949_055_s0.2522",
+      "detail": "negative_preceded",
+      "disagreement": true,
+      "duration_s": 0.316,
+      "fired": false,
+      "index": 5,
+      "label": "negative",
+      "review": "listen",
+      "start_utc": "2026-09-13T15:39:49Z",
+      "stems": [
+        "20260913T153949_055_s0.2522",
+        "20260913T153949_141_s0.1970",
+        "20260913T153949_371_s0.1677"
+      ],
+      "transcripts": [
+        "and tools. Say so. Turn on the little...",
+        "assistant tools say so",
+        "system tools say so turn the"
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.60116,
+      "best_stem": "20260913T153958_330_s0.6012",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.204,
+      "fired": true,
+      "index": 6,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T15:39:58Z",
+      "stems": [
+        "20260913T153958_126_s0.1733",
+        "20260913T153958_330_s0.6012"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.123598,
+      "best_stem": "20260913T154112_242_s0.1236",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": false,
+      "index": 7,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T15:41:12Z",
+      "stems": [
+        "20260913T154112_242_s0.1236"
+      ],
+      "transcripts": [
+        "Rockstar."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.236271,
+      "best_stem": "20260913T161315_670_s0.2363",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.196,
+      "fired": false,
+      "index": 8,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T16:13:15Z",
+      "stems": [
+        "20260913T161315_474_s0.2238",
+        "20260913T161315_670_s0.2363"
+      ],
+      "transcripts": [
+        "I did it. That is my idea.",
+        "I just had idea of"
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.182456,
+      "best_stem": "20260913T191744_936_s0.1825",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 2.923,
+      "fired": false,
+      "index": 9,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:17:42Z",
+      "stems": [
+        "20260913T191742_013_s0.1560",
+        "20260913T191742_913_s0.1415",
+        "20260913T191744_133_s0.1537",
+        "20260913T191744_815_s0.1147",
+        "20260913T191744_936_s0.1825"
+      ],
+      "transcripts": [
+        "What should do you want?",
+        "What you do?",
+        "What's it doing?"
+      ],
+      "windows": 5
+    },
+    {
+      "best_score": 0.2367,
+      "best_stem": "20260913T191855_971_s0.2367",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 2.718,
+      "fired": false,
+      "index": 10,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:18:55Z",
+      "stems": [
+        "20260913T191855_173_s0.1135",
+        "20260913T191855_855_s0.1005",
+        "20260913T191855_971_s0.2367",
+        "20260913T191857_093_s0.1171",
+        "20260913T191857_891_s0.1692"
+      ],
+      "transcripts": [
+        "Good boy.",
+        "You wanna go on?",
+        "You want to go on?"
+      ],
+      "windows": 5
+    },
+    {
+      "best_score": 0.167054,
+      "best_stem": "20260913T192102_331_s0.1671",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.204,
+      "fired": false,
+      "index": 11,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:21:02Z",
+      "stems": [
+        "20260913T192102_331_s0.1671",
+        "20260913T192102_535_s0.1215"
+      ],
+      "transcripts": [
+        "You gonna leave it?",
+        "You're gonna leave it?"
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.242227,
+      "best_stem": "20260913T192106_375_s0.2422",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.793,
+      "fired": false,
+      "index": 12,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:21:06Z",
+      "stems": [
+        "20260913T192106_064_s0.1333",
+        "20260913T192106_171_s0.1810",
+        "20260913T192106_375_s0.2422",
+        "20260913T192106_857_s0.1901"
+      ],
+      "transcripts": [
+        "It's a knock dog.",
+        "It's not dark.",
+        "This is not"
+      ],
+      "windows": 4
+    },
+    {
+      "best_score": 0.129198,
+      "best_stem": "20260913T192436_098_s0.1292",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": false,
+      "index": 13,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:24:36Z",
+      "stems": [
+        "20260913T192436_098_s0.1292"
+      ],
+      "transcripts": [
+        "I'm going to go ahead and put it in the middle of the oven."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.170844,
+      "best_stem": "20260913T192715_034_s0.1708",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": false,
+      "index": 14,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:27:15Z",
+      "stems": [
+        "20260913T192715_034_s0.1708"
+      ],
+      "transcripts": [
+        "See you there."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.561344,
+      "best_stem": "20260913T193348_306_s0.5613",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 15,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:33:48Z",
+      "stems": [
+        "20260913T193348_306_s0.5613"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.310817,
+      "best_stem": "20260913T193357_258_s0.3108",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.312,
+      "fired": false,
+      "index": 16,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:33:57Z",
+      "stems": [
+        "20260913T193357_258_s0.3108",
+        "20260913T193357_455_s0.2561",
+        "20260913T193357_570_s0.1134"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.176962,
+      "best_stem": "20260913T193551_850_s0.1770",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 1.104,
+      "fired": false,
+      "index": 17,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:35:50Z",
+      "stems": [
+        "20260913T193550_746_s0.1114",
+        "20260913T193551_170_s0.1385",
+        "20260913T193551_850_s0.1770"
+      ],
+      "transcripts": [
+        "Good morning.",
+        "It'll be a good morning to eat it.",
+        "It'll be a good morning to eat them."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.525155,
+      "best_stem": "20260913T194942_463_s0.5252",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 18,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:49:42Z",
+      "stems": [
+        "20260913T194942_463_s0.5252"
+      ],
+      "transcripts": [
+        "ZZO"
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.376,
+      "best_stem": "20260913T194949_685_s0.3760",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 1.116,
+      "fired": false,
+      "index": 19,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T19:49:49Z",
+      "stems": [
+        "20260913T194949_685_s0.3760",
+        "20260913T194950_013_s0.2085",
+        "20260913T194950_801_s0.2046"
+      ],
+      "transcripts": [
+        "Say so, turn on.",
+        "Say so, turn the...",
+        "So you still try"
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.63586,
+      "best_stem": "20260913T194956_368_s0.6359",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.192,
+      "fired": true,
+      "index": 20,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:49:56Z",
+      "stems": [
+        "20260913T194956_176_s0.2810",
+        "20260913T194956_368_s0.6359"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.711712,
+      "best_stem": "20260913T195004_909_s0.7117",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 21,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T19:50:04Z",
+      "stems": [
+        "20260913T195004_909_s0.7117"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.116364,
+      "best_stem": "20260913T200555_371_s0.1164",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.304,
+      "fired": false,
+      "index": 22,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:05:55Z",
+      "stems": [
+        "20260913T200555_264_s0.1032",
+        "20260913T200555_371_s0.1164",
+        "20260913T200555_568_s0.1117"
+      ],
+      "transcripts": [
+        "practice for everybody"
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.194341,
+      "best_stem": "20260913T200637_611_s0.1943",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 1.31,
+      "fired": false,
+      "index": 23,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:06:37Z",
+      "stems": [
+        "20260913T200637_508_s0.1771",
+        "20260913T200637_611_s0.1943",
+        "20260913T200638_818_s0.1701"
+      ],
+      "transcripts": [
+        "Good boy."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.522141,
+      "best_stem": "20260913T201625_125_s0.5221",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 0.107,
+      "fired": true,
+      "index": 24,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:16:25Z",
+      "stems": [
+        "20260913T201625_018_s0.2300",
+        "20260913T201625_125_s0.5221"
+      ],
+      "transcripts": [
+        "Say so.",
+        "So,"
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.136788,
+      "best_stem": "20260913T201702_802_s0.1368",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": false,
+      "index": 25,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:17:02Z",
+      "stems": [
+        "20260913T201702_802_s0.1368"
+      ],
+      "transcripts": [
+        "Everybody."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.548889,
+      "best_stem": "20260913T201843_245_s0.5489",
+      "detail": "negative_no_phrase_near_miss",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 26,
+      "label": "negative",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:18:43Z",
+      "stems": [
+        "20260913T201843_245_s0.5489"
+      ],
+      "transcripts": [
+        "Stay soon."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.652359,
+      "best_stem": "20260913T202950_333_s0.6524",
+      "detail": "negative_no_phrase_near_miss",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 27,
+      "label": "negative",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:29:50Z",
+      "stems": [
+        "20260913T202950_333_s0.6524"
+      ],
+      "transcripts": [
+        "Stay soon."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.17012,
+      "best_stem": "20260913T203015_223_s0.1701",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 0.312,
+      "fired": false,
+      "index": 28,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:30:15Z",
+      "stems": [
+        "20260913T203015_223_s0.1701",
+        "20260913T203015_424_s0.1486",
+        "20260913T203015_535_s0.1048"
+      ],
+      "transcripts": [
+        "Say so, church.",
+        "Say so, turn over.",
+        "So you still turn a little..."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.262133,
+      "best_stem": "20260913T203024_367_s0.2621",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": false,
+      "index": 29,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:30:24Z",
+      "stems": [
+        "20260913T203024_367_s0.2621"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.346618,
+      "best_stem": "20260913T203033_338_s0.3466",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 0.313,
+      "fired": false,
+      "index": 30,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:30:33Z",
+      "stems": [
+        "20260913T203033_139_s0.2839",
+        "20260913T203033_338_s0.3466",
+        "20260913T203033_452_s0.2573"
+      ],
+      "transcripts": [
+        "Say so.",
+        "Stay so."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.605026,
+      "best_stem": "20260913T203046_574_s0.6050",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.116,
+      "fired": true,
+      "index": 31,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:30:46Z",
+      "stems": [
+        "20260913T203046_458_s0.3627",
+        "20260913T203046_574_s0.6050"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.335186,
+      "best_stem": "20260913T203833_062_s0.3352",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 1.211,
+      "fired": false,
+      "index": 32,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:38:32Z",
+      "stems": [
+        "20260913T203832_745_s0.1177",
+        "20260913T203833_062_s0.3352",
+        "20260913T203833_264_s0.1482",
+        "20260913T203833_956_s0.3159"
+      ],
+      "transcripts": [
+        "Say so.",
+        "See you soon.",
+        "Stay soon."
+      ],
+      "windows": 4
+    },
+    {
+      "best_score": 0.612541,
+      "best_stem": "20260913T203847_828_s0.6125",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 33,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:38:47Z",
+      "stems": [
+        "20260913T203847_828_s0.6125"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.510873,
+      "best_stem": "20260913T203904_577_s0.5109",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 2.306,
+      "fired": true,
+      "index": 34,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:39:02Z",
+      "stems": [
+        "20260913T203902_271_s0.1036",
+        "20260913T203904_366_s0.4932",
+        "20260913T203904_577_s0.5109"
+      ],
+      "transcripts": [
+        "Home Assistant.",
+        "Say so."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.322904,
+      "best_stem": "20260913T203918_191_s0.3229",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.331,
+      "fired": false,
+      "index": 35,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:39:18Z",
+      "stems": [
+        "20260913T203918_191_s0.3229",
+        "20260913T203918_317_s0.2834",
+        "20260913T203918_522_s0.1793"
+      ],
+      "transcripts": [
+        "See, so we'll turn on the...",
+        "So you see what kind of...",
+        "So you still look..."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.642783,
+      "best_stem": "20260913T203934_885_s0.6428",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 1.208,
+      "fired": true,
+      "index": 36,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:39:33Z",
+      "stems": [
+        "20260913T203933_677_s0.1984",
+        "20260913T203934_885_s0.6428"
+      ],
+      "transcripts": [
+        "See you soon.",
+        "say so"
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.423333,
+      "best_stem": "20260913T203948_813_s0.4233",
+      "detail": "negative_no_phrase_near_miss",
+      "disagreement": false,
+      "duration_s": 1.316,
+      "fired": false,
+      "index": 37,
+      "label": "negative",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:39:47Z",
+      "stems": [
+        "20260913T203947_497_s0.1733",
+        "20260913T203947_695_s0.4010",
+        "20260913T203948_035_s0.2760",
+        "20260913T203948_813_s0.4233"
+      ],
+      "transcripts": [
+        "So so."
+      ],
+      "windows": 4
+    },
+    {
+      "best_score": 0.699001,
+      "best_stem": "20260913T204006_957_s0.6990",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 38,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:40:06Z",
+      "stems": [
+        "20260913T204006_957_s0.6990"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.140676,
+      "best_stem": "20260913T204019_815_s0.1407",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": false,
+      "index": 39,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:40:19Z",
+      "stems": [
+        "20260913T204019_815_s0.1407"
+      ],
+      "transcripts": [
+        "Home Assistant."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.502234,
+      "best_stem": "20260913T204028_845_s0.5022",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 1.217,
+      "fired": true,
+      "index": 40,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:40:27Z",
+      "stems": [
+        "20260913T204027_628_s0.4538",
+        "20260913T204028_845_s0.5022"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.253099,
+      "best_stem": "20260913T204044_949_s0.2531",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 1.444,
+      "fired": false,
+      "index": 41,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:40:43Z",
+      "stems": [
+        "20260913T204043_505_s0.2131",
+        "20260913T204043_630_s0.2227",
+        "20260913T204044_165_s0.1854",
+        "20260913T204044_269_s0.1166",
+        "20260913T204044_845_s0.2235",
+        "20260913T204044_949_s0.2531"
+      ],
+      "transcripts": [
+        "Say so, turn on the G.",
+        "Say so, turn on the TV.",
+        "Say so.",
+        "See you soon."
+      ],
+      "windows": 6
+    },
+    {
+      "best_score": 0.363608,
+      "best_stem": "20260913T204059_308_s0.3636",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 0.8,
+      "fired": false,
+      "index": 42,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:40:59Z",
+      "stems": [
+        "20260913T204059_194_s0.1998",
+        "20260913T204059_308_s0.3636",
+        "20260913T204059_514_s0.1918",
+        "20260913T204059_994_s0.2096"
+      ],
+      "transcripts": [
+        "Say so, Trump.",
+        "Say so, turn on the TV.",
+        "So turn on the...",
+        "say so turn on the TV"
+      ],
+      "windows": 4
+    },
+    {
+      "best_score": 0.363511,
+      "best_stem": "20260913T204112_792_s0.3635",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 1.3,
+      "fired": false,
+      "index": 43,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:41:11Z",
+      "stems": [
+        "20260913T204111_685_s0.1894",
+        "20260913T204112_102_s0.1485",
+        "20260913T204112_792_s0.3635",
+        "20260913T204112_985_s0.3426"
+      ],
+      "transcripts": [
+        "Say so.",
+        "say so"
+      ],
+      "windows": 4
+    },
+    {
+      "best_score": 0.388821,
+      "best_stem": "20260913T204126_869_s0.3888",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.795,
+      "fired": false,
+      "index": 44,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:41:26Z",
+      "stems": [
+        "20260913T204126_074_s0.1494",
+        "20260913T204126_190_s0.1129",
+        "20260913T204126_869_s0.3888"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.608321,
+      "best_stem": "20260913T204141_554_s0.6083",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 45,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:41:41Z",
+      "stems": [
+        "20260913T204141_554_s0.6083"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.744092,
+      "best_stem": "20260913T204203_941_s0.7441",
+      "detail": "positive_isolated",
+      "disagreement": true,
+      "duration_s": 1.208,
+      "fired": true,
+      "index": 46,
+      "label": "positive",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:42:02Z",
+      "stems": [
+        "20260913T204202_733_s0.2326",
+        "20260913T204203_941_s0.7441"
+      ],
+      "transcripts": [
+        "6-0",
+        "say so"
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.157994,
+      "best_stem": "20260913T204215_970_s0.1580",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": false,
+      "index": 47,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:42:15Z",
+      "stems": [
+        "20260913T204215_970_s0.1580"
+      ],
+      "transcripts": [
+        "Whew."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.297423,
+      "best_stem": "20260913T204235_453_s0.2974",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.32,
+      "fired": false,
+      "index": 48,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:42:35Z",
+      "stems": [
+        "20260913T204235_453_s0.2974",
+        "20260913T204235_567_s0.2745",
+        "20260913T204235_773_s0.1194"
+      ],
+      "transcripts": [
+        "So you see all.",
+        "So you still try",
+        "so you still"
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.648934,
+      "best_stem": "20260913T204250_859_s0.6489",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 49,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:42:50Z",
+      "stems": [
+        "20260913T204250_859_s0.6489"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.690407,
+      "best_stem": "20260913T204302_341_s0.6904",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.224,
+      "fired": true,
+      "index": 50,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:43:02Z",
+      "stems": [
+        "20260913T204302_117_s0.2474",
+        "20260913T204302_341_s0.6904"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.715248,
+      "best_stem": "20260913T204318_010_s0.7152",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.796,
+      "fired": true,
+      "index": 51,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:43:18Z",
+      "stems": [
+        "20260913T204318_010_s0.7152",
+        "20260913T204318_806_s0.3580"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.669555,
+      "best_stem": "20260913T204335_958_s0.6696",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 52,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:43:35Z",
+      "stems": [
+        "20260913T204335_958_s0.6696"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.436471,
+      "best_stem": "20260913T204346_966_s0.4365",
+      "detail": "unsure_boundary",
+      "disagreement": true,
+      "duration_s": 0.786,
+      "fired": false,
+      "index": 53,
+      "label": "unsure",
+      "review": "listen",
+      "start_utc": "2026-09-13T20:43:46Z",
+      "stems": [
+        "20260913T204346_180_s0.4190",
+        "20260913T204346_284_s0.4329",
+        "20260913T204346_480_s0.3523",
+        "20260913T204346_966_s0.4365"
+      ],
+      "transcripts": [
+        "Say so.",
+        "say so",
+        "tools. Say so."
+      ],
+      "windows": 4
+    },
+    {
+      "best_score": 0.616566,
+      "best_stem": "20260913T204406_775_s0.6166",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 54,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:44:06Z",
+      "stems": [
+        "20260913T204406_775_s0.6166"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.482457,
+      "best_stem": "20260913T204435_244_s0.4825",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.453,
+      "fired": false,
+      "index": 55,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:44:35Z",
+      "stems": [
+        "20260913T204435_114_s0.4444",
+        "20260913T204435_244_s0.4825",
+        "20260913T204435_453_s0.4669",
+        "20260913T204435_567_s0.1988"
+      ],
+      "transcripts": [
+        "Say so.",
+        "say so",
+        "say so turn on"
+      ],
+      "windows": 4
+    },
+    {
+      "best_score": 0.51417,
+      "best_stem": "20260913T204451_753_s0.5142",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.203,
+      "fired": true,
+      "index": 56,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:44:51Z",
+      "stems": [
+        "20260913T204451_550_s0.4287",
+        "20260913T204451_753_s0.5142"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.56496,
+      "best_stem": "20260913T204504_117_s0.5650",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 57,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:45:04Z",
+      "stems": [
+        "20260913T204504_117_s0.5650"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.568486,
+      "best_stem": "20260913T204547_287_s0.5685",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 58,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:45:47Z",
+      "stems": [
+        "20260913T204547_287_s0.5685"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.567448,
+      "best_stem": "20260913T204602_601_s0.5674",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 59,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:46:02Z",
+      "stems": [
+        "20260913T204602_601_s0.5674"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.216211,
+      "best_stem": "20260913T204613_563_s0.2162",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.206,
+      "fired": false,
+      "index": 60,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:46:13Z",
+      "stems": [
+        "20260913T204613_357_s0.1736",
+        "20260913T204613_563_s0.2162"
+      ],
+      "transcripts": [
+        "...new players available.",
+        "New players available."
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.62596,
+      "best_stem": "20260913T204716_602_s0.6260",
+      "detail": "positive_isolated",
+      "disagreement": false,
+      "duration_s": 0.0,
+      "fired": true,
+      "index": 61,
+      "label": "positive",
+      "review": "suggested",
+      "start_utc": "2026-09-13T20:47:16Z",
+      "stems": [
+        "20260913T204716_602_s0.6260"
+      ],
+      "transcripts": [
+        "Say so."
+      ],
+      "windows": 1
+    },
+    {
+      "best_score": 0.204702,
+      "best_stem": "20260914T000646_188_s0.2047",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.32,
+      "fired": false,
+      "index": 62,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-14T00:06:46Z",
+      "stems": [
+        "20260914T000646_078_s0.1013",
+        "20260914T000646_188_s0.2047",
+        "20260914T000646_398_s0.1536"
+      ],
+      "transcripts": [
+        "I'm going to go ahead and get started.",
+        "It's good.",
+        "Thank you."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.170265,
+      "best_stem": "20260914T122724_536_s0.1703",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.109,
+      "fired": false,
+      "index": 63,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-14T12:27:24Z",
+      "stems": [
+        "20260914T122724_427_s0.1037",
+        "20260914T122724_536_s0.1703"
+      ],
+      "transcripts": [
+        "I'm going to go to the next one.",
+        "Oh, my God."
+      ],
+      "windows": 2
+    },
+    {
+      "best_score": 0.198329,
+      "best_stem": "20260914T122756_113_s0.1983",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.312,
+      "fired": false,
+      "index": 64,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-14T12:27:56Z",
+      "stems": [
+        "20260914T122756_113_s0.1983",
+        "20260914T122756_218_s0.1905",
+        "20260914T122756_425_s0.1197"
+      ],
+      "transcripts": [
+        "I'll fill it through.",
+        "I'll go through the leaves."
+      ],
+      "windows": 3
+    },
+    {
+      "best_score": 0.204927,
+      "best_stem": "20260914T123306_181_s0.2049",
+      "detail": "negative_no_phrase",
+      "disagreement": false,
+      "duration_s": 0.121,
+      "fired": false,
+      "index": 65,
+      "label": "negative",
+      "review": "suggested",
+      "start_utc": "2026-09-14T12:33:06Z",
+      "stems": [
+        "20260914T123306_181_s0.2049",
+        "20260914T123306_302_s0.1353"
+      ],
+      "transcripts": [
+        "Have a good day."
+      ],
+      "windows": 2
+    }
+  ],
+  "rule": "isolation: the phrase wakes only when nothing is spoken in front of it",
+  "spool": "/tmp/sayso-wake/spool",
+  "summary": {
+    "details": {
+      "negative_no_phrase": 21,
+      "negative_no_phrase_near_miss": 3,
+      "negative_preceded": 1,
+      "positive_isolated": 40,
+      "unsure_boundary": 1
+    },
+    "disagreements": 13,
+    "labels": {
+      "negative": 25,
+      "positive": 40,
+      "unsure": 1
+    },
+    "needs_listening": 16
+  },
+  "transcripts": "/tmp/sayso-wake/transcripts.json",
+  "version": 1,
+  "window_count": 152
+}

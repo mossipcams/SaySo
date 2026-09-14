@@ -3,7 +3,60 @@
 Decision record for how `sayso.onnx` gets its training data. Every future model
 should be traceable to the rules here.
 
-## Status: blocked on data collection, unblocking in progress
+## Status: spool exists, labelling in progress
+
+**Update 2026-09-14.** The blocked state recorded below is the pre-collection
+history; the blocker is cleared. `wake_word.mine_dir` has 152 scored windows /
+66 utterance clusters from the living-room satellite
+(`/var/lib/sayso-satellite/wake-mining`). The analysis is in
+`docs/PLAN_WAKE_WORD_REAL_DATA.md`. Two findings from that drain change the
+workflow stated above:
+
+- The spool is **mostly genuine wakes** — under the isolation rule 40 of 66
+clusters are isolated positives against 25 negatives and 1 the transcripts
+cannot call — so "real production audio -> identify false positives" is the
+wrong framing. Mined does not mean negative. Ingesting the spool as the
+hard-negative set its docstring promises would train the model to reject the
+wake word.
+- Every sidecar is still `label: null`. Labelling is the outstanding task, and
+the labels follow the wake rule below rather than the score.
+`scripts/wake_label_spool.py` applies the rule and emits the per-cluster verdict;
+`satellite/models/wake-spool-labels-20260914.json` is that ledger for this spool
+(16 of 66 clusters need a listen before their label means anything).
+
+## Wake rule (decided 2026-09-14): the phrase must be isolated
+
+**If another word is in front of the wake word, it is not a wake.**
+
+- The phrase is `/seɪ soʊ/`, in two realizations: the fused "SaySo" and the
+two-word "say so". Both wake.
+- A word *after* the phrase does not disqualify it. "SaySo turn on the TV" is a
+wake; that is the continuous-command shape the product depends on.
+- Anything spoken in front of the phrase disqualifies it. "if you say so",
+  "just say so", "they say so", "assistant tools say so" are negatives.
+- Containment — any occurrence wakes — was considered and rejected: it wakes on
+  TV dialogue and on quoted speech, and nothing in the pipeline can claw that
+  back afterwards.
+
+This is a labelling rule, not a new runtime gate. The classifier's window is
+2 s and the mined window is the exact array it scored, so a word said ~0.4 s
+before the phrase is inside the window the model decides on. The rule is
+learnable from audio that already reaches the classifier; no second signal, no
+phrase-boundary detector, no runtime change.
+
+Where the rule is enforced:
+
+- `satellite/models/sayso-training.yaml` — `target_phrases` lists both
+  realizations; the carriers stay in `custom_negative_phrases` and are the only
+  place the model is taught what a preceded phrase looks like.
+- `satellite/eval/cases.json` — the carrier category
+  (`negative_say_so_carrier`) pins the negative side; the isolated case pins the
+  positive side. Both halves are required, because a model that rejects carriers
+  by rejecting the phrase has not learned the rule.
+- Spool labelling — a window that contains the phrase preceded by speech is a
+  negative no matter how high it scored. `scripts/wake_label_spool.py` applies
+  the rule to a spool plus transcripts and emits a review ledger; it does not
+  write sidecar `label`s, because labelling stays a listening decision.
 
 The intended workflow is:
 
@@ -13,12 +66,13 @@ real production audio -> identify false positives -> cluster failure modes
 -> targeted synthetic expansion -> retrain -> evaluate on untouched real audio
 ```
 
-As of 2026-09-09 this cannot start. **No real wake-word audio exists anywhere.**
-A full search of the satellite filesystem, this repository, and its git history
-found only generated UI chimes, upstream LVA button sounds, and one 88-second
-ambient clip in `/tmp`. `satellite/eval/audio/` contains `.gitkeep` and nothing
-else, so all five cases in `satellite/eval/cases.json` — including
-`negative_natural_say_so` and `negative_tv_conversation` — skip silently.
+As of 2026-09-09 this could not start. **No real wake-word audio existed
+anywhere.** A full search of the satellite filesystem, this repository, and its
+git history found only generated UI chimes, upstream LVA button sounds, and one
+88-second ambient clip in `/tmp`. `satellite/eval/audio/` contains `.gitkeep` and
+nothing else, so all five cases in `satellite/eval/cases.json` — including
+`negative_natural_say_so` and `negative_tv_conversation` — skip silently. (That
+category is now `negative_say_so_carrier`; the audio directory is still empty.)
 
 The satellite never retained detection audio. Its own log says so:
 `Wake phrase detected ... (no audio retained)`. Worse for diagnosis,
@@ -36,7 +90,6 @@ the world before that landed.
 This is why every previous attempt to fix false positives had to guess at hard
 negatives. The hard negatives in `satellite/models/sayso-training.yaml` are
 phonetic inference and are explicitly marked as such.
-
 ## What the telemetry does establish
 
 126.8 hours of per-second peak scores from the journal (real production audio,
@@ -75,7 +128,9 @@ Identifying it requires the audio.
 - Clips are **unlabelled at capture**. A window over threshold may be a genuine
   wake or a false positive and only a human listening can say which. The sidecar
   records score, `fired`, detect/mine thresholds, model path and UTC timestamp;
-  `label`, `transcript` and `notes` stay null until review.
+  `label`, `transcript` and `notes` stay null until review. A high score is not a
+  negative and a `say so` transcript is not a positive: the isolation rule above
+  decides the label.
 - Spool capped at `DEFAULT_MAX_CLIPS` (2000, ~128 MB). Full spool logs once and
   stops writing rather than filling the disk.
 - Mining runs on the wake worker thread after predict, and never raises: a
@@ -101,9 +156,10 @@ continuous audio through the production sliding-window path, not isolated clips.
 
 Clustering, dedup, representative sampling, and the coverage report are
 specified but unimplemented. All four need a real score and similarity
-distribution to calibrate against; choosing a similarity threshold before any
-clips exist produces a pipeline tuned to nothing. Build them once the spool has a
-few hundred labelled clips.
+distribution to calibrate against. Build them once the spool has a few hundred
+labelled clips. (The 152-window spool is one speaker in one room and is not that
+yet; the isolation-aware labelling pass, `scripts/wake_label_spool.py`, is not
+one of these four and is implemented.)
 
 ## Resolved: the satellite was dropping and misaligning inference windows
 

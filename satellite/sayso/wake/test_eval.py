@@ -12,7 +12,10 @@ import numpy as np
 import pytest
 
 from satellite.sayso.wake.eval import (
+    CARRIER_CATEGORIES,
     CHUNK_SAMPLES,
+    WAKE_EVAL_CATEGORIES,
+    WakeCaseResult,
     WakeEvalCase,
     compute_latency_percentiles,
     detect_missing_first_word,
@@ -20,7 +23,9 @@ from satellite.sayso.wake.eval import (
     load_wake_cases,
     read_wav_pcm,
     run_wake_eval,
+    satellite_eval_root,
     scan_wake_audio,
+    summarise_by_category,
     transcript_matches,
     write_synthetic_wav,
 )
@@ -135,6 +140,7 @@ def test_run_wake_eval_skips_missing_corpus_audio(
     report = run_wake_eval(model_path=model_path, eval_root=eval_root)
     assert report["summary"]["skipped"] == 1
     assert report["summary"]["failed"] == 0
+    assert report["by_category"]["positive_sayso"]["skipped"] == 1
 
 
 def test_run_wake_eval_with_synthetic_positive_case(
@@ -256,3 +262,49 @@ def test_evaluate_case_speech_end_to_ack_uses_stt_delay_ms(
 
     result = evaluate_case(case, eval_root, provider)
     assert result.speech_end_to_ack_ms == pytest.approx(1500.0)
+
+
+def test_shipped_corpus_matches_the_isolation_rule() -> None:
+    """The committed corpus must express the wake rule, not the old labels.
+
+    ``negative_natural_say_so`` said "natural speech containing say so" was not
+    a wake, which is false when the phrase comes first and true only when a word
+    precedes it. Every carrier case must therefore expect no detection, and both
+    realizations need their own positive case -- the rule's negative half is
+    meaningless without the positive half.
+    """
+    case_set = load_wake_cases(satellite_eval_root() / "cases.json")
+    categories = {case.category for case in case_set.cases}
+    assert categories <= WAKE_EVAL_CATEGORIES
+
+    carriers = [case for case in case_set.cases if case.category in CARRIER_CATEGORIES]
+    assert carriers, "no carrier case means the isolation rule is not exercised"
+    assert all(not case.expect_detection for case in carriers)
+
+    assert "positive_sayso" in categories
+    assert "positive_say_so_two_word" in categories
+    assert all(case.notes for case in case_set.cases), "each case states what its audio holds"
+
+
+def test_summarise_by_category_reports_detection_rate() -> None:
+    results = [
+        WakeCaseResult(case_id="a", category="positive_sayso", status="passed", detected=True),
+        WakeCaseResult(case_id="b", category="positive_sayso", status="failed", detected=False),
+        WakeCaseResult(
+            case_id="c", category="negative_say_so_carrier", status="passed", detected=False
+        ),
+        WakeCaseResult(case_id="d", category="negative_say_so_carrier", status="skipped"),
+    ]
+    summary = summarise_by_category(results)
+
+    assert summary["positive_sayso"]["total"] == 2
+    assert summary["positive_sayso"]["detection_rate"] == pytest.approx(0.5)
+    assert summary["positive_sayso"]["failed"] == 1
+    assert summary["negative_say_so_carrier"]["skipped"] == 1
+    # detection_rate covers scored cases only, so a skip cannot dilute it into
+    # looking like a pass on the negative side.
+    assert summary["negative_say_so_carrier"]["detection_rate"] == pytest.approx(0.0)
+
+
+def test_summarise_by_category_empty() -> None:
+    assert summarise_by_category([]) == {}

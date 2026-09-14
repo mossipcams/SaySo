@@ -1,4 +1,14 @@
-"""Capture high-scoring wake windows from production audio as hard negatives.
+"""Write the exact 2 s window the classifier scored, for offline labelling.
+
+Scored windows are not hard negatives. In the first real drain, 44 of 66
+clusters were genuine wakes: the spool is mostly the wake word, and anything
+that ingests it as a negative set trains the model to reject the wake word.
+Those mined frames are unlabelled at capture time: a window over the mining
+threshold may be a genuine wake or a false positive, and only a human listening
+to it can say which. What the sidecar records is what the model thought --
+``score``, ``fired``, the thresholds, the model path -- never a label. Read
+``docs/WAKE_WORD_DATA.md`` before treating anything in this directory as a
+negative.
 
 The satellite has never retained the audio behind a detection, so every
 false-positive investigation has had to guess at what actually fired the model

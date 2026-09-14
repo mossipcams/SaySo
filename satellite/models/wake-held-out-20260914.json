@@ -1,0 +1,113 @@
+{
+  "clusters": [
+    {
+      "audio": "audio/positive_say_so_two_word.wav",
+      "best_score": 0.744092,
+      "case_id": "pos_say_so_two_word",
+      "cluster_index": 46,
+      "detail": "positive_isolated",
+      "label": "positive",
+      "review": "listen",
+      "stem": "20260913T204203_941_s0.7441",
+      "transcripts": [
+        "6-0",
+        "say so"
+      ]
+    },
+    {
+      "audio": "audio/continuous_kitchen.wav",
+      "best_score": 0.482457,
+      "case_id": "pos_continuous_kitchen",
+      "cluster_index": 55,
+      "detail": "positive_isolated",
+      "label": "positive",
+      "review": "suggested",
+      "stem": "20260913T204435_244_s0.4825",
+      "transcripts": [
+        "Say so.",
+        "say so",
+        "say so turn on"
+      ]
+    },
+    {
+      "audio": "audio/negative_say_so_carrier_if_you.wav",
+      "best_score": 0.252226,
+      "case_id": "neg_say_so_carrier_if_you",
+      "cluster_index": 5,
+      "detail": "negative_preceded",
+      "label": "negative",
+      "review": "listen",
+      "stem": "20260913T153949_055_s0.2522",
+      "transcripts": [
+        "and tools. Say so. Turn on the little...",
+        "assistant tools say so",
+        "system tools say so turn the"
+      ]
+    },
+    {
+      "audio": "audio/negative_say_so_carrier_leading_word.wav",
+      "best_score": 0.252226,
+      "case_id": "neg_say_so_carrier_leading_word",
+      "cluster_index": 5,
+      "detail": "negative_preceded",
+      "label": "negative",
+      "review": "listen",
+      "stem": "20260913T153949_141_s0.1970",
+      "transcripts": [
+        "and tools. Say so. Turn on the little...",
+        "assistant tools say so",
+        "system tools say so turn the"
+      ]
+    },
+    {
+      "audio": "audio/negative_tv_conversation.wav",
+      "best_score": 0.322904,
+      "case_id": "neg_tv_conversation",
+      "cluster_index": 35,
+      "detail": "negative_no_phrase",
+      "label": "negative",
+      "review": "suggested",
+      "stem": "20260913T203918_191_s0.3229",
+      "transcripts": [
+        "See, so we'll turn on the...",
+        "So you see what kind of...",
+        "So you still look..."
+      ]
+    },
+    {
+      "audio": "audio/negative_distance_noise.wav",
+      "best_score": 0.297423,
+      "case_id": "neg_distance_noise",
+      "cluster_index": 48,
+      "detail": "negative_no_phrase",
+      "label": "negative",
+      "review": "suggested",
+      "stem": "20260913T204235_453_s0.2974",
+      "transcripts": [
+        "So you see all.",
+        "So you still try",
+        "so you still"
+      ]
+    }
+  ],
+  "generated_utc": "2026-09-14T16:25:30Z",
+  "reason": "every cluster the recorded-audio eval corpus draws on, excluded from positive_train, negative_train and the *_test validation splits so the operating point is never selected on the clips it is judged on",
+  "stems": [
+    "20260913T153949_055_s0.2522",
+    "20260913T153949_141_s0.1970",
+    "20260913T153949_371_s0.1677",
+    "20260913T203918_191_s0.3229",
+    "20260913T203918_317_s0.2834",
+    "20260913T203918_522_s0.1793",
+    "20260913T204202_733_s0.2326",
+    "20260913T204203_941_s0.7441",
+    "20260913T204235_453_s0.2974",
+    "20260913T204235_567_s0.2745",
+    "20260913T204235_773_s0.1194",
+    "20260913T204435_114_s0.4444",
+    "20260913T204435_244_s0.4825",
+    "20260913T204435_453_s0.4669",
+    "20260913T204435_567_s0.1988"
+  ],
+  "version": 1
+}

@@ -1,19 +1,36 @@
 {
   "version": 1,
   "description": "Recorded-audio wake-word evaluation corpus for SaySo satellite",
+  "wake_rule": "The phrase /se\u026a so\u028a/ wakes only in isolation: any word in front of it disqualifies the wake, a word after it does not. Both realizations ('SaySo' and 'say so') are wakes. See docs/WAKE_WORD_DATA.md.",
   "categories": {
-    "positive_sayso": "Isolated SaySo wake utterance",
+    "positive_sayso": "Isolated fused SaySo wake, nothing spoken in front of it",
+    "positive_say_so_two_word": "Isolated two-word 'say so' wake; a different acoustic event from the fused token, so it is scored separately",
     "continuous_command": "SaySo followed by a command in one breath (e.g. SaySo turn off the kitchen)",
-    "negative_natural_say_so": "Natural speech containing say so without an intentional wake",
+    "negative_say_so_carrier": "The phrase said after another word, so not a wake under the isolation rule",
     "negative_tv_conversation": "TV or conversation background without an intentional wake",
-    "negative_distance_noise": "SaySo at distance or with background noise"
+    "negative_distance_noise": "Distance chatter or background noise with no wake phrase"
   },
   "cases": [
     {
       "id": "pos_sayso_near",
       "category": "positive_sayso",
       "audio": "audio/positive_sayso_near.wav",
-      "expect_detection": true
+      "expect_detection": true,
+      "notes": "Fused realization, close mic. The baseline positive."
+    },
+    {
+      "id": "pos_sayso_distance",
+      "category": "positive_sayso",
+      "audio": "audio/positive_sayso_distance.wav",
+      "expect_detection": true,
+      "notes": "PENDING CAPTURE: fused realization at 1.5-3 m. Production audio sits ~22 dB below the TTS positives, so distance decides recall, but no reviewed capture exists yet and a case nobody can populate is not coverage."
+    },
+    {
+      "id": "pos_say_so_two_word",
+      "category": "positive_say_so_two_word",
+      "audio": "audio/positive_say_so_two_word.wav",
+      "expect_detection": true,
+      "notes": "Two-word realization, isolated, nothing in front of it. Scored apart from the fused token because neither realization can stand in for the other."
     },
     {
       "id": "pos_continuous_kitchen",
@@ -23,25 +40,36 @@
       "command_transcript": "turn off the kitchen",
       "expected_transcript": "turn off the kitchen",
       "transcript_fixture": "fixtures/stt/continuous_kitchen.json",
-      "expect_missing_first_word": false
+      "expect_missing_first_word": false,
+      "notes": "A word after the phrase does not disqualify the wake. This case is the positive half of the isolation rule."
     },
     {
-      "id": "neg_natural_say_so",
-      "category": "negative_natural_say_so",
-      "audio": "audio/negative_say_so_phrase.wav",
-      "expect_detection": false
+      "id": "neg_say_so_carrier_if_you",
+      "category": "negative_say_so_carrier",
+      "audio": "audio/negative_say_so_carrier_if_you.wav",
+      "expect_detection": false,
+      "notes": "\"if you say so\". The phrase is preceded by two words, so it is not a wake. The same event in clean TTS scores 0.141 today, which is coincidence rather than the rule."
+    },
+    {
+      "id": "neg_say_so_carrier_leading_word",
+      "category": "negative_say_so_carrier",
+      "audio": "audio/negative_say_so_carrier_leading_word.wav",
+      "expect_detection": false,
+      "notes": "One word, then the phrase, then a command: \"and say so turn off the kitchen\". The hard case -- everything after the leading word looks exactly like a real continuous command."
     },
     {
       "id": "neg_tv_conversation",
       "category": "negative_tv_conversation",
       "audio": "audio/negative_tv_conversation.wav",
-      "expect_detection": false
+      "expect_detection": false,
+      "notes": "Background speech with no wake phrase at all."
     },
     {
       "id": "neg_distance_noise",
       "category": "negative_distance_noise",
       "audio": "audio/negative_distance_noise.wav",
-      "expect_detection": false
+      "expect_detection": false,
+      "notes": "Distance chatter and room noise, no wake phrase. A SaySo at distance belongs in positive_sayso (pos_sayso_distance), not here."
     }
   ]
 }
