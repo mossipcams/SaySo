@@ -56,7 +56,34 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--negative-rate", type=float, default=None)
     parser.add_argument("--grounding-rate", type=float, default=None)
+    parser.add_argument(
+        "--discrimination-rate",
+        type=float,
+        default=None,
+        help="Share of rows whose utterance describes the target instead of "
+             "naming it (entity resolution; default 0.0)",
+    )
+    parser.add_argument(
+        "--namespaced-tool-rate",
+        type=float,
+        default=None,
+        help="Share of rows using the Home Assistant 2026.9 tool contract "
+             "(intent__HassTurnOn) instead of the pinned bare names",
+    )
+    parser.add_argument(
+        "--full-catalog-rate",
+        type=float,
+        default=None,
+        help="Share of rows offered the whole tool catalogue instead of a subset "
+             "built around the expected answer",
+    )
     parser.add_argument("--max-absence-rate", type=float, default=None)
+    parser.add_argument(
+        "--allow-rate-shortfall",
+        action="store_true",
+        help="Log a grounding/discrimination rate shortfall instead of failing "
+             "the build",
+    )
     args = parser.parse_args(argv)
 
     if args.real_home and not args.synthetic_only:
@@ -70,7 +97,11 @@ def main(argv: list[str] | None = None) -> int:
         for key, value in (
             ("negative_rate", args.negative_rate),
             ("grounding_rate", args.grounding_rate),
+            ("discrimination_rate", args.discrimination_rate),
+            ("namespaced_tool_rate", args.namespaced_tool_rate),
+            ("full_catalog_rate", args.full_catalog_rate),
             ("max_absence_rate", args.max_absence_rate),
+            ("min_rate_achieved_fraction", 0.0 if args.allow_rate_shortfall else None),
         )
         if value is not None
     }
