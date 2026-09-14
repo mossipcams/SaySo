@@ -1925,6 +1925,13 @@ def main() -> int:
     )
     parser.add_argument("--negative-rate", type=float, default=None)
     parser.add_argument("--grounding-rate", type=float, default=None)
+    parser.add_argument(
+        "--discrimination-rate",
+        type=float,
+        default=None,
+        help="v3 only: share of rows whose utterance describes the target entity "
+             "instead of naming it (entity resolution; default 0.0)",
+    )
     parser.add_argument("--max-absence-rate", type=float, default=None)
     args = parser.parse_args()
 
@@ -1955,6 +1962,7 @@ def main() -> int:
             for key, value in (
                 ("negative_rate", args.negative_rate),
                 ("grounding_rate", args.grounding_rate),
+                ("discrimination_rate", args.discrimination_rate),
                 ("max_absence_rate", args.max_absence_rate),
             )
             if value is not None

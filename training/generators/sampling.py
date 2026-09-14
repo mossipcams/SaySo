@@ -379,13 +379,40 @@ class QuotaTracker:
 
     def next_slot(self) -> dict[str, Any]:
         """Pick the bucket with the largest remaining need, positives first."""
+        return self._slot_from(self._best_keys())
+
+    def take_slot(self, capability: str, operation: str) -> dict[str, Any] | None:
+        """Pick the next slot for one specific (capability, operation) bucket.
+
+        Grounding variants exist for only a few (capability, operation) pairs
+        (lights/turn_on, media_players/turn_on, media_players/volume_set,
+        fans/turn_on). Drawing arbitrary slots meant only ~4% of rows could ever
+        host a grounding variant, which is why v1 requested a 3% grounding share
+        and shipped 0.22%.
+
+        Returns None when the bucket has no remaining need, so ordinary callers
+        fall back rather than over-filling.
+        """
+        matches = [
+            key
+            for key in self.targets["operation"]
+            if key[1] == capability and key[2] == operation and self._key_gap(key) > 0
+        ]
+        if not matches:
+            return None
+        return self._slot_from(sorted(matches))
+
+    def _key_gap(self, key: tuple[int, str, str]) -> int:
+        positive_gap = self.targets["positive"][key] - self.accepted_positive[key]
+        negative_gap = self.targets["negative"][key] - self.accepted_negative[key]
+        total_gap = self.targets["operation"][key] - self.accepted_op[key]
+        return max(positive_gap, negative_gap, min(total_gap, 1) if total_gap > 0 else 0)
+
+    def _best_keys(self) -> list[tuple[int, str, str]]:
         best: list[tuple[int, str, str]] = []
         best_gap = 0
-        for key, target in self.targets["operation"].items():
-            positive_gap = self.targets["positive"][key] - self.accepted_positive[key]
-            negative_gap = self.targets["negative"][key] - self.accepted_negative[key]
-            total_gap = target - self.accepted_op[key]
-            gap = max(positive_gap, negative_gap, min(total_gap, 1) if total_gap > 0 else 0)
+        for key in self.targets["operation"]:
+            gap = self._key_gap(key)
             if gap <= 0:
                 continue
             if gap > best_gap:
@@ -394,7 +421,10 @@ class QuotaTracker:
                 best.append(key)
         if not best:
             raise RuntimeError("quota tracker has no remaining shortfall buckets")
-        tier, cap_name, op_name = self.rng.choice(sorted(best))
+        return best
+
+    def _slot_from(self, keys: list[tuple[int, str, str]]) -> dict[str, Any]:
+        tier, cap_name, op_name = self.rng.choice(sorted(keys))
         return {
             "index": self.accepted_total(),
             "tier": tier,

@@ -110,6 +110,7 @@ def build_scenario(
     home: dict[str, Any] | None = None,
     inject_missing: bool = True,
     target_usage: Counter[str] | None = None,
+    request_intent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build one scenario. `home` overrides synthetic generation and is mutated
     (missing capabilities get an injected entity), so callers pass a fresh copy.
@@ -169,6 +170,7 @@ def build_scenario(
         "operation": operation,
         "targeting": targeting,
         "robustness": robustness,
+        "request_intent": request_intent,
         "home": home,
         "target_entity": target_entity,
         "target_index": (

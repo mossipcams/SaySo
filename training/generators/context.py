@@ -134,21 +134,40 @@ def _area_prompt(home: dict[str, Any]) -> str:
     )
 
 
-def serialize_context(home: dict[str, Any]) -> str:
+def _namespaced(text: str) -> str:
+    """Rewrite tool names quoted in the prompt into the 2026.9 contract.
+
+    Home Assistant names the tool in the prompt as well as in the schema, so a row
+    that offers ``intent__HassTurnOn`` must also say ``intent__HassTurnOn`` here;
+    otherwise the prompt and the tool list disagree about what the tool is called.
+    """
+    from generators.tools import namespaced_tool_name
+
+    for bare in ("GetLiveContext", "HassTurnOn", "HassTurnOff"):
+        text = text.replace(bare, namespaced_tool_name(bare))
+    return text
+
+
+def serialize_context(home: dict[str, Any], *, namespaced: bool = False) -> str:
     """Serialize exposed entity context as Home Assistant's Assist API sends it."""
+    dynamic_prompt = DYNAMIC_CONTEXT_PROMPT
+    control_prompt = DEVICE_CONTROL_TOOL_USAGE_PROMPT
+    if namespaced:
+        dynamic_prompt = _namespaced(dynamic_prompt)
+        control_prompt = _namespaced(control_prompt)
     entities = exposed_entities(home)
     if entities:
         api_prompt = "\n".join(
-            [DYNAMIC_CONTEXT_PROMPT, STATIC_CONTEXT_HEADER, _dump(entities)]
+            [dynamic_prompt, STATIC_CONTEXT_HEADER, _dump(entities)]
         )
     else:
         api_prompt = NO_ENTITIES_PROMPT
     # Domain order: the "homeassistant" platform sorts before "intent".
-    api_prompt = "\n".join([api_prompt, DEVICE_CONTROL_TOOL_USAGE_PROMPT, _area_prompt(home)])
+    api_prompt = "\n".join([api_prompt, control_prompt, _area_prompt(home)])
     # DATE_TIME_PROMPT is omitted: chat_log only appends it when no GetDateTime tool
     # is offered, and every row offers GetDateTime.
     return "\n".join([SAYSO_SYSTEM_PROMPT, api_prompt])
 
 
-def system_prompt(home: dict[str, Any]) -> str:
-    return serialize_context(home)
+def system_prompt(home: dict[str, Any], *, namespaced: bool = False) -> str:
+    return serialize_context(home, namespaced=namespaced)

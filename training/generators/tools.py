@@ -20,6 +20,66 @@ from generators.capability_registry import CAPABILITIES, TRAINING_COVERAGE_EXCLU
 AMBIENT_TOOLS = ("GetLiveContext",)
 DEFAULT_TOOLS_PER_ROW = 8
 
+# Home Assistant 2026.9 names every Assist LLM tool ``f"{DOMAIN}__{intent_type}"``,
+# where DOMAIN is the component that registers the intent handler, and wraps
+# multi-API tools in ``llm.NamespacedTool``. The pinned v2 contract predates that
+# and carries the bare names, so a corpus trained only on bare names meets an
+# out-of-distribution tool list at runtime. Measured on the deployed stack for
+# issue #52: with the production-namespaced list the model picks the wrong tool on
+# 2 of 3 TV utterances; with bare names and the same schema it picks the right one.
+#
+# Verified against homeassistant==2026.9.2: each component's ``llm.py`` exposes
+# ``LLM_INTENTS``/``TIMER_INTENTS`` and builds the name with its own DOMAIN.
+HA_TOOL_NAMESPACES: dict[str, str] = {
+    "GetDateTime": "llm",
+    "GetLiveContext": "homeassistant",
+    "HassCancelAllTimers": "intent",
+    "HassCancelTimer": "intent",
+    "HassClimateSetTemperature": "climate",
+    "HassDecreaseTimer": "intent",
+    "HassFanSetSpeed": "fan",
+    "HassIncreaseTimer": "intent",
+    "HassLightSet": "light",
+    "HassMediaNext": "media_player",
+    "HassMediaPause": "media_player",
+    "HassMediaPlayerMute": "media_player",
+    "HassMediaPlayerUnmute": "media_player",
+    "HassMediaPrevious": "media_player",
+    "HassMediaSearchAndPlay": "media_player",
+    "HassMediaUnpause": "media_player",
+    "HassPauseTimer": "intent",
+    "HassSetVolume": "media_player",
+    "HassSetVolumeRelative": "media_player",
+    "HassStartTimer": "intent",
+    "HassTimerStatus": "intent",
+    "HassTurnOff": "intent",
+    "HassTurnOn": "intent",
+    "HassUnpauseTimer": "intent",
+    "HassVacuumCleanArea": "vacuum",
+    "HassVacuumReturnToBase": "vacuum",
+    "HassVacuumStart": "vacuum",
+}
+
+
+def namespaced_tool_name(name: str) -> str:
+    """Return the Home Assistant 2026.9 name for a pinned tool.
+
+    Per-script tools keep their bare object id: ``ScriptTool`` overrides the
+    ``domain__action`` name, so they are already what Home Assistant sends.
+    """
+    namespace = HA_TOOL_NAMESPACES.get(name)
+    return f"{namespace}__{name}" if namespace else name
+
+
+def apply_tool_namespace(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rewrite a compiled tool list into the production namespaced contract."""
+    renamed = []
+    for tool in tools:
+        function = dict(tool["function"])
+        function["name"] = namespaced_tool_name(function["name"])
+        renamed.append({**tool, "function": function})
+    return sorted(renamed, key=lambda item: item["function"]["name"])
+
 
 def available_tools_for_home(home: dict[str, Any]) -> list[dict[str, Any]]:
     """Return full pinned v2 tool catalog (runtime sends all schema tools regardless of home)."""
@@ -70,6 +130,8 @@ def offered_tools(
     count: int = DEFAULT_TOOLS_PER_ROW,
     extra_tools: list[dict[str, Any]] | None = None,
     excluded_names: list[str] | None = None,
+    full_catalog: bool = False,
+    namespaced: bool = False,
 ) -> list[dict[str, Any]]:
     """Candidate tools for one row: every called tool, the ambient pair, then distractors.
 
@@ -77,19 +139,31 @@ def offered_tools(
     catalog. Returned alphabetically so position never leaks which tool is the
     answer, and seeded by crc32 (not builtin hash) so the same row picks the same
     distractors in every process.
+
+    ``full_catalog`` offers everything Home Assistant still supplies instead of a
+    sampled subset. The subset is built by keeping the expected answer first, so a
+    corpus made only of subsets never shows the model a list it did not already
+    know contained the answer; production sends ~23 tools. ``excluded_names``
+    still applies, so a deliberate missing-tool row stays missing a tool.
+
+    ``namespaced`` renders the Home Assistant 2026.9 ``domain__Intent`` contract.
     """
     catalog = {tool["function"]["name"]: tool for tool in v2_openai_tools()}
     for tool in extra_tools or []:
         catalog[tool["function"]["name"]] = tool
     for name in (*(excluded_names or []), *TRAINING_COVERAGE_EXCLUDED):
         catalog.pop(name, None)
-    keep = {name for name in called_names if name in catalog}
-    keep.update(name for name in AMBIENT_TOOLS if name in catalog)
-    pool = sorted(set(catalog) - keep)
-    rng = random.Random(zlib.crc32(str(seed_key).encode()))
-    rng.shuffle(pool)
-    keep.update(pool[: max(0, count - len(keep))])
-    return [catalog[name] for name in sorted(keep)]
+    if full_catalog:
+        keep = set(catalog)
+    else:
+        keep = {name for name in called_names if name in catalog}
+        keep.update(name for name in AMBIENT_TOOLS if name in catalog)
+        pool = sorted(set(catalog) - keep)
+        rng = random.Random(zlib.crc32(str(seed_key).encode()))
+        rng.shuffle(pool)
+        keep.update(pool[: max(0, count - len(keep))])
+    tools = [catalog[name] for name in sorted(keep)]
+    return apply_tool_namespace(tools) if namespaced else tools
 
 
 def _domain_args(entity: dict[str, Any]) -> dict[str, Any]:
