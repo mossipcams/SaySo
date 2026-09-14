@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/mossipcams/SaySo/compare/1.1.0...1.2.0) (2026-09-14)
+
+
+### Features
+
+* **training:** ground the gauntlet v2 corpus and teach the namespaced tool contract ([d8b18a6](https://github.com/mossipcams/SaySo/commit/d8b18a69668d56258347ac6609be05775c62e499))
+
+
+### Bug Fixes
+
+* **schema:** compile Home Assistant tool parameters through probatio ([9dc1b3a](https://github.com/mossipcams/SaySo/commit/9dc1b3af5797cf6b28f9991e18f6a36d83feac58))
+
 ## [1.1.0](https://github.com/mossipcams/SaySo/compare/1.0.1...1.1.0) (2026-09-13)
 
 
