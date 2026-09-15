@@ -7,7 +7,8 @@ tool selection through a Home Assistant conversation agent.
 SaySo consists of two independently deployable components:
 
 1. A Home Assistant conversation agent that connects Home Assistant’s native
-   LLM tools to a user-managed llama.cpp server.
+   LLM tools to llama.cpp, embedded in the integration by default or hosted
+   externally by the user.
 2. An optional reference voice satellite under `satellite/` that adds local
    detection of the `SaySo` wake word to OHF Voice’s Linux Voice Assistant
    (LVA) using Home Assistant’s standard voice pipeline.
@@ -34,11 +35,13 @@ flowchart TD
         Pipeline["Voice pipeline: STT and TTS"]
         Agent["SaySo conversation agent"]
         Tools["HA LLM tools and actions"]
+        Embedded["Embedded llama.cpp: resident GGUF on a single-worker executor"]
         Pipeline --> Agent
         Agent <--> Tools
         Agent --> Pipeline
+        Agent <-->|In-process, default| Embedded
     end
-    Model["User-managed llama.cpp"]
+    Model["User-managed llama.cpp (advanced)"]
     User --> Mic
     LVA -->|Command audio| Pipeline
     Pipeline -->|Response audio| LVA
@@ -64,7 +67,7 @@ follow the same path beginning at the SaySo conversation agent.
 | Model transport, schema adaptation, and response handling | SaySo integration |
 | Tool-call validation and correction | SaySo integration using Home Assistant schemas |
 | Smart-home action execution | Home Assistant |
-| Model hosting and lifecycle | User-managed llama.cpp |
+| Model hosting and lifecycle | SaySo integration (embedded, default) or user-managed llama.cpp (external) |
 | Canonical interaction trace and its storage | SaySo integration |
 | Satellite-observed stage timings | SaySo satellite overlay |
 
@@ -88,8 +91,9 @@ For each request, the integration:
    OpenAI-compatible function schemas.
 3. Optionally selects a conservative schema subset using Home Assistant entity,
    area, floor, and device metadata. Uncertain routing uses the complete schema.
-4. Sends the conversation and selected tools to llama.cpp through its
-   OpenAI-compatible HTTP API.
+4. Sends the conversation and selected tools to llama.cpp through the active
+   inference engine: in-process by default, or the OpenAI-compatible HTTP API
+   when the external backend is configured.
 5. Treats every model tool call as untrusted and validates it against the tools
    and argument schemas supplied by Home Assistant.
 6. Executes valid calls through Home Assistant’s native LLM tool API.
@@ -106,9 +110,26 @@ runtime authority.
 
 ## Model boundary
 
-llama.cpp is a user-managed inference service. It has no direct access to Home
-Assistant, the voice satellite, or smart-home devices. Home Assistant reaches it
-through its OpenAI-compatible `/v1` HTTP API.
+llama.cpp performs inference only. SaySo runs it in one of two ways, behind the
+internal `SaySoInferenceEngine` boundary:
+
+- **Embedded (default).** The integration loads an LFM2.5 GGUF through
+  `llama-cpp-python` and keeps it resident, running each turn on a dedicated
+  single-worker executor so inference never blocks Home Assistant's event loop.
+  No server, URL, port, or API key is configured. The native wheel and the
+  weights are provisioned on first setup and the weights persist in `/config`.
+- **External (advanced).** A user-managed llama.cpp server reached over its
+  OpenAI-compatible `/v1` HTTP API, as before.
+
+Neither has direct access to Home Assistant, the voice satellite, or smart-home
+devices. Both return the same result type, so validation, correction, boundary
+diagnostics, and tracing are identical either way.
+
+The embedded backend parses LFM2 tool calls itself: `llama-cpp-python` ships
+`libllama` without llama.cpp's `common/chat.cpp`, so the server-side tool-call
+parsing that `llama-server --jinja` performs is not available in-process. That
+parsing is the integration's, and it is the same parser the training scorer
+uses.
 
 The model boundary follows these rules:
 
@@ -224,11 +245,13 @@ tracing or persistence failure is logged and the voice interaction continues.
 ## Deployment boundaries
 
 A complete voice deployment contains Home Assistant running the voice pipeline
-and SaySo custom integration, a llama.cpp server reachable on the local network,
-and a Home Assistant-compatible voice satellite. The bundled SaySo reference
+and SaySo custom integration, and a Home Assistant-compatible voice satellite.
+By default inference is embedded, so no llama.cpp server is required; the
+advanced external backend instead expects one reachable on the local network. The bundled SaySo reference
 satellite under `satellite/` is optional.
 
-Only Home Assistant communicates with llama.cpp. Satellites communicate with
+Only Home Assistant communicates with llama.cpp, whether in-process or over
+the network. Satellites communicate with
 Home Assistant through the standard Linux Voice Assistant path. SaySo introduces
 no separate runtime protocol between these components. All required request
 processing remains on the local network; SaySo does not require a cloud service.
@@ -256,7 +279,8 @@ definition of runtime tool support.
 
 1. Home Assistant is authoritative for entities, exposure, context, tools, and
    action execution.
-2. llama.cpp performs inference only.
+2. llama.cpp performs inference only, whether embedded in the integration or
+   hosted externally. It never executes actions.
 3. The SaySo integration is the only bridge between model output and Home
    Assistant tools.
 4. The satellite handles edge audio and wake detection, not language

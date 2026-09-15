@@ -142,7 +142,7 @@ eval artifacts. Recorded so the config is not mistaken for a completed run.
 **Artifact:** `/srv/models/SaySo-LFM2.5-230M-Base-10k-plus-ep2-Q8_0.gguf`
 **Note:** ep2 was re-scored after a parser fix (`eval_quality_recipe_lock_champion_ep2_parserfix.json`); the structured result was unchanged at 34/38.
 
-## Run 006: 10k-plus + corrective — current champion
+## Run 006: 10k-plus + corrective — champion until 2026-09-13
 - **Base:** `/srv/models/LFM2.5-230M-Base`
 - **Data:** `sayso_train_10k_plus_corrective_render.jsonl` (12,276, `211de92039b2401e`) — Run 005's data plus 575 corrective rows
 - **Config:** `sayso-lfm-base-10k-plus-corrective.yml` (2 epochs, rank 32, lr 2e-4, max_length 2048)
@@ -590,3 +590,54 @@ The full run then loaded Base and its fresh output directory.
 - **Status:** training in progress; epoch results remain pending. Both epoch
   checkpoints (step 2,500 and step 5,000) will be evaluated against the four
   frozen eval suites; no automatic model promotion or early stop.
+
+### Run 013 results and disposition
+
+Evaluated at steps 2,500 / 3,250 / 5,000 against the four frozen suites. Full
+per-suite table in [docs/HANDOFF_gauntlet_v2.md](../docs/HANDOFF_gauntlet_v2.md) §1.
+
+| | step-2500 | step-3250 | step-5000 | prior champion |
+|---|---|---|---|---|
+| **Total** | **183/293** | 177/293 | 178/293 | 181/293 |
+
+**Verdict: statistical tie.** +2 cases of 293 over the model it replaced, which
+is inside noise. Epoch 2 added nothing (2,500 → 5,000 moved -5 cases). The eval
+disposition was **not promoted**.
+
+Step-2500 was nonetheless deployed on 2026-09-13 at explicit user request,
+overriding that disposition, and is the model serving port 8080 since.
+
+### Shipped model: SaySo Gauntlet v1
+
+On 2026-09-15 the deployed step-2500 Q8_0 artifact was published as the default
+weights for the Home Assistant integration.
+
+| | |
+|---|---|
+| Release | `model-v1` — "SaySo Gauntlet v1" |
+| Asset | `SaySo-Gauntlet-v1-Q8_0.gguf` (246.6 MB) |
+| sha256 | `229c805d85e7ef807bf895d91bf653079ec1eff7ee8d18618baefd6cb4e536f1` |
+| Provenance | `run013-eval/artifacts/step-2500-Q8_0.gguf`, md5 `06a7def03322001b99f28182a09a2452` |
+| Pinned in | `custom_components/sayso/const.py` |
+
+Provenance was confirmed by hashing the serving file against the run artifacts,
+not by its filename or by either `CHAMPION.txt`.
+
+**Shipping is not promotion.** This artifact ships because it is what has been
+serving, not because it beat the previous champion — the measured difference is
+±2 of 293. Do not cite "SaySo Gauntlet v1" as evidence that Run 013 improved on
+Run 011/012. If a later run wins on the frozen suites, publish it with
+`scripts/publish_model.sh` under a new `model-v*` tag.
+
+### Champion markers on the training host
+
+`/srv/models/CHAMPION.txt` still names `v3-semantic-early-20260908` epoch 2. That
+is the champion **by evaluation**, and it is not the model being served. The two
+have diverged deliberately since the 2026-09-13 deployment, so neither file alone
+identifies what is running.
+
+`/srv/training-runs/CHAMPION.txt` names a 2026-09-05 model no longer on disk and
+is stale outright.
+
+Resolve which model is live by hashing the served file against run artifacts.
+Both markers are on the host and neither is version-controlled.

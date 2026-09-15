@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
@@ -22,13 +23,18 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.llm import LLM_API_ASSIST
 
 from .client import LlamaCppClient
 from .const import (
+    BACKEND_EXTERNAL,
     CONF_MAX_OUTPUT_TOKENS,
     CONF_MAX_TOOL_ITERATIONS,
+    CONF_MODEL_PATH,
+    CONF_N_CTX,
+    CONF_N_THREADS,
     CONF_PROMPT,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
@@ -37,6 +43,10 @@ from .const import (
     CONF_TRACE_STORE_UTTERANCES,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_TOOL_ITERATIONS,
+    DEFAULT_MODEL_FILENAME,
+    DEFAULT_MODEL_SHA256,
+    DEFAULT_MODEL_URL,
+    DEFAULT_N_CTX,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT,
@@ -48,6 +58,13 @@ from .const import (
     SERVICE_LIST_TRACES,
 )
 from .exceptions import SaySoError
+from .inference import (
+    EmbeddedEngine,
+    ExternalEngine,
+    SaySoInferenceEngine,
+    entry_backend,
+)
+from .model_store import async_ensure_llama_cpp, async_ensure_model
 from .trace_store import TraceRecorder, TraceStore
 
 PLATFORMS: list[Platform] = [Platform.CONVERSATION]
@@ -71,7 +88,10 @@ LIST_TRACES_SCHEMA = vol.Schema(
 class SaySoRuntimeData:
     """Runtime data stored on the config entry."""
 
-    client: LlamaCppClient
+    engine: SaySoInferenceEngine
+    # Set only for the external backend, so diagnostics can still report
+    # connectivity. Embedded entries have no server to describe.
+    client: LlamaCppClient | None
     model: str
     llm_api: str
     system_prompt: str
@@ -151,21 +171,63 @@ def _async_register_trace_services(hass: HomeAssistant) -> None:
     )
 
 
+async def _async_build_engine(
+    hass: HomeAssistant, entry: SaySoConfigEntry
+) -> tuple[SaySoInferenceEngine, LlamaCppClient | None]:
+    """Create and start the backend selected for this entry."""
+    options = entry.options
+    timeout = options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+    client: LlamaCppClient | None = None
+
+    if entry_backend(entry) == BACKEND_EXTERNAL:
+        client = LlamaCppClient.from_hass(
+            hass,
+            entry.data[CONF_URL],
+            api_key=entry.data.get(CONF_API_KEY),
+            timeout=timeout,
+        )
+        try:
+            await client.validate_model(options[CONF_MODEL])
+        except SaySoError:
+            # Allow setup so options can be corrected without removing the entry.
+            pass
+        engine: SaySoInferenceEngine = ExternalEngine(client, options[CONF_MODEL])
+    else:
+        # Provisioning failures are transient by nature — a missing wheel index
+        # or an interrupted download both resolve on retry — so they raise
+        # ConfigEntryNotReady rather than dropping the entry.
+        try:
+            await async_ensure_llama_cpp(hass)
+            model_path = Path(options[CONF_MODEL_PATH]) if options.get(
+                CONF_MODEL_PATH
+            ) else await async_ensure_model(
+                hass,
+                url=DEFAULT_MODEL_URL,
+                filename=DEFAULT_MODEL_FILENAME,
+                sha256=DEFAULT_MODEL_SHA256,
+            )
+        except SaySoError as err:
+            raise ConfigEntryNotReady(str(err)) from err
+
+        engine = EmbeddedEngine(
+            model_path,
+            n_ctx=int(options.get(CONF_N_CTX, DEFAULT_N_CTX)),
+            n_threads=options.get(CONF_N_THREADS) or None,
+            timeout=timeout,
+        )
+
+    try:
+        await engine.async_start()
+    except SaySoError as err:
+        await engine.async_shutdown()
+        raise ConfigEntryNotReady(str(err)) from err
+    return engine, client
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bool:
     """Set up SaySo from a config entry."""
     options = entry.options
-    client = LlamaCppClient.from_hass(
-        hass,
-        entry.data[CONF_URL],
-        api_key=entry.data.get(CONF_API_KEY),
-        timeout=options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
-    )
-
-    try:
-        await client.validate_model(options[CONF_MODEL])
-    except SaySoError:
-        # Allow setup so options can be corrected without removing the entry.
-        pass
+    engine, client = await _async_build_engine(hass, entry)
 
     traces = TraceStore(
         hass,
@@ -183,8 +245,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     traces.async_prune()
 
     entry.runtime_data = SaySoRuntimeData(
+        engine=engine,
         client=client,
-        model=options[CONF_MODEL],
+        model=engine.model_name,
         llm_api=options.get(CONF_LLM_HASS_API, LLM_API_ASSIST),
         system_prompt=options.get(CONF_PROMPT, DEFAULT_SYSTEM_PROMPT),
         temperature=options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
@@ -199,7 +262,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     _async_register_trace_services(hass)
 
     if PLATFORMS:
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        try:
+            await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        except Exception:
+            # Never leave a loaded model behind on a half-finished setup.
+            await engine.async_shutdown()
+            raise
     return True
 
 
@@ -210,5 +278,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bo
             return False
     if entry.runtime_data is not None:
         entry.runtime_data.tracer.async_shutdown()
+        # Releases the resident GGUF and stops the inference worker.
+        await entry.runtime_data.engine.async_shutdown()
     entry.runtime_data = None  # type: ignore[assignment]
     return True

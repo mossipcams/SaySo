@@ -12,6 +12,7 @@ from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import HomeAssistant
 
 from . import SaySoConfigEntry
+from .const import BACKEND_EMBEDDED, BACKEND_EXTERNAL
 from .exceptions import SaySoError
 
 TO_REDACT = {CONF_API_KEY}
@@ -138,16 +139,24 @@ async def async_get_config_entry_diagnostics(
     if entry.runtime_data is not None:
         client = entry.runtime_data.client
         runtime = entry.runtime_data
-        connectivity["base_url"] = client.base_url
-        connectivity["chat_completions_url"] = client.chat_completions_url
-        connectivity["models_url"] = client.models_url
-        connectivity["timeout_seconds"] = client._timeout
-        try:
-            models = await client.list_models()
+        connectivity["backend"] = (
+            BACKEND_EXTERNAL if client is not None else BACKEND_EMBEDDED
+        )
+        if client is not None:
+            connectivity["base_url"] = client.base_url
+            connectivity["chat_completions_url"] = client.chat_completions_url
+            connectivity["models_url"] = client.models_url
+            connectivity["timeout_seconds"] = client._timeout
+            try:
+                models = await client.list_models()
+                connectivity["reachable"] = True
+                connectivity["models"] = models
+            except SaySoError as err:
+                connectivity["error"] = type(err).__name__
+        else:
+            # The model is in this process; if the entry loaded, it is reachable.
             connectivity["reachable"] = True
-            connectivity["models"] = models
-        except SaySoError as err:
-            connectivity["error"] = type(err).__name__
+            connectivity["models"] = [runtime.model]
         runtime_data: dict[str, Any] = {
             "loaded": True,
             "model": runtime.model,

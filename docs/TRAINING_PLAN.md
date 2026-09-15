@@ -207,6 +207,12 @@ STT, status, no-call, multi-action, light/fan, or lock polarity. Then export
 GGUF and verify with llama.cpp `--jinja`. Freeze a promoted champion and do
 not overwrite its GGUF, merged weights, or epoch checkpoint.
 
+Promotion, deployment, and shipping are three separate decisions. A model may be
+deployed without being promoted, and shipped without either — Run 013 step-2500
+is all three states at once. Record which one applies; never infer promotion
+from the fact that a model is serving or published. Ship with
+`scripts/publish_model.sh`, which pins the artifact by sha256.
+
 ## 5. Runtime safety boundary
 
 Training does not replace runtime controls. The SaySo integration must continue

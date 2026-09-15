@@ -37,3 +37,11 @@ class SaySoModelNotFoundError(SaySoError):
 
 class SaySoInvalidToolEnvelopeError(SaySoError):
     """Raised when a compiled tool envelope fails the outer transport contract."""
+
+
+class SaySoModelLoadError(SaySoError):
+    """Raised when the embedded backend cannot load its GGUF model."""
+
+
+class SaySoDependencyError(SaySoError):
+    """Raised when the native llama-cpp-python dependency is unavailable."""

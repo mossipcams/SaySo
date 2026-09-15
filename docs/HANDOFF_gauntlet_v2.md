@@ -261,7 +261,7 @@ attributes. Unstarted, and it is the next real piece of work.
   with the v2 build and confusing the logs.
 
   ```bash
-  sshpass -p '***REMOVED***' ssh <user>@192.168.1.140 'kill 147673'
+  SSHPASS="$TRAINING_BOX_PASSWORD" sshpass -e ssh "$TRAINING_BOX_USER@$TRAINING_BOX_HOST" 'kill 147673'
   ```
 
 ## 4. Independent defect recorded in GitHub
@@ -333,13 +333,19 @@ alias: v3-40k  |  CPU only (N_GPU_LAYERS=0)  |  systemd unit llama-server.servic
 Revert (one command):
 
 ```bash
-sshpass -p '***REMOVED***' ssh <user>@192.168.1.140 \
+SSHPASS="$TRAINING_BOX_PASSWORD" sshpass -e ssh "$TRAINING_BOX_USER@$TRAINING_BOX_HOST" \
   'sudo cp /etc/default/llama-server.bak-champion-20260913 /etc/default/llama-server \
    && sudo systemctl restart llama-server'
 ```
 
 Note: run-013 step-2500 is a **statistical tie** with the champion it replaced
 (±2 cases of 293). No measured improvement.
+
+As of 2026-09-15 this same artifact is published as **SaySo Gauntlet v1**
+(release `model-v1`, sha256 `229c805d…`) and is the default model the Home
+Assistant integration downloads. Shipping it did not change its eval standing:
+it remains a tie, not a promotion. See
+[training/TRAINING_LOG.md](../training/TRAINING_LOG.md) "Shipped model".
 
 Other facts worth keeping:
 

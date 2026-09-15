@@ -24,6 +24,12 @@ training/runs/
 training/*.gguf
 training/**/*.gguf
 
+# Weights never belong in the repo: every quant of a 230M model is over
+# GitHub's 100 MB file limit, and HACS would re-download the whole integration
+# directory on every update. Ship them as GitHub Release assets instead and
+# point DEFAULT_MODEL_URL at one. See docs/PLAN_EMBEDDED_INFERENCE.md.
+*.gguf
+
 # Hugging Face / model caches
 .cache/
 .huggingface/
