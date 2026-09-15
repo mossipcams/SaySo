@@ -2,6 +2,18 @@
   "config": {
     "step": {
       "user": {
+        "title": "Set up SaySo",
+        "description": "Choose how SaySo runs its language model.",
+        "menu_options": {
+          "local": "On this device (recommended)",
+          "external": "External llama.cpp server (advanced)"
+        }
+      },
+      "local": {
+        "title": "Run on this device",
+        "description": "SaySo will download its model and run it on the CPU here. Nothing to configure. The first setup downloads a few hundred megabytes and may take a few minutes."
+      },
+      "external": {
         "title": "Connect to llama.cpp",
         "description": "Enter the OpenAI-compatible llama.cpp base URL and optional API key.",
         "data": {
@@ -36,6 +48,9 @@
         "description": "Adjust model, timeout, Home Assistant LLM API, generation settings, and interaction trace retention.",
         "data": {
           "model": "Model",
+          "model_path": "Model file (leave empty to use the downloaded default)",
+          "n_threads": "CPU threads for inference",
+          "n_ctx": "Context window (tokens)",
           "timeout": "Request timeout (seconds)",
           "llm_hass_api": "Home Assistant LLM API",
           "prompt": "System prompt",

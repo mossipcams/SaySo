@@ -276,9 +276,8 @@ class SaySoConversationEntity(
             **({"correction": True} if correction else {}),
         )
         try:
-            result = await runtime.client.chat_completion(
+            result = await runtime.engine.async_chat_completion(
                 messages,
-                model=runtime.model,
                 tools=tools,
                 temperature=runtime.temperature,
                 max_tokens=runtime.max_output_tokens,

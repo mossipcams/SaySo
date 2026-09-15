@@ -30,7 +30,7 @@ all still say something else:
 |---|---|---|
 | `--alias v3-40k` | v3-40k | Run 013 step-2500 |
 | HA entity friendly name | `/srv/models/LFM2.5-230M-Q8_0.gguf` | same |
-| `/srv/models/CHAMPION.txt` | `v3-semantic-early-20260908` epoch 2 | same |
+| `/srv/models/CHAMPION.txt` | `v3-semantic-early-20260908` epoch 2 | same — champion by eval, but **not** the served model since 2026-09-13 |
 
 So "Run 008, 9/38 recipe-lock" describes a model that was not serving the
 traffic in the issue. **Candidate 1 is not established.**
