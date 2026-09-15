@@ -220,7 +220,7 @@ EVAL_OUT=/srv/training-runs/eval_gold_<checkpoint>_rawparse.json \
   /srv/training-runs/.venv/bin/python /srv/training-runs/eval_gold_raw.py
 ```
 
-The two scorers disagree on the same checkpoint — the current champion scores
+The two scorers disagree on the same checkpoint — the Run 006 champion scores
 34/38 structured and 37/38 rawparse — because llama.cpp truncates apostrophe
 names in structured `tool_calls`. Record which scorer produced a result and never
 compare across them. Neither scorer is version-controlled; see the log's
