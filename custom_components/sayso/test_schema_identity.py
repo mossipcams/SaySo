@@ -12,8 +12,7 @@ from homeassistant.components.fan import FanEntity
 from homeassistant.components.light import ColorMode, LightEntity
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import intent, llm
-from homeassistant.setup import async_setup_component
+from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
 
 from custom_components.sayso.client import ChatCompletionResult, LlamaCppClient, ToolCall
@@ -227,19 +226,13 @@ async def test_initial_request_sends_active_schema_identity(
     assert schema_fingerprint(initial_tools) != complete_schema.fingerprint
 
 
-async def test_follow_up_request_sends_active_schema_identity(
+async def test_successful_action_skips_follow_up_request(
     hass: HomeAssistant,
     mock_llama_client: None,
     assist_light_and_fan: None,
 ) -> None:
-    """Follow-up model calls reuse the active schema identity, not the complete schema."""
+    """Successful actions receive a deterministic acknowledgement."""
     entry = await _create_entry(hass)
-    complete_schema, active_schema = await _schemas_for_command(
-        hass,
-        entry,
-        "Turn on the living room light",
-    )
-
     with patch.object(
         LlamaCppClient,
         "chat_completion",
@@ -254,17 +247,14 @@ async def test_follow_up_request_sends_active_schema_identity(
                             arguments={"name": "Living Room"},
                         )
                     ],
-                ),
-                ChatCompletionResult(content="Done.", tool_calls=[]),
+                )
             ]
         ),
     ) as mock_chat:
-        await _converse(hass, entry, "Turn on the living room light")
+        result = await _converse(hass, entry, "Turn on the living room light")
 
-    for call in mock_chat.await_args_list:
-        tools = call.kwargs["tools"]
-        assert schema_fingerprint(tools) == active_schema.fingerprint
-        assert schema_fingerprint(tools) != complete_schema.fingerprint
+    assert len(mock_chat.await_args_list) == 1
+    assert result.response.speech["plain"]["speech"] == "Done."
 
 
 async def test_argument_correction_sends_complete_schema_identity(
@@ -297,12 +287,12 @@ async def test_argument_correction_sends_complete_schema_identity(
             side_effect=[
                 ChatCompletionResult(content=None, tool_calls=[invalid_call]),
                 ChatCompletionResult(content=None, tool_calls=[corrected_call]),
-                ChatCompletionResult(content="Done.", tool_calls=[]),
             ]
         ),
     ) as mock_chat:
         await _converse(hass, entry, "Turn on the living room light")
 
+    assert mock_chat.await_count == 2
     initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
     correction_tools = mock_chat.await_args_list[1].kwargs["tools"]
     assert schema_fingerprint(initial_tools) == active_schema.fingerprint
@@ -346,12 +336,12 @@ async def test_filtered_miss_correction_sends_complete_schema_identity(
             side_effect=[
                 ChatCompletionResult(content=None, tool_calls=[filtered_call]),
                 ChatCompletionResult(content=None, tool_calls=[corrected_call]),
-                ChatCompletionResult(content="Done.", tool_calls=[]),
             ]
         ),
     ) as mock_chat:
         await _converse(hass, entry, "Turn on the living room light")
 
+    assert mock_chat.await_count == 2
     initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
     correction_tools = mock_chat.await_args_list[1].kwargs["tools"]
     assert schema_fingerprint(initial_tools) == active_schema.fingerprint

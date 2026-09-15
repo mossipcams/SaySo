@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 import voluptuous as vol
-from homeassistant.helpers import llm
+from homeassistant.helpers import intent, llm
 
 try:  # Home Assistant >= 2026.9 validates with probatio, installed as voluptuous.
     from probatio import to_openapi as _to_openapi
@@ -146,6 +146,8 @@ def _is_query_tool(tool: llm.Tool) -> bool:
     """Return True for HA query/context tools that must always remain available."""
     module = type(tool).__module__
     class_name = type(tool).__name__
+    if isinstance(tool, llm.IntentTool):
+        return tool.name == intent.INTENT_TIMER_STATUS
     if class_name == "GetLiveContextTool" and module.endswith("homeassistant.llm"):
         return True
     if class_name == "GetDateTimeTool" and module.endswith("llm.llm"):

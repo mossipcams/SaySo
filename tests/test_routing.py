@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 import voluptuous as vol
@@ -21,6 +22,7 @@ from custom_components.sayso.routing import (
     RoutingFloor,
     RoutingPreferences,
     RoutingRegistries,
+    build_routing_preferences,
     identify_command_domain,
     select_tools_for_domain,
 )
@@ -61,6 +63,39 @@ def _registries(
     devices: tuple[RoutingDevice, ...] = (),
 ) -> RoutingRegistries:
     return RoutingRegistries(areas=areas, floors=floors, devices=devices)
+
+
+def test_satellite_entity_resolves_device_area(hass: HomeAssistant) -> None:
+    """Satellite entity IDs provide routing preferences through their device."""
+    llm_context = llm.LLMContext(
+        platform="conversation",
+        context=None,
+        language="en",
+        assistant="conversation",
+        device_id=None,
+    )
+    satellite = MagicMock(device_id="device_satellite")
+    device = MagicMock(area_id="area_office")
+    area = MagicMock(id="area_office", floor_id="floor_main")
+
+    with patch(
+        "custom_components.sayso.routing.er.async_get"
+    ) as entity_registry_get, patch(
+        "custom_components.sayso.routing.dr.async_get"
+    ) as device_registry_get, patch(
+        "custom_components.sayso.routing.ar.async_get"
+    ) as area_registry_get:
+        entity_registry_get.return_value.async_get.return_value = satellite
+        device_registry_get.return_value.async_get.return_value = device
+        area_registry_get.return_value.async_get_area.return_value = area
+
+        preferences = build_routing_preferences(
+            hass,
+            llm_context,
+            satellite_id="assist_satellite.office",
+        )
+
+    assert preferences == RoutingPreferences(area="area_office", floor="floor_main")
 
 
 class TestIdentifyCommandDomain:

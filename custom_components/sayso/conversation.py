@@ -9,7 +9,9 @@ from typing import Any, Literal, override
 from homeassistant.components import conversation
 from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, intent, llm
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import intent, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SaySoConfigEntry, SaySoRuntimeData
@@ -46,6 +48,8 @@ from .schema import (
     CompiledToolSchema,
     ToolArgumentFailureCode,
     ToolArgumentValidationError,
+    _is_query_tool,
+    _unwrap_source_tool,
     build_tool_availability_names,
     build_tool_map,
     compile_llm_tools,
@@ -157,13 +161,18 @@ class SaySoConversationEntity(
     ) -> conversation.ConversationResult:
         """Handle a user message with llama.cpp."""
         runtime = self._runtime
+        llm_context = user_input.as_llm_context(DOMAIN)
 
         with trace.stage(Stage.CONTEXT) as span:
             try:
                 await chat_log.async_provide_llm_data(
-                    user_input.as_llm_context(DOMAIN),
+                    llm_context,
                     runtime.llm_api,
-                    runtime.system_prompt,
+                    _system_prompt_with_area(
+                        runtime.system_prompt,
+                        self.hass,
+                        user_input,
+                    ),
                     user_input.extra_system_prompt,
                 )
             except conversation.ConverseError as err:
@@ -181,12 +190,15 @@ class SaySoConversationEntity(
                     stage=Stage.CONTEXT,
                     error_type=ErrorType.SCHEMA_MISMATCH,
                 )
-            llm_context = user_input.as_llm_context(DOMAIN)
             domain_hint = identify_command_domain(
                 user_input.text,
                 build_routing_catalog(self.hass, assistant=llm_context.assistant),
                 registries=build_routing_registries(self.hass),
-                preferences=build_routing_preferences(self.hass, llm_context),
+                preferences=build_routing_preferences(
+                    self.hass,
+                    llm_context,
+                    satellite_id=getattr(user_input, "satellite_id", None),
+                ),
             )
             active_schema = (
                 select_schema_for_domain(
@@ -588,6 +600,21 @@ class SaySoConversationEntity(
                 return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
             tools_executed = True
+            if len(validated_tool_calls) == 1 and _is_action_tool(
+                tool_map[validated_tool_calls[0][0].name]
+            ):
+                with trace.stage(Stage.RESPONSE) as span:
+                    chat_log.async_add_assistant_content_without_tools(
+                        conversation.AssistantContent(
+                            agent_id=self.entity_id,
+                            content="Done.",
+                        )
+                    )
+                    span.metadata["text_length"] = len("Done.")
+                    return conversation.async_get_result_from_chat_log(
+                        user_input, chat_log
+                    )
+
             phase = BoundaryPhase.FOLLOW_UP
 
             messages = _chat_log_to_messages(chat_log.content)
@@ -741,6 +768,40 @@ def _first_target(tool_result: dict[str, Any]) -> str | None:
         if isinstance(target, dict) and isinstance(target.get("id"), str):
             return target["id"]
     return None
+
+
+def _system_prompt_with_area(
+    system_prompt: str,
+    hass: HomeAssistant,
+    user_input: conversation.ConversationInput,
+) -> str:
+    """Add the requesting device's area to model context when available."""
+    device_reg = dr.async_get(hass)
+    device_ids = [user_input.device_id]
+    satellite_id = getattr(user_input, "satellite_id", None)
+    if satellite_id:
+        satellite = er.async_get(hass).async_get(satellite_id)
+        if satellite is not None and satellite.device_id is not None:
+            device_ids.append(satellite.device_id)
+    for device_id in device_ids:
+        if not device_id:
+            continue
+        device = device_reg.async_get(device_id)
+        if device is None or device.area_id is None:
+            continue
+        area_reg = ar.async_get(hass)
+        area = area_reg.async_get_area(device.area_id)
+        if area is not None:
+            return f"{system_prompt}\narea={area.name}"
+    return system_prompt
+
+
+def _is_action_tool(tool: llm.Tool) -> bool:
+    """Return whether a tool mutates Home Assistant state."""
+    source = _unwrap_source_tool(tool)
+    return isinstance(source, (llm.ActionTool, llm.IntentTool)) and not _is_query_tool(
+        source
+    )
 
 
 def _action_metadata(

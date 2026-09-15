@@ -579,13 +579,19 @@ def build_routing_registries(hass: HomeAssistant) -> RoutingRegistries:
 def build_routing_preferences(
     hass: HomeAssistant,
     llm_context: llm.LLMContext,
+    *,
+    satellite_id: str | None = None,
 ) -> RoutingPreferences | None:
-    """Return preferred area/floor from the requesting satellite device."""
-    if llm_context.device_id is None:
+    """Return preferred area/floor from the requesting device or satellite."""
+    device_id = llm_context.device_id
+    if device_id is None and satellite_id is not None:
+        satellite = er.async_get(hass).async_get(satellite_id)
+        device_id = satellite.device_id if satellite is not None else None
+    if device_id is None:
         return None
 
     device_reg = dr.async_get(hass)
-    device = device_reg.async_get(llm_context.device_id)
+    device = device_reg.async_get(device_id)
     if device is None or device.area_id is None:
         return None
 

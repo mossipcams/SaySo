@@ -315,7 +315,12 @@ async def test_boundary_diagnostics_record_iteration_limit(
                             id="call_1",
                             name="HassTurnOn",
                             arguments={"name": "Living Room"},
-                        )
+                        ),
+                        ToolCall(
+                            id="call_2",
+                            name="HassTurnOn",
+                            arguments={"name": "Living Room"},
+                        ),
                     ],
                 ),
                 ChatCompletionResult(
@@ -377,7 +382,12 @@ async def test_boundary_diagnostics_record_iteration_limit(
                             id="call_1",
                             name="HassTurnOn",
                             arguments={"name": "Living Room"},
-                        )
+                        ),
+                        ToolCall(
+                            id="call_2",
+                            name="HassTurnOn",
+                            arguments={"name": "Living Room"},
+                        ),
                     ],
                 ),
                 SaySoTimeoutError("llama.cpp request timed out"),
