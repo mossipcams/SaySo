@@ -35,17 +35,23 @@ from homeassistant.helpers.selector import (
 
 from .client import LlamaCppClient, normalize_base_url
 from .const import (
+    BACKEND_EMBEDDED,
+    CONF_BACKEND,
     CONF_MAX_OUTPUT_TOKENS,
     CONF_MAX_TOOL_ITERATIONS,
+    CONF_MODEL_PATH,
+    CONF_N_CTX,
+    CONF_N_THREADS,
     CONF_PROMPT,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
     CONF_TRACE_MAX_INTERACTIONS,
     CONF_TRACE_RETENTION_DAYS,
     CONF_TRACE_STORE_UTTERANCES,
-    DEFAULT_BASE_URL,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_TOOL_ITERATIONS,
+    DEFAULT_MODEL_FILENAME,
+    DEFAULT_N_CTX,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT,
@@ -55,6 +61,7 @@ from .const import (
     DOMAIN,
     MAX_TRACE_INTERACTIONS,
 )
+from .inference import default_thread_count, entry_backend
 from .exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
@@ -68,7 +75,8 @@ _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_URL, default=DEFAULT_BASE_URL): TextSelector(
+        # Optional and not prefilled on purpose: blank means local inference.
+        vol.Optional(CONF_URL): TextSelector(
             TextSelectorConfig(type=TextSelectorType.URL)
         ),
         vol.Optional(CONF_API_KEY): TextSelector(
@@ -87,6 +95,25 @@ def redact_api_key(message: str, api_key: str | None) -> str:
     if bearer in redacted:
         redacted = redacted.replace(bearer, "Bearer ***")
     return redacted
+
+
+def _default_embedded_options() -> dict[str, Any]:
+    """Options for a local install: no server, URL, port, or API key."""
+    return {
+        CONF_MODEL: DEFAULT_MODEL_FILENAME,
+        CONF_MODEL_PATH: "",
+        CONF_N_CTX: DEFAULT_N_CTX,
+        CONF_N_THREADS: default_thread_count(),
+        CONF_TIMEOUT: DEFAULT_TIMEOUT,
+        CONF_LLM_HASS_API: LLM_API_ASSIST,
+        CONF_PROMPT: DEFAULT_SYSTEM_PROMPT,
+        CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
+        CONF_MAX_OUTPUT_TOKENS: DEFAULT_MAX_OUTPUT_TOKENS,
+        CONF_MAX_TOOL_ITERATIONS: DEFAULT_MAX_TOOL_ITERATIONS,
+        CONF_TRACE_RETENTION_DAYS: DEFAULT_TRACE_RETENTION_DAYS,
+        CONF_TRACE_MAX_INTERACTIONS: DEFAULT_TRACE_MAX_INTERACTIONS,
+        CONF_TRACE_STORE_UTTERANCES: DEFAULT_TRACE_STORE_UTTERANCES,
+    }
 
 
 def _default_options(model: str) -> dict[str, Any]:
@@ -123,7 +150,11 @@ def _entry_title(base_url: str, model: str) -> str:
 
 
 def _options_schema(
-    hass: HomeAssistant, options: dict[str, Any], models: list[str]
+    hass: HomeAssistant,
+    options: dict[str, Any],
+    models: list[str],
+    *,
+    embedded: bool = False,
 ) -> vol.Schema:
     llm_options = [
         SelectOptionDict(label=api.name, value=api.id)
@@ -139,14 +170,49 @@ def _options_schema(
     if isinstance(current_model, str) and current_model and current_model not in models:
         model_options.insert(0, SelectOptionDict(label=current_model, value=current_model))
 
-    return vol.Schema(
-        {
+    # A local install has no model list to choose from; it has a file on disk
+    # and the two knobs that decide how much of the machine inference may use.
+    model_fields: dict[Any, Any]
+    if embedded:
+        model_fields = {
+            vol.Optional(
+                CONF_MODEL_PATH,
+                description={"suggested_value": options.get(CONF_MODEL_PATH, "")},
+            ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
+            vol.Required(
+                CONF_N_THREADS,
+                description={
+                    "suggested_value": options.get(
+                        CONF_N_THREADS, default_thread_count()
+                    )
+                },
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=1, max=32, step=1, mode=NumberSelectorMode.BOX
+                )
+            ),
+            vol.Required(
+                CONF_N_CTX,
+                description={"suggested_value": options.get(CONF_N_CTX, DEFAULT_N_CTX)},
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=512, max=32768, step=512, mode=NumberSelectorMode.BOX
+                )
+            ),
+        }
+    else:
+        model_fields = {
             vol.Required(
                 CONF_MODEL,
                 description={"suggested_value": options.get(CONF_MODEL)},
             ): SelectSelector(
                 SelectSelectorConfig(options=model_options, custom_value=True)
             ),
+        }
+
+    return vol.Schema(
+        {
+            **model_fields,
             vol.Required(
                 CONF_TIMEOUT,
                 description={"suggested_value": options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)},
@@ -265,14 +331,32 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "unknown"
         return errors
 
+    async def _async_create_embedded_entry(self) -> ConfigFlowResult:
+        """Create a local entry. No server, URL, port, or API key involved."""
+        await self.async_set_unique_id(f"{DOMAIN}_embedded")
+        self._abort_if_unique_id_configured()
+        # The wheel and the model are provisioned during entry setup, not here,
+        # so the flow does not block the UI on a large download.
+        return self.async_create_entry(
+            title="SaySo (local)",
+            data={CONF_BACKEND: BACKEND_EMBEDDED},
+            options=_default_embedded_options(),
+        )
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the initial step."""
+        """Set up SaySo.
+
+        Local inference is the default: submitting without a URL runs the model
+        on this device. Supplying a URL selects the advanced external backend.
+        """
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            base_url = user_input[CONF_URL].strip()
+            base_url = (user_input.get(CONF_URL) or "").strip()
+            if not base_url:
+                return await self._async_create_embedded_entry()
             api_key = user_input.get(CONF_API_KEY)
             if isinstance(api_key, str):
                 api_key = api_key.strip() or None
@@ -384,6 +468,21 @@ class SaySoOptionsFlowHandler(OptionsFlowWithReload):
         """Manage SaySo options."""
         entry = self.config_entry
         models: list[str] = []
+
+        if entry_backend(entry) == BACKEND_EMBEDDED:
+            # No server to reach and no model list to validate against; the
+            # entry reloads on save and the engine picks up the new settings.
+            if user_input is not None:
+                return self.async_create_entry(
+                    data={**entry.options, **user_input}
+                )
+            return self.async_show_form(
+                step_id="init",
+                data_schema=self.add_suggested_values_to_schema(
+                    _options_schema(self.hass, entry.options, models, embedded=True),
+                    entry.options,
+                ),
+            )
 
         try:
             client = LlamaCppClient.from_hass(
