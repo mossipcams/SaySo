@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -62,6 +63,7 @@ from .const import (
     MAX_TRACE_INTERACTIONS,
 )
 from .inference import default_thread_count, entry_backend
+from .model_store import list_local_models
 from .exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
@@ -217,10 +219,24 @@ def _model_fields(
             )
         }
 
+    # Files already in the model directory, labelled by name. Custom values
+    # keep a GGUF stored elsewhere selectable; empty still means the default.
+    choices = list(models)
+    current = options.get(CONF_MODEL_PATH)
+    if isinstance(current, str) and current and current not in choices:
+        choices.insert(0, current)
     return {
         vol.Optional(
             CONF_MODEL_PATH, description=_suggest(options, CONF_MODEL_PATH, "")
-        ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
+        ): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(label=Path(path).name, value=path)
+                    for path in choices
+                ],
+                custom_value=True,
+            )
+        ),
         vol.Required(
             CONF_N_THREADS,
             description=_suggest(options, CONF_N_THREADS, default_thread_count()),
@@ -434,7 +450,10 @@ class SaySoOptionsFlowHandler(OptionsFlowWithReload):
             # entry reloads on save and the engine picks up the new settings.
             if user_input is not None:
                 return self.async_create_entry(data={**entry.options, **user_input})
-            return self._form(entry.options, [], embedded=True)
+            local_models = await self.hass.async_add_executor_job(
+                list_local_models, self.hass
+            )
+            return self._form(entry.options, local_models, embedded=True)
 
         models: list[str] = []
         try:

@@ -39,6 +39,14 @@ def models_dir(hass: HomeAssistant) -> Path:
     return Path(hass.config.path(MODEL_STORAGE_SUBDIR))
 
 
+def list_local_models(hass: HomeAssistant) -> list[str]:
+    """Return the GGUF files in the model directory. Runs in an executor."""
+    directory = models_dir(hass)
+    if not directory.is_dir():
+        return []
+    return sorted(str(path) for path in directory.glob("*.gguf"))
+
+
 def is_llama_cpp_installed() -> bool:
     """Return whether llama_cpp can be imported in this interpreter."""
     return pkg_util.is_installed(f"{LLAMA_CPP_PACKAGE}>={LLAMA_CPP_MIN_VERSION}")
