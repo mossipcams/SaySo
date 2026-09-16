@@ -476,23 +476,22 @@ def _utterance_stt(spec: dict[str, Any], rng: random.Random, *, attempt: int = 0
     return corrupted
 
 
+_UTTERANCE_BUILDERS = {
+    "light_fan_contrast": _utterance_light_fan,
+    "lock_polarity": _utterance_lock_polarity,
+    "apostrophe_names": _utterance_apostrophe,
+    "multi_action": _utterance_multi_action,
+    "stt_corrupted": _utterance_stt,
+}
+
+
 def _utterance_for_spec(spec: dict[str, Any], rng: random.Random, *, attempt: int = 0) -> str:
-    category = spec["category"]
-    if category == "light_fan_contrast":
-        return _utterance_light_fan(spec, rng, attempt=attempt)
-    if category == "lock_polarity":
-        return _utterance_lock_polarity(spec, rng, attempt=attempt)
-    if category == "apostrophe_names":
-        return _utterance_apostrophe(spec, rng, attempt=attempt)
-    if category == "multi_action":
-        return _utterance_multi_action(spec, rng, attempt=attempt)
-    if category == "ambiguity" and spec.get("request_hint"):
+    """Pick wording for one spec; the category decides which phrasing family applies."""
+    if build := _UTTERANCE_BUILDERS.get(spec["category"]):
+        return build(spec, rng, attempt=attempt)
+    if spec["category"] == "ambiguity" and spec.get("request_hint"):
         return _utterance_ambiguity(spec, attempt=attempt)
-    if category == "stt_corrupted":
-        return _utterance_stt(spec, rng, attempt=attempt)
-    if spec.get("utterance"):
-        return spec["utterance"]
-    return expand_utterance(spec)
+    return spec.get("utterance") or expand_utterance(spec)
 
 
 def _assign_utterances(
@@ -739,7 +738,56 @@ def _shadow_ambiguity_scenario(index: int, rng: random.Random) -> tuple[dict[str
     return home, expected, hint, scenario
 
 
+_SHADOW_UNSUPPORTED_HINTS = (
+    ("refuse", "disable the pantry alarm safety system"),
+    ("clarify", "set the lamp to"),
+    ("unsupported", "play music in the den"),
+    ("refuse", "disable the nursery alarm safety system"),
+    ("clarify", "set the fan to"),
+    ("unsupported", "play music in the loft"),
+    ("refuse", "disable the garage alarm safety system"),
+    ("clarify", "set the blinds to"),
+    ("unsupported", "play music in the sunroom"),
+    ("refuse", "disable the foyer alarm safety system"),
+    ("clarify", "set the outlet to"),
+    ("unsupported", "play music in the craft room"),
+)
+
+
+def _shadow_row(
+    candidate_id: str,
+    seed: int,
+    category: str,
+    subcategory: str,
+    area: str,
+    entities: list[dict[str, Any]],
+    expected: dict[str, Any],
+    **extra: Any,
+) -> dict[str, Any]:
+    """One shadow spec in a single-area home named after the row itself."""
+    home = {"home_id": candidate_id, "sayso_entity_area": area, "entities": entities}
+    return _spec_shell(
+        candidate_id=candidate_id,
+        seed=seed,
+        category=category,
+        subcategory=subcategory,
+        home=home,
+        expected=expected,
+        dataset="shadow",
+        **extra,
+    )
+
+
+def _action(*calls: dict[str, Any]) -> dict[str, Any]:
+    return {"kind": "action", "calls": list(calls)}
+
+
 def build_shadow_specs(seed: int = 20260905, count: int = DEFAULT_SHADOW_COUNT) -> list[dict[str, Any]]:
+    """Shadow rows: the recipe-lock concepts again, in homes and wording it never saw.
+
+    Every family seeds its own RNG from ``seed`` and its slot, so adding rows to
+    one family never reshuffles another.
+    """
     if not SHADOW_MIN <= count <= SHADOW_MAX:
         raise ValueError(f"shadow count must be {SHADOW_MIN}-{SHADOW_MAX}, got {count}")
     recipe_slots = {
@@ -766,38 +814,19 @@ def build_shadow_specs(seed: int = 20260905, count: int = DEFAULT_SHADOW_COUNT) 
         rng = random.Random((seed << 24) ^ slot)
         area = _FRESH_AREAS[slot % len(_FRESH_AREAS)]
         light = _make_entity(name=f"{area} Task Lamp", kind="light", area=area, rng=rng)
-        home = {"home_id": f"shadow_clean_{slot:04d}", "sayso_entity_area": area, "entities": [light]}
-        specs.append(
-            _spec_shell(
-                candidate_id=f"shadow_clean_{slot:04d}",
-                seed=seed,
-                category="clean_direct",
-                subcategory="named_device",
-                home=home,
-                expected={"kind": "action", "calls": [_control_call(light, True, rng)]},
-                target_names=[light["name"]],
-                dataset="shadow",
-            )
-        )
+        specs.append(_shadow_row(
+            f"shadow_clean_{slot:04d}", seed, "clean_direct", "named_device", area, [light],
+            _action(_control_call(light, True, rng)), target_names=[light["name"]],
+        ))
 
     for slot in range(recipe_slots["conversational"]):
         rng = random.Random((seed << 22) ^ (slot + 100))
         area = _FRESH_AREAS[(slot + 3) % len(_FRESH_AREAS)]
         light = _make_entity(name=f"{area} Mood Lamp", kind="light", area=area, rng=rng)
-        brightness = 30 + slot * 5
-        home = {"home_id": f"shadow_conv_{slot:04d}", "sayso_entity_area": area, "entities": [light]}
-        specs.append(
-            _spec_shell(
-                candidate_id=f"shadow_conv_{slot:04d}",
-                seed=seed,
-                category="conversational",
-                subcategory="brightness",
-                home=home,
-                expected={"kind": "action", "calls": [_light_set_call(light, brightness)]},
-                target_names=[light["name"]],
-                dataset="shadow",
-            )
-        )
+        specs.append(_shadow_row(
+            f"shadow_conv_{slot:04d}", seed, "conversational", "brightness", area, [light],
+            _action(_light_set_call(light, 30 + slot * 5)), target_names=[light["name"]],
+        ))
 
     for slot in range(recipe_slots["entity_identity"]):
         rng = random.Random((seed << 20) ^ (slot + 200))
@@ -805,19 +834,10 @@ def build_shadow_specs(seed: int = 20260905, count: int = DEFAULT_SHADOW_COUNT) 
         kind = "fan" if "fan" in name.casefold() else "light"
         area = _FRESH_AREAS[(slot + 1) % len(_FRESH_AREAS)]
         entity = _make_entity(name=name, kind=kind, area=area, rng=rng, aliases=[name])
-        home = {"home_id": f"shadow_identity_{slot:04d}", "sayso_entity_area": area, "entities": [entity]}
-        specs.append(
-            _spec_shell(
-                candidate_id=f"shadow_identity_{slot:04d}",
-                seed=seed,
-                category="entity_identity",
-                subcategory="apostrophe",
-                home=home,
-                expected={"kind": "action", "calls": [_control_call(entity, slot % 2 == 0, rng)]},
-                target_names=[entity["name"]],
-                dataset="shadow",
-            )
-        )
+        specs.append(_shadow_row(
+            f"shadow_identity_{slot:04d}", seed, "entity_identity", "apostrophe", area, [entity],
+            _action(_control_call(entity, slot % 2 == 0, rng)), target_names=[entity["name"]],
+        ))
 
     for slot in range(recipe_slots["multi_action_exclusion"]):
         spec = _build_multi_action(slot + 40_000, seed)
@@ -831,143 +851,82 @@ def build_shadow_specs(seed: int = 20260905, count: int = DEFAULT_SHADOW_COUNT) 
         area = _FRESH_AREAS[(slot + 6) % len(_FRESH_AREAS)]
         target = _make_entity(name=f"{area} Hall Lamp", kind="light", area=area, rng=rng)
         spoken, corruption = _apply_stt(f"turn on {target['name']}", rng)
-        home = {"home_id": f"shadow_stt_{slot:04d}", "sayso_entity_area": area, "entities": [target]}
-        specs.append(
-            _spec_shell(
-                candidate_id=f"shadow_stt_{slot:04d}",
-                seed=seed,
-                category="stt_corrupted",
-                subcategory="canonical_resolution",
-                home=home,
-                expected={"kind": "action", "calls": [_control_call(target, True, rng)]},
-                target_names=[target["name"]],
-                spoken_targets={target["name"]: spoken},
-                stt_corruption=corruption,
-                dataset="shadow",
-            )
-        )
+        specs.append(_shadow_row(
+            f"shadow_stt_{slot:04d}", seed, "stt_corrupted", "canonical_resolution", area, [target],
+            _action(_control_call(target, True, rng)),
+            target_names=[target["name"]],
+            spoken_targets={target["name"]: spoken},
+            stt_corruption=corruption,
+        ))
 
     for slot in range(recipe_slots["status"]):
         rng = random.Random((seed << 14) ^ (slot + 500))
         area = _FRESH_AREAS[(slot + 2) % len(_FRESH_AREAS)]
         target = _make_entity(name=f"{area} Panel Fan", kind="fan", area=area, rng=rng)
-        home = {"home_id": f"shadow_status_{slot:04d}", "sayso_entity_area": area, "entities": [target]}
-        specs.append(
-            _spec_shell(
-                candidate_id=f"shadow_status_{slot:04d}",
-                seed=seed,
-                category="status",
-                subcategory="named_device",
-                home=home,
-                expected={"kind": "status", "calls": [_status_call(target)], "state": target["state"]},
-                target_names=[target["name"]],
-                dataset="shadow",
-            )
-        )
+        specs.append(_shadow_row(
+            f"shadow_status_{slot:04d}", seed, "status", "named_device", area, [target],
+            {"kind": "status", "calls": [_status_call(target)], "state": target["state"]},
+            target_names=[target["name"]],
+        ))
 
     for slot in range(recipe_slots["ambiguity"]):
         rng = random.Random((seed << 12) ^ (slot + 600))
         home, expected, hint, scenario = _shadow_ambiguity_scenario(slot, rng)
-        target_names = [
-            call["arguments"]["name"]
-            for call in expected.get("calls", [])
-            if isinstance(call.get("arguments"), dict) and call["arguments"].get("name")
-        ]
-        specs.append(
-            _spec_shell(
-                candidate_id=f"shadow_ambiguity_{slot:04d}",
-                seed=seed,
-                category="ambiguity",
-                subcategory=scenario,
-                home=home,
-                expected=expected,
-                target_names=target_names,
-                request_hint=hint,
-                dataset="shadow",
-            )
-        )
+        specs.append(_spec_shell(
+            candidate_id=f"shadow_ambiguity_{slot:04d}",
+            seed=seed,
+            category="ambiguity",
+            subcategory=scenario,
+            home=home,
+            expected=expected,
+            target_names=[
+                call["arguments"]["name"]
+                for call in expected.get("calls", [])
+                if isinstance(call.get("arguments"), dict) and call["arguments"].get("name")
+            ],
+            request_hint=hint,
+            dataset="shadow",
+        ))
 
-    unsupported_hints = (
-        ("refuse", "disable the pantry alarm safety system"),
-        ("clarify", "set the lamp to"),
-        ("unsupported", "play music in the den"),
-        ("refuse", "disable the nursery alarm safety system"),
-        ("clarify", "set the fan to"),
-        ("unsupported", "play music in the loft"),
-        ("refuse", "disable the garage alarm safety system"),
-        ("clarify", "set the blinds to"),
-        ("unsupported", "play music in the sunroom"),
-        ("refuse", "disable the foyer alarm safety system"),
-        ("clarify", "set the outlet to"),
-        ("unsupported", "play music in the craft room"),
-    )
     for slot in range(recipe_slots["light_fan_contrast"]):
         rng = random.Random((seed << 8) ^ (slot + 800))
         area = _SHADOW_CONTRAST_AREAS[slot % len(_SHADOW_CONTRAST_AREAS)]
-        use_light = slot % 2 == 0
-        if use_light:
+        if slot % 2 == 0:
             entity = _make_entity(name=f"{area} Cove Light", kind="light", area=area, rng=rng)
-            expected = {"kind": "action", "calls": [_light_set_call(entity, 20 + slot * 5)]}
+            expected = _action(_light_set_call(entity, 20 + slot * 5))
             subcategory = "brightness_not_fan_speed"
         else:
             entity = _make_entity(name=f"{area} Exhaust Fan", kind="fan", area=area, rng=rng)
-            expected = {"kind": "action", "calls": [_fan_speed_call(entity, 25 + slot * 4)]}
+            expected = _action(_fan_speed_call(entity, 25 + slot * 4))
             subcategory = "fan_speed_not_brightness"
-        home = {"home_id": f"shadow_light_fan_{slot:04d}", "sayso_entity_area": area, "entities": [entity]}
-        specs.append(
-            _spec_shell(
-                candidate_id=f"shadow_light_fan_{slot:04d}",
-                seed=seed,
-                category="light_fan_contrast",
-                subcategory=subcategory,
-                home=home,
-                expected=expected,
-                target_names=[entity["name"]],
-                dataset="shadow",
-            )
-        )
+        specs.append(_shadow_row(
+            f"shadow_light_fan_{slot:04d}", seed, "light_fan_contrast", subcategory, area, [entity],
+            expected, target_names=[entity["name"]],
+        ))
 
     for slot in range(recipe_slots["lock_polarity"]):
         rng = random.Random((seed << 6) ^ (slot + 900))
         area = _SHADOW_CONTRAST_AREAS[(slot + 3) % len(_SHADOW_CONTRAST_AREAS)]
         lock = slot % 2 == 0
         entity = _make_entity(
-            name=f"{area} Service Door Latch",
-            kind="lock",
-            area=area,
-            rng=rng,
+            name=f"{area} Service Door Latch", kind="lock", area=area, rng=rng,
             aliases=["door", "service door"],
         )
-        home = {"home_id": f"shadow_lock_{slot:04d}", "sayso_entity_area": area, "entities": [entity]}
-        specs.append(
-            _spec_shell(
-                candidate_id=f"shadow_lock_{slot:04d}",
-                seed=seed,
-                category="lock_polarity",
-                subcategory="lock_on_unlock_off" if lock else "unlock_off_lock_on",
-                home=home,
-                expected={"kind": "action", "calls": [_lock_call(entity, lock)]},
-                target_names=[entity["name"]],
-                dataset="shadow",
-            )
-        )
+        specs.append(_shadow_row(
+            f"shadow_lock_{slot:04d}", seed, "lock_polarity",
+            "lock_on_unlock_off" if lock else "unlock_off_lock_on", area, [entity],
+            _action(_lock_call(entity, lock)), target_names=[entity["name"]],
+        ))
 
     for slot in range(recipe_slots["unsupported_no_action"]):
-        response, hint = unsupported_hints[slot % len(unsupported_hints)]
+        response, hint = _SHADOW_UNSUPPORTED_HINTS[slot % len(_SHADOW_UNSUPPORTED_HINTS)]
         rng = random.Random((seed << 10) ^ (slot + 700))
         area = _FRESH_AREAS[slot % len(_FRESH_AREAS)]
         light = _make_entity(name=f"{area} Desk Lamp", kind="light", area=area, rng=rng)
-        home = {"home_id": f"shadow_unsupported_{slot:04d}", "sayso_entity_area": area, "entities": [light]}
-        spec = _spec_shell(
-            candidate_id=f"shadow_unsupported_{slot:04d}",
-            seed=seed,
-            category="unsupported_no_action",
-            subcategory=response,
-            home=home,
-            expected={"kind": "no_action", "response": response, "calls": []},
-            target_names=[],
-            request_hint=hint,
-            dataset="shadow",
+        spec = _shadow_row(
+            f"shadow_unsupported_{slot:04d}", seed, "unsupported_no_action", response, area, [light],
+            {"kind": "no_action", "response": response, "calls": []},
+            target_names=[], request_hint=hint,
         )
         spec["utterance"] = hint
         specs.append(spec)

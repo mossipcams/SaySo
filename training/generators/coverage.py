@@ -181,13 +181,3 @@ def classify_row(row: dict[str, Any]) -> dict[str, Any]:
     return facets
 
 
-def positive_key(facets: dict[str, Any]) -> tuple[int, str, str] | None:
-    if not facets["positive"]:
-        return None
-    return (facets["tier"], facets["capability"], facets["operation"])
-
-
-def negative_key(facets: dict[str, Any]) -> tuple[int, str, str, str] | None:
-    if facets["positive"] or facets["outcome"] in POSITIVE_OUTCOMES:
-        return None
-    return (facets["tier"], facets["capability"], facets["operation"], facets["outcome"])

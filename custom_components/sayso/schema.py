@@ -342,26 +342,36 @@ def compile_parameters(
     return canonicalize_schema(normalized)
 
 
+def function_envelope(
+    name: str, parameters: Any, description: str | None
+) -> dict[str, Any]:
+    """Wrap compiled parameters in the canonical OpenAI function envelope.
+
+    The single place a tool takes its wire shape, so compiling from a live HA
+    tool and rebuilding from cached source JSON cannot drift apart.
+    """
+    tool_spec: dict[str, Any] = {
+        "name": name,
+        "parameters": normalize_schema(parameters, top_level=True),
+    }
+    if description:
+        tool_spec["description"] = description
+    return canonicalize_schema(
+        normalize_schema({"type": "function", "function": tool_spec}, top_level=True)
+    )
+
+
 def compile_tool(
     tool: llm.Tool,
     *,
     custom_serializer: Callable[[Any], Any] | None = None,
 ) -> dict[str, Any]:
     """Compile one HA tool to an OpenAI-compatible function definition."""
-    tool_spec: dict[str, Any] = {
-        "name": tool.name,
-        "parameters": compile_parameters(
-            tool.parameters,
-            custom_serializer=custom_serializer,
-        ),
-    }
-    if tool.description:
-        tool_spec["description"] = tool.description
-    normalized = normalize_schema(
-        {"type": "function", "function": tool_spec},
-        top_level=True,
+    compiled = function_envelope(
+        tool.name,
+        _convert_parameters(tool.parameters, custom_serializer=custom_serializer),
+        tool.description,
     )
-    compiled = canonicalize_schema(normalized)
     validate_compiled_tool_envelope((compiled,))
     return compiled
 
@@ -411,24 +421,16 @@ def _build_compiled_tools_from_source(
     source_json: str,
 ) -> tuple[dict[str, Any], ...]:
     """Normalize and canonicalize compiled tools from canonical source JSON."""
-    entries: list[dict[str, Any]] = json.loads(source_json)
-    compiled: list[dict[str, Any]] = []
-    for entry in entries:
-        tool_spec: dict[str, Any] = {
-            "name": entry["name"],
-            "parameters": normalize_schema(entry["parameters"], top_level=True),
-        }
-        description = entry.get("description")
-        if isinstance(description, str) and description:
-            tool_spec["description"] = description
-        normalized = normalize_schema(
-            {"type": "function", "function": tool_spec},
-            top_level=True,
-        )
-        compiled.append(canonicalize_schema(normalized))
-    compiled_tools = canonicalize_compiled_tools(compiled)
-    validate_compiled_tool_envelope(compiled_tools)
-    return tuple(compiled_tools)
+    compiled = canonicalize_compiled_tools(
+        [
+            function_envelope(
+                entry["name"], entry["parameters"], entry.get("description")
+            )
+            for entry in json.loads(source_json)
+        ]
+    )
+    validate_compiled_tool_envelope(compiled)
+    return tuple(compiled)
 
 
 @lru_cache(maxsize=COMPILE_CACHE_MAXSIZE)

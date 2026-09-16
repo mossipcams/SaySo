@@ -94,30 +94,17 @@ CHATML_TOOL_CALL_MARKERS: frozenset[str] = frozenset(
 )
 
 
-@lru_cache(maxsize=1)
-def load_v2_schema() -> dict[str, Any]:
-    """Load the device-type-tiered SaySo tool schema artifact."""
-    if not V2_SCHEMA_ARTIFACT.is_file():
-        raise FileNotFoundError(f"Missing tiered schema artifact: {V2_SCHEMA_ARTIFACT}")
-    return json.loads(V2_SCHEMA_ARTIFACT.read_text(encoding="utf-8"))
+def _load_artifact(path: Path, label: str) -> dict[str, Any]:
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing {label} schema artifact: {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
-def v2_tool_catalog_by_device_type() -> dict[str, list[dict[str, Any]]]:
-    """Return v2 tool groups keyed by device-type tier."""
-    schema = load_v2_schema()
-    catalog = schema.get("tool_catalog_by_device_type")
-    if not isinstance(catalog, dict):
-        raise ValueError("v2 schema must contain tool_catalog_by_device_type")
-    return {str(key): list(value) for key, value in catalog.items()}
-
-
-@lru_cache(maxsize=1)
-def load_v2_tools() -> tuple[dict[str, Any], ...]:
-    """Return immutable OpenAI-style tools from the pinned v2 artifact."""
-    schema = load_v2_schema()
+def _validated_tools(schema: dict[str, Any], label: str) -> tuple[dict[str, Any], ...]:
+    """Every tool an artifact declares, each checked for the function envelope."""
     tools = schema.get("tools")
     if not isinstance(tools, list) or not tools:
-        raise ValueError("Pinned v2 schema must contain a non-empty tools list")
+        raise ValueError(f"{label} schema must contain a non-empty tools list")
     for index, tool in enumerate(tools):
         if not isinstance(tool, dict) or tool.get("type") != "function":
             raise ValueError(f"Tool at index {index} must be type:function")
@@ -127,63 +114,54 @@ def load_v2_tools() -> tuple[dict[str, Any], ...]:
     return tuple(tools)
 
 
-def v2_tool_names() -> frozenset[str]:
-    """Tool names declared in the pinned v2 artifact."""
-    return frozenset(tool["function"]["name"] for tool in load_v2_tools())
-
-
-def v2_tool_device_type_tiers() -> dict[str, frozenset[str]]:
-    """Return the pinned v2 catalog grouped by device-type tier."""
-    return TRAINING_TOOL_DEVICE_TYPE_TIERS
-
-
-def assert_v2_tiers_cover_catalog() -> None:
-    """Ensure tier metadata partitions the pinned v2 catalog without drift."""
+def _assert_tiers_cover(allowed: frozenset[str]) -> None:
+    """Ensure the device-type tiers partition a catalog exactly, with no overlap."""
     tiered: set[str] = set()
     for names in TRAINING_TOOL_DEVICE_TYPE_TIERS.values():
-        overlap = tiered & set(names)
-        if overlap:
+        if overlap := tiered & set(names):
             raise ValueError(f"tool tier overlap: {sorted(overlap)}")
         tiered.update(names)
-    allowed = ALLOWED_HASS_TOOLS
     if tiered != set(allowed):
         missing = sorted(set(allowed) - tiered)
         extra = sorted(tiered - set(allowed))
         raise ValueError(f"tier/catalog mismatch: missing={missing!r} extra={extra!r}")
 
 
-def v2_openai_tools() -> list[dict[str, Any]]:
-    """Full pinned v2 catalog in the OpenAI type:function envelope SaySo sends at runtime."""
-    return [dict(tool) for tool in load_v2_tools()]
-
-
-def v2_tool_by_name() -> dict[str, dict[str, Any]]:
-    """Map tool name -> canonical OpenAI tool definition from v2."""
-    return {tool["function"]["name"]: dict(tool) for tool in load_v2_tools()}
+@lru_cache(maxsize=1)
+def load_v2_schema() -> dict[str, Any]:
+    """Load the device-type-tiered SaySo tool schema artifact."""
+    return _load_artifact(V2_SCHEMA_ARTIFACT, "tiered")
 
 
 @lru_cache(maxsize=1)
 def load_v1_schema() -> dict[str, Any]:
     """Load the locked SaySo tool schema artifact (read-only source of truth)."""
-    if not V1_SCHEMA_ARTIFACT.is_file():
-        raise FileNotFoundError(f"Missing locked schema artifact: {V1_SCHEMA_ARTIFACT}")
-    return json.loads(V1_SCHEMA_ARTIFACT.read_text(encoding="utf-8"))
+    return _load_artifact(V1_SCHEMA_ARTIFACT, "locked")
+
+
+@lru_cache(maxsize=1)
+def load_v2_tools() -> tuple[dict[str, Any], ...]:
+    """Return immutable OpenAI-style tools from the pinned v2 artifact."""
+    return _validated_tools(load_v2_schema(), "Pinned v2")
 
 
 @lru_cache(maxsize=1)
 def load_v1_tools() -> tuple[dict[str, Any], ...]:
     """Return immutable OpenAI-style tools from the locked v1 artifact."""
-    schema = load_v1_schema()
-    tools = schema.get("tools")
-    if not isinstance(tools, list) or not tools:
-        raise ValueError("Locked v1 schema must contain a non-empty tools list")
-    for index, tool in enumerate(tools):
-        if not isinstance(tool, dict) or tool.get("type") != "function":
-            raise ValueError(f"Tool at index {index} must be type:function")
-        fn = tool.get("function")
-        if not isinstance(fn, dict) or not isinstance(fn.get("name"), str):
-            raise ValueError(f"Tool at index {index} must declare function.name")
-    return tuple(tools)
+    return _validated_tools(load_v1_schema(), "Locked v1")
+
+
+def v2_tool_catalog_by_device_type() -> dict[str, list[dict[str, Any]]]:
+    """Return v2 tool groups keyed by device-type tier."""
+    catalog = load_v2_schema().get("tool_catalog_by_device_type")
+    if not isinstance(catalog, dict):
+        raise ValueError("v2 schema must contain tool_catalog_by_device_type")
+    return {str(key): list(value) for key, value in catalog.items()}
+
+
+def v2_tool_names() -> frozenset[str]:
+    """Tool names declared in the pinned v2 artifact."""
+    return frozenset(tool["function"]["name"] for tool in load_v2_tools())
 
 
 def v1_tool_names() -> frozenset[str]:
@@ -194,34 +172,33 @@ def v1_tool_names() -> frozenset[str]:
 ALLOWED_HASS_TOOLS: frozenset[str] = v2_tool_names()
 
 
-def v1_tool_device_type_tiers() -> dict[str, frozenset[str]]:
-    """Return device-type tiers for the flat v1 artifact (same partition as v2)."""
+def v2_tool_device_type_tiers() -> dict[str, frozenset[str]]:
+    """Return the pinned v2 catalog grouped by device-type tier."""
     return TRAINING_TOOL_DEVICE_TYPE_TIERS
+
+
+# v1 is flat but shares v2's partition.
+v1_tool_device_type_tiers = v2_tool_device_type_tiers
+
+
+def assert_v2_tiers_cover_catalog() -> None:
+    """Ensure tier metadata partitions the pinned v2 catalog without drift."""
+    _assert_tiers_cover(ALLOWED_HASS_TOOLS)
 
 
 def assert_v1_tiers_cover_catalog() -> None:
     """Ensure tier metadata partitions the v1 flat catalog without drift."""
-    tiered: set[str] = set()
-    for names in TRAINING_TOOL_DEVICE_TYPE_TIERS.values():
-        overlap = tiered & set(names)
-        if overlap:
-            raise ValueError(f"tool tier overlap: {sorted(overlap)}")
-        tiered.update(names)
-    allowed = v1_tool_names()
-    if tiered != set(allowed):
-        missing = sorted(set(allowed) - tiered)
-        extra = sorted(tiered - set(allowed))
-        raise ValueError(f"tier/catalog mismatch: missing={missing!r} extra={extra!r}")
+    _assert_tiers_cover(v1_tool_names())
+
+
+def v2_openai_tools() -> list[dict[str, Any]]:
+    """Full pinned v2 catalog in the OpenAI type:function envelope SaySo sends at runtime."""
+    return [dict(tool) for tool in load_v2_tools()]
 
 
 def v1_openai_tools() -> list[dict[str, Any]]:
     """Full v1 catalog in the OpenAI type:function envelope SaySo sends at runtime."""
     return [dict(tool) for tool in load_v1_tools()]
-
-
-def v1_tool_by_name() -> dict[str, dict[str, Any]]:
-    """Map tool name -> canonical OpenAI tool definition from v1."""
-    return {tool["function"]["name"]: dict(tool) for tool in load_v1_tools()}
 
 
 def assert_openai_tool_envelope(tool: dict[str, Any]) -> None:
@@ -402,13 +379,6 @@ def validate_tool_arguments(
     return None
 
 
-def is_legacy_tool_name(name: str) -> bool:
-    """Return True when the tool name looks like a legacy service call."""
-    if name in LEGACY_TOOL_PREFIXES or "." in name:
-        return True
-    return any(name.startswith(prefix) for prefix in LEGACY_TOOL_PREFIXES)
-
-
 def normalize_tool_arguments(args: Any) -> dict[str, Any] | None:
     """Parse tool arguments to a dict, or None when invalid."""
     if isinstance(args, dict):
@@ -423,12 +393,3 @@ def normalize_tool_arguments(args: Any) -> dict[str, Any] | None:
     return None
 
 
-def shorten_response(text: str, *, max_words: int = 24) -> str:
-    """Shorten verbose assistant confirmations for TTS-friendly training."""
-    stripped = text.strip()
-    if not stripped:
-        return stripped
-    words = stripped.split()
-    if len(words) <= max_words:
-        return stripped
-    return " ".join(words[:max_words]).rstrip(".,;:") + "."

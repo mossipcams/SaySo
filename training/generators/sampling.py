@@ -33,12 +33,6 @@ from generators.coverage import expected_tool
 REFUSAL_OPERATION_SHARE: float = 0.05
 
 
-def weighted_choice(weights: dict[str, int], rng: random.Random) -> str:
-    keys = list(weights.keys())
-    values = [weights[k] for k in keys]
-    return rng.choices(keys, weights=values, k=1)[0]
-
-
 def sample_home_size(weights: dict[int, int], rng: random.Random) -> int:
     sizes = list(weights.keys())
     values = [weights[s] for s in sizes]
@@ -219,28 +213,6 @@ def uncovered_operations(targets: dict[str, dict[Any, int]]) -> list[str]:
         and (operation_spec(cap_name, op_name) or CAPABILITIES[cap_name].operations[0]).support
         is not SupportLevel.UNAVAILABLE
     )
-
-
-def minimum_count_for_full_coverage(proportions: dict[int, float] | None = None) -> int:
-    """Smallest count at which every supported operation gets at least one row."""
-    props = proportions or TIER_PROPORTIONS
-    needed = 1
-    for tier, proportion in props.items():
-        if proportion <= 0:
-            continue
-        if tier == 1:
-            weights = TIER1_CAPABILITY_WEIGHTS
-        elif tier == 2:
-            weights = {name: 1 for name in TIER2_CAPABILITIES}
-        else:
-            weights = {name: 1 for name in TIER3_CAPABILITIES}
-        total_weight = sum(weights.values())
-        for cap_name, weight in weights.items():
-            cap = CAPABILITIES[cap_name]
-            ops = len(quota_operation_names(cap)) + len(refusal_operation_names(cap))
-            share = proportion * weight / total_weight
-            needed = max(needed, int(-(-ops // share)) if share else needed)
-    return needed
 
 
 def build_quota_plan(count: int, seed: int, proportions: dict[int, float] | None = None) -> list[dict[str, Any]]:
@@ -458,19 +430,3 @@ class QuotaTracker:
         }
 
 
-def quota_shortfall(plan: list[dict[str, Any]], accepted: list[dict[str, Any]]) -> dict[str, Any]:
-    planned = Counter((s["tier"], s["capability"], s["operation"]) for s in plan)
-    actual = Counter(
-        (
-            r.get("metadata", {}).get("tier"),
-            r.get("metadata", {}).get("capability"),
-            r.get("metadata", {}).get("operation"),
-        )
-        for r in accepted
-    )
-    gaps: dict[str, int] = {}
-    for key, target in planned.items():
-        got = actual.get(key, 0)
-        if got < target:
-            gaps[str(key)] = target - got
-    return gaps

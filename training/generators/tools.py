@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import random
 import zlib
+from collections.abc import Callable
 from typing import Any
 
-from adapters.schema import ALLOWED_HASS_TOOLS, v2_openai_tools
+from adapters.schema import v2_openai_tools
 from generators.capability_registry import CAPABILITIES, TRAINING_COVERAGE_EXCLUDED
 
 # Home Assistant supplies only the tools exposed for a request, so a row offers a
@@ -79,11 +80,6 @@ def apply_tool_namespace(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         function["name"] = namespaced_tool_name(function["name"])
         renamed.append({**tool, "function": function})
     return sorted(renamed, key=lambda item: item["function"]["name"])
-
-
-def available_tools_for_home(home: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return full pinned v2 tool catalog (runtime sends all schema tools regardless of home)."""
-    return v2_openai_tools()
 
 
 def script_tool_name(entity: dict[str, Any]) -> str:
@@ -408,47 +404,96 @@ def build_area_call(
     return {"name": tool, "arguments": args}
 
 
+# The pinned tool each operation maps to, for area and floor calls where there
+# is no entity to inspect. Two operations are overloaded across capabilities and
+# are resolved before this table is consulted.
+_OPERATION_TOOLS: dict[str, str] = {
+    "turn_on": "HassTurnOn",
+    "open": "HassTurnOn",
+    "lock": "HassTurnOn",
+    "activate": "HassTurnOn",
+    "run": "HassTurnOn",
+    "turn_off": "HassTurnOff",
+    "close": "HassTurnOff",
+    "unlock": "HassTurnOff",
+    "set_brightness": "HassLightSet",
+    "set_color": "HassLightSet",
+    "set_color_temperature": "HassLightSet",
+    "set_speed": "HassFanSetSpeed",
+    "set_temperature": "HassClimateSetTemperature",
+    "play": "HassMediaUnpause",
+    "pause": "HassMediaPause",
+    "next_track": "HassMediaNext",
+    "previous_track": "HassMediaPrevious",
+    "volume_set": "HassSetVolume",
+    "volume_up": "HassSetVolumeRelative",
+    "volume_down": "HassSetVolumeRelative",
+    "mute": "HassMediaPlayerMute",
+    "unmute": "HassMediaPlayerUnmute",
+    "search_and_play": "HassMediaSearchAndPlay",
+    "return_home": "HassVacuumReturnToBase",
+    "clean_area": "HassVacuumCleanArea",
+    "cancel_all": "HassCancelAllTimers",
+    "cancel": "HassCancelTimer",
+    "unpause": "HassUnpauseTimer",
+    "increase": "HassIncreaseTimer",
+    "decrease": "HassDecreaseTimer",
+    "status": "HassTimerStatus",
+    "query_state": "GetLiveContext",
+}
+
+
 def _operation_tool(operation: str, capability: str) -> str:
-    mapping = {
-        "turn_on": "HassTurnOn",
-        "open": "HassTurnOn",
-        "lock": "HassTurnOn",
-        "activate": "HassTurnOn",
-        "run": "HassTurnOn",
-        "turn_off": "HassTurnOff",
-        "close": "HassTurnOff",
-        "unlock": "HassTurnOff",
-        "set_brightness": "HassLightSet",
-        "set_color": "HassLightSet",
-        "set_color_temperature": "HassLightSet",
-        "set_speed": "HassFanSetSpeed",
-        "set_temperature": "HassClimateSetTemperature",
-        "play": "HassMediaUnpause",
-        "pause": "HassMediaPause",
-        "next_track": "HassMediaNext",
-        "previous_track": "HassMediaPrevious",
-        "volume_set": "HassSetVolume",
-        "volume_up": "HassSetVolumeRelative",
-        "volume_down": "HassSetVolumeRelative",
-        "mute": "HassMediaPlayerMute",
-        "unmute": "HassMediaPlayerUnmute",
-        "search_and_play": "HassMediaSearchAndPlay",
-        "start": "HassVacuumStart" if capability == "vacuums" else "HassStartTimer",
-        "return_home": "HassVacuumReturnToBase",
-        "clean_area": "HassVacuumCleanArea",
-        "cancel_all": "HassCancelAllTimers",
-        "cancel": "HassCancelTimer",
-        "unpause": "HassUnpauseTimer",
-        "increase": "HassIncreaseTimer",
-        "decrease": "HassDecreaseTimer",
-        "status": "HassTimerStatus",
-        "query_state": "GetLiveContext",
-    }
+    """Resolve one operation to its pinned tool name."""
+    if operation == "start":
+        return "HassVacuumStart" if capability == "vacuums" else "HassStartTimer"
     if operation == "pause" and capability == "timers":
         return "HassPauseTimer"
-    if operation not in mapping:
+    if operation not in _OPERATION_TOOLS:
         raise KeyError(f"no tool mapped for {capability!r} operation {operation!r}")
-    return mapping[operation]
+    return _OPERATION_TOOLS[operation]
+
+
+# What an operation means, once the entity is known. Replaces a forty-branch
+# if-chain: the routing is the table, and the exceptions below it are the three
+# operations whose meaning genuinely depends on the capability.
+_ENTITY_CALLS: dict[str, Callable[[dict[str, Any], random.Random], dict[str, Any]]] = {
+    "turn_on": lambda entity, _rng: build_turn_on(entity),
+    "open": lambda entity, _rng: build_turn_on(entity),
+    "lock": lambda entity, _rng: build_turn_on(entity),
+    "activate": lambda entity, _rng: build_turn_on(entity),
+    "run": lambda entity, _rng: build_turn_on(entity),
+    "turn_off": lambda entity, _rng: build_turn_off(entity),
+    "close": lambda entity, _rng: build_turn_off(entity),
+    "unlock": lambda entity, _rng: build_turn_off(entity),
+    "set_speed": build_fan_speed,
+    "set_temperature": build_climate_set_temperature,
+    "play": lambda entity, _rng: build_media_unpause(entity),
+    "pause": lambda entity, _rng: build_media_pause(entity),
+    "volume_set": build_set_volume,
+    "volume_up": lambda entity, _rng: build_volume_relative(entity, direction="up"),
+    "volume_down": lambda entity, _rng: build_volume_relative(entity, direction="down"),
+    "mute": lambda entity, _rng: build_media_mute(entity),
+    "unmute": lambda entity, _rng: build_media_unmute(entity),
+    "next_track": lambda entity, _rng: build_media_next(entity),
+    "previous_track": lambda entity, _rng: build_media_previous(entity),
+    "search_and_play": build_media_search_and_play,
+    "return_home": lambda entity, _rng: build_vacuum_return_home(entity),
+    "clean_area": lambda entity, _rng: build_vacuum_clean_area(entity),
+}
+
+# Timers have no entity, and "start" and "pause" mean different tools here than
+# they do for a vacuum or a media player.
+_TIMER_CALLS: dict[str, Callable[[random.Random, str | None], dict[str, Any]]] = {
+    "cancel_all": lambda _rng, area: build_cancel_all_timers(area),
+    "start": lambda rng, _area: build_start_timer(rng),
+    "pause": lambda _rng, _area: build_pause_timer(),
+    "unpause": lambda _rng, _area: build_unpause_timer(),
+    "cancel": lambda _rng, _area: build_cancel_timer(),
+    "status": lambda _rng, _area: build_timer_status(),
+    "increase": lambda rng, _area: build_adjust_timer(rng, direction="increase"),
+    "decrease": lambda rng, _area: build_adjust_timer(rng, direction="decrease"),
+}
 
 
 def build_call_for_operation(
@@ -460,70 +505,34 @@ def build_call_for_operation(
     area: str | None = None,
     floor: str | None = None,
 ) -> dict[str, Any]:
-    if capability == "timers":
-        if operation == "cancel_all":
-            return build_cancel_all_timers(area)
-        if operation == "start":
-            return build_start_timer(rng)
-        if operation == "pause":
-            return build_pause_timer()
-        if operation == "unpause":
-            return build_unpause_timer()
-        if operation == "cancel":
-            return build_cancel_timer()
-        if operation in {"increase", "decrease"}:
-            return build_adjust_timer(rng, direction=operation)
-        if operation == "status":
-            return build_timer_status()
+    """The one tool call an operation on a capability means."""
+    if capability == "timers" and (timer_call := _TIMER_CALLS.get(operation)):
+        return timer_call(rng, area)
+
     if operation == "query_state":
-        if entity is None:
-            cap = CAPABILITIES[capability]
-            return {"name": "GetLiveContext", "arguments": {"domain": cap.domain}}
-        return build_query(entity)
-    if entity is None and (area or floor):
-        return build_area_call(capability, operation, area, floor=floor, rng=rng)
+        if entity is not None:
+            return build_query(entity)
+        return {
+            "name": "GetLiveContext",
+            "arguments": {"domain": CAPABILITIES[capability].domain},
+        }
+
     if entity is None:
+        if area or floor:
+            return build_area_call(capability, operation, area, floor=floor, rng=rng)
         raise ValueError("entity or area required for operation")
+
+    # A script is its own tool, so it never routes through HassTurnOn.
     if operation == "run" and capability == "scripts":
         return {"name": script_tool_name(entity), "arguments": {}}
-    if operation in {"turn_on", "open", "lock", "activate", "run"}:
-        return build_turn_on(entity)
-    if operation in {"turn_off", "close", "unlock"}:
-        return build_turn_off(entity)
     if operation.startswith("set_") and capability == "lights":
         return build_light_set(entity, rng, operation)
-    if operation == "set_speed":
-        return build_fan_speed(entity, rng)
-    if operation == "set_temperature":
-        return build_climate_set_temperature(entity, rng)
-    if operation == "play":
-        return build_media_unpause(entity)
-    if operation == "pause":
-        return build_media_pause(entity)
-    if operation == "volume_set":
-        return build_set_volume(entity, rng)
-    if operation == "volume_up":
-        return build_volume_relative(entity, direction="up")
-    if operation == "volume_down":
-        return build_volume_relative(entity, direction="down")
-    if operation == "mute":
-        return build_media_mute(entity)
-    if operation == "unmute":
-        return build_media_unmute(entity)
-    if operation == "next_track":
-        return build_media_next(entity)
-    if operation == "previous_track":
-        return build_media_previous(entity)
-    if operation == "search_and_play":
-        return build_media_search_and_play(entity, rng)
     if operation == "start" and capability == "vacuums":
         return build_vacuum_start(entity)
-    if operation == "return_home":
-        return build_vacuum_return_home(entity)
-    if operation == "clean_area":
-        return build_vacuum_clean_area(entity)
-    raise ValueError(f"unsupported operation {operation!r} for {capability!r}")
+
+    build = _ENTITY_CALLS.get(operation)
+    if build is None:
+        raise ValueError(f"unsupported operation {operation!r} for {capability!r}")
+    return build(entity, rng)
 
 
-def validate_call_tool_name(name: str) -> bool:
-    return name in ALLOWED_HASS_TOOLS

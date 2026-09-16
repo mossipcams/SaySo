@@ -198,10 +198,6 @@ improving means the benchmark is being overfit.
 
 ## Scoring
 
-**`training/scripts/evaluate.py` is a harness wiring stub.** It calls
-`_stub_infer`, which returns a fixed string; it does not score a model. No result
-in the training log came from it.
-
 Real scoring runs on the training host against a llama.cpp server:
 
 ```bash
@@ -268,6 +264,10 @@ training/
   fixtures/          Test fixtures
   generators/        v3 synthetic generation
   scripts/           Pipeline operations
+                       v2_scenarios.py   label-first spec vocabulary (v1/v2)
+                       rendering.py      spec -> canonical row, phrasing seeds
+                       llm_curation.py   verbalise, judge, curate (v1/v2 only)
+                       build_synthetic_dataset.py  CLI + v1/v2 orchestration
   tests/             Unit tests (no model downloads)
 ```
 

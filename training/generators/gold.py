@@ -9,7 +9,6 @@ from typing import Any
 
 from generators.capability_registry import (
     CAPABILITIES,
-    OperationSpec,
     SupportLevel,
     entities_supporting,
     entity_supports,

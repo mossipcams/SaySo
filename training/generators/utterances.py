@@ -294,13 +294,6 @@ def expand_utterance(spec: dict[str, Any]) -> str:
     return seed
 
 
-def _direct_utterance(target: str, call: dict[str, Any]) -> str:
-    phrase = _phrase_for_call(target, call)
-    if not phrase:
-        return "Cancel all timers"
-    return phrase[0].upper() + phrase[1:] if phrase else phrase
-
-
 # Description templates for entity-discrimination rows. The user refers to a
 # device by a property of it instead of its name, so the model must resolve a
 # description against the static context rather than echo a name it was handed.
@@ -372,17 +365,3 @@ def describe_target(
     return ""
 
 
-def protected_slots(spec: dict[str, Any]) -> list[tuple[str, str]]:
-    slots: list[tuple[str, str]] = []
-    for index, name in enumerate(spec.get("target_names") or [], start=1):
-        slots.append((f"<TARGET_{index}>", spec.get("spoken_targets", {}).get(name, name)))
-    for index, name in enumerate(spec.get("excluded_names") or [], start=1):
-        slots.append((f"<EXCLUDED_{index}>", name))
-    values: list[str] = []
-    for call in (spec.get("expected") or {}).get("calls") or []:
-        for value in (call.get("arguments") or {}).values():
-            if isinstance(value, (int, float)) and str(value) not in values:
-                values.append(str(value))
-    for index, value in enumerate(values, start=1):
-        slots.append((f"<VALUE_{index}>", value))
-    return slots

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -84,287 +84,133 @@ class CapabilitySpec:
     blocker: str | None = None
 
 
-def _light_ops() -> tuple[OperationSpec, ...]:
-    return (
-        OperationSpec("turn_on", SupportLevel.SUPPORTED, "HassTurnOn"),
-        OperationSpec("turn_off", SupportLevel.SUPPORTED, "HassTurnOff"),
-        OperationSpec("set_brightness", SupportLevel.SUPPORTED, "HassLightSet", requires_features=("brightness",)),
-        OperationSpec("set_color", SupportLevel.SUPPORTED, "HassLightSet", requires_features=("color",)),
-        OperationSpec(
-            "set_color_temperature",
-            SupportLevel.SUPPORTED,
-            "HassLightSet",
-            requires_features=("color_temp",),
-        ),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
-    )
+def _op(name: str, tool: str, *features: str) -> OperationSpec:
+    """A supported operation, naming the entity features it needs."""
+    return OperationSpec(name, SupportLevel.SUPPORTED, tool, requires_features=features)
 
 
-def _fan_ops() -> tuple[OperationSpec, ...]:
-    return (
-        OperationSpec("turn_on", SupportLevel.SUPPORTED, "HassTurnOn"),
-        OperationSpec("turn_off", SupportLevel.SUPPORTED, "HassTurnOff"),
-        OperationSpec("set_speed", SupportLevel.SUPPORTED, "HassFanSetSpeed", requires_features=("percentage",)),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
-    )
+def _blocked(name: str, blocker: str) -> OperationSpec:
+    """An operation Home Assistant supplies no tool for, and why."""
+    return OperationSpec(name, SupportLevel.UNAVAILABLE, blocker=blocker)
 
 
-def _switch_ops() -> tuple[OperationSpec, ...]:
-    return (
-        OperationSpec("turn_on", SupportLevel.SUPPORTED, "HassTurnOn"),
-        OperationSpec("turn_off", SupportLevel.SUPPORTED, "HassTurnOff"),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
-    )
-
-
-def _cover_ops() -> tuple[OperationSpec, ...]:
-    return (
-        OperationSpec("open", SupportLevel.SUPPORTED, "HassTurnOn"),
-        OperationSpec("close", SupportLevel.SUPPORTED, "HassTurnOff"),
-        OperationSpec("set_position", SupportLevel.UNAVAILABLE, blocker="no position tool in Assist schema"),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
-    )
-
-
-def _lock_ops() -> tuple[OperationSpec, ...]:
-    return (
-        OperationSpec("lock", SupportLevel.SUPPORTED, "HassTurnOn"),
-        OperationSpec("unlock", SupportLevel.SUPPORTED, "HassTurnOff"),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
-    )
-
-
-def _media_ops() -> tuple[OperationSpec, ...]:
-    """Media players differ far more than lights: an Echo Dot has no power control
-    and a dumb TV cannot search. Every operation names the entity feature it needs
-    so generation never labels an action the device cannot perform.
-    """
-    return (
-        OperationSpec("turn_on", SupportLevel.SUPPORTED, "HassTurnOn", requires_features=("on",)),
-        OperationSpec("turn_off", SupportLevel.SUPPORTED, "HassTurnOff", requires_features=("off",)),
-        OperationSpec("play", SupportLevel.SUPPORTED, "HassMediaUnpause", requires_features=("play",)),
-        OperationSpec("pause", SupportLevel.SUPPORTED, "HassMediaPause", requires_features=("pause",)),
-        OperationSpec("next_track", SupportLevel.SUPPORTED, "HassMediaNext", requires_features=("next",)),
-        OperationSpec(
-            "previous_track", SupportLevel.SUPPORTED, "HassMediaPrevious", requires_features=("previous",)
-        ),
-        OperationSpec("volume_set", SupportLevel.SUPPORTED, "HassSetVolume", requires_features=("volume",)),
-        OperationSpec(
-            "volume_up", SupportLevel.SUPPORTED, "HassSetVolumeRelative", requires_features=("volume_step",)
-        ),
-        OperationSpec(
-            "volume_down", SupportLevel.SUPPORTED, "HassSetVolumeRelative", requires_features=("volume_step",)
-        ),
-        OperationSpec("mute", SupportLevel.SUPPORTED, "HassMediaPlayerMute", requires_features=("mute",)),
-        OperationSpec("unmute", SupportLevel.SUPPORTED, "HassMediaPlayerUnmute", requires_features=("mute",)),
-        OperationSpec(
-            "search_and_play",
-            SupportLevel.SUPPORTED,
-            "HassMediaSearchAndPlay",
-            requires_features=("search",),
-        ),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
-    )
-
-
-def _timer_ops() -> tuple[OperationSpec, ...]:
-    return (
-        OperationSpec("cancel_all", SupportLevel.SUPPORTED, "HassCancelAllTimers"),
-        OperationSpec("start", SupportLevel.SUPPORTED, "HassStartTimer"),
-        OperationSpec("pause", SupportLevel.SUPPORTED, "HassPauseTimer"),
-        OperationSpec("unpause", SupportLevel.SUPPORTED, "HassUnpauseTimer"),
-        OperationSpec("cancel", SupportLevel.SUPPORTED, "HassCancelTimer"),
-        OperationSpec("increase", SupportLevel.SUPPORTED, "HassIncreaseTimer"),
-        OperationSpec("decrease", SupportLevel.SUPPORTED, "HassDecreaseTimer"),
-        OperationSpec("status", SupportLevel.SUPPORTED, "HassTimerStatus"),
-    )
-
-
-def _climate_ops() -> tuple[OperationSpec, ...]:
-    return (
-        OperationSpec("set_temperature", SupportLevel.SUPPORTED, "HassClimateSetTemperature"),
-        OperationSpec("turn_on", SupportLevel.SUPPORTED, "HassTurnOn"),
-        OperationSpec("turn_off", SupportLevel.SUPPORTED, "HassTurnOff"),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
-    )
-
-
-def _vacuum_ops() -> tuple[OperationSpec, ...]:
-    return (
-        OperationSpec("start", SupportLevel.SUPPORTED, "HassVacuumStart"),
-        OperationSpec("return_home", SupportLevel.SUPPORTED, "HassVacuumReturnToBase"),
-        OperationSpec("clean_area", SupportLevel.SUPPORTED, "HassVacuumCleanArea"),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
-    )
-
-
-def _scene_ops() -> tuple[OperationSpec, ...]:
-    return (
-        OperationSpec("activate", SupportLevel.SUPPORTED, "HassTurnOn"),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
-    )
-
+_QUERY = _op("query_state", "GetLiveContext")
+_ON_OFF = (_op("turn_on", "HassTurnOn"), _op("turn_off", "HassTurnOff"))
 
 # Placeholder tool name for scripts: the real name is the script's own object id, so it
 # is only known per home. See generators.tools.script_tool_name.
 SCRIPT_ACTION_TOOL = "__script__"
 
 
-def _script_ops() -> tuple[OperationSpec, ...]:
-    """Scripts are their own tools in HA 2026.8.3, and their state is not readable.
+def _capability(
+    name: str,
+    tier: int,
+    domain: str,
+    device_class: str | None,
+    operations: tuple[OperationSpec, ...],
+    **extra: Any,
+) -> CapabilitySpec:
+    """Tier 1 samples by its configured weight; tiers 2 and 3 share weight 1.
 
-    ``async_get_exposed_entities`` buckets the script domain out of both the static
-    overview and GetLiveContext, so a script's state cannot be queried at all.
+    A capability is supported unless it carries a ``blocker``.
     """
-    return (
-        OperationSpec("run", SupportLevel.SUPPORTED, SCRIPT_ACTION_TOOL),
-        OperationSpec(
-            "query_state",
-            SupportLevel.UNAVAILABLE,
-            blocker="GetLiveContext excludes the script domain",
-        ),
+    return CapabilitySpec(
+        name=name,
+        tier=tier,
+        domain=domain,
+        device_class=device_class,
+        sampling_weight=TIER1_CAPABILITY_WEIGHTS.get(name, 1),
+        support=SupportLevel.UNAVAILABLE if extra.get("blocker") else SupportLevel.SUPPORTED,
+        operations=operations,
+        **extra,
     )
 
 
-def _unavailable_ops(capability: str, blocker: str) -> tuple[OperationSpec, ...]:
-    return (
-        OperationSpec("control", SupportLevel.UNAVAILABLE, blocker=blocker),
-        OperationSpec("query_state", SupportLevel.SUPPORTED, "GetLiveContext"),
+def _unavailable(name: str, domain: str, blocker: str, operation_blocker: str) -> CapabilitySpec:
+    """A tier-3 capability: state is readable, nothing is controllable."""
+    return _capability(
+        name, 3, domain, None,
+        (_blocked("control", operation_blocker), _QUERY),
+        blocker=blocker,
     )
 
 
 CAPABILITIES: dict[str, CapabilitySpec] = {
-    "lights": CapabilitySpec(
-        name="lights",
-        tier=1,
-        domain="light",
-        device_class=None,
-        sampling_weight=TIER1_CAPABILITY_WEIGHTS["lights"],
-        support=SupportLevel.SUPPORTED,
-        operations=_light_ops(),
-    ),
-    "media_players": CapabilitySpec(
-        name="media_players",
-        tier=1,
-        domain="media_player",
-        device_class="tv",
-        sampling_weight=TIER1_CAPABILITY_WEIGHTS["media_players"],
-        support=SupportLevel.SUPPORTED,
-        operations=_media_ops(),
-    ),
-    "timers": CapabilitySpec(
-        name="timers",
-        tier=1,
-        domain="timer",
-        device_class=None,
-        sampling_weight=TIER1_CAPABILITY_WEIGHTS["timers"],
-        support=SupportLevel.SUPPORTED,
-        operations=_timer_ops(),
-        targeting_modes=("context",),
-    ),
-    "climate": CapabilitySpec(
-        name="climate",
-        tier=1,
-        domain="climate",
-        device_class=None,
-        sampling_weight=TIER1_CAPABILITY_WEIGHTS["climate"],
-        support=SupportLevel.SUPPORTED,
-        operations=_climate_ops(),
-    ),
-    "switches": CapabilitySpec(
-        name="switches",
-        tier=1,
-        domain="switch",
-        device_class="outlet",
-        sampling_weight=TIER1_CAPABILITY_WEIGHTS["switches"],
-        support=SupportLevel.SUPPORTED,
-        operations=_switch_ops(),
-    ),
-    "fans": CapabilitySpec(
-        name="fans",
-        tier=1,
-        domain="fan",
-        device_class=None,
-        sampling_weight=TIER1_CAPABILITY_WEIGHTS["fans"],
-        support=SupportLevel.SUPPORTED,
-        operations=_fan_ops(),
-    ),
-    "covers": CapabilitySpec(
-        name="covers",
-        tier=1,
-        domain="cover",
-        device_class="blind",
-        sampling_weight=TIER1_CAPABILITY_WEIGHTS["covers"],
-        support=SupportLevel.SUPPORTED,
-        operations=_cover_ops(),
-    ),
-    "locks": CapabilitySpec(
-        name="locks",
-        tier=1,
-        domain="lock",
-        device_class="door",
-        sampling_weight=TIER1_CAPABILITY_WEIGHTS["locks"],
-        support=SupportLevel.SUPPORTED,
-        operations=_lock_ops(),
-    ),
-    "vacuums": CapabilitySpec(
-        name="vacuums",
-        tier=2,
-        domain="vacuum",
-        device_class=None,
-        sampling_weight=1,
-        support=SupportLevel.SUPPORTED,
-        operations=_vacuum_ops(),
-    ),
-    "scenes": CapabilitySpec(
-        name="scenes",
-        tier=2,
-        domain="scene",
-        device_class=None,
-        sampling_weight=1,
-        support=SupportLevel.SUPPORTED,
-        operations=_scene_ops(),
-    ),
-    "scripts": CapabilitySpec(
-        name="scripts",
-        tier=2,
-        domain="script",
-        device_class=None,
-        sampling_weight=1,
-        support=SupportLevel.SUPPORTED,
-        operations=_script_ops(),
-        targeting_modes=("individual", "multiple", "exclusion"),
-    ),
-    "lawn_mowers": CapabilitySpec(
-        name="lawn_mowers",
-        tier=3,
-        domain="lawn_mower",
-        device_class=None,
-        sampling_weight=1,
-        support=SupportLevel.UNAVAILABLE,
-        operations=_unavailable_ops("lawn_mowers", "no lawn mower tool in Assist schema"),
-        blocker="no lawn mower tool in Assist schema",
-    ),
-    "todo_lists": CapabilitySpec(
-        name="todo_lists",
-        tier=3,
-        domain="todo",
-        device_class=None,
-        sampling_weight=1,
-        support=SupportLevel.UNAVAILABLE,
-        operations=_unavailable_ops("todo_lists", "no todo list tool in Assist schema"),
-        blocker="no todo tool in Assist schema",
-    ),
-    "buttons": CapabilitySpec(
-        name="buttons",
-        tier=3,
-        domain="button",
-        device_class=None,
-        sampling_weight=1,
-        support=SupportLevel.UNAVAILABLE,
-        operations=_unavailable_ops("buttons", "no button press tool in Assist schema"),
-        blocker="no button tool in Assist schema",
-    ),
+    spec.name: spec
+    for spec in (
+        _capability("lights", 1, "light", None, (
+            *_ON_OFF,
+            _op("set_brightness", "HassLightSet", "brightness"),
+            _op("set_color", "HassLightSet", "color"),
+            _op("set_color_temperature", "HassLightSet", "color_temp"),
+            _QUERY,
+        )),
+        # Media players differ far more than lights: an Echo Dot has no power
+        # control and a dumb TV cannot search. Every operation names the entity
+        # feature it needs, so generation never labels an action the device
+        # cannot perform.
+        _capability("media_players", 1, "media_player", "tv", (
+            _op("turn_on", "HassTurnOn", "on"),
+            _op("turn_off", "HassTurnOff", "off"),
+            _op("play", "HassMediaUnpause", "play"),
+            _op("pause", "HassMediaPause", "pause"),
+            _op("next_track", "HassMediaNext", "next"),
+            _op("previous_track", "HassMediaPrevious", "previous"),
+            _op("volume_set", "HassSetVolume", "volume"),
+            _op("volume_up", "HassSetVolumeRelative", "volume_step"),
+            _op("volume_down", "HassSetVolumeRelative", "volume_step"),
+            _op("mute", "HassMediaPlayerMute", "mute"),
+            _op("unmute", "HassMediaPlayerUnmute", "mute"),
+            _op("search_and_play", "HassMediaSearchAndPlay", "search"),
+            _QUERY,
+        )),
+        _capability("timers", 1, "timer", None, (
+            _op("cancel_all", "HassCancelAllTimers"),
+            _op("start", "HassStartTimer"),
+            _op("pause", "HassPauseTimer"),
+            _op("unpause", "HassUnpauseTimer"),
+            _op("cancel", "HassCancelTimer"),
+            _op("increase", "HassIncreaseTimer"),
+            _op("decrease", "HassDecreaseTimer"),
+            _op("status", "HassTimerStatus"),
+        ), targeting_modes=("context",)),
+        _capability("climate", 1, "climate", None, (
+            _op("set_temperature", "HassClimateSetTemperature"), *_ON_OFF, _QUERY,
+        )),
+        _capability("switches", 1, "switch", "outlet", (*_ON_OFF, _QUERY)),
+        _capability("fans", 1, "fan", None, (
+            *_ON_OFF, _op("set_speed", "HassFanSetSpeed", "percentage"), _QUERY,
+        )),
+        _capability("covers", 1, "cover", "blind", (
+            _op("open", "HassTurnOn"),
+            _op("close", "HassTurnOff"),
+            _blocked("set_position", "no position tool in Assist schema"),
+            _QUERY,
+        )),
+        _capability("locks", 1, "lock", "door", (
+            _op("lock", "HassTurnOn"), _op("unlock", "HassTurnOff"), _QUERY,
+        )),
+        _capability("vacuums", 2, "vacuum", None, (
+            _op("start", "HassVacuumStart"),
+            _op("return_home", "HassVacuumReturnToBase"),
+            _op("clean_area", "HassVacuumCleanArea"),
+            _QUERY,
+        )),
+        _capability("scenes", 2, "scene", None, (_op("activate", "HassTurnOn"), _QUERY)),
+        # Scripts are their own tools in HA 2026.8.3, and their state is not
+        # readable: async_get_exposed_entities buckets the script domain out of
+        # both the static overview and GetLiveContext.
+        _capability("scripts", 2, "script", None, (
+            _op("run", SCRIPT_ACTION_TOOL),
+            _blocked("query_state", "GetLiveContext excludes the script domain"),
+        ), targeting_modes=("individual", "multiple", "exclusion")),
+        _unavailable("lawn_mowers", "lawn_mower",
+                     "no lawn mower tool in Assist schema", "no lawn mower tool in Assist schema"),
+        _unavailable("todo_lists", "todo",
+                     "no todo tool in Assist schema", "no todo list tool in Assist schema"),
+        _unavailable("buttons", "button",
+                     "no button tool in Assist schema", "no button press tool in Assist schema"),
+    )
 }
 
 # Home size distribution defaults. The 128-entity bucket is omitted: those rows render
@@ -387,10 +233,6 @@ DIFFICULTY_TAGS: tuple[str, ...] = (
     "unsupported",
     "stt_noise",
 )
-
-
-def capabilities_for_tier(tier: int) -> list[CapabilitySpec]:
-    return [cap for cap in CAPABILITIES.values() if cap.tier == tier]
 
 
 def operation_spec(capability: str, operation: str) -> OperationSpec | None:
@@ -441,20 +283,6 @@ def covered_tool_names() -> frozenset[str]:
         if op.tool_name and op.support is not SupportLevel.UNAVAILABLE
     }
     return frozenset(names - TRAINING_COVERAGE_EXCLUDED)
-
-
-def unavailable_operations() -> list[tuple[str, str]]:
-    """(capability, operation) pairs whose only correct answer is a refusal."""
-    return [
-        (cap.name, op.name)
-        for cap in CAPABILITIES.values()
-        for op in cap.operations
-        if op.support is SupportLevel.UNAVAILABLE
-    ]
-
-
-def supported_operations(cap: CapabilitySpec) -> list[OperationSpec]:
-    return [op for op in cap.operations if op.support in {SupportLevel.SUPPORTED, SupportLevel.PARTIAL}]
 
 
 def trainable_operations(cap: CapabilitySpec) -> list[OperationSpec]:

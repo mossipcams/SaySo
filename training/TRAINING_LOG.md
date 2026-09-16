@@ -40,8 +40,8 @@ reuses `training/evals/lfm_python_parse.py`, which raises instead of looping.
 v3-format recipe lock `47d9ca1c`. The two scorers are therefore comparable on
 these suites, unlike `structured` and `rawparse`. Re-calibrate if either changes.
 
-`training/scripts/evaluate.py` is **not** a scorer. It wires the offline harness
-with `_stub_infer`, which returns a fixed string. No result in this log came
+`training/scripts/evaluate.py`, a harness wiring stub that returned a fixed
+string, was never a scorer and has been removed. No result in this log came
 from it.
 
 The same champion checkpoint scores **34/38 structured** and **37/38 rawparse**.

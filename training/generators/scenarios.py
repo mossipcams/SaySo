@@ -12,9 +12,7 @@ from typing import Any
 from generators.capability_registry import (
     CAPABILITIES,
     CapabilitySpec,
-    SupportLevel,
     entities_supporting,
-    entity_supports,
     required_features,
     trainable_operations,
 )
@@ -211,17 +209,6 @@ def build_scenario(
     scenario["semantic_id"] = semantic_id(scenario)
     scenario["tier"] = CAPABILITIES[capability].tier
     return scenario
-
-
-def pick_operation(cap: CapabilitySpec, rng: random.Random, *, prefer_trainable: bool = True) -> str:
-    if prefer_trainable:
-        ops = trainable_operations(cap)
-        if ops:
-            return rng.choice(ops).name
-    supported = [op for op in cap.operations if op.support != SupportLevel.UNAVAILABLE]
-    if supported:
-        return rng.choice(supported).name
-    return cap.operations[0].name
 
 
 def pick_targeting(cap: CapabilitySpec, rng: random.Random, robustness: str) -> str:
