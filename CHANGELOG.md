@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/mossipcams/SaySo/compare/1.3.1...1.4.0) (2026-09-16)
+
+
+### Features
+
+* pick the local model from a dropdown in options ([ccbc22e](https://github.com/mossipcams/SaySo/commit/ccbc22eb2fd2fa7a6f620057d83c5c7f1b85a547))
+
+
+### Bug Fixes
+
+* coerce numeric options to int so the embedded backend loads ([589026f](https://github.com/mossipcams/SaySo/commit/589026ffe5269b636685f3de12f0b9d749f83927))
+
 ## [1.3.1](https://github.com/mossipcams/SaySo/compare/1.3.0...1.3.1) (2026-09-16)
 
 
