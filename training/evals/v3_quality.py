@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import random
-import re
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,158 +15,44 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from adapters.schema import tool_schema_map, validate_tool_arguments, v2_openai_tools  # noqa: E402
 from build_synthetic_dataset import render_example  # noqa: E402
+from evals.metrics import parse_tool_arguments  # noqa: E402
 from generators.tools import script_tool_name  # noqa: E402
 from generators.utterances import _phrase_for_call, expand_utterance, request_seed_from_spec  # noqa: E402
-from evals.metrics import (  # noqa: E402
-    extract_assistant_tool_calls,
-    parse_tool_arguments,
-    score_expected_vs_actual,
+from evals.specs import (  # noqa: E402
+    action as _action,
+    assert_row_contract,
+    entity as _entity,
+    expected_tool_calls,
+    fan_speed as _fan_speed,
+    home as _home,
+    light_set as _light_set,
+    no_action as _no_action,
+    normalized as _normalized,
+    score_quality_gold,
+    slug as _slug,
+    spec as _spec_base,
+    status as _status,
+    turn_off as _turn_off,
+    turn_on as _turn_on,
 )
 from evals.recipe_lock import quality_eval_user_prompts as recipe_lock_prompts  # noqa: E402
 
-_BANNED = re.compile(r"evals/cases/|<tool_call>|tool_call_start", re.I)
 _GOLD_AREAS = (
-    "Great Room",
-    "Family Room",
-    "Home Theater",
-    "Rec Room",
-    "Study",
-    "Dining Room",
-    "Sunroom",
-    "Mudroom",
-    "Guest Suite",
-    "Library",
+    "Great Room", "Family Room", "Home Theater", "Rec Room", "Study",
+    "Dining Room", "Sunroom", "Mudroom", "Guest Suite", "Library",
 )
 _SHADOW_AREAS = (
-    "Annex",
-    "Atrium",
-    "Conservatory",
-    "Solarium",
-    "Studio",
-    "Terrace",
-    "Balcony",
-    "Cellar",
-    "Attic",
-    "Porch",
-    "Veranda",
-    "Courtyard",
+    "Annex", "Atrium", "Conservatory", "Solarium", "Studio", "Terrace",
+    "Balcony", "Cellar", "Attic", "Porch", "Veranda", "Courtyard",
 )
 SHADOW_MIN = 80
 SHADOW_MAX = 120
 DEFAULT_SHADOW_COUNT = 100
 
 
-def _normalized(text: str) -> str:
-    return " ".join(re.findall(r"[a-z0-9]+", text.casefold().replace("'", "'")))
-
-
-def _slug(name: str) -> str:
-    return "".join(char.casefold() if char.isalnum() else "_" for char in name).strip("_")
-
-
-def _entity(
-    *,
-    name: str,
-    kind: str,
-    area: str,
-    aliases: list[str] | None = None,
-    state: str = "off",
-    floor: str = "Main Floor",
-) -> dict[str, Any]:
-    domain_map = {
-        "light": "light",
-        "fan": "fan",
-        "climate": "climate",
-        "media_player": "media_player",
-        "vacuum": "vacuum",
-        "scene": "scene",
-        "script": "script",
-    }
-    device_class_map = {
-        "media_player": "tv",
-    }
-    capabilities_map = {
-        "light": ("on", "off", "brightness"),
-        "fan": ("on", "off", "percentage"),
-        "climate": ("heat", "cool", "off"),
-        "media_player": ("on", "off"),
-        "vacuum": ("start", "stop"),
-        "scene": ("activate",),
-        "script": ("run",),
-    }
-    domain = domain_map[kind]
-    return {
-        "entity_id": f"{domain}.{_slug(name)}",
-        "name": name,
-        "aliases": aliases or [name],
-        "domain": domain,
-        "kind": kind,
-        "device_class": device_class_map.get(kind),
-        "area": area,
-        "floor": floor,
-        "state": state,
-        "capabilities": list(capabilities_map[kind]),
-    }
-
-
-def _home(*entities: dict[str, Any], sayso_entity_area: str, home_id: str) -> dict[str, Any]:
-    return {
-        "home_id": home_id,
-        "sayso_entity_area": sayso_entity_area,
-        "entities": list(entities),
-    }
-
-
-def _action(*calls: dict[str, Any]) -> dict[str, Any]:
-    return {"kind": "action", "calls": list(calls)}
-
-
-def _no_action(response: str, **extra: Any) -> dict[str, Any]:
-    payload: dict[str, Any] = {"kind": "no_action", "response": response, "calls": []}
-    payload.update(extra)
-    return payload
-
-
-def _status(entity: dict[str, Any]) -> dict[str, Any]:
-    args: dict[str, Any] = {"name": entity["name"]}
-    if entity["domain"] in {"light", "fan", "climate", "media_player", "vacuum", "scene", "script"}:
-        args["domain"] = [entity["domain"]]
-    return {
-        "kind": "status",
-        "calls": [{"name": "GetLiveContext", "arguments": args}],
-        "state": entity["state"],
-    }
-
-
-def _turn_on(entity: dict[str, Any]) -> dict[str, Any]:
-    args: dict[str, Any] = {"name": entity["name"], "domain": [entity["domain"]]}
-    return {"name": "HassTurnOn", "arguments": args}
-
-
 def _run_script(entity: dict[str, Any]) -> dict[str, Any]:
     """Scripts are their own zero-argument tool, not HassTurnOn."""
     return {"name": script_tool_name(entity), "arguments": {}}
-
-
-def _turn_off(entity: dict[str, Any]) -> dict[str, Any]:
-    args: dict[str, Any] = {"name": entity["name"], "domain": [entity["domain"]]}
-    return {"name": "HassTurnOff", "arguments": args}
-
-
-def _light_set(entity: dict[str, Any], brightness: int) -> dict[str, Any]:
-    """Brightness, not temperature — the argument Run 008 got wrong most often."""
-    return {
-        "name": "HassLightSet",
-        "arguments": {"name": entity["name"], "domain": ["light"], "brightness": brightness},
-    }
-
-
-def _fan_speed(entity: dict[str, Any], percentage: int) -> dict[str, Any]:
-    """Percentage, not brightness — the other half of the same confusion."""
-    return {
-        "name": "HassFanSetSpeed",
-        "arguments": {"name": entity["name"], "domain": ["fan"], "percentage": percentage},
-    }
 
 
 def _spec(
@@ -180,29 +66,46 @@ def _spec(
     target_names: list[str] | None = None,
     request_hint: str = "",
 ) -> dict[str, Any]:
-    calls = expected.get("calls") or []
-    names = target_names or [
-        call["arguments"]["name"]
-        for call in calls
-        if isinstance(call.get("arguments"), dict) and call["arguments"].get("name")
-    ]
-    return {
-        "candidate_id": f"v3_quality_gold_{row_id}",
-        "seed": 0,
-        "category": category,
-        "subcategory": subcategory,
-        "home": home,
-        "expected": expected,
-        "target_names": names,
-        "spoken_targets": {},
-        "excluded_names": [],
-        "contrastive_group": None,
-        "request_hint": request_hint,
-        "stt_corruption": None,
-        "utterance": utterance,
-        "quality_eval": True,
-        "dataset": "v3_quality_gold",
-    }
+    """One locked v3 gold row."""
+    return _spec_base(
+        candidate_id=f"v3_quality_gold_{row_id}",
+        category=category,
+        subcategory=subcategory,
+        utterance=utterance,
+        home=home,
+        expected=expected,
+        target_names=target_names,
+        request_hint=request_hint,
+        dataset="v3_quality_gold",
+    )
+
+
+def _shadow_spec_shell(
+    *,
+    candidate_id: str,
+    seed: int,
+    category: str,
+    subcategory: str,
+    home: dict[str, Any],
+    expected: dict[str, Any],
+    target_names: list[str],
+    request_hint: str = "",
+    utterance: str | None = None,
+) -> dict[str, Any]:
+    """One shadow row: the same shape as gold, but not a promotion gate."""
+    return _spec_base(
+        candidate_id=candidate_id,
+        seed=seed,
+        category=category,
+        subcategory=subcategory,
+        utterance=utterance,
+        home=home,
+        expected=expected,
+        target_names=target_names,
+        request_hint=request_hint,
+        quality_eval=False,
+        dataset="v3_quality_shadow",
+    )
 
 
 def gold_specs() -> list[dict[str, Any]]:
@@ -597,534 +500,394 @@ def _utterance_for_spec(spec: dict[str, Any]) -> str:
     return request_seed_from_spec(spec)
 
 
-def _shadow_spec_shell(
-    *,
-    candidate_id: str,
-    seed: int,
-    category: str,
-    subcategory: str,
-    home: dict[str, Any],
-    expected: dict[str, Any],
-    target_names: list[str],
-    request_hint: str = "",
-    utterance: str | None = None,
-) -> dict[str, Any]:
-    return {
-        "candidate_id": candidate_id,
-        "seed": seed,
-        "category": category,
-        "subcategory": subcategory,
-        "home": home,
-        "expected": expected,
-        "target_names": target_names,
-        "spoken_targets": {},
-        "excluded_names": [],
-        "contrastive_group": None,
-        "request_hint": request_hint,
-        "stt_corruption": None,
-        "utterance": utterance,
-        "dataset": "v3_quality_shadow",
+@dataclass(frozen=True, slots=True)
+class _ShadowFamily:
+    """One shadow concept and how many rows of it a run of ``count`` gets.
+
+    ``floor``/``divisor`` are the quota: at least ``floor`` rows, otherwise
+    ``count // divisor``. ``offset`` staggers which area each family starts on
+    so two families never keep producing the same room. ``build`` returns the
+    entities the row's home contains plus everything about the expectation.
+    """
+
+    category: str
+    slug: str
+    floor: int
+    divisor: int
+    offset: int
+    build: Callable[[int, str], dict[str, Any]]
+
+
+def _rows(**fields: Any) -> dict[str, Any]:
+    """A shadow row's varying half; the loop supplies the rest."""
+    return fields
+
+
+# Timers belong to the home, not to a device, so every timer row reuses one
+# light rather than inventing a device the request never mentions.
+_TIMER_LIGHT = _entity(name="Porch Accent Light", kind="light", area="Porch")
+
+_TV_TARGET = {"domain": ["media_player"], "device_class": ["tv"]}
+
+
+def _shadow_climate(index: int, area: str) -> dict[str, Any]:
+    thermostat = _entity(
+        name=f"{area} Comfort Thermostat", kind="climate", area=area, state="heat"
+    )
+    return _rows(
+        entities=[thermostat],
+        subcategory="named_device",
+        expected=_action(
+            {
+                "name": "HassClimateSetTemperature",
+                "arguments": {
+                    "name": thermostat["name"],
+                    "temperature": 66 + (index * 3) % 8,
+                },
+            }
+        ),
+        target_names=[thermostat["name"]],
+    )
+
+
+def _shadow_media(name_suffix: str, tool: str) -> Callable[[int, str], dict[str, Any]]:
+    """Play, pause and mute differ only by the tool and the TV's name."""
+
+    def build(index: int, area: str) -> dict[str, Any]:
+        aliases = ["tv"] if name_suffix == "Wall TV" else None
+        tv = _entity(
+            name=f"{area} {name_suffix}", kind="media_player", area=area, aliases=aliases
+        )
+        return _rows(
+            entities=[tv],
+            subcategory="named_device",
+            expected=_action(
+                {"name": tool, "arguments": {"name": tv["name"], **_TV_TARGET}}
+            ),
+            target_names=[tv["name"]],
+        )
+
+    return build
+
+
+def _shadow_media_volume(index: int, area: str) -> dict[str, Any]:
+    """Alternate absolute and relative volume; the model confuses the two."""
+    tv = _entity(name=f"{area} Soundbar TV", kind="media_player", area=area)
+    if index % 2 == 0:
+        expected = _action(
+            {
+                "name": "HassSetVolume",
+                "arguments": {
+                    "name": tv["name"],
+                    **_TV_TARGET,
+                    "volume_level": 25 + index * 7,
+                },
+            }
+        )
+        subcategory = "absolute"
+    else:
+        expected = _action(
+            {
+                "name": "HassSetVolumeRelative",
+                "arguments": {"name": tv["name"], "volume_step": "down"},
+            }
+        )
+        subcategory = "relative"
+    return _rows(
+        entities=[tv],
+        subcategory=subcategory,
+        expected=expected,
+        target_names=[tv["name"]],
+    )
+
+
+def _shadow_timer_start(index: int, area: str) -> dict[str, Any]:
+    minutes = 7 + index * 9
+    return _rows(
+        entities=[_TIMER_LIGHT],
+        subcategory="minutes",
+        expected=_action({"name": "HassStartTimer", "arguments": {"minutes": minutes}}),
+        target_names=[],
+        utterance=f"Set a {minutes} minute timer in the {area}",
+    )
+
+
+def _shadow_timer(
+    tool: str, subcategory: str, phrasing: str
+) -> Callable[[int, str], dict[str, Any]]:
+    """Pause and status are one argument-free tool call and one sentence."""
+
+    def build(_index: int, area: str) -> dict[str, Any]:
+        return _rows(
+            entities=[_TIMER_LIGHT],
+            subcategory=subcategory,
+            expected=_action({"name": tool, "arguments": {}}),
+            target_names=[],
+            utterance=phrasing.format(area=area),
+        )
+
+    return build
+
+
+def _shadow_timer_cancel(index: int, area: str) -> dict[str, Any]:
+    """Cancelling everywhere and cancelling in one area are the same tool."""
+    scoped = index % 2
+    return _rows(
+        entities=[_TIMER_LIGHT],
+        subcategory="area" if scoped else "all",
+        expected=_action(
+            {
+                "name": "HassCancelAllTimers",
+                "arguments": {"area": area} if scoped else {},
+            }
+        ),
+        target_names=[],
+        utterance=(
+            f"Clear all timers in the {area}"
+            if scoped
+            else f"Stop every running timer in the {area}"
+        ),
+    )
+
+
+def _shadow_vacuum(
+    name_suffix: str, tool: str, subcategory: str, *, state: str = "off", with_area: bool = False
+) -> Callable[[int, str], dict[str, Any]]:
+    def build(_index: int, area: str) -> dict[str, Any]:
+        vacuum = _entity(
+            name=f"{area} {name_suffix}", kind="vacuum", area=area, state=state
+        )
+        arguments = {"name": vacuum["name"]}
+        arguments |= {"area": area} if with_area else {"domain": ["vacuum"]}
+        return _rows(
+            entities=[vacuum],
+            subcategory=subcategory,
+            expected=_action({"name": tool, "arguments": arguments}),
+            target_names=[vacuum["name"]],
+        )
+
+    return build
+
+
+def _shadow_scene(_index: int, area: str) -> dict[str, Any]:
+    scene = _entity(name=f"{area} Relax Scene", kind="scene", area=area)
+    return _rows(
+        entities=[scene],
+        subcategory="named_scene",
+        expected=_action(_turn_on(scene)),
+        target_names=[scene["name"]],
+    )
+
+
+def _shadow_script(_index: int, area: str) -> dict[str, Any]:
+    script = _entity(name=f"{area} Away Script", kind="script", area=area)
+    return _rows(
+        entities=[script],
+        subcategory="named_script",
+        expected=_action(_run_script(script)),
+        target_names=[script["name"]],
+        utterance=f"turn on {script['name']}",
+    )
+
+
+def _shadow_ordinary(
+    name_suffix: str, kind: str, alias: str, on: bool
+) -> Callable[[int, str], dict[str, Any]]:
+    def build(_index: int, area: str) -> dict[str, Any]:
+        item = _entity(
+            name=f"{area} {name_suffix}", kind=kind, area=area, aliases=[alias]
+        )
+        return _rows(
+            entities=[item],
+            subcategory=kind,
+            expected=_action(_turn_on(item) if on else _turn_off(item)),
+            target_names=[item["name"]],
+        )
+
+    return build
+
+
+def _shadow_setting(
+    kind: str,
+    name_suffix: str,
+    other_suffix: str,
+    other_kind: str,
+    base: int,
+    span: int,
+    word: str,
+) -> Callable[[int, str], dict[str, Any]]:
+    """Brightness and speed, with the other device present half the time.
+
+    The contrast is the point: a row fails if the model reaches for brightness
+    on a fan or speed on a light.
+    """
+
+    def build(index: int, area: str) -> dict[str, Any]:
+        item = _entity(
+            name=f"{area} {name_suffix}", kind=kind, area=area, aliases=[kind]
+        )
+        value = base + (index * 15) % span
+        entities = [item]
+        if index % 2:
+            entities.append(
+                _entity(name=f"{area} {other_suffix}", kind=other_kind, area=area)
+            )
+        call = _light_set if kind == "light" else _fan_speed
+        return _rows(
+            entities=entities,
+            subcategory="light_fan_contrast" if index % 2 else "named_device",
+            expected=_action(call(item, value)),
+            target_names=[item["name"]],
+            utterance=f"set {item['name']} {word} to {value} percent",
+        )
+
+    return build
+
+
+def _shadow_status(index: int, area: str) -> dict[str, Any]:
+    if index % 2 == 0:
+        target = _entity(name=f"{area} Lounge TV", kind="media_player", area=area)
+        subcategory = "media_player"
+    else:
+        target = _entity(name=f"{area} Thermostat", kind="climate", area=area)
+        subcategory = "climate"
+    return _rows(
+        entities=[target],
+        subcategory=subcategory,
+        expected=_status(target),
+        target_names=[target["name"]],
+    )
+
+
+def _shadow_ambiguity(index: int, area: str) -> dict[str, Any]:
+    """One clear target, two equally good ones, and none at all."""
+    if index % 3 == 0:
+        light = _entity(
+            name=f"{area} Reading Lamp", kind="light", area=area, aliases=["reading lamp"]
+        )
+        entities, expected = [light], _action(_turn_on(light))
+        hint = "turn on the reading lamp"
+        utterance = f"Please switch on the {area} reading lamp"
+    elif index % 3 == 1:
+        entities = [
+            _entity(name=f"{area} Lamp A", kind="light", area=area, aliases=["accent light"]),
+            _entity(name=f"{area} Lamp B", kind="light", area=area, aliases=["accent light"]),
+        ]
+        expected = _no_action("clarify")
+        hint = "enable the mood light"
+        utterance = f"Enable the mood light in the {area}"
+    else:
+        entities = [_entity(name=f"{area} Desk Fan", kind="fan", area=area)]
+        expected = _no_action(
+            "area_unavailable", unavailable={"area": area.casefold(), "type": "lights"}
+        )
+        hint = "turn on the desk light"
+        utterance = f"Turn on the {area} desk light"
+    return _rows(
+        entities=entities,
+        subcategory="generic",
+        expected=expected,
+        target_names=[],
+        request_hint=hint,
+        utterance=utterance,
+    )
+
+
+def _shadow_unsupported(index: int, area: str) -> dict[str, Any]:
+    hints = (
+        f"mow the front lawn with the robot mower in the {area}",
+        f"press the panic button in the {area}",
+        f"add batteries to the {area} shopping list",
+    )
+    hint = hints[index % len(hints)]
+    return _rows(
+        entities=[_entity(name=f"{area} Hall Light", kind="light", area=area)],
+        subcategory="unsupported",
+        expected=_no_action("unsupported"),
+        target_names=[],
+        request_hint=hint,
+        utterance=hint,
+    )
+
+
+# Every shadow concept, in the order rows are minted. Order is load-bearing:
+# it fixes the row numbering and decides which family absorbs a rounding
+# remainder.
+_SHADOW_FAMILIES: tuple[_ShadowFamily, ...] = (
+    _ShadowFamily("climate_setpoint", "climate", 2, 12, 0, _shadow_climate),
+    _ShadowFamily("media_play", "media_play", 1, 20, 2, _shadow_media("Wall TV", "HassMediaUnpause")),
+    _ShadowFamily("media_pause", "media_pause", 1, 20, 4, _shadow_media("Corner TV", "HassMediaPause")),
+    _ShadowFamily("media_volume", "media_volume", 2, 15, 1, _shadow_media_volume),
+    _ShadowFamily("media_mute", "media_mute", 1, 20, 6, _shadow_media("Bedroom TV", "HassMediaPlayerMute")),
+    _ShadowFamily("timer_start", "timer_start", 2, 15, 3, _shadow_timer_start),
+    _ShadowFamily("timer_pause", "timer_pause", 1, 25, 5, _shadow_timer("HassPauseTimer", "generic", "Hold the {area} countdown timer")),
+    _ShadowFamily("timer_status", "timer_status", 1, 25, 7, _shadow_timer("HassTimerStatus", "generic", "How much time is left on the {area} timer?")),
+    _ShadowFamily("timer_cancel", "timer_cancel", 2, 15, 8, _shadow_timer_cancel),
+    _ShadowFamily("vacuum_start", "vacuum_start", 1, 20, 9, _shadow_vacuum("Floor Vacuum", "HassVacuumStart", "named_device")),
+    _ShadowFamily("vacuum_return", "vacuum_return", 1, 20, 10, _shadow_vacuum("Robot Vacuum", "HassVacuumReturnToBase", "named_device", state="cleaning")),
+    _ShadowFamily("vacuum_clean_area", "vacuum_area", 1, 20, 11, _shadow_vacuum("Robot Vacuum", "HassVacuumCleanArea", "area", with_area=True)),
+    _ShadowFamily("scene_activate", "scene", 2, 15, 0, _shadow_scene),
+    _ShadowFamily("script_run", "script", 2, 15, 2, _shadow_script),
+    _ShadowFamily("ordinary_on", "on", 2, 15, 4, _shadow_ordinary("Task Light", "light", "light", True)),
+    _ShadowFamily("ordinary_off", "off", 1, 20, 6, _shadow_ordinary("Ceiling Fan", "fan", "fan", False)),
+    _ShadowFamily("light_brightness", "bright", 2, 15, 8, _shadow_setting("light", "Reading Lamp", "Column Fan", "fan", 20, 80, "brightness")),
+    _ShadowFamily("fan_speed", "speed", 2, 15, 10, _shadow_setting("fan", "Column Fan", "Reading Lamp", "light", 25, 75, "speed")),
+    _ShadowFamily("status", "status", 2, 15, 1, _shadow_status),
+    _ShadowFamily("ambiguity", "ambiguity", 3, 10, 3, _shadow_ambiguity),
+    _ShadowFamily("unsupported_no_action", "unsupported", 2, 15, 5, _shadow_unsupported),
+)
+
+
+def _shadow_quotas(count: int) -> dict[str, int]:
+    """Split ``count`` rows across the families, to the row.
+
+    Rounding is taken off whichever family is currently largest and any
+    shortfall goes to ambiguity, which is the concept that most rewards extra
+    examples.
+    """
+    quotas = {
+        family.category: max(family.floor, count // family.divisor)
+        for family in _SHADOW_FAMILIES
     }
+    while sum(quotas.values()) > count:
+        quotas[max(quotas, key=lambda name: quotas[name])] -= 1
+    while sum(quotas.values()) < count:
+        quotas["ambiguity"] += 1
+    return quotas
 
 
-def build_shadow_specs(seed: int = 20260906, count: int = DEFAULT_SHADOW_COUNT) -> list[dict[str, Any]]:
+def build_shadow_specs(
+    seed: int = 20260906, count: int = DEFAULT_SHADOW_COUNT
+) -> list[dict[str, Any]]:
     """Build shadow rows that mirror gold concepts with fresh homes and phrasing."""
     if not SHADOW_MIN <= count <= SHADOW_MAX:
         raise ValueError(f"shadow count must be {SHADOW_MIN}-{SHADOW_MAX}, got {count}")
-    slots = {
-        "climate_setpoint": max(2, count // 12),
-        "media_play": max(1, count // 20),
-        "media_pause": max(1, count // 20),
-        "media_volume": max(2, count // 15),
-        "media_mute": max(1, count // 20),
-        "timer_start": max(2, count // 15),
-        "timer_pause": max(1, count // 25),
-        "timer_status": max(1, count // 25),
-        "timer_cancel": max(2, count // 15),
-        "vacuum_start": max(1, count // 20),
-        "vacuum_return": max(1, count // 20),
-        "vacuum_clean_area": max(1, count // 20),
-        "scene_activate": max(2, count // 15),
-        "script_run": max(2, count // 15),
-        "ordinary_on": max(2, count // 15),
-        "ordinary_off": max(1, count // 20),
-        "light_brightness": max(2, count // 15),
-        "fan_speed": max(2, count // 15),
-        "status": max(2, count // 15),
-        "ambiguity": max(3, count // 10),
-        "unsupported_no_action": max(2, count // 15),
-    }
-    while sum(slots.values()) > count:
-        key = max(slots, key=lambda name: slots[name])
-        slots[key] -= 1
-    while sum(slots.values()) < count:
-        slots["ambiguity"] += 1
+    quotas = _shadow_quotas(count)
 
     specs: list[dict[str, Any]] = []
-    slot = 0
-
-    for index in range(slots["climate_setpoint"]):
-        rng = random.Random((seed << 20) ^ index)
-        area = _SHADOW_AREAS[index % len(_SHADOW_AREAS)]
-        thermostat = _entity(name=f"{area} Comfort Thermostat", kind="climate", area=area, state="heat")
-        temp = 66 + (index * 3) % 8
-        home = _home(thermostat, sayso_entity_area=area, home_id=f"v3_shadow_climate_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_climate_{slot:04d}",
-                seed=seed,
-                category="climate_setpoint",
-                subcategory="named_device",
-                home=home,
-                expected=_action(
-                    {
-                        "name": "HassClimateSetTemperature",
-                        "arguments": {"name": thermostat["name"], "temperature": temp},
-                    }
-                ),
-                target_names=[thermostat["name"]],
+    for family in _SHADOW_FAMILIES:
+        for index in range(quotas[family.category]):
+            area = _SHADOW_AREAS[(index + family.offset) % len(_SHADOW_AREAS)]
+            row = family.build(index, area)
+            # One row, one id: the home is named after the row it belongs to.
+            candidate_id = f"v3_shadow_{family.slug}_{len(specs):04d}"
+            specs.append(
+                _shadow_spec_shell(
+                    candidate_id=candidate_id,
+                    seed=seed,
+                    category=family.category,
+                    subcategory=row["subcategory"],
+                    home=_home(
+                        *row["entities"],
+                        sayso_entity_area=area,
+                        home_id=candidate_id,
+                    ),
+                    expected=row["expected"],
+                    target_names=row["target_names"],
+                    request_hint=row.get("request_hint", ""),
+                    utterance=row.get("utterance"),
+                )
             )
-        )
-        slot += 1
-
-    for index in range(slots["media_play"]):
-        rng = random.Random((seed << 18) ^ (index + 50))
-        area = _SHADOW_AREAS[(index + 2) % len(_SHADOW_AREAS)]
-        tv = _entity(name=f"{area} Wall TV", kind="media_player", area=area, aliases=["tv"])
-        home = _home(tv, sayso_entity_area=area, home_id=f"v3_shadow_media_play_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_media_play_{slot:04d}",
-                seed=seed,
-                category="media_play",
-                subcategory="named_device",
-                home=home,
-                expected=_action(
-                    {
-                        "name": "HassMediaUnpause",
-                        "arguments": {"name": tv["name"], "domain": ["media_player"], "device_class": ["tv"]},
-                    }
-                ),
-                target_names=[tv["name"]],
-            )
-        )
-        slot += 1
-
-    for index in range(slots["media_pause"]):
-        area = _SHADOW_AREAS[(index + 4) % len(_SHADOW_AREAS)]
-        tv = _entity(name=f"{area} Corner TV", kind="media_player", area=area)
-        home = _home(tv, sayso_entity_area=area, home_id=f"v3_shadow_media_pause_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_media_pause_{slot:04d}",
-                seed=seed,
-                category="media_pause",
-                subcategory="named_device",
-                home=home,
-                expected=_action(
-                    {
-                        "name": "HassMediaPause",
-                        "arguments": {"name": tv["name"], "domain": ["media_player"], "device_class": ["tv"]},
-                    }
-                ),
-                target_names=[tv["name"]],
-            )
-        )
-        slot += 1
-
-    for index in range(slots["media_volume"]):
-        area = _SHADOW_AREAS[(index + 1) % len(_SHADOW_AREAS)]
-        tv = _entity(name=f"{area} Soundbar TV", kind="media_player", area=area)
-        home = _home(tv, sayso_entity_area=area, home_id=f"v3_shadow_media_volume_{slot:04d}")
-        if index % 2 == 0:
-            level = 25 + index * 7
-            expected = _action(
-                {
-                    "name": "HassSetVolume",
-                    "arguments": {
-                        "name": tv["name"],
-                        "domain": ["media_player"],
-                        "device_class": ["tv"],
-                        "volume_level": level,
-                    },
-                }
-            )
-            subcategory = "absolute"
-        else:
-            expected = _action(
-                {
-                    "name": "HassSetVolumeRelative",
-                    "arguments": {"name": tv["name"], "volume_step": "down"},
-                }
-            )
-            subcategory = "relative"
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_media_volume_{slot:04d}",
-                seed=seed,
-                category="media_volume",
-                subcategory=subcategory,
-                home=home,
-                expected=expected,
-                target_names=[tv["name"]],
-            )
-        )
-        slot += 1
-
-    for index in range(slots["media_mute"]):
-        area = _SHADOW_AREAS[(index + 6) % len(_SHADOW_AREAS)]
-        tv = _entity(name=f"{area} Bedroom TV", kind="media_player", area=area)
-        home = _home(tv, sayso_entity_area=area, home_id=f"v3_shadow_media_mute_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_media_mute_{slot:04d}",
-                seed=seed,
-                category="media_mute",
-                subcategory="named_device",
-                home=home,
-                expected=_action(
-                    {
-                        "name": "HassMediaPlayerMute",
-                        "arguments": {"name": tv["name"], "domain": ["media_player"], "device_class": ["tv"]},
-                    }
-                ),
-                target_names=[tv["name"]],
-            )
-        )
-        slot += 1
-
-    timer_light = _entity(name="Porch Accent Light", kind="light", area="Porch")
-    for index in range(slots["timer_start"]):
-        area = _SHADOW_AREAS[(index + 3) % len(_SHADOW_AREAS)]
-        minutes = 7 + index * 9
-        home = _home(timer_light, sayso_entity_area=area, home_id=f"v3_shadow_timer_start_{slot:04d}")
-        args: dict[str, Any] = {"minutes": minutes}
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_timer_start_{slot:04d}",
-                seed=seed,
-                category="timer_start",
-                subcategory="minutes",
-                home=home,
-                expected=_action({"name": "HassStartTimer", "arguments": args}),
-                target_names=[],
-                utterance=f"Set a {minutes} minute timer in the {area}",
-            )
-        )
-        slot += 1
-
-    for index in range(slots["timer_pause"]):
-        area = _SHADOW_AREAS[(index + 5) % len(_SHADOW_AREAS)]
-        home = _home(timer_light, sayso_entity_area=area, home_id=f"v3_shadow_timer_pause_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_timer_pause_{slot:04d}",
-                seed=seed,
-                category="timer_pause",
-                subcategory="generic",
-                home=home,
-                expected=_action({"name": "HassPauseTimer", "arguments": {}}),
-                target_names=[],
-                utterance=f"Hold the {area} countdown timer",
-            )
-        )
-        slot += 1
-
-    for index in range(slots["timer_status"]):
-        area = _SHADOW_AREAS[(index + 7) % len(_SHADOW_AREAS)]
-        home = _home(timer_light, sayso_entity_area=area, home_id=f"v3_shadow_timer_status_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_timer_status_{slot:04d}",
-                seed=seed,
-                category="timer_status",
-                subcategory="generic",
-                home=home,
-                expected=_action({"name": "HassTimerStatus", "arguments": {}}),
-                target_names=[],
-                utterance=f"How much time is left on the {area} timer?",
-            )
-        )
-        slot += 1
-
-    for index in range(slots["timer_cancel"]):
-        area = _SHADOW_AREAS[(index + 8) % len(_SHADOW_AREAS)]
-        home = _home(timer_light, sayso_entity_area=area, home_id=f"v3_shadow_timer_cancel_{slot:04d}")
-        if index % 2 == 0:
-            expected = _action({"name": "HassCancelAllTimers", "arguments": {}})
-            subcategory = "all"
-            utterance = f"Stop every running timer in the {area}"
-        else:
-            expected = _action({"name": "HassCancelAllTimers", "arguments": {"area": area}})
-            subcategory = "area"
-            utterance = f"Clear all timers in the {area}"
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_timer_cancel_{slot:04d}",
-                seed=seed,
-                category="timer_cancel",
-                subcategory=subcategory,
-                home=home,
-                expected=expected,
-                target_names=[],
-                utterance=utterance,
-            )
-        )
-        slot += 1
-
-    for index in range(slots["vacuum_start"]):
-        area = _SHADOW_AREAS[(index + 9) % len(_SHADOW_AREAS)]
-        vacuum = _entity(name=f"{area} Floor Vacuum", kind="vacuum", area=area)
-        home = _home(vacuum, sayso_entity_area=area, home_id=f"v3_shadow_vacuum_start_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_vacuum_start_{slot:04d}",
-                seed=seed,
-                category="vacuum_start",
-                subcategory="named_device",
-                home=home,
-                expected=_action({"name": "HassVacuumStart", "arguments": {"name": vacuum["name"], "domain": ["vacuum"]}}),
-                target_names=[vacuum["name"]],
-            )
-        )
-        slot += 1
-
-    for index in range(slots["vacuum_return"]):
-        area = _SHADOW_AREAS[(index + 10) % len(_SHADOW_AREAS)]
-        vacuum = _entity(name=f"{area} Robot Vacuum", kind="vacuum", area=area, state="cleaning")
-        home = _home(vacuum, sayso_entity_area=area, home_id=f"v3_shadow_vacuum_return_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_vacuum_return_{slot:04d}",
-                seed=seed,
-                category="vacuum_return",
-                subcategory="named_device",
-                home=home,
-                expected=_action(
-                    {"name": "HassVacuumReturnToBase", "arguments": {"name": vacuum["name"], "domain": ["vacuum"]}}
-                ),
-                target_names=[vacuum["name"]],
-            )
-        )
-        slot += 1
-
-    for index in range(slots["vacuum_clean_area"]):
-        area = _SHADOW_AREAS[(index + 11) % len(_SHADOW_AREAS)]
-        vacuum = _entity(name=f"{area} Robot Vacuum", kind="vacuum", area=area)
-        home = _home(vacuum, sayso_entity_area=area, home_id=f"v3_shadow_vacuum_area_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_vacuum_area_{slot:04d}",
-                seed=seed,
-                category="vacuum_clean_area",
-                subcategory="area",
-                home=home,
-                expected=_action(
-                    {"name": "HassVacuumCleanArea", "arguments": {"name": vacuum["name"], "area": area}}
-                ),
-                target_names=[vacuum["name"]],
-            )
-        )
-        slot += 1
-
-    for index in range(slots["scene_activate"]):
-        area = _SHADOW_AREAS[index % len(_SHADOW_AREAS)]
-        scene = _entity(name=f"{area} Relax Scene", kind="scene", area=area)
-        home = _home(scene, sayso_entity_area=area, home_id=f"v3_shadow_scene_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_scene_{slot:04d}",
-                seed=seed,
-                category="scene_activate",
-                subcategory="named_scene",
-                home=home,
-                expected=_action(_turn_on(scene)),
-                target_names=[scene["name"]],
-            )
-        )
-        slot += 1
-
-    for index in range(slots["script_run"]):
-        area = _SHADOW_AREAS[(index + 2) % len(_SHADOW_AREAS)]
-        script = _entity(name=f"{area} Away Script", kind="script", area=area)
-        home = _home(script, sayso_entity_area=area, home_id=f"v3_shadow_script_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_script_{slot:04d}",
-                seed=seed,
-                category="script_run",
-                subcategory="named_script",
-                home=home,
-                expected=_action(_run_script(script)),
-                target_names=[script["name"]],
-                utterance=f"turn on {script['name']}",
-            )
-        )
-        slot += 1
-
-    for index in range(slots["ordinary_on"]):
-        area = _SHADOW_AREAS[(index + 4) % len(_SHADOW_AREAS)]
-        light = _entity(name=f"{area} Task Light", kind="light", area=area, aliases=["light"])
-        home = _home(light, sayso_entity_area=area, home_id=f"v3_shadow_on_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_on_{slot:04d}",
-                seed=seed,
-                category="ordinary_on",
-                subcategory="light",
-                home=home,
-                expected=_action(_turn_on(light)),
-                target_names=[light["name"]],
-            )
-        )
-        slot += 1
-
-    for index in range(slots["ordinary_off"]):
-        area = _SHADOW_AREAS[(index + 6) % len(_SHADOW_AREAS)]
-        fan = _entity(name=f"{area} Ceiling Fan", kind="fan", area=area, aliases=["fan"])
-        home = _home(fan, sayso_entity_area=area, home_id=f"v3_shadow_off_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_off_{slot:04d}",
-                seed=seed,
-                category="ordinary_off",
-                subcategory="fan",
-                home=home,
-                expected=_action(_turn_off(fan)),
-                target_names=[fan["name"]],
-            )
-        )
-        slot += 1
-
-    # Half of each pool puts the other device in the home, so a row fails if the
-    # model reaches for brightness on a fan or speed on a light.
-    for index in range(slots["light_brightness"]):
-        area = _SHADOW_AREAS[(index + 8) % len(_SHADOW_AREAS)]
-        light = _entity(name=f"{area} Reading Lamp", kind="light", area=area, aliases=["light"])
-        brightness = 20 + (index * 15) % 80
-        members = [light]
-        if index % 2:
-            members.append(_entity(name=f"{area} Column Fan", kind="fan", area=area))
-        home = _home(*members, sayso_entity_area=area, home_id=f"v3_shadow_bright_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_bright_{slot:04d}",
-                seed=seed,
-                category="light_brightness",
-                subcategory="light_fan_contrast" if index % 2 else "named_device",
-                home=home,
-                expected=_action(_light_set(light, brightness)),
-                target_names=[light["name"]],
-                utterance=f"set {light['name']} brightness to {brightness} percent",
-            )
-        )
-        slot += 1
-
-    for index in range(slots["fan_speed"]):
-        area = _SHADOW_AREAS[(index + 10) % len(_SHADOW_AREAS)]
-        fan = _entity(name=f"{area} Column Fan", kind="fan", area=area, aliases=["fan"])
-        percentage = 25 + (index * 15) % 75
-        members = [fan]
-        if index % 2:
-            members.append(_entity(name=f"{area} Reading Lamp", kind="light", area=area))
-        home = _home(*members, sayso_entity_area=area, home_id=f"v3_shadow_speed_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_speed_{slot:04d}",
-                seed=seed,
-                category="fan_speed",
-                subcategory="light_fan_contrast" if index % 2 else "named_device",
-                home=home,
-                expected=_action(_fan_speed(fan, percentage)),
-                target_names=[fan["name"]],
-                utterance=f"set {fan['name']} speed to {percentage} percent",
-            )
-        )
-        slot += 1
-
-    for index in range(slots["status"]):
-        area = _SHADOW_AREAS[(index + 1) % len(_SHADOW_AREAS)]
-        if index % 2 == 0:
-            target = _entity(name=f"{area} Lounge TV", kind="media_player", area=area)
-            subcategory = "media_player"
-        else:
-            target = _entity(name=f"{area} Thermostat", kind="climate", area=area)
-            subcategory = "climate"
-        home = _home(target, sayso_entity_area=area, home_id=f"v3_shadow_status_{slot:04d}")
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_status_{slot:04d}",
-                seed=seed,
-                category="status",
-                subcategory=subcategory,
-                home=home,
-                expected=_status(target),
-                target_names=[target["name"]],
-            )
-        )
-        slot += 1
-
-    for index in range(slots["ambiguity"]):
-        area = _SHADOW_AREAS[(index + 3) % len(_SHADOW_AREAS)]
-        utterance = ""
-        if index % 3 == 0:
-            light = _entity(name=f"{area} Reading Lamp", kind="light", area=area, aliases=["reading lamp"])
-            home = _home(light, sayso_entity_area=area, home_id=f"v3_shadow_ambiguity_{slot:04d}")
-            expected = _action(_turn_on(light))
-            hint = "turn on the reading lamp"
-            utterance = f"Please switch on the {area} reading lamp"
-        elif index % 3 == 1:
-            a = _entity(name=f"{area} Lamp A", kind="light", area=area, aliases=["accent light"])
-            b = _entity(name=f"{area} Lamp B", kind="light", area=area, aliases=["accent light"])
-            home = _home(a, b, sayso_entity_area=area, home_id=f"v3_shadow_ambiguity_{slot:04d}")
-            expected = _no_action("clarify")
-            hint = "enable the mood light"
-            utterance = f"Enable the mood light in the {area}"
-        else:
-            fan = _entity(name=f"{area} Desk Fan", kind="fan", area=area)
-            home = _home(fan, sayso_entity_area=area, home_id=f"v3_shadow_ambiguity_{slot:04d}")
-            expected = _no_action("area_unavailable", unavailable={"area": area.casefold(), "type": "lights"})
-            hint = "turn on the desk light"
-            utterance = f"Turn on the {area} desk light"
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_ambiguity_{slot:04d}",
-                seed=seed,
-                category="ambiguity",
-                subcategory="generic",
-                home=home,
-                expected=expected,
-                target_names=[],
-                request_hint=hint,
-                utterance=utterance,
-            )
-        )
-        slot += 1
-
-    for index in range(slots["unsupported_no_action"]):
-        area = _SHADOW_AREAS[(index + 5) % len(_SHADOW_AREAS)]
-        light = _entity(name=f"{area} Hall Light", kind="light", area=area)
-        home = _home(light, sayso_entity_area=area, home_id=f"v3_shadow_unsupported_{slot:04d}")
-        hints = (
-            f"mow the front lawn with the robot mower in the {area}",
-            f"press the panic button in the {area}",
-            f"add batteries to the {area} shopping list",
-        )
-        hint = hints[index % len(hints)]
-        specs.append(
-            _shadow_spec_shell(
-                candidate_id=f"v3_shadow_unsupported_{slot:04d}",
-                seed=seed,
-                category="unsupported_no_action",
-                subcategory="unsupported",
-                home=home,
-                expected=_no_action("unsupported"),
-                target_names=[],
-                request_hint=hint,
-                utterance=hint,
-            )
-        )
-        slot += 1
 
     for spec in specs:
         if not spec.get("utterance"):
@@ -1179,70 +942,42 @@ def build_shadow_examples(seed: int = 20260906, count: int = DEFAULT_SHADOW_COUN
     return rows
 
 
-def expected_tool_calls(example: dict[str, Any]) -> list[dict[str, Any]]:
-    batches = extract_assistant_tool_calls(example.get("messages") or [])
-    return [call for batch in batches for call in batch]
-
-
-def score_quality_gold(example: dict[str, Any], actual_messages: list[dict[str, Any]]) -> dict[str, Any]:
-    expected_messages = example.get("messages") or []
-    expected_calls = expected_tool_calls(example)
-    actual_calls = expected_tool_calls({"messages": actual_messages})
-    name_ok, args_ok, _multi_ok, category = score_expected_vs_actual(expected_messages, actual_messages)
-    no_call_expected = not expected_calls
-    no_call_actual = not actual_calls
-    no_call_ok = no_call_expected == no_call_actual
-    if no_call_expected and actual_calls:
-        category = category or "unexpected_tool_call"
-    if not no_call_expected and not actual_calls:
-        category = category or "missing_tool_call"
-    return {
-        "tool_name_exact": name_ok,
-        "args_exact": args_ok,
-        "no_call_when_expected": no_call_ok,
-        "failure_category": category,
-        "pass": name_ok and args_ok and no_call_ok,
-    }
-
-
 def assert_quality_eval_contract(example: dict[str, Any]) -> None:
-    blob = json.dumps(example, ensure_ascii=False)
-    if _BANNED.search(blob):
-        raise ValueError("v3 quality eval contains banned eval or ChatML tool-call markers")
-    metadata = example.get("metadata") or {}
-    if str(metadata.get("candidate_id", "")).startswith("evals/cases"):
-        raise ValueError("v3 quality eval must not use evals/cases IDs")
+    """Validate one rendered v3 row against the pinned tool contract."""
+    calls = assert_row_contract(example, "v3 quality eval")
     schemas = tool_schema_map(v2_openai_tools())
-    # Per-script tools are named after the script, so they are absent from the pinned
-    # catalog by design; they must still be offered to the row and take no arguments.
+    # Per-script tools are named after the script, so they are absent from the
+    # pinned catalog by design; they must still be offered to the row and take
+    # no arguments.
     offered = {tool["function"]["name"] for tool in example.get("tools") or []}
     prompt = "".join(
         str(message.get("content") or "")
         for message in example.get("messages") or []
         if message.get("role") == "system"
     )
-    for call in expected_tool_calls(example):
-        args = call.get("function", {}).get("arguments")
-        if not isinstance(args, str):
-            raise ValueError("v3 quality eval keeps function.arguments as JSON strings")
-        parsed = parse_tool_arguments(args)
-        if parsed is None:
-            raise ValueError("v3 quality eval arguments must parse as JSON objects")
+    for call in calls:
+        parsed = parse_tool_arguments(call["function"]["arguments"]) or {}
         name = call["function"]["name"]
-        # A target the prompt never names cannot be answered: the row is unscoreable,
-        # not hard. Scripts are excluded from the overview, so they ground on the tool.
+        # A target the prompt never names cannot be answered: the row is
+        # unscoreable, not hard. Scripts are excluded from the overview, so
+        # they ground on the tool instead.
         target = parsed.get("name")
         if isinstance(target, str) and target not in prompt:
-            raise ValueError(f"v3 quality eval targets a name absent from the prompt: {target}")
+            raise ValueError(
+                f"v3 quality eval targets a name absent from the prompt: {target}"
+            )
         if name not in schemas:
             if name not in offered:
-                raise ValueError(f"v3 quality eval calls a tool the row never offered: {name}")
+                raise ValueError(
+                    f"v3 quality eval calls a tool the row never offered: {name}"
+                )
             if parsed:
                 raise ValueError("v3 quality eval script tools take no arguments")
             continue
-        reason = validate_tool_arguments(name, parsed, schemas)
-        if reason:
-            raise ValueError(f"v3 quality eval arguments failed schema validation: {reason}")
+        if reason := validate_tool_arguments(name, parsed, schemas):
+            raise ValueError(
+                f"v3 quality eval arguments failed schema validation: {reason}"
+            )
 
 
 def v3_quality_summary() -> dict[str, Any]:

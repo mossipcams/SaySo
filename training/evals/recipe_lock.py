@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -13,101 +11,35 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from build_synthetic_dataset import render_example  # noqa: E402
-from evals.metrics import (  # noqa: E402
-    extract_assistant_tool_calls,
-    parse_tool_arguments,
-    score_expected_vs_actual,
-    tool_call_signature,
+from evals.specs import (  # noqa: E402
+    action as _action,
+    assert_row_contract,
+    entity as _entity,
+    expected_tool_calls,
+    fan_speed as _fan_speed,
+    home as _home_base,
+    light_set,
+    no_action as _no_action,
+    normalized as _normalized,
+    score_quality_gold,
+    spec as _spec_base,
+    status as _status,
+    turn_off as _turn_off,
+    turn_on as _turn_on,
 )
 
-_BANNED = re.compile(r"evals/cases/|<tool_call>|tool_call_start", re.I)
-
-
-def _entity(
-    *,
-    name: str,
-    kind: str,
-    area: str,
-    aliases: list[str] | None = None,
-    state: str = "off",
-) -> dict[str, Any]:
-    domain = "cover" if kind in {"blinds", "garage_door"} else kind
-    device_class = {"blinds": "blind", "garage_door": "garage", "lock": "door"}.get(kind)
-    slug = "".join(char.casefold() if char.isalnum() else "_" for char in name).strip("_")
-    capabilities = {
-        "light": ("on", "off", "brightness"),
-        "fan": ("on", "off", "percentage"),
-        "switch": ("on", "off"),
-        "blinds": ("open", "close"),
-        "garage_door": ("open", "close"),
-        "lock": ("lock", "unlock"),
-    }[kind]
-    return {
-        "entity_id": f"{domain}.{slug}",
-        "name": name,
-        "aliases": aliases or [name],
-        "domain": domain,
-        "kind": kind,
-        "device_class": device_class,
-        "area": area,
-        "floor": "Main Floor",
-        "state": state,
-        "capabilities": list(capabilities),
-    }
+_LOCK_HOME_ID = "recipe_lock_home"
 
 
 def _home(*entities: dict[str, Any], sayso_entity_area: str) -> dict[str, Any]:
-    return {
-        "home_id": "recipe_lock_home",
-        "sayso_entity_area": sayso_entity_area,
-        "entities": list(entities),
-    }
-
-
-def _action(*calls: dict[str, Any]) -> dict[str, Any]:
-    return {"kind": "action", "calls": list(calls)}
-
-
-def _no_action(response: str, **extra: Any) -> dict[str, Any]:
-    payload: dict[str, Any] = {"kind": "no_action", "response": response, "calls": []}
-    payload.update(extra)
-    return payload
-
-
-def _status(entity: dict[str, Any]) -> dict[str, Any]:
-    args: dict[str, Any] = {"name": entity["name"]}
-    if entity["domain"] in {"light", "fan", "switch"}:
-        args["domain"] = [entity["domain"]]
-    return {
-        "kind": "status",
-        "calls": [{"name": "GetLiveContext", "arguments": args}],
-        "state": entity["state"],
-    }
-
-
-def _turn_on(entity: dict[str, Any]) -> dict[str, Any]:
-    args: dict[str, Any] = {"name": entity["name"]}
-    if entity["domain"] in {"light", "fan", "switch"}:
-        args["domain"] = [entity["domain"]]
-    elif entity["device_class"]:
-        args["device_class"] = [entity["device_class"]]
-    return {"name": "HassTurnOn", "arguments": args}
-
-
-def _turn_off(entity: dict[str, Any]) -> dict[str, Any]:
-    args: dict[str, Any] = {"name": entity["name"]}
-    if entity["domain"] in {"light", "fan", "switch"}:
-        args["domain"] = [entity["domain"]]
-    elif entity["device_class"]:
-        args["device_class"] = [entity["device_class"]]
-    return {"name": "HassTurnOff", "arguments": args}
+    """Every locked row uses one home id; only its contents vary."""
+    return _home_base(
+        *entities, sayso_entity_area=sayso_entity_area, home_id=_LOCK_HOME_ID
+    )
 
 
 def _light_set(entity: dict[str, Any], *, brightness: int) -> dict[str, Any]:
-    return {
-        "name": "HassLightSet",
-        "arguments": {"name": entity["name"], "domain": ["light"], "brightness": brightness},
-    }
+    return light_set(entity, brightness)
 
 
 def _spec(
@@ -121,28 +53,19 @@ def _spec(
     target_names: list[str] | None = None,
     request_hint: str = "",
 ) -> dict[str, Any]:
-    calls = expected.get("calls") or []
-    names = target_names or [
-        call["arguments"]["name"] for call in calls if isinstance(call.get("arguments"), dict) and call["arguments"].get("name")
-    ]
-    return {
-        "candidate_id": f"recipe_lock_{recipe:02d}_{row}",
-        "seed": 0,
-        "category": category,
-        "subcategory": row,
-        "recipe": recipe,
-        "recipe_row": row,
-        "home": home,
-        "expected": expected,
-        "target_names": names,
-        "spoken_targets": {},
-        "excluded_names": [],
-        "contrastive_group": None,
-        "request_hint": request_hint,
-        "stt_corruption": None,
-        "utterance": utterance,
-        "quality_eval": True,
-    }
+    """One locked row, addressed by the recipe and lettered row it came from."""
+    return _spec_base(
+        candidate_id=f"recipe_lock_{recipe:02d}_{row}",
+        category=category,
+        subcategory=row,
+        utterance=utterance,
+        home=home,
+        expected=expected,
+        target_names=target_names,
+        request_hint=request_hint,
+        recipe=recipe,
+        recipe_row=row,
+    )
 
 
 def locked_specs() -> list[dict[str, Any]]:
@@ -551,58 +474,12 @@ def build_quality_eval_examples() -> list[dict[str, Any]]:
     return examples
 
 
-def _normalized(text: str) -> str:
-    return " ".join(re.findall(r"[a-z0-9]+", text.casefold().replace("’", "'")))
-
-
-def expected_tool_calls(example: dict[str, Any]) -> list[dict[str, Any]]:
-    batches = extract_assistant_tool_calls(example.get("messages") or [])
-    return [call for batch in batches for call in batch]
-
-
-def score_quality_gold(example: dict[str, Any], actual_messages: list[dict[str, Any]]) -> dict[str, Any]:
-    """Score exact tool name/args and no-call-when-expected for one gold row."""
-    expected_messages = example.get("messages") or []
-    expected_calls = expected_tool_calls(example)
-    actual_calls = expected_tool_calls({"messages": actual_messages})
-    name_ok, args_ok, _multi_ok, category = score_expected_vs_actual(
-        expected_messages,
-        actual_messages,
-    )
-    no_call_expected = not expected_calls
-    no_call_actual = not actual_calls
-    no_call_ok = no_call_expected == no_call_actual
-    if no_call_expected and actual_calls:
-        category = category or "unexpected_tool_call"
-    if not no_call_expected and not actual_calls:
-        category = category or "missing_tool_call"
-    return {
-        "tool_name_exact": name_ok,
-        "args_exact": args_ok,
-        "no_call_when_expected": no_call_ok,
-        "failure_category": category,
-        "pass": name_ok and args_ok and no_call_ok,
-    }
-
-
 def assert_quality_eval_contract(example: dict[str, Any]) -> None:
     """Validate one rendered gold row against the first-training contract."""
-    blob = json.dumps(example, ensure_ascii=False)
-    if _BANNED.search(blob):
-        raise ValueError("quality eval contains banned eval or ChatML tool-call markers")
-    metadata = example.get("metadata") or {}
-    if str(metadata.get("candidate_id", "")).startswith("evals/cases"):
-        raise ValueError("quality eval must not use evals/cases IDs")
-    user = next(message for message in example["messages"] if message.get("role") == "user")
+    assert_row_contract(example, "quality eval")
+    user = next(m for m in example["messages"] if m.get("role") == "user")
     if "thermostat" in _normalized(str(user.get("content", ""))):
         raise ValueError("thermostat rows are omitted from first training")
-    for call in expected_tool_calls(example):
-        args = call.get("function", {}).get("arguments")
-        if not isinstance(args, str):
-            raise ValueError("quality eval keeps function.arguments as JSON strings")
-        parsed = parse_tool_arguments(args)
-        if parsed is None:
-            raise ValueError("quality eval arguments must parse as JSON objects")
 
 
 def recipe_lock_summary() -> dict[str, Any]:
