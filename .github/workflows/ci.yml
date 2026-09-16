@@ -20,7 +20,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Validate PR title
         env:
@@ -31,7 +31,7 @@ jobs:
     name: Satellite unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -55,7 +55,7 @@ jobs:
             ha: "2026.8.3"
             python: "3.14"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -87,7 +87,7 @@ jobs:
             ha: "2026.8.3"
             python: "3.14"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
         uses: actions/setup-python@v5
