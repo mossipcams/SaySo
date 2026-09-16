@@ -87,7 +87,8 @@ HA_URL=http://homeassistant.local:8123 HA_TOKEN=... \
   python training/scripts/fetch_ha_home.py --out training/fixtures/real_home.json \
   --require-entity media_player.living_room_tv
 
-# the home-specific recipe: real-home mixing on, at an explicit nonzero rate
+# the production home recipe: real-home mixing, area context, full catalogue,
+# and the runtime namespaced tool contract are enabled together
 python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 \
   --real-home training/fixtures/real_home.json --home-recipe
 
@@ -96,8 +97,9 @@ python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 \
   --synthetic-only
 ```
 
-`--home-recipe` defaults `--real-home-rate` to 0.10; `--real-home-rate` still
-overrides it. `--synthetic-only` is the only way to turn mixing off on purpose —
+`--home-recipe` defaults real-home mixing to 0.10 and area context, full-catalog,
+and namespaced-tool rows to 0.35; each explicit rate flag overrides its default.
+`--synthetic-only` is the only way to turn mixing off on purpose —
 forgetting the flag is not the same decision, so the two are mutually exclusive.
 
 `generators.real_home` holds every fifth entity of each capability out of

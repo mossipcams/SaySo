@@ -125,7 +125,15 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
         for call in calls:
             arguments = call.get("arguments") or {}
             for scope in ("area", "floor"):
-                if arguments.get(scope) and str(arguments[scope]).casefold() not in lowered:
+                if (
+                    arguments.get(scope)
+                    and str(arguments[scope]).casefold() not in lowered
+                    and not (
+                        scope == "area"
+                        and spec.get("targeting") == "context"
+                        and spec.get("target_area_source") == "satellite_fallback"
+                    )
+                ):
                     return "missing_expected_scope"
             for key, value in arguments.items():
                 if isinstance(value, bool) or not isinstance(value, (int, float)):

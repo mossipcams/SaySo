@@ -21,9 +21,25 @@ Two properties matter most and both differ from the pre-2026.8 format:
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
+import sys
 from typing import Any
 
 import yaml
+
+# Load the integration's dependency-free contract without importing Home
+# Assistant's integration package into the training environment.
+_AREA_CONTEXT_PATH = Path(__file__).resolve().parents[2] / "custom_components" / "sayso" / "area_context.py"
+_AREA_CONTEXT_SPEC = importlib.util.spec_from_file_location("sayso_area_context", _AREA_CONTEXT_PATH)
+if _AREA_CONTEXT_SPEC is None or _AREA_CONTEXT_SPEC.loader is None:
+    raise ImportError(f"cannot load {_AREA_CONTEXT_PATH}")
+_AREA_CONTEXT = importlib.util.module_from_spec(_AREA_CONTEXT_SPEC)
+sys.modules[_AREA_CONTEXT_SPEC.name] = _AREA_CONTEXT
+_AREA_CONTEXT_SPEC.loader.exec_module(_AREA_CONTEXT)
+AreaContext = _AREA_CONTEXT.AreaContext
+render_area_context = _AREA_CONTEXT.render_area_context
+resolve_area_context = _AREA_CONTEXT.resolve_area_context
 
 # custom_components/sayso/const.py DEFAULT_SYSTEM_PROMPT, sent as user_llm_prompt.
 SAYSO_SYSTEM_PROMPT = """You are SaySo, a local Home Assistant voice agent.
@@ -106,32 +122,26 @@ def exposed_entities(home: dict[str, Any]) -> list[dict[str, Any]]:
     return entities
 
 
-def _area_prompt(home: dict[str, Any]) -> str:
-    """The satellite's area line, which tells the model where generic commands land."""
-    area = home.get("sayso_entity_area")
-    if not area:
-        return (
-            "When a user asks to turn on all devices of a specific type, "
-            "ask the user to specify an area, unless there is only one device"
-            " of that type."
-        )
-    floor = next(
-        (
-            entity.get("floor")
-            for entity in home.get("entities", [])
-            if entity.get("area") == area and entity.get("floor")
-        ),
-        None,
+def _area_prompt(home: dict[str, Any], utterance: str | None = None) -> str:
+    """Render the same request-area contract that production sends."""
+    context = resolve_area_context(
+        utterance or "",
+        satellite_area=home.get("satellite_area", home.get("sayso_entity_area")),
+        areas=home.get("areas", ()),
+        entities=home.get("entities", ()),
     )
-    if floor:
-        return (
-            f"You are in area {area} (floor {floor}) and all generic"
-            " commands like 'turn on the lights' should target this area."
+    rendered = render_area_context(context)
+    if utterance is None and context.satellite_area:
+        # Keep the public no-utterance helper readable for existing fixtures;
+        # rendered rows use only the shared three-field contract.
+        floor = next(
+            (entity.get("floor") for entity in home.get("entities", [])
+             if entity.get("area") == context.satellite_area and entity.get("floor")),
+            None,
         )
-    return (
-        f"You are in area {area} and all generic commands like"
-        " 'turn on the lights' should target this area."
-    )
+        floor_text = f" (floor {floor})" if floor else ""
+        rendered += f"\nYou are in area {context.satellite_area}{floor_text} and all generic commands like 'turn on the lights' should target this area."
+    return rendered
 
 
 def _namespaced(text: str) -> str:
@@ -148,7 +158,9 @@ def _namespaced(text: str) -> str:
     return text
 
 
-def serialize_context(home: dict[str, Any], *, namespaced: bool = False) -> str:
+def serialize_context(
+    home: dict[str, Any], *, utterance: str | None = None, namespaced: bool = False
+) -> str:
     """Serialize exposed entity context as Home Assistant's Assist API sends it."""
     dynamic_prompt = DYNAMIC_CONTEXT_PROMPT
     control_prompt = DEVICE_CONTROL_TOOL_USAGE_PROMPT
@@ -162,12 +174,16 @@ def serialize_context(home: dict[str, Any], *, namespaced: bool = False) -> str:
         )
     else:
         api_prompt = NO_ENTITIES_PROMPT
-    # Domain order: the "homeassistant" platform sorts before "intent".
-    api_prompt = "\n".join([api_prompt, control_prompt, _area_prompt(home)])
+    # Domain order: the "homeassistant" platform sorts before "intent". The
+    # request context precedes HA's appended API context, matching production.
+    api_prompt = "\n".join([api_prompt, control_prompt])
+    area_prompt = _area_prompt(home, utterance)
     # DATE_TIME_PROMPT is omitted: chat_log only appends it when no GetDateTime tool
     # is offered, and every row offers GetDateTime.
-    return "\n".join([SAYSO_SYSTEM_PROMPT, api_prompt])
+    return "\n".join([SAYSO_SYSTEM_PROMPT, area_prompt, api_prompt])
 
 
-def system_prompt(home: dict[str, Any], *, namespaced: bool = False) -> str:
-    return serialize_context(home, namespaced=namespaced)
+def system_prompt(
+    home: dict[str, Any], *, utterance: str | None = None, namespaced: bool = False
+) -> str:
+    return serialize_context(home, utterance=utterance, namespaced=namespaced)

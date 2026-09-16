@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any
 
-from generators.context import system_prompt
+from generators.context import AreaContext, resolve_area_context, system_prompt
 from generators.tools import namespaced_tool_name, offered_tools, script_tools
 from generators.gold import target_names_from_expected
 from generators.validate import validate_spec
@@ -68,10 +68,15 @@ def scenario_to_spec(scenario: dict[str, Any]) -> dict[str, Any]:
         "utterance": scenario.get("utterance"),
         "capability": scenario.get("capability"),
         "operation": scenario.get("operation"),
+        "targeting": scenario.get("targeting"),
         "tier": scenario.get("tier"),
         "semantic_id": scenario.get("semantic_id"),
         "namespaced_tools": scenario.get("namespaced_tools", False),
         "full_tool_catalog": scenario.get("full_tool_catalog", False),
+        "satellite_area": scenario.get("satellite_area"),
+        "target_area": scenario.get("target_area"),
+        "target_area_source": scenario.get("target_area_source"),
+        "area_context": scenario.get("area_context", False),
     }
 
 
@@ -83,6 +88,25 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
     utterance = spec.get("utterance")
     if not isinstance(utterance, str) or not utterance.strip():
         raise ValueError("missing_utterance")
+    area_context = resolve_area_context(
+        utterance,
+        satellite_area=spec["home"].get(
+            "satellite_area", spec["home"].get("sayso_entity_area")
+        ),
+        areas=spec["home"].get("areas", ()),
+        entities=spec["home"].get("entities", ()),
+    )
+    if (
+        spec["expected"].get("response") == "clarify"
+        and spec.get("category") == "ambiguity"
+        and area_context.target_area_source != "missing_area"
+    ):
+        area_context = AreaContext(
+            area_context.satellite_area, area_context.target_area, "ambiguous"
+        )
+    spec["satellite_area"] = area_context.satellite_area
+    spec["target_area"] = area_context.target_area
+    spec["target_area_source"] = area_context.target_area_source
     calls = spec["expected"].get("calls") or []
     # The label, the offered schema and the prompt must all name a tool the same
     # way, so one flag drives all three.
@@ -91,7 +115,9 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
     messages: list[dict[str, Any]] = [
         {
             "role": "system",
-            "content": system_prompt(spec["home"], namespaced=namespaced),
+            "content": system_prompt(
+                spec["home"], utterance=utterance.strip(), namespaced=namespaced
+            ),
             "train_on_turn": False,
         },
         {"role": "user", "content": utterance.strip(), "train_on_turn": False},
@@ -153,6 +179,14 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         "home_id": spec["home"]["home_id"],
         "home_size": spec["home"].get("size"),
         "expected_target_names": spec.get("target_names", []),
+        "satellite_area": spec["home"].get(
+            "satellite_area", spec["home"].get("sayso_entity_area")
+        ),
+        "target_area": spec.get("target_area"),
+        "target_area_source": spec.get("target_area_source"),
+        "area_context": bool(spec.get("area_context")),
+        "area_context_category": spec.get("target_area_source"),
+        "targeting": spec.get("targeting"),
         "contrastive_group": spec.get("contrastive_group"),
         "stt_corruption": spec.get("stt_corruption"),
         "paraphrase_source": spec.get("paraphrase_source"),

@@ -20,6 +20,7 @@ def empty_stats() -> dict[str, Any]:
         "paraphrased": 0,
         "deterministic": 0,
         "unique_semantic_ids": 0,
+        "area_context_sources": Counter(),
     }
 
 
@@ -31,6 +32,7 @@ def record_accept(stats: dict[str, Any], row: dict[str, Any]) -> None:
     stats["by_operation"][meta.get("operation")] += 1
     stats["by_home_size"][meta.get("home_size")] += 1
     stats["by_difficulty"][meta.get("category", "ordinary")] += 1
+    stats["area_context_sources"][meta.get("target_area_source", "missing_area")] += 1
     if meta.get("stt_corruption"):
         stats["stt_corrupted"] += 1
     if meta.get("paraphrase_source"):

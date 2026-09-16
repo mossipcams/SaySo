@@ -381,6 +381,7 @@ def generate_home(
         "home_id": f"home_{index:06d}_{size}",
         "size": size,
         "sayso_entity_area": area,
+        "satellite_area": area,
         "entities": entities,
         "active_timers": _synthetic_timers(rng) if rng.random() < 0.3 else [],
         "areas": rooms, "area_floors": floors, "owners": owners,

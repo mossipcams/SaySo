@@ -16,6 +16,7 @@ DEFAULT_TRAIN_COUNT = 40_000
 DEFAULT_SEED = 20260905
 DEFAULT_TOKEN_BUDGET = 4096
 DEFAULT_STT_RATE = 0.15
+DEFAULT_AREA_CONTEXT_RATE = 0.35
 DEFAULT_MAX_ATTEMPTS_MULTIPLIER = 20
 DEFAULT_NEAR_DUPLICATE_LIMIT = 8
 
@@ -53,6 +54,8 @@ class GeneratorConfig:
     # shipped with only 3.7% of rows doing this, so the model learned to echo a
     # name rather than resolve a device.
     discrimination_rate: float = 0.0
+    # Accepted rows forced through generic satellite or explicit area context.
+    area_context_rate: float = DEFAULT_AREA_CONTEXT_RATE
     # Fail the build when achieved grounding share falls below this fraction of
     # the reachable ceiling. v1 requested 3% and shipped 0.22% with no error, so
     # the gate must catch order-of-magnitude shortfalls. It must not trip on the
@@ -102,7 +105,7 @@ class GeneratorConfig:
             self.real_home_rate = 0.0
         if self.real_home_rate and not self.real_home_path:
             raise ValueError("real_home_rate needs real_home_path")
-        for name in ("grounding_rate", "discrimination_rate", "ordinary_rate",
+        for name in ("grounding_rate", "discrimination_rate", "area_context_rate", "ordinary_rate",
                      "namespaced_tool_rate", "full_catalog_rate"):
             value = getattr(self, name)
             if not 0.0 <= value <= 1.0:
@@ -138,6 +141,7 @@ class GeneratorConfig:
             "negative_rate": self.negative_rate,
             "grounding_rate": self.grounding_rate,
             "discrimination_rate": self.discrimination_rate,
+            "area_context_rate": self.area_context_rate,
             "namespaced_tool_rate": self.namespaced_tool_rate,
             "full_catalog_rate": self.full_catalog_rate,
             "min_rate_achieved_fraction": self.min_rate_achieved_fraction,

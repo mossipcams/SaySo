@@ -18,6 +18,8 @@ from typing import Any
 
 from generators.homes import make_entity
 
+_DEFAULT_SATELLITE = object()
+
 
 def entity(
     name: str,
@@ -47,16 +49,18 @@ def entity(
     return made
 
 
-def home(home_id: str, entities: list[dict[str, Any]], *, sayso_entity_area: str) -> dict[str, Any]:
+def home(home_id: str, entities: list[dict[str, Any]], *, sayso_entity_area: str | None) -> dict[str, Any]:
     """A home dict in the shape ``generate_home`` returns."""
     floors = {}
     for item in entities:
         floors.setdefault(item["area"], item.get("floor") or "Main Floor")
-    floors.setdefault(sayso_entity_area, "Main Floor")
+    if sayso_entity_area:
+        floors.setdefault(sayso_entity_area, "Main Floor")
     return {
         "home_id": home_id,
         "size": len(entities),
         "sayso_entity_area": sayso_entity_area,
+        "satellite_area": sayso_entity_area,
         "entities": entities,
         "active_timers": [],
         "areas": list(floors),
@@ -80,6 +84,8 @@ def variant(
     utterance: str | None = None,
     rng_index: int | None = None,
     request_intent: dict[str, Any] | None = None,
+    satellite_area: str | None | object = _DEFAULT_SATELLITE,
+    area_context: bool = False,
 ) -> dict[str, Any]:
     """One member of a family. ``phrasing_seed`` is the family, not the member, so
     every member renders the same request and only the label moves.
@@ -95,8 +101,63 @@ def variant(
         "utterance": utterance,
         "rng_index": rng_index,
         "request_intent": request_intent,
-        "home": home(f"{prefix}_{label}", entities, sayso_entity_area=area),
+        "home": home(
+            f"{prefix}_{label}", entities,
+            sayso_entity_area=area if satellite_area is _DEFAULT_SATELLITE else satellite_area,
+        ),
+        "area_context": area_context,
     }
+
+
+def area_context_variants() -> list[dict[str, Any]]:
+    """Small fixed set covering each area-resolution contract branch."""
+    kitchen_light = entity("Kitchen Light", "lights", "Kitchen")
+    bedroom_light = entity("Bedroom Light", "lights", "Bedroom")
+    bedroom_tv = entity("TV", "media_players", "Bedroom", device_class="tv")
+    return [
+        variant(
+            prefix="area_generic_satellite", label="fallback", capability="lights",
+            operation="turn_on", targeting="context", robustness="ordinary",
+            entities=[kitchen_light], area="Kitchen", utterance="Turn on the lights",
+            area_context=True,
+        ),
+        variant(
+            prefix="area_explicit_cross_room", label="bedroom", capability="lights",
+            operation="turn_on", targeting="area", robustness="ordinary",
+            entities=[
+                bedroom_light,
+                entity("Bedroom Lamp", "lights", "Bedroom"),
+                entity("Kitchen Light", "lights", "Kitchen"),
+            ],
+            area="Kitchen", satellite_area="Kitchen", utterance="Turn on the lights in the Bedroom",
+            request_intent={"area": "Bedroom"}, area_context=True,
+        ),
+        variant(
+            prefix="area_named_other_room", label="tv", capability="media_players",
+            operation="turn_on", targeting="individual", robustness="ordinary",
+            entities=[bedroom_tv], area="Kitchen", satellite_area="Kitchen",
+            utterance="Please power up the bedroom TV", request_intent={"name": "TV"}, area_context=True,
+        ),
+        variant(
+            prefix="area_cross_room_distractors", label="tv", capability="media_players",
+            operation="turn_on", targeting="individual", robustness="ordinary",
+            entities=[bedroom_tv, entity("Kitchen TV", "media_players", "Kitchen", device_class="tv")],
+            area="Kitchen", satellite_area="Kitchen", utterance="Turn on the TV in the Bedroom",
+            request_intent={"name": "TV", "area": "Bedroom"}, area_context=True,
+        ),
+        variant(
+            prefix="area_missing_satellite", label="clarify", capability="lights",
+            operation="turn_on", targeting="context", robustness="ordinary",
+            entities=[kitchen_light], area="Kitchen", satellite_area=None,
+            utterance="Turn on the lights", area_context=True,
+        ),
+        variant(
+            prefix="area_ambiguous_target", label="clarify", capability="lights",
+            operation="turn_on", targeting="area", robustness="ambiguity",
+            entities=[kitchen_light, entity("Kitchen Lamp", "lights", "Kitchen")],
+            area="Kitchen", utterance="Turn on the lights", area_context=True,
+        ),
+    ]
 
 
 # Distractors that must not steal the target: other domains in the same room, and
@@ -570,6 +631,7 @@ def build_spec(variant: dict[str, Any], *, seed: int = 20260910, index: int = 0)
     scenario["phrasing_seed"] = variant["phrasing_seed"]
     spec = scenario_to_spec(scenario)
     spec["grounding_family"] = variant["family"]
+    spec["area_context"] = variant.get("area_context", False)
     if spec["expected"].get("kind") == "no_action":
         requested = _requested_names(spec)
         if requested:

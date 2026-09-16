@@ -43,7 +43,7 @@ def home_areas(home: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
     for entity in home.get("entities", []):
         derived.setdefault(entity["area"], entity.get("floor") or "Main Floor")
     if not derived:
-        derived[home.get("sayso_entity_area") or "Living Room"] = "Main Floor"
+        derived[home.get("satellite_area", home.get("sayso_entity_area")) or "Living Room"] = "Main Floor"
     return list(derived), derived
 
 
@@ -109,6 +109,7 @@ def build_scenario(
     inject_missing: bool = True,
     target_usage: Counter[str] | None = None,
     request_intent: dict[str, Any] | None = None,
+    clear_satellite_area: bool = False,
 ) -> dict[str, Any]:
     """Build one scenario. `home` overrides synthetic generation and is mutated
     (missing capabilities get an injected entity), so callers pass a fresh copy.
@@ -128,6 +129,9 @@ def build_scenario(
     )
     if home is None:
         home = generate_home(index, home_size, rng)
+    if clear_satellite_area:
+        home["sayso_entity_area"] = None
+        home["satellite_area"] = None
     cap_entities = entities_of_capability(home, capability)
     if capability == "timers":
         cap_entities = []
@@ -175,7 +179,9 @@ def build_scenario(
             next(i for i, e in enumerate(cap_entities) if e is target_entity)
             if target_entity else 0
         ),
-        "area": target_entity["area"] if target_entity else home["sayso_entity_area"],
+        "area": target_entity["area"] if target_entity else home.get(
+            "satellite_area", home.get("sayso_entity_area")
+        ),
         "floor": target_entity["floor"] if target_entity else None,
         "excluded_names": [],
         "provenance": {
@@ -195,6 +201,19 @@ def build_scenario(
         scenario["target_entities"] = [target_entity, rng.choice(others)] if others else cap_entities[:2]
         scenario["targeting"] = "multiple"
     scenario["expected"] = gold_from_scenario(scenario, rng)
+    intent = request_intent or {}
+    satellite_area = home.get("satellite_area", home.get("sayso_entity_area"))
+    if intent.get("area"):
+        target_area, target_area_source = intent["area"], "explicit_area"
+    elif intent.get("name") and target_entity:
+        target_area, target_area_source = target_entity.get("area"), "named_target"
+    elif satellite_area:
+        target_area, target_area_source = satellite_area, "satellite_fallback"
+    else:
+        target_area, target_area_source = None, "missing_area"
+    scenario["satellite_area"] = satellite_area
+    scenario["target_area"] = target_area
+    scenario["target_area_source"] = target_area_source
     if robustness == "alias_distractor" and target_entity:
         # Use only an unambiguous HA alias; retain the canonical name in labels.
         other_names = {

@@ -119,8 +119,27 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
             return expected_no_action("clarify")
         return expected_status(entity)
 
+    if targeting == "context":
+        area = home.get("satellite_area", home.get("sayso_entity_area"))
+        if not area:
+            return expected_no_action("clarify")
+        if not entities_supporting(
+            entities_in_area(home, capability, area), capability, operation
+        ):
+            return expected_no_action(
+                "area_unavailable",
+                unavailable={"area": area.casefold(), "type": _type_label(capability)},
+            )
+        return {"kind": "action", "calls": [
+            build_call_for_operation(None, capability, operation, rng, area=area)
+        ]}
+
     if targeting == "area":
-        area = scenario.get("area") or home["sayso_entity_area"]
+        area = scenario.get("area") or home.get(
+            "satellite_area", home.get("sayso_entity_area")
+        )
+        if not area:
+            return expected_no_action("clarify")
         present = entities_in_area(home, capability, area)
         matches = entities_supporting(present, capability, operation)
         if not matches:
@@ -211,7 +230,11 @@ def _requested(
 ) -> tuple[str, list[dict[str, Any]]]:
     """(area the request means, entities the request could refer to)."""
     intent = intent or {}
-    area = intent.get("area") or home["sayso_entity_area"]
+    area = intent.get("area") or home.get(
+        "satellite_area", home.get("sayso_entity_area")
+    )
+    if not area:
+        return "", []
     present = entities_in_area(home, capability, area)
     return area, [item for item in present if refers_to(item, intent.get("name"))]
 
@@ -227,6 +250,8 @@ def _ambiguous_gold(
         # Script tools expose friendly names, not their hidden HA area assignments.
         return expected_no_action("clarify")
     area, present = _requested(home, capability, intent)
+    if not area:
+        return expected_no_action("clarify")
     matches = entities_supporting(present, capability, operation)
     if len(matches) == 0:
         if present:

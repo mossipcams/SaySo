@@ -56,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--negative-rate", type=float, default=None)
     parser.add_argument("--grounding-rate", type=float, default=None)
+    parser.add_argument("--area-context-rate", type=float, default=None)
     parser.add_argument(
         "--discrimination-rate",
         type=float,
@@ -97,6 +98,7 @@ def main(argv: list[str] | None = None) -> int:
         for key, value in (
             ("negative_rate", args.negative_rate),
             ("grounding_rate", args.grounding_rate),
+            ("area_context_rate", args.area_context_rate),
             ("discrimination_rate", args.discrimination_rate),
             ("namespaced_tool_rate", args.namespaced_tool_rate),
             ("full_catalog_rate", args.full_catalog_rate),

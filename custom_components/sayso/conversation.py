@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, override
 
 from homeassistant.components import conversation
+from homeassistant.components.conversation.const import DOMAIN as CONVERSATION_DOMAIN
 from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
@@ -26,6 +27,7 @@ from homeassistant.helpers import intent, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SaySoConfigEntry, SaySoRuntimeData
+from .area_context import render_area_context, resolve_area_context
 from .boundary import (
     action_metadata,
     apply_action_summary,
@@ -344,7 +346,8 @@ class SaySoConversationEntity(
                     llm_context,
                     turn.runtime.llm_api,
                     _system_prompt_with_area(
-                        turn.runtime.system_prompt, self.hass, turn.user_input
+                        turn.runtime.system_prompt, self.hass, turn.user_input,
+                        assistant=llm_context.assistant,
                     ),
                     turn.user_input.extra_system_prompt,
                 )
@@ -554,25 +557,48 @@ def _system_prompt_with_area(
     system_prompt: str,
     hass: HomeAssistant,
     user_input: conversation.ConversationInput,
+    *,
+    assistant: str = CONVERSATION_DOMAIN,
 ) -> str:
-    """Add the requesting device's area to model context when available."""
+    """Add the shared satellite/target area contract to model context."""
     device_reg = dr.async_get(hass)
-    device_ids = [user_input.device_id]
+    satellite_area = None
     satellite_id = getattr(user_input, "satellite_id", None)
     if satellite_id:
         satellite = er.async_get(hass).async_get(satellite_id)
         if satellite is not None and satellite.device_id is not None:
-            device_ids.append(satellite.device_id)
-    for device_id in device_ids:
-        if not device_id:
-            continue
-        device = device_reg.async_get(device_id)
-        if device is None or device.area_id is None:
-            continue
-        area = ar.async_get(hass).async_get_area(device.area_id)
-        if area is not None:
-            return f"{system_prompt}\narea={area.name}"
-    return system_prompt
+            device = device_reg.async_get(satellite.device_id)
+            if device is not None and device.area_id is not None:
+                area = ar.async_get(hass).async_get_area(device.area_id)
+                satellite_area = area.name if area is not None else None
+    if satellite_area is None and user_input.device_id:
+        device = device_reg.async_get(user_input.device_id)
+        if device is not None and device.area_id is not None:
+            area = ar.async_get(hass).async_get_area(device.area_id)
+            satellite_area = area.name if area is not None else None
+
+    area_registry = ar.async_get(hass)
+    registered_areas = area_registry.async_list_areas()
+    area_names = [area.name for area in registered_areas]
+    area_by_id = {area.id: area.name for area in registered_areas}
+    devices = {device.id: device for device in device_reg.devices.values()}
+    entities = []
+    for item in build_routing_catalog(hass, assistant=assistant).entities:
+        area_id = item.area_id
+        if area_id is None and item.device_id in devices:
+            area_id = devices[item.device_id].area_id
+        entities.append({
+            "name": item.name,
+            "aliases": list(item.aliases),
+            "area": area_by_id.get(area_id),
+        })
+    context = resolve_area_context(
+        user_input.text,
+        satellite_area=satellite_area,
+        areas=area_names,
+        entities=entities,
+    )
+    return f"{system_prompt}\n{render_area_context(context)}"
 
 
 def _is_action_tool(tool: llm.Tool) -> bool:

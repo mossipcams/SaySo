@@ -20,6 +20,7 @@ from generators.config import GeneratorConfig
 from generators.coverage import classify_row
 from generators.duplicates import DuplicateTracker, pair_hash
 from generators.grounding import (
+    area_context_variants,
     pick_variant,
     required_training_variants,
     training_variants,
@@ -238,6 +239,19 @@ def _grounding_capable_slot(quota: Any, rng: random.Random) -> dict[str, Any] | 
     return None
 
 
+def _area_context_capable_slot(
+    quota: Any, variants: list[dict[str, Any]], rng: random.Random
+) -> dict[str, Any] | None:
+    """Take a quota slot that can host one of the required area families."""
+    pairs = sorted({(variant["capability"], variant["operation"]) for variant in variants})
+    rng.shuffle(pairs)
+    for capability, operation in pairs:
+        slot = quota.take_slot(capability, operation)
+        if slot is not None:
+            return slot
+    return None
+
+
 def _unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
     """Describe the actual blocked request, never an unrelated random action."""
     requested = spec["expected"].get("requested")
@@ -248,7 +262,11 @@ def _unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
         })
     capability = spec["capability"]
     operation = spec["operation"]
-    area = spec["home"]["sayso_entity_area"]
+    area = spec["home"].get(
+        "satellite_area", spec["home"].get("sayso_entity_area")
+    )
+    if not area:
+        return "turn on the lights"
     entity = None
     if capability != "timers":
         entity = make_entity(
@@ -471,12 +489,28 @@ def generate_row(
     discrimination_required: bool = False,
     real_home_selected: bool | None = None,
     grounding_variants: list[dict[str, Any]] | None = None,
+    area_variants: list[dict[str, Any]] | None = None,
+    area_context_required: bool = False,
 ) -> tuple[dict[str, Any] | None, str | None]:
     capability = slot["capability"]
     operation = slot["operation"]
     cap = CAPABILITIES[capability]
     robustness = pick_robustness(rng, config.ordinary_rate)
     targeting = pick_targeting(cap, rng, robustness)
+    select_real_home = (
+        rng.random() < config.real_home_rate
+        if real_home_selected is None else real_home_selected
+    )
+    area_context_mode = None
+    area_rng = random.Random(zlib.crc32(f"{slot['index']}:{attempt}:area".encode()))
+    if (
+        area_context_required
+        and not select_real_home
+        and robustness == "ordinary"
+        and capability not in {"scripts", "timers"}
+    ):
+        area_context_mode = "context" if area_rng.random() < 0.55 else "area"
+        targeting = area_context_mode
     home_size = slot["home_size"]
     if robustness == "large_home":
         home_size = max(home_size, 64)
@@ -487,17 +521,19 @@ def generate_row(
     real_home_row = False
     grounding_family = None
     inject_missing = True
-    select_real_home = (
-        rng.random() < config.real_home_rate
-        if real_home_selected is None else real_home_selected
-    )
     # Rotate even while forcing the missing families: two of them can share one
     # capability/operation pool, and a fixed index would keep retrying the first
     # until it lands, leaving the second unreachable.
     variant = (
-        pick_variant(capability, operation, slot["index"] + attempt, variants=grounding_variants)
-        if grounding_variants else None
+        pick_variant(capability, operation, slot["index"] + attempt, variants=area_variants)
+        if area_variants else None
     )
+    area_family = variant["family"] if variant is not None else None
+    if variant is None:
+        variant = (
+            pick_variant(capability, operation, slot["index"] + attempt, variants=grounding_variants)
+            if grounding_variants else None
+        )
     if variant is not None:
         # A still-missing contrast family outranks the real-home draw: real rows
         # are a rate that self-corrects across the run, a missing family is a gate.
@@ -519,8 +555,14 @@ def generate_row(
         home = copy.deepcopy(variant["home"])
         targeting = variant["targeting"]
         robustness = variant["robustness"]
-        grounding_family = variant["family"]
+        grounding_family = None if area_family else variant["family"]
         inject_missing = variant.get("inject_missing", True)
+        if area_family:
+            area_context_mode = "fixed"
+
+    missing_satellite = (
+        area_context_mode == "context" and not real_home_row and area_rng.random() < 0.12
+    )
 
     # A grounding variant may pin the scenario index, because ``pick_target``
     # rotates on it: the alias family lists the aliased entity first and a
@@ -548,11 +590,15 @@ def generate_row(
         # Only the real home reuses its entities across rows, so only it needs the
         # least-used tie-break; synthetic homes are fresh each row.
         target_usage=real_home_usage if real_home_row else None,
+        clear_satellite_area=missing_satellite,
     )
     if grounding_family:
         scenario["phrasing_seed"] = variant["phrasing_seed"]
 
     spec = scenario_to_spec(scenario)
+    spec["area_context"] = area_context_mode is not None
+    if area_family and variant.get("utterance"):
+        spec["utterance"] = variant["utterance"]
     # Which tool contract this row renders in. Seeded from the row's own identity
     # rather than drawn from the shared run rng: taking two draws from the shared
     # stream would shift every later row's home and distractors, so turning these
@@ -571,7 +617,8 @@ def generate_row(
         spec["request_hint"] = _unique_no_action_hint(spec, rng)
     elif robustness == "ambiguity":
         apply_generic_wording(spec)
-    spec["utterance"] = expand_utterance(spec)
+    if not area_family or not variant.get("utterance"):
+        spec["utterance"] = expand_utterance(spec)
 
     # Entity-discrimination row: replace the name-based request with a
     # description that only the target satisfies. Applied after the normal
@@ -671,6 +718,7 @@ def generate_row(
 
     row["metadata"]["real_home"] = real_home_row
     row["metadata"]["grounding_family"] = grounding_family
+    row["metadata"]["area_context_family"] = area_family
     row["metadata"]["discrimination"] = discrimination
     # Ask the quota before recording the row anywhere: a bucket that is already
     # full must not consume the duplicate tracker's budget for the next attempt.
@@ -729,6 +777,7 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
     semantic_ids: set[str] = set()
     real_home_rows = 0
     grounding_rows: Counter[str] = Counter()
+    area_context_rows = 0
     required_grounding = required_training_variants()
     grounding_missing = (
         {variant["family"]: variant for variant in required_grounding}
@@ -743,6 +792,18 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
     # catalogue-capacity pre-flight that uses it.)
     discrimination_target = int(round(config.count * config.discrimination_rate))
     discrimination_rows = 0
+    area_context_target = int(round(config.count * config.area_context_rate))
+    area_family_catalog = area_context_variants()
+    area_families_required = (
+        config.area_context_rate > 0
+        and config.count >= _RATE_GATE_MIN_ROWS
+        and area_context_target >= len(area_family_catalog)
+    )
+    area_context_missing = (
+        {variant["family"]: variant for variant in area_family_catalog}
+        if area_families_required else {}
+    )
+    area_family_rows: Counter[str] = Counter()
     real_home_target = int(round(config.count * config.real_home_rate))
     balance_real_home = bool(
         config.real_home_path and config.real_home_rate and config.real_home_entity_cap == 0
@@ -767,6 +828,8 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
         # unsatisfiable and the requested rate silently collapses.
         grounding_deficit = grounding_target - sum(grounding_rows.values())
         discrimination_deficit = discrimination_target - discrimination_rows
+        area_context_deficit = area_context_target - area_context_rows
+        area_family_required = bool(area_context_missing)
         want_grounding = (
             config.grounding_rate > 0
             and grounding_deficit > 0
@@ -781,12 +844,26 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
             # share is never delivered. Force while meaningfully behind instead.
             and rng.random() < max(0.5, min(1.0, 2.0 * discrimination_deficit / rows_remaining))
         )
+        want_area_context = (
+            config.area_context_rate > 0
+            and area_context_deficit > 0
+            and not want_grounding
+            and not want_discrimination
+            and not area_family_required
+            and rng.random() < max(0.5, min(1.0, 2.0 * area_context_deficit / rows_remaining))
+        )
         if want_grounding:
             forced = _grounding_capable_slot(quota, rng)
             if forced is not None:
                 slot = forced
         elif want_discrimination:
             forced = _discrimination_capable_slot(quota, rng)
+            if forced is not None:
+                slot = forced
+        elif area_family_required:
+            forced = _area_context_capable_slot(
+                quota, list(area_context_missing.values()), rng
+            )
             if forced is not None:
                 slot = forced
         row, reason = generate_row(
@@ -805,8 +882,14 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
             quota=quota,
             grounding_required=want_grounding,
             discrimination_required=want_discrimination,
+            area_context_required=want_area_context,
             real_home_selected=real_home_selected,
             grounding_variants=list(grounding_missing.values()) if grounding_missing else None,
+            area_variants=(
+                list(area_context_missing.values())
+                if area_family_required and not want_grounding and not want_discrimination
+                else None
+            ),
         )
         attempts += 1
         if row is None:
@@ -825,6 +908,12 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
             grounding_missing.pop(family, None)
         if row["metadata"].get("discrimination"):
             discrimination_rows += 1
+        if row["metadata"].get("area_context"):
+            area_context_rows += 1
+        family = row["metadata"].get("area_context_family")
+        if family:
+            area_family_rows[family] += 1
+            area_context_missing.pop(family, None)
 
     if not quota.is_complete():
         raise RuntimeError(
@@ -864,6 +953,29 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
         "rows": discrimination_rows,
         "achieved_rate": round(discrimination_rows / max(len(accepted), 1), 4),
     }
+    source_counts = Counter(
+        row["metadata"].get("target_area_source", "missing_area") for row in accepted
+    )
+    report["area_context"] = {
+        "requested_rate": config.area_context_rate,
+        "rows": area_context_rows,
+        "achieved_rate": round(area_context_rows / max(len(accepted), 1), 4),
+        "by_family": dict(sorted(area_family_rows.items())),
+        "by_source": {
+            source: {
+                "rows": source_counts[source],
+                "rate": round(source_counts[source] / max(len(accepted), 1), 4),
+            }
+            for source in (
+                "satellite_fallback", "explicit_area", "named_target",
+                "ambiguous", "missing_area",
+            )
+        },
+    }
+    report["area_context"]["source_rates"] = {
+        source: report["area_context"]["by_source"][source]["rate"]
+        for source in report["area_context"]["by_source"]
+    }
     # Grounding can only land on slots whose (capability, operation) has a
     # variant, and real-home mixing claims some of those same slots. Pass the
     # reachable ceiling so the gate measures delivery of what was achievable
@@ -882,6 +994,18 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
         len(accepted),
         available_share=_discrimination_available_share(config),
     )
+    _enforce_rate_gate(report["area_context"], "area_context", config, len(accepted))
+    if area_families_required:
+        missing_sources = [
+            source for source in report["area_context"]["by_source"]
+            if report["area_context"]["by_source"][source]["rows"] == 0
+        ]
+        if missing_sources:
+            raise RuntimeError(f"missing required area context categories: {missing_sources}")
+        if area_context_missing:
+            raise RuntimeError(
+                f"missing required area context families: {sorted(area_context_missing)}"
+            )
     # Counted on accepted rows after validation, deduplication and the quota, not
     # assumed from the requested rate. The first build of this pair delivered 11.5%
     # against a 35% request because coverage compared raw tool names and rejected

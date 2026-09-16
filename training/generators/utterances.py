@@ -70,7 +70,9 @@ def apply_generic_wording(spec: dict[str, Any]) -> dict[str, Any]:
     capability = spec.get("capability")
     if capability in (None, "timers") or not spec.get("target_names"):
         return spec
-    area = spec["home"]["sayso_entity_area"]
+    area = spec["home"].get(
+        "satellite_area", spec["home"].get("sayso_entity_area")
+    )
     by_name = {entity["name"]: entity for entity in spec.get("home", {}).get("entities", [])}
     default_noun = _ENTITY_TEMPLATES[capability][0].lower()
     spoken = {}
@@ -115,7 +117,15 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
         # phrasing_seed lets a grounding pair share one request while their labels
         # differ; everything else keys phrasing off the row's own id.
         seed_key = spec.get("phrasing_seed") or spec.get("candidate_id", "")
-        phrases.append(_phrase_for_call(target, call, f"{seed_key}:{index}", provenance))
+        phrases.append(
+            _phrase_for_call(
+                target,
+                call,
+                f"{seed_key}:{index}",
+                provenance,
+                omit_area=spec.get("targeting") == "context",
+            )
+        )
     seed = " and ".join(phrases)
     excluded = spec.get("excluded_names") or []
     if excluded:
@@ -143,9 +153,27 @@ def _plural(noun: str) -> str:
     return _SPOKEN_PLURALS.get(noun, noun.replace("_", " ") + "s")
 
 
-def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenance=None) -> str:
-    rendered = render_call(call, target, seed, provenance=provenance)
+def _phrase_for_call(
+    target: str,
+    call: dict[str, Any],
+    seed: str = "",
+    provenance=None,
+    *,
+    omit_area: bool = False,
+) -> str:
+    render_call_call = call
+    if omit_area and (call.get("arguments") or {}).get("area"):
+        render_call_call = {
+            **call,
+            "arguments": {
+                key: value for key, value in call["arguments"].items()
+                if key not in {"area", "floor"}
+            },
+        }
+    rendered = render_call(render_call_call, target, seed, provenance=provenance)
     if rendered is not None:
+        if omit_area and call["name"] == "HassMediaPrevious" and rendered.casefold().startswith("replay"):
+            return "go back to the previous track"
         return rendered
     if provenance is not None:
         provenance.append({"source": "sayso_fallback", "intent": call["name"]})
@@ -154,9 +182,9 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
         domain = arguments.get("domain") or arguments.get("device_class") or ["device"]
         noun = domain[0] if isinstance(domain, list) else domain
         target = f"the {_plural(noun)}"
-    if arguments.get("area"):
+    if arguments.get("area") and not omit_area:
         target += f" in {arguments['area']}"
-    if arguments.get("floor"):
+    if arguments.get("floor") and not omit_area:
         target += f" on {arguments['floor']}"
     # Per-script tools are named after the script itself, not Hass*/Get*.
     if not name.startswith(("Hass", "Get")):
@@ -363,5 +391,3 @@ def describe_target(
             brand=brand or "",
         )
     return ""
-
-

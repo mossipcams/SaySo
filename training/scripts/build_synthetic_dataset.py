@@ -103,6 +103,9 @@ from v2_scenarios import (  # noqa: E402
 # never shows the model that home is not a home-specific recipe. --synthetic-only
 # is the explicit way to turn it off.
 HOME_RECIPE_REAL_RATE = 0.10
+HOME_RECIPE_NAMESPACED_RATE = 0.35
+HOME_RECIPE_FULL_CATALOG_RATE = 0.35
+HOME_RECIPE_AREA_CONTEXT_RATE = 0.35
 
 
 def run_pipeline(
@@ -402,6 +405,9 @@ def main() -> int:
     )
     parser.add_argument("--negative-rate", type=float, default=None)
     parser.add_argument("--grounding-rate", type=float, default=None)
+    parser.add_argument("--area-context-rate", type=float, default=None)
+    parser.add_argument("--namespaced-tool-rate", type=float, default=None)
+    parser.add_argument("--full-catalog-rate", type=float, default=None)
     parser.add_argument(
         "--discrimination-rate",
         type=float,
@@ -439,11 +445,18 @@ def main() -> int:
             for key, value in (
                 ("negative_rate", args.negative_rate),
                 ("grounding_rate", args.grounding_rate),
+                ("area_context_rate", args.area_context_rate),
+                ("namespaced_tool_rate", args.namespaced_tool_rate),
+                ("full_catalog_rate", args.full_catalog_rate),
                 ("discrimination_rate", args.discrimination_rate),
                 ("max_absence_rate", args.max_absence_rate),
             )
             if value is not None
         }
+        if args.home_recipe:
+            overrides.setdefault("namespaced_tool_rate", HOME_RECIPE_NAMESPACED_RATE)
+            overrides.setdefault("full_catalog_rate", HOME_RECIPE_FULL_CATALOG_RATE)
+            overrides.setdefault("area_context_rate", HOME_RECIPE_AREA_CONTEXT_RATE)
         config = GeneratorConfig(
             **overrides,
             count=args.count,
