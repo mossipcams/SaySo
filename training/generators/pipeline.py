@@ -14,8 +14,6 @@ from typing import Any
 
 from generators.capability_registry import (
     CAPABILITIES,
-    SupportLevel,
-    operation_spec,
     registry_summary,
 )
 from generators.config import GeneratorConfig
@@ -372,11 +370,6 @@ def _sibling_entities(scenario: dict[str, Any]) -> list[dict[str, Any]]:
         and entity.get("area") == area
         and entity.get("entity_id") != target.get("entity_id")
     ]
-
-
-def _describe_candidates(scenario: dict[str, Any]) -> int:
-    """How many same-domain, same-area siblings the description must avoid."""
-    return len(_sibling_entities(scenario))
 
 
 def _uniqueness_safe(

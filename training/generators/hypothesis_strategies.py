@@ -8,7 +8,7 @@ from hypothesis import strategies as st
 from hypothesis.strategies import SearchStrategy
 
 from generators.capability_registry import CAPABILITIES, trainable_operations
-from generators.homes import generate_home, make_entity
+from generators.homes import generate_home
 
 
 def home_strategy(*, min_size: int = 8, max_size: int = 32) -> SearchStrategy[dict[str, Any]]:
@@ -16,19 +16,6 @@ def home_strategy(*, min_size: int = 8, max_size: int = 32) -> SearchStrategy[di
         lambda seed, size: generate_home(seed, size, __import__("random").Random(seed ^ size)),
         seed=st.integers(min_value=0, max_value=999_999),
         size=st.integers(min_value=min_size, max_value=max_size),
-    )
-
-
-def entity_strategy(capability: str = "lights") -> SearchStrategy[dict[str, Any]]:
-    return st.builds(
-        lambda seed: make_entity(
-            name=f"Test {capability} Device",
-            capability=capability,
-            area="Kitchen",
-            floor="Main Floor",
-            rng=__import__("random").Random(seed),
-        ),
-        seed=st.integers(min_value=0, max_value=999_999),
     )
 
 

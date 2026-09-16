@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -389,10 +389,6 @@ DIFFICULTY_TAGS: tuple[str, ...] = (
 )
 
 
-def capabilities_for_tier(tier: int) -> list[CapabilitySpec]:
-    return [cap for cap in CAPABILITIES.values() if cap.tier == tier]
-
-
 def operation_spec(capability: str, operation: str) -> OperationSpec | None:
     cap = CAPABILITIES.get(capability)
     if cap is None:
@@ -441,20 +437,6 @@ def covered_tool_names() -> frozenset[str]:
         if op.tool_name and op.support is not SupportLevel.UNAVAILABLE
     }
     return frozenset(names - TRAINING_COVERAGE_EXCLUDED)
-
-
-def unavailable_operations() -> list[tuple[str, str]]:
-    """(capability, operation) pairs whose only correct answer is a refusal."""
-    return [
-        (cap.name, op.name)
-        for cap in CAPABILITIES.values()
-        for op in cap.operations
-        if op.support is SupportLevel.UNAVAILABLE
-    ]
-
-
-def supported_operations(cap: CapabilitySpec) -> list[OperationSpec]:
-    return [op for op in cap.operations if op.support in {SupportLevel.SUPPORTED, SupportLevel.PARTIAL}]
 
 
 def trainable_operations(cap: CapabilitySpec) -> list[OperationSpec]:

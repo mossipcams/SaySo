@@ -198,10 +198,6 @@ improving means the benchmark is being overfit.
 
 ## Scoring
 
-**`training/scripts/evaluate.py` is a harness wiring stub.** It calls
-`_stub_infer`, which returns a fixed string; it does not score a model. No result
-in the training log came from it.
-
 Real scoring runs on the training host against a llama.cpp server:
 
 ```bash

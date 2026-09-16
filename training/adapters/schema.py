@@ -157,11 +157,6 @@ def v2_openai_tools() -> list[dict[str, Any]]:
     return [dict(tool) for tool in load_v2_tools()]
 
 
-def v2_tool_by_name() -> dict[str, dict[str, Any]]:
-    """Map tool name -> canonical OpenAI tool definition from v2."""
-    return {tool["function"]["name"]: dict(tool) for tool in load_v2_tools()}
-
-
 @lru_cache(maxsize=1)
 def load_v1_schema() -> dict[str, Any]:
     """Load the locked SaySo tool schema artifact (read-only source of truth)."""
@@ -217,11 +212,6 @@ def assert_v1_tiers_cover_catalog() -> None:
 def v1_openai_tools() -> list[dict[str, Any]]:
     """Full v1 catalog in the OpenAI type:function envelope SaySo sends at runtime."""
     return [dict(tool) for tool in load_v1_tools()]
-
-
-def v1_tool_by_name() -> dict[str, dict[str, Any]]:
-    """Map tool name -> canonical OpenAI tool definition from v1."""
-    return {tool["function"]["name"]: dict(tool) for tool in load_v1_tools()}
 
 
 def assert_openai_tool_envelope(tool: dict[str, Any]) -> None:
@@ -402,13 +392,6 @@ def validate_tool_arguments(
     return None
 
 
-def is_legacy_tool_name(name: str) -> bool:
-    """Return True when the tool name looks like a legacy service call."""
-    if name in LEGACY_TOOL_PREFIXES or "." in name:
-        return True
-    return any(name.startswith(prefix) for prefix in LEGACY_TOOL_PREFIXES)
-
-
 def normalize_tool_arguments(args: Any) -> dict[str, Any] | None:
     """Parse tool arguments to a dict, or None when invalid."""
     if isinstance(args, dict):
@@ -423,12 +406,3 @@ def normalize_tool_arguments(args: Any) -> dict[str, Any] | None:
     return None
 
 
-def shorten_response(text: str, *, max_words: int = 24) -> str:
-    """Shorten verbose assistant confirmations for TTS-friendly training."""
-    stripped = text.strip()
-    if not stripped:
-        return stripped
-    words = stripped.split()
-    if len(words) <= max_words:
-        return stripped
-    return " ".join(words[:max_words]).rstrip(".,;:") + "."

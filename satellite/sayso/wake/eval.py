@@ -177,21 +177,6 @@ def load_transcript_fixture(eval_root: Path, relative_path: str) -> dict[str, An
     return payload
 
 
-def estimate_speech_end_ms(pcm: bytes, sample_rate: int = SAMPLE_RATE) -> float:
-    samples = np.frombuffer(pcm, dtype="<i2")
-    if samples.size == 0:
-        return 0.0
-    abs_samples = np.abs(samples.astype(np.float64))
-    peak = float(np.max(abs_samples)) if abs_samples.size else 0.0
-    if peak <= 0.0:
-        return 0.0
-    threshold = max(peak * 0.05, 200.0)
-    active = np.flatnonzero(abs_samples >= threshold)
-    if active.size == 0:
-        return 0.0
-    return (int(active[-1]) + 1) * 1000.0 / sample_rate
-
-
 def scan_wake_audio(
     provider: LiveKitWakeWordProvider,
     pcm: bytes,

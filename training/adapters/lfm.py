@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from .schema import (
     CHATML_TOOL_CALL_MARKERS,
     TrainingExample,
-    assert_openai_tool_envelope,
     assert_tools_subset_of_v1,
     contains_chatml_tool_call_markers,
     v1_openai_tools,
@@ -70,10 +68,3 @@ def validate_lfm_config_text(config_text: str) -> None:
             raise ValueError(f"LFM config must not render ChatML tool-call labels ({marker})")
 
 
-def summarize_tools(tools: list[dict[str, Any]]) -> list[str]:
-    """Return sorted tool names for diagnostics."""
-    names: list[str] = []
-    for tool in tools:
-        assert_openai_tool_envelope(tool)
-        names.append(tool["function"]["name"])
-    return sorted(names)

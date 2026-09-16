@@ -7,7 +7,7 @@ import zlib
 from collections.abc import Callable
 from typing import Any
 
-from adapters.schema import ALLOWED_HASS_TOOLS, v2_openai_tools
+from adapters.schema import v2_openai_tools
 from generators.capability_registry import CAPABILITIES, TRAINING_COVERAGE_EXCLUDED
 
 # Home Assistant supplies only the tools exposed for a request, so a row offers a
@@ -80,11 +80,6 @@ def apply_tool_namespace(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         function["name"] = namespaced_tool_name(function["name"])
         renamed.append({**tool, "function": function})
     return sorted(renamed, key=lambda item: item["function"]["name"])
-
-
-def available_tools_for_home(home: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return full pinned v2 tool catalog (runtime sends all schema tools regardless of home)."""
-    return v2_openai_tools()
 
 
 def script_tool_name(entity: dict[str, Any]) -> str:
@@ -541,5 +536,3 @@ def build_call_for_operation(
     return build(entity, rng)
 
 
-def validate_call_tool_name(name: str) -> bool:
-    return name in ALLOWED_HASS_TOOLS
