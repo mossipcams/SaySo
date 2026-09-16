@@ -268,6 +268,10 @@ training/
   fixtures/          Test fixtures
   generators/        v3 synthetic generation
   scripts/           Pipeline operations
+                       v2_scenarios.py   label-first spec vocabulary (v1/v2)
+                       rendering.py      spec -> canonical row, phrasing seeds
+                       llm_curation.py   verbalise, judge, curate (v1/v2 only)
+                       build_synthetic_dataset.py  CLI + v1/v2 orchestration
   tests/             Unit tests (no model downloads)
 ```
 
