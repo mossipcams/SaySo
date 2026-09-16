@@ -212,7 +212,7 @@ async def _async_build_engine(
         engine = EmbeddedEngine(
             model_path,
             n_ctx=int(options.get(CONF_N_CTX, DEFAULT_N_CTX)),
-            n_threads=options.get(CONF_N_THREADS) or None,
+            n_threads=int(options.get(CONF_N_THREADS) or 0) or None,
             timeout=timeout,
         )
 
@@ -251,9 +251,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
         llm_api=options.get(CONF_LLM_HASS_API, LLM_API_ASSIST),
         system_prompt=options.get(CONF_PROMPT, DEFAULT_SYSTEM_PROMPT),
         temperature=options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
-        max_output_tokens=options.get(CONF_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS),
-        max_tool_iterations=options.get(
-            CONF_MAX_TOOL_ITERATIONS, DEFAULT_MAX_TOOL_ITERATIONS
+        max_output_tokens=int(
+            options.get(CONF_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
+        ),
+        max_tool_iterations=int(
+            options.get(CONF_MAX_TOOL_ITERATIONS, DEFAULT_MAX_TOOL_ITERATIONS)
         ),
         traces=traces,
         tracer=TraceRecorder(hass, traces),
