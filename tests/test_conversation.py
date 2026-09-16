@@ -353,6 +353,7 @@ def test_satellite_area_context_uses_entity_registry(hass: HomeAssistant) -> Non
     user_input = SimpleNamespace(
         device_id=None,
         satellite_id="assist_satellite.office",
+        text="Turn on the lights",
     )
     satellite = SimpleNamespace(device_id="device_satellite")
     device = SimpleNamespace(area_id="area_office")
@@ -371,7 +372,12 @@ def test_satellite_area_context_uses_entity_registry(hass: HomeAssistant) -> Non
 
         enriched = _system_prompt_with_area("base", hass, user_input)
 
-    assert enriched == "base\narea=Office"
+    assert enriched == (
+        "base\n"
+        "satellite_area=Office\n"
+        "target_area=Office\n"
+        "target_area_source=satellite_fallback"
+    )
 
 
 async def test_conversation_id_preservation(

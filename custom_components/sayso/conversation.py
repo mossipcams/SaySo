@@ -561,7 +561,6 @@ def _system_prompt_with_area(
     assistant: str = CONVERSATION_DOMAIN,
 ) -> str:
     """Add the shared satellite/target area contract to model context."""
-    utterance = getattr(user_input, "text", None)
     device_reg = dr.async_get(hass)
     satellite_area = None
     satellite_id = getattr(user_input, "satellite_id", None)
@@ -593,10 +592,8 @@ def _system_prompt_with_area(
             "aliases": list(item.aliases),
             "area": area_by_id.get(area_id),
         })
-    if utterance is None:
-        return f"{system_prompt}\narea={satellite_area}" if satellite_area else system_prompt
     context = resolve_area_context(
-        utterance,
+        user_input.text,
         satellite_area=satellite_area,
         areas=area_names,
         entities=entities,
