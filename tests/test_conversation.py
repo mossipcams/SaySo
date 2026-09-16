@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -17,7 +18,10 @@ from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
 
 from custom_components.sayso.client import ChatCompletionResult, LlamaCppClient, ToolCall
-from custom_components.sayso.conversation import _chat_log_to_messages
+from custom_components.sayso.conversation import (
+    _chat_log_to_messages,
+    _system_prompt_with_area,
+)
 from custom_components.sayso.schema import (
     ToolArgumentFailureCode,
     _build_compiled_tools_from_source,
@@ -344,6 +348,32 @@ async def test_plain_conversational_response(
     assert _speech(result) == "The living room light is on."
 
 
+def test_satellite_area_context_uses_entity_registry(hass: HomeAssistant) -> None:
+    """Satellite entity IDs resolve to their device area for model context."""
+    user_input = SimpleNamespace(
+        device_id=None,
+        satellite_id="assist_satellite.office",
+    )
+    satellite = SimpleNamespace(device_id="device_satellite")
+    device = SimpleNamespace(area_id="area_office")
+    area = SimpleNamespace(name="Office")
+
+    with patch(
+        "custom_components.sayso.conversation.er.async_get"
+    ) as entity_registry_get, patch(
+        "custom_components.sayso.conversation.dr.async_get"
+    ) as device_registry_get, patch(
+        "custom_components.sayso.conversation.ar.async_get"
+    ) as area_registry_get:
+        entity_registry_get.return_value.async_get.return_value = satellite
+        device_registry_get.return_value.async_get.return_value = device
+        area_registry_get.return_value.async_get_area.return_value = area
+
+        enriched = _system_prompt_with_area("base", hass, user_input)
+
+    assert enriched == "base\narea=Office"
+
+
 async def test_conversation_id_preservation(
     hass: HomeAssistant,
     mock_llama_client: None,
@@ -591,19 +621,6 @@ def _assert_batch_transcript(
         pytest.param(
             [
                 ToolCall(
-                    id="call_single",
-                    name="HassTurnOn",
-                    arguments={"name": "Living Room"},
-                )
-            ],
-            ChatCompletionResult(content="Single call done.", tool_calls=[]),
-            True,
-            True,
-            id="single_success",
-        ),
-        pytest.param(
-            [
-                ToolCall(
                     id="call_a",
                     name="HassTurnOn",
                     arguments={"name": "Living Room"},
@@ -692,7 +709,6 @@ async def test_batched_tool_calls_transcript_and_follow_up(
         "call_fail": True,
         "call_ok": False,
         "call_bad": True,
-        "call_single": False,
         "call_a": False,
         "call_b": False,
     }
@@ -838,10 +854,6 @@ async def test_successful_light_tool_call_with_namespaced_ha_tools(
                         )
                     ],
                 ),
-                ChatCompletionResult(
-                    content="The living room light is on.",
-                    tool_calls=[],
-                ),
             ]
         ),
     ) as mock_chat:
@@ -852,10 +864,10 @@ async def test_successful_light_tool_call_with_namespaced_ha_tools(
     assert "intent__HassTurnOn" in initial_names
     assert "HassTurnOn" not in initial_names
 
-    assert mock_chat.await_count == 2
+    assert mock_chat.await_count == 1
     assert hass.states.get("light.living_room").state == "on"
     assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
-    assert _speech(result) == "The living room light is on."
+    assert _speech(result) == "Done."
 
 
 async def test_successful_light_tool_call(
@@ -881,19 +893,15 @@ async def test_successful_light_tool_call(
                         )
                     ],
                 ),
-                ChatCompletionResult(
-                    content="The living room light is on.",
-                    tool_calls=[],
-                ),
             ]
         ),
     ) as mock_chat:
         result = await _converse(hass, entry, "Turn on the living room light")
 
-    assert mock_chat.await_count == 2
+    assert mock_chat.await_count == 1
     assert hass.states.get("light.living_room").state == "on"
     assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
-    assert _speech(result) == "The living room light is on."
+    assert _speech(result) == "Done."
 
 
 async def test_get_live_context_negative_result_requests_follow_up(
@@ -997,8 +1005,8 @@ async def test_tool_result_returned_to_llama_cpp(
                     tool_calls=[
                         ToolCall(
                             id="call_1",
-                            name="HassTurnOn",
-                            arguments={"name": "Living Room"},
+                            name="GetLiveContext",
+                            arguments={},
                         )
                     ],
                 ),
@@ -1017,7 +1025,7 @@ async def test_tool_result_returned_to_llama_cpp(
     tool_result_message = next(
         message for message in follow_up_messages if message.get("role") == "tool"
     )
-    assert assistant_tool_message["tool_calls"][0]["function"]["name"] == "HassTurnOn"
+    assert assistant_tool_message["tool_calls"][0]["function"]["name"] == "GetLiveContext"
     assert tool_result_message["tool_call_id"] == "call_1"
     assert "error" not in tool_result_message["content"]
 
@@ -1046,7 +1054,6 @@ async def test_home_assistant_context_preservation(
                         )
                     ],
                 ),
-                ChatCompletionResult(content="Done.", tool_calls=[]),
             ]
         ),
     ), patch.object(
@@ -1100,7 +1107,7 @@ async def test_sequential_tool_calls_succeed(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test multiple tool-call iterations succeed until final text."""
+    """Test a successful action batch followed by final text."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1115,17 +1122,12 @@ async def test_sequential_tool_calls_succeed(
                             id="call_1",
                             name="HassTurnOn",
                             arguments={"name": "Living Room"},
-                        )
-                    ],
-                ),
-                ChatCompletionResult(
-                    content=None,
-                    tool_calls=[
+                        ),
                         ToolCall(
                             id="call_2",
                             name="HassTurnOff",
                             arguments={"name": "Living Room"},
-                        )
+                        ),
                     ],
                 ),
                 ChatCompletionResult(
@@ -1137,7 +1139,7 @@ async def test_sequential_tool_calls_succeed(
     ) as mock_chat:
         result = await _converse(hass, entry, "Toggle the living room light")
 
-    assert mock_chat.await_count == 3
+    assert mock_chat.await_count == 2
     assert hass.states.get("light.living_room").state == "off"
     assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
     assert _speech(result) == "The living room light is off."
@@ -1172,17 +1174,12 @@ async def test_model_turn_compiled_schema_and_fingerprint(
                             id="call_1",
                             name="HassTurnOn",
                             arguments={"name": "Living Room"},
-                        )
-                    ],
-                ),
-                ChatCompletionResult(
-                    content=None,
-                    tool_calls=[
+                        ),
                         ToolCall(
                             id="call_2",
                             name="HassTurnOff",
                             arguments={"name": "Living Room"},
-                        )
+                        ),
                     ],
                 ),
                 ChatCompletionResult(
@@ -1200,7 +1197,7 @@ async def test_model_turn_compiled_schema_and_fingerprint(
     assert compiled.fingerprint == schema_fingerprint(compiled.tools)
 
     tools_payloads = [call.kwargs.get("tools") for call in mock_chat.await_args_list]
-    assert mock_chat.await_count == len(tools_payloads) == 3
+    assert mock_chat.await_count == len(tools_payloads) == 2
     active_tools = tools_payloads[0]
     assert active_tools is not None
     assert all(tools is active_tools for tools in tools_payloads)
@@ -1237,17 +1234,12 @@ async def test_tool_follow_up_reuses_compiled_schema_without_reconversion(
                             id="call_1",
                             name="HassTurnOn",
                             arguments={"name": "Living Room"},
-                        )
-                    ],
-                ),
-                ChatCompletionResult(
-                    content=None,
-                    tool_calls=[
+                        ),
                         ToolCall(
                             id="call_2",
                             name="HassTurnOff",
                             arguments={"name": "Living Room"},
-                        )
+                        ),
                     ],
                 ),
                 ChatCompletionResult(
@@ -1260,7 +1252,7 @@ async def test_tool_follow_up_reuses_compiled_schema_without_reconversion(
         await _converse(hass, entry, "Toggle the living room light")
 
     assert build_calls == 1
-    assert mock_chat.await_count == 3
+    assert mock_chat.await_count == 2
     tools_payloads = [
         call.kwargs.get("tools") for call in mock_chat.await_args_list
     ]
@@ -1295,15 +1287,20 @@ async def test_max_tool_iterations_fails_closed(
                             id="call_1",
                             name="HassTurnOn",
                             arguments={"name": "Living Room"},
-                        )
+                        ),
+                        ToolCall(
+                            id="call_2",
+                            name="HassTurnOff",
+                            arguments={"name": "Living Room"},
+                        ),
                     ],
                 ),
                 ChatCompletionResult(
                     content=None,
                     tool_calls=[
                         ToolCall(
-                            id="call_2",
-                            name="HassTurnOff",
+                            id="call_3",
+                            name="HassTurnOn",
                             arguments={"name": "Living Room"},
                         )
                     ],
@@ -1484,10 +1481,6 @@ async def test_pre_execution_correction_repairs_invalid_call(
             side_effect=[
                 ChatCompletionResult(content=None, tool_calls=[invalid_call]),
                 ChatCompletionResult(content=None, tool_calls=[corrected_call]),
-                ChatCompletionResult(
-                    content="The living room light is on.",
-                    tool_calls=[],
-                ),
             ]
         ),
     ) as mock_chat, patch.object(
@@ -1497,11 +1490,11 @@ async def test_pre_execution_correction_repairs_invalid_call(
     ) as mock_handle:
         result = await _converse(hass, entry, "Turn on the living room light")
 
-    assert mock_chat.await_count == 3
+    assert mock_chat.await_count == 2
     assert mock_handle.await_count == 1
     assert hass.states.get("light.living_room").state == "on"
     assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
-    assert _speech(result) == "The living room light is on."
+    assert _speech(result) == "Done."
 
     compiled = compiled_schemas[0]
     correction_call = mock_chat.await_args_list[1]
@@ -1530,13 +1523,6 @@ async def test_pre_execution_correction_repairs_invalid_call(
     assert "unexpected" in synthetic_error["message"].lower()
     assert "HassTurnOn" in synthetic_error["allowed_tools"]
     assert synthetic_error["schema_fingerprint"] == compiled.fingerprint
-
-    executed_transcript = mock_chat.await_args_list[2].args[0]
-    executed_batches = _assistant_tool_batches(executed_transcript)
-    assert len(executed_batches) == 1
-    assert executed_batches[0][0]["id"] == "call_fixed"
-    assert "call_bad" not in _tool_results_by_id(executed_transcript)
-
 
 async def test_tool_validation_failure_fails_closed(
     hass: HomeAssistant,
@@ -1797,7 +1783,12 @@ async def test_follow_up_timeout_never_retries_after_tool_execution(
                             id="call_1",
                             name="HassTurnOn",
                             arguments={"name": "Living Room"},
-                        )
+                        ),
+                        ToolCall(
+                            id="call_2",
+                            name="HassTurnOn",
+                            arguments={"name": "Living Room"},
+                        ),
                     ],
                 ),
                 SaySoTimeoutError("llama.cpp request timed out"),
@@ -1811,7 +1802,7 @@ async def test_follow_up_timeout_never_retries_after_tool_execution(
         result = await _converse(hass, entry, "Turn on the living room light")
 
     assert mock_chat.await_count == 2
-    assert mock_handle.await_count == 1
+    assert mock_handle.await_count == 2
     assert hass.states.get("light.living_room").state == "on"
     assert result.response.response_type == intent.IntentResponseType.ERROR
     assert _speech(result) == ERROR_REQUEST_TIMEOUT
@@ -1842,7 +1833,12 @@ async def test_invalid_follow_up_after_tool_execution_never_retries(
                             id="call_1",
                             name="HassTurnOn",
                             arguments={"name": "Living Room"},
-                        )
+                        ),
+                        ToolCall(
+                            id="call_2",
+                            name="HassTurnOn",
+                            arguments={"name": "Living Room"},
+                        ),
                     ],
                 ),
                 ChatCompletionResult(
@@ -1859,7 +1855,7 @@ async def test_invalid_follow_up_after_tool_execution_never_retries(
         result = await _converse(hass, entry, "Turn on the living room light")
 
     assert mock_chat.await_count == 2
-    assert mock_handle.await_count == 1
+    assert mock_handle.await_count == 2
     assert hass.states.get("light.living_room").state == "on"
     assert result.response.response_type == intent.IntentResponseType.ERROR
     assert _speech(result) == ERROR_ACTION_FAILED
@@ -1925,11 +1921,11 @@ class TestFilteredSchemaRecovery:
         assert len(initial_names) < len(complete_names)
         assert "HassFanSetSpeed" not in initial_names
         assert "HassTurnOn" in initial_names
-        assert mock_chat.await_count == 2
+        assert mock_chat.await_count == 1
         assert mock_handle.await_count == 1
         assert hass.states.get("light.living_room").state == "on"
         assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
-        assert _speech(result) == "The living room light is on."
+        assert _speech(result) == "Done."
 
     async def test_ambiguous_routing_uses_complete_schema_with_exact_counts(
         self,
@@ -1971,10 +1967,11 @@ class TestFilteredSchemaRecovery:
 
         initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
         assert initial_tools == complete_tools
-        assert mock_chat.await_count == 2
+        assert mock_chat.await_count == 1
         assert mock_handle.await_count == 1
         assert hass.states.get("light.kitchen_light").state == "on"
         assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
+        assert _speech(result) == "Done."
 
     async def test_filtered_schema_miss_correction_uses_complete_schema(
         self,
@@ -2003,10 +2000,6 @@ class TestFilteredSchemaRecovery:
                 side_effect=[
                     ChatCompletionResult(content=None, tool_calls=[filtered_call]),
                     ChatCompletionResult(content=None, tool_calls=[corrected_call]),
-                    ChatCompletionResult(
-                        content="The living room light is on.",
-                        tool_calls=[],
-                    ),
                 ]
             ),
         ) as mock_chat, patch.object(
@@ -2026,11 +2019,12 @@ class TestFilteredSchemaRecovery:
 
         assert "HassFanSetSpeed" not in initial_names
         assert correction_tools == complete_tools
-        assert mock_chat.await_count == 3
+        assert mock_chat.await_count == 2
         assert mock_handle.await_count == 1
         assert hass.states.get("light.living_room").state == "on"
         assert hass.states.get("fan.bedroom_fan").state == "off"
         assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
+        assert _speech(result) == "Done."
 
         correction_messages = mock_chat.await_args_list[1].args[0]
         tool_results = _tool_results_by_id(correction_messages)
@@ -2118,7 +2112,6 @@ class TestFilteredSchemaRecovery:
                             )
                         ],
                     ),
-                    ChatCompletionResult(content="Done.", tool_calls=[]),
                 ]
             ),
         ) as mock_chat, patch.object(
@@ -2128,7 +2121,7 @@ class TestFilteredSchemaRecovery:
         ) as mock_handle:
             result = await _converse(hass, entry, "Turn on the living room")
 
-        assert mock_chat.await_count == 3
+        assert mock_chat.await_count == 2
         assert mock_handle.await_count == 1
         assert mock_chat.await_args_list[1].kwargs["tools"] == complete_tools
         assert hass.states.get("fan.bedroom_fan").state == "off"
