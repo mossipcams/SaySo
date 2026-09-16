@@ -1,9 +1,20 @@
-"""Conversation platform for SaySo."""
+"""Conversation platform for SaySo.
+
+One user turn runs here: build context, pick a tool schema, ask llama.cpp, and
+loop over the tool calls it proposes until there is text to speak. Everything
+the loop *decides* about untrusted model output lives in :mod:`.boundary`;
+everything it *sends* to the model lives in :mod:`.transcript`.
+
+A turn carries the same six things everywhere — who asked, the chat log, the
+trace, the two compiled schemas and whether the one correction has been spent —
+so it is one ``_Turn`` object rather than six parameters threaded through every
+call.
+"""
 
 from __future__ import annotations
 
-import json
 import logging
+from dataclasses import dataclass
 from typing import Any, Literal, override
 
 from homeassistant.components import conversation
@@ -15,6 +26,18 @@ from homeassistant.helpers import intent, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SaySoConfigEntry, SaySoRuntimeData
+from .boundary import (
+    action_metadata,
+    apply_action_summary,
+    boundary_schema,
+    first_target,
+    inference_error_type,
+    is_tool_execution_failure,
+    is_well_formed_batch,
+    record_boundary,
+    validate_arguments,
+    validation_failure_code,
+)
 from .client import ChatCompletionResult, ToolCall
 from .const import (
     DOMAIN,
@@ -24,18 +47,12 @@ from .const import (
     ERROR_REQUEST_TIMEOUT,
     ERROR_TOOL_ITERATION_LIMIT,
 )
+from .diagnostics import BoundaryFailureCode, BoundaryPhase
 from .exceptions import (
-    SaySoConnectionError,
     SaySoError,
-    SaySoHttpError,
     SaySoInvalidResponseError,
     SaySoInvalidToolEnvelopeError,
     SaySoTimeoutError,
-)
-from .diagnostics import (
-    BoundaryFailureCode,
-    BoundaryPhase,
-    record_boundary_failure,
 )
 from .routing import (
     build_routing_catalog,
@@ -46,38 +63,21 @@ from .routing import (
 )
 from .schema import (
     CompiledToolSchema,
-    ToolArgumentFailureCode,
-    ToolArgumentValidationError,
     _is_query_tool,
     _unwrap_source_tool,
     build_tool_availability_names,
     build_tool_map,
     compile_llm_tools,
     expand_compiled_tool_name_aliases,
-    format_synthetic_validation_error,
-    validate_tool_arguments,
+)
+from .transcript import (
+    build_correction_messages,
+    chat_log_to_messages as _chat_log_to_messages,
+    filtered_miss_failures,
 )
 from .tracing import ErrorType, Stage, TraceContext
 
 _LOGGER = logging.getLogger(__name__)
-
-_BOUNDARY_ERROR_TYPES: dict[BoundaryFailureCode, ErrorType] = {
-    BoundaryFailureCode.SCHEMA_MISMATCH: ErrorType.SCHEMA_MISMATCH,
-    BoundaryFailureCode.INVALID_ARGUMENTS: ErrorType.INVALID_ARGUMENTS,
-    BoundaryFailureCode.UNAVAILABLE_TOOL: ErrorType.UNAVAILABLE_TOOL,
-    BoundaryFailureCode.REQUEST_TIMEOUT: ErrorType.MODEL_TIMEOUT,
-    BoundaryFailureCode.ITERATION_LIMIT: ErrorType.ITERATION_LIMIT,
-    BoundaryFailureCode.TOOL_EXECUTION_FAILED: ErrorType.HA_ACTION_FAILED,
-}
-
-_BOUNDARY_STAGES: dict[BoundaryFailureCode, Stage] = {
-    BoundaryFailureCode.SCHEMA_MISMATCH: Stage.TOOL_PARSE,
-    BoundaryFailureCode.INVALID_ARGUMENTS: Stage.TOOL_PARSE,
-    BoundaryFailureCode.UNAVAILABLE_TOOL: Stage.TOOL_PARSE,
-    BoundaryFailureCode.REQUEST_TIMEOUT: Stage.INFERENCE,
-    BoundaryFailureCode.ITERATION_LIMIT: Stage.INFERENCE,
-    BoundaryFailureCode.TOOL_EXECUTION_FAILED: Stage.HA_ACTION,
-}
 
 
 async def async_setup_entry(
@@ -87,6 +87,180 @@ async def async_setup_entry(
 ) -> None:
     """Set up the SaySo conversation entity."""
     async_add_entities([SaySoConversationEntity(config_entry)])
+
+
+@dataclass(slots=True)
+class _Turn:
+    """One user turn, and the four ways it can end."""
+
+    entry_id: str
+    agent_id: str
+    runtime: SaySoRuntimeData
+    user_input: conversation.ConversationInput
+    chat_log: conversation.ChatLog
+    trace: TraceContext
+    complete_schema: CompiledToolSchema | None = None
+    active_schema: CompiledToolSchema | None = None
+    correction_used: bool = False
+
+    @property
+    def messages(self) -> list[dict[str, Any]]:
+        """The conversation so far, in llama.cpp's message shape."""
+        return _chat_log_to_messages(self.chat_log.content)
+
+    def error(
+        self,
+        speech: str,
+        *,
+        stage: Stage | str = Stage.SAYSO_REQUEST,
+        error_type: ErrorType = ErrorType.UNKNOWN,
+    ) -> conversation.ConversationResult:
+        """End the turn with a spoken error, failing the trace at ``stage``."""
+        return _error_result(
+            self.user_input,
+            self.chat_log,
+            speech,
+            trace=self.trace,
+            stage=stage,
+            error_type=error_type,
+        )
+
+    def text(self, content: str | None) -> conversation.ConversationResult:
+        """End the turn with a spoken answer."""
+        with self.trace.stage(Stage.RESPONSE) as span:
+            self.chat_log.async_add_assistant_content_without_tools(
+                conversation.AssistantContent(agent_id=self.agent_id, content=content)
+            )
+            span.metadata["text_length"] = len(content or "")
+            return conversation.async_get_result_from_chat_log(
+                self.user_input, self.chat_log
+            )
+
+    def boundary_failure(
+        self,
+        code: BoundaryFailureCode,
+        phase: BoundaryPhase,
+        *,
+        ha_error: str | None = None,
+        speech: str = ERROR_ACTION_FAILED,
+    ) -> conversation.ConversationResult:
+        """End the turn at the model boundary, counting the failure."""
+        record_boundary(
+            self.entry_id,
+            code,
+            phase,
+            boundary_schema(
+                phase,
+                active_schema=self.active_schema,
+                complete_schema=self.complete_schema,
+                correction_used=self.correction_used,
+            ),
+            ha_error=ha_error,
+            trace=self.trace,
+        )
+        # ``record_boundary`` already failed the trace at the right stage.
+        return _error_result(self.user_input, self.chat_log, speech)
+
+    def model_failure(
+        self,
+        err: BaseException,
+        phase: BoundaryPhase,
+        *,
+        log_label: str = "llama.cpp",
+    ) -> conversation.ConversationResult:
+        """Map a llama.cpp failure to a spoken error.
+
+        A timeout is the only one worth a boundary counter: it says llama.cpp
+        was reachable but too slow, which is a different operational problem
+        from it being down or answering nonsense.
+        """
+        if isinstance(err, SaySoTimeoutError):
+            return self.boundary_failure(
+                BoundaryFailureCode.REQUEST_TIMEOUT,
+                phase,
+                speech=ERROR_REQUEST_TIMEOUT,
+            )
+        if not isinstance(err, SaySoError):
+            raise err
+        _LOGGER.debug(
+            "trace_id=%s %s error: %s", self.trace.trace_id, log_label, err
+        )
+        return self.error(
+            ERROR_MODEL_UNAVAILABLE,
+            stage=Stage.INFERENCE,
+            error_type=(
+                ErrorType.INVALID_MODEL_OUTPUT
+                if isinstance(err, SaySoInvalidResponseError)
+                else ErrorType.MODEL_UNAVAILABLE
+            ),
+        )
+
+    async def complete(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: tuple[dict[str, Any], ...] | list[dict[str, Any]] | None,
+        correction: bool = False,
+    ) -> ChatCompletionResult:
+        """Run one traced llama.cpp completion."""
+        trace, runtime = self.trace, self.runtime
+        span = trace.open(
+            Stage.INFERENCE,
+            model=runtime.model,
+            **({"correction": True} if correction else {}),
+        )
+        try:
+            result = await runtime.engine.async_chat_completion(
+                messages,
+                tools=tools,
+                temperature=runtime.temperature,
+                max_tokens=runtime.max_output_tokens,
+            )
+        except BaseException as err:
+            trace.close(span, success=False)
+            trace.fail(Stage.INFERENCE, inference_error_type(err), str(err))
+            raise
+        span.metadata["tool_calls"] = len(result.tool_calls)
+        if result.prompt_tokens is not None:
+            span.metadata["prompt_tokens"] = result.prompt_tokens
+        trace.close(span)
+        return result
+
+    async def execute(
+        self,
+        validated: list[tuple[ToolCall, dict[str, Any]]],
+        tool_map: dict[str, llm.Tool],
+        span: Any,
+    ) -> tuple[bool, str | None]:
+        """Run one validated batch through Home Assistant, in model order."""
+        content = conversation.AssistantContent(
+            agent_id=self.agent_id,
+            content=None,
+            tool_calls=[
+                llm.ToolInput(
+                    id=tool_call.id,
+                    tool_name=tool_map[tool_call.name].name,
+                    tool_args=normalized_args,
+                )
+                for tool_call, normalized_args in validated
+            ],
+        )
+        batch_failed = False
+        ha_error: str | None = None
+        resolved_target: str | None = None
+        async for result in self.chat_log.async_add_assistant_content(content):
+            if is_tool_execution_failure(result.tool_result):
+                batch_failed = True
+                if ha_error is None:
+                    error = result.tool_result.get("error")
+                    if isinstance(error, str) and error:
+                        ha_error = error
+            elif resolved_target is None:
+                resolved_target = first_target(result.tool_result)
+        if resolved_target is not None:
+            # Home Assistant's own resolution beats the name the model asked for.
+            span.metadata["target"] = resolved_target
+        return batch_failed, ha_error
 
 
 class SaySoConversationEntity(
@@ -141,11 +315,17 @@ class SaySoConversationEntity(
     ) -> conversation.ConversationResult:
         """Handle a user message with llama.cpp, tracing the whole turn."""
         trace = self._runtime.tracer.async_start(user_input.context, user_input.text)
+        turn = _Turn(
+            entry_id=self._entry.entry_id,
+            agent_id=self.entity_id,
+            runtime=self._runtime,
+            user_input=user_input,
+            chat_log=chat_log,
+            trace=trace,
+        )
         span = trace.open(Stage.SAYSO_REQUEST)
         try:
-            return await self._async_handle_traced_message(
-                user_input, chat_log, trace
-            )
+            return await self._async_answer(turn)
         except Exception as err:
             trace.fail(Stage.SAYSO_REQUEST, ErrorType.UNKNOWN, type(err).__name__)
             raise
@@ -153,621 +333,221 @@ class SaySoConversationEntity(
             trace.close(span, success=trace.success is not False)
             self._runtime.tracer.async_finish(trace)
 
-    async def _async_handle_traced_message(
-        self,
-        user_input: conversation.ConversationInput,
-        chat_log: conversation.ChatLog,
-        trace: TraceContext,
-    ) -> conversation.ConversationResult:
-        """Handle a user message with llama.cpp."""
-        runtime = self._runtime
-        llm_context = user_input.as_llm_context(DOMAIN)
+    async def _async_answer(self, turn: _Turn) -> conversation.ConversationResult:
+        """Provide context, route to a schema, and ask llama.cpp once."""
+        chat_log, trace = turn.chat_log, turn.trace
+        llm_context = turn.user_input.as_llm_context(DOMAIN)
 
         with trace.stage(Stage.CONTEXT) as span:
             try:
                 await chat_log.async_provide_llm_data(
                     llm_context,
-                    runtime.llm_api,
+                    turn.runtime.llm_api,
                     _system_prompt_with_area(
-                        runtime.system_prompt,
-                        self.hass,
-                        user_input,
+                        turn.runtime.system_prompt, self.hass, turn.user_input
                     ),
-                    user_input.extra_system_prompt,
+                    turn.user_input.extra_system_prompt,
                 )
             except conversation.ConverseError as err:
                 trace.fail(Stage.CONTEXT, ErrorType.UNKNOWN, type(err).__name__)
                 return err.as_conversation_result()
 
             try:
-                complete_schema = compile_llm_tools(chat_log.llm_api)
+                turn.complete_schema = compile_llm_tools(chat_log.llm_api)
             except SaySoInvalidToolEnvelopeError:
-                return _error_result(
-                    user_input,
-                    chat_log,
+                return turn.error(
                     ERROR_ACTION_FAILED,
-                    trace=trace,
                     stage=Stage.CONTEXT,
                     error_type=ErrorType.SCHEMA_MISMATCH,
                 )
+
             domain_hint = identify_command_domain(
-                user_input.text,
+                turn.user_input.text,
                 build_routing_catalog(self.hass, assistant=llm_context.assistant),
                 registries=build_routing_registries(self.hass),
                 preferences=build_routing_preferences(
                     self.hass,
                     llm_context,
-                    satellite_id=getattr(user_input, "satellite_id", None),
+                    satellite_id=getattr(turn.user_input, "satellite_id", None),
                 ),
             )
-            active_schema = (
+            turn.active_schema = (
                 select_schema_for_domain(
-                    complete_schema,
-                    chat_log.llm_api.tools,
-                    domain_hint,
+                    turn.complete_schema, chat_log.llm_api.tools, domain_hint
                 )
-                if complete_schema is not None
+                if turn.complete_schema is not None
                 else None
             )
-            messages = _chat_log_to_messages(chat_log.content)
+            messages = turn.messages
             span.metadata["domain_hint"] = domain_hint
             span.metadata["tools"] = (
-                len(active_schema.tools) if active_schema is not None else 0
+                len(turn.active_schema.tools) if turn.active_schema is not None else 0
             )
 
         try:
-            result = await self._async_chat_completion(
-                trace,
-                runtime,
-                messages,
-                tools=active_schema.tools if active_schema is not None else None,
-            )
-        except (
-            SaySoTimeoutError,
-            SaySoConnectionError,
-            SaySoHttpError,
-            SaySoInvalidResponseError,
-            SaySoError,
-        ) as err:
-            return _client_exception_result(
-                self._entry.entry_id,
-                BoundaryPhase.INITIAL,
-                complete_schema,
-                active_schema,
-                user_input,
-                chat_log,
-                err,
-                trace=trace,
-            )
+            result = await turn.complete(messages, tools=_tools_of(turn.active_schema))
+        except SaySoError as err:
+            return turn.model_failure(err, BoundaryPhase.INITIAL)
 
         if result.tool_calls:
-            return await self._async_handle_tool_calls(
-                user_input,
-                chat_log,
-                runtime,
-                result.tool_calls,
-                complete_schema,
-                active_schema,
-                trace,
-            )
-
-        error_message = _validate_text_completion(result)
-        if error_message is not None:
-            return _error_result(
-                user_input,
-                chat_log,
-                error_message,
-                trace=trace,
+            return await self._async_run_tool_calls(turn, result.tool_calls)
+        if not (result.content or "").strip():
+            return turn.error(
+                ERROR_EMPTY_RESPONSE,
                 stage=Stage.INFERENCE,
                 error_type=ErrorType.EMPTY_RESPONSE,
             )
+        return turn.text(result.content)
 
-        with trace.stage(Stage.RESPONSE) as span:
-            chat_log.async_add_assistant_content_without_tools(
-                conversation.AssistantContent(
-                    agent_id=self.entity_id,
-                    content=result.content,
-                )
-            )
-            span.metadata["text_length"] = len(result.content or "")
-            return conversation.async_get_result_from_chat_log(user_input, chat_log)
-
-    async def _async_chat_completion(
-        self,
-        trace: TraceContext,
-        runtime: SaySoRuntimeData,
-        messages: list[dict[str, Any]],
-        *,
-        tools: list[dict[str, Any]] | None,
-        correction: bool = False,
-    ) -> ChatCompletionResult:
-        """Run one traced llama.cpp completion."""
-        span = trace.open(
-            Stage.INFERENCE,
-            model=runtime.model,
-            **({"correction": True} if correction else {}),
-        )
-        try:
-            result = await runtime.engine.async_chat_completion(
-                messages,
-                tools=tools,
-                temperature=runtime.temperature,
-                max_tokens=runtime.max_output_tokens,
-            )
-        except BaseException as err:
-            trace.close(span, success=False)
-            trace.fail(Stage.INFERENCE, _inference_error_type(err), str(err))
-            raise
-        span.metadata["tool_calls"] = len(result.tool_calls)
-        if result.prompt_tokens is not None:
-            span.metadata["prompt_tokens"] = result.prompt_tokens
-        trace.close(span)
-        return result
-
-    async def _async_handle_tool_calls(
-        self,
-        user_input: conversation.ConversationInput,
-        chat_log: conversation.ChatLog,
-        runtime: SaySoRuntimeData,
-        tool_calls: list[ToolCall],
-        complete_schema: CompiledToolSchema | None,
-        active_schema: CompiledToolSchema | None,
-        trace: TraceContext,
+    async def _async_run_tool_calls(
+        self, turn: _Turn, tool_calls: list[ToolCall]
     ) -> conversation.ConversationResult:
         """Execute tool calls sequentially until final text or iteration limit."""
+        chat_log, trace = turn.chat_log, turn.trace
         if chat_log.llm_api is None:
-            return _error_result(
-                user_input,
-                chat_log,
+            return turn.error(
                 ERROR_ACTION_FAILED,
-                trace=trace,
                 stage=Stage.TOOL_PARSE,
                 error_type=ErrorType.UNAVAILABLE_TOOL,
             )
 
-        complete_allowed_tools = build_tool_availability_names(chat_log.llm_api.tools)
-        validation_tool_names = (
+        # Every tool Home Assistant currently exposes, versus the subset the
+        # model was actually shown. A name in the first but not the second is a
+        # routing miss and is recoverable; a name in neither never executes.
+        available_tools = build_tool_availability_names(chat_log.llm_api.tools)
+        offered_tools = (
             expand_compiled_tool_name_aliases(
-                {tool["function"]["name"] for tool in active_schema.tools}
+                {tool["function"]["name"] for tool in turn.active_schema.tools}
             )
-            if active_schema is not None
-            else complete_allowed_tools
+            if turn.active_schema is not None
+            else available_tools
         )
-        request_schema = active_schema
         tool_map = build_tool_map(chat_log.llm_api.tools)
         iteration = 1
-        correction_used = False
         tools_executed = False
-        current_tool_calls = tool_calls
+        current = tool_calls
         phase = BoundaryPhase.INITIAL
 
         while True:
-            parse_span = trace.open(
-                Stage.TOOL_PARSE, calls=len(current_tool_calls)
-            )
+            parse_span = trace.open(Stage.TOOL_PARSE, calls=len(current))
 
-            if not _validate_tool_call_batch_structure(current_tool_calls):
-                _record_boundary(
-                    self._entry.entry_id,
-                    BoundaryFailureCode.INVALID_ARGUMENTS,
-                    phase,
-                    _boundary_schema(
-                        phase,
-                        active_schema=active_schema,
-                        complete_schema=complete_schema,
-                        correction_used=correction_used,
-                    ),
-                    trace=trace,
+            if not is_well_formed_batch(current):
+                return turn.boundary_failure(
+                    BoundaryFailureCode.INVALID_ARGUMENTS, phase
                 )
-                return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
-
-            unavailable_calls = [
-                tool_call
-                for tool_call in current_tool_calls
-                if tool_call.name not in complete_allowed_tools
-            ]
-            if unavailable_calls:
-                _record_boundary(
-                    self._entry.entry_id,
-                    BoundaryFailureCode.UNAVAILABLE_TOOL,
-                    phase,
-                    _boundary_schema(
-                        phase,
-                        active_schema=active_schema,
-                        complete_schema=complete_schema,
-                        correction_used=correction_used,
-                    ),
-                    trace=trace,
+            if any(call.name not in available_tools for call in current):
+                return turn.boundary_failure(
+                    BoundaryFailureCode.UNAVAILABLE_TOOL, phase
                 )
-                return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
-            filtered_misses = [
-                tool_call
-                for tool_call in current_tool_calls
-                if tool_call.name not in validation_tool_names
-            ]
-            if filtered_misses:
-                if correction_used or tools_executed or complete_schema is None:
-                    _record_boundary(
-                        self._entry.entry_id,
-                        BoundaryFailureCode.SCHEMA_MISMATCH,
-                        phase,
-                        _boundary_schema(
-                            phase,
-                            active_schema=active_schema,
-                            complete_schema=complete_schema,
-                            correction_used=correction_used,
-                        ),
-                        trace=trace,
+            # A tool the active subset hid and an argument Home Assistant
+            # rejects are the same failure — the model saw the wrong contract —
+            # so they report identically and share one correction budget.
+            misses = [call for call in current if call.name not in offered_tools]
+            if misses:
+                validated, failures = [], filtered_miss_failures(misses)
+            else:
+                validated, failures = validate_arguments(current, tool_map, trace)
+
+            if failures:
+                repairable = not (
+                    validated
+                    or turn.correction_used
+                    or tools_executed
+                    or turn.complete_schema is None
+                )
+                if not repairable:
+                    return turn.boundary_failure(
+                        validation_failure_code(failures[0][1]), phase
                     )
-                    return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
                 phase = BoundaryPhase.CORRECTION
-                correction_messages = _build_filtered_miss_correction_messages(
-                    _chat_log_to_messages(chat_log.content),
-                    filtered_misses,
-                    complete_allowed_tools,
-                    complete_schema.fingerprint,
-                )
                 # Close tool parsing before the correction request so correction
                 # latency lands in the inference stage, not in tool_parse_ms.
                 trace.close(parse_span, success=False)
                 try:
-                    correction_response = await self._async_chat_completion(
-                        trace,
-                        runtime,
-                        correction_messages,
-                        tools=complete_schema.tools,
-                        correction=True,
-                    )
-                except (
-                    SaySoTimeoutError,
-                    SaySoConnectionError,
-                    SaySoHttpError,
-                    SaySoInvalidResponseError,
-                    SaySoError,
-                ) as err:
-                    return _client_exception_result(
-                        self._entry.entry_id,
-                        BoundaryPhase.CORRECTION,
-                        complete_schema,
-                        active_schema,
-                        user_input,
-                        chat_log,
-                        err,
-                        log_label="llama.cpp correction",
-                        trace=trace,
-                    )
-
-                correction_used = True
-                validation_tool_names = complete_allowed_tools
-                if not correction_response.tool_calls:
-                    return _error_result(
-                        user_input,
-                        chat_log,
-                        ERROR_ACTION_FAILED,
-                        trace=trace,
-                        stage=Stage.TOOL_PARSE,
-                        error_type=ErrorType.INVALID_MODEL_OUTPUT,
-                    )
-                current_tool_calls = correction_response.tool_calls
-                continue
-
-            validated_tool_calls: list[tuple[ToolCall, dict[str, Any]]] = []
-            validation_failures: list[
-                tuple[ToolCall, ToolArgumentValidationError]
-            ] = []
-            for tool_call in current_tool_calls:
-                tool = tool_map[tool_call.name]
-                normalized_args, validation_error = validate_tool_arguments(
-                    tool,
-                    tool_call.arguments,
-                )
-                if validation_error is not None:
-                    _LOGGER.debug(
-                        "trace_id=%s tool argument validation failed for %s (%s): %s",
-                        trace.trace_id,
-                        tool_call.name,
-                        validation_error.code,
-                        validation_error.message,
-                    )
-                    validation_failures.append((tool_call, validation_error))
-                else:
-                    validated_tool_calls.append((tool_call, normalized_args))
-
-            if validation_failures:
-                if (
-                    validated_tool_calls
-                    or correction_used
-                    or tools_executed
-                    or complete_schema is None
-                ):
-                    _record_boundary(
-                        self._entry.entry_id,
-                        _validation_failure_code(validation_failures[0][1]),
-                        phase,
-                        _boundary_schema(
-                            phase,
-                            active_schema=active_schema,
-                            complete_schema=complete_schema,
-                            correction_used=correction_used,
+                    corrected = await turn.complete(
+                        build_correction_messages(
+                            turn.messages,
+                            failures,
+                            available_tools,
+                            turn.complete_schema.fingerprint,
                         ),
-                        trace=trace,
-                    )
-                    return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
-
-                phase = BoundaryPhase.CORRECTION
-                correction_messages = _build_pre_execution_correction_messages(
-                    _chat_log_to_messages(chat_log.content),
-                    validation_failures,
-                    complete_allowed_tools,
-                    complete_schema.fingerprint,
-                )
-                trace.close(parse_span, success=False)
-                try:
-                    correction_response = await self._async_chat_completion(
-                        trace,
-                        runtime,
-                        correction_messages,
-                        tools=complete_schema.tools,
+                        tools=turn.complete_schema.tools,
                         correction=True,
                     )
-                except (
-                    SaySoTimeoutError,
-                    SaySoConnectionError,
-                    SaySoHttpError,
-                    SaySoInvalidResponseError,
-                    SaySoError,
-                ) as err:
-                    return _client_exception_result(
-                        self._entry.entry_id,
-                        BoundaryPhase.CORRECTION,
-                        complete_schema,
-                        active_schema,
-                        user_input,
-                        chat_log,
-                        err,
-                        log_label="llama.cpp correction",
-                        trace=trace,
+                except SaySoError as err:
+                    return turn.model_failure(
+                        err, phase, log_label="llama.cpp correction"
                     )
 
-                correction_used = True
-                validation_tool_names = complete_allowed_tools
-                if not correction_response.tool_calls:
-                    return _error_result(
-                        user_input,
-                        chat_log,
+                turn.correction_used = True
+                offered_tools = available_tools
+                if not corrected.tool_calls:
+                    return turn.error(
                         ERROR_ACTION_FAILED,
-                        trace=trace,
                         stage=Stage.TOOL_PARSE,
                         error_type=ErrorType.INVALID_MODEL_OUTPUT,
                     )
-                current_tool_calls = correction_response.tool_calls
+                current = corrected.tool_calls
                 continue
 
-            assistant_content = conversation.AssistantContent(
-                agent_id=self.entity_id,
-                content=None,
-                tool_calls=[
-                    llm.ToolInput(
-                        id=tool_call.id,
-                        tool_name=tool_map[tool_call.name].name,
-                        tool_args=normalized_args,
-                    )
-                    for tool_call, normalized_args in validated_tool_calls
-                ],
-            )
             trace.close(parse_span)
-
             action_span = trace.open(
-                Stage.HA_ACTION,
-                **_action_metadata(validated_tool_calls, tool_map),
+                Stage.HA_ACTION, **action_metadata(validated, tool_map)
             )
-            batch_failed = False
-            ha_error: str | None = None
-            resolved_target: str | None = None
-            async for _tool_result in chat_log.async_add_assistant_content(
-                assistant_content
-            ):
-                if _is_tool_execution_failure(_tool_result.tool_result):
-                    batch_failed = True
-                    if ha_error is None:
-                        error = _tool_result.tool_result.get("error")
-                        if isinstance(error, str) and error:
-                            ha_error = error
-                elif resolved_target is None:
-                    resolved_target = _first_target(_tool_result.tool_result)
-            if resolved_target is not None:
-                # Home Assistant's own resolution beats the name the model asked for.
-                action_span.metadata["target"] = resolved_target
-            _apply_action_summary(trace, action_span)
+            batch_failed, ha_error = await turn.execute(
+                validated, tool_map, action_span
+            )
+            apply_action_summary(trace, action_span.metadata)
             trace.close(action_span, success=not batch_failed)
 
             if batch_failed:
-                _record_boundary(
-                    self._entry.entry_id,
+                return turn.boundary_failure(
                     BoundaryFailureCode.TOOL_EXECUTION_FAILED,
                     BoundaryPhase.EXECUTION,
-                    _boundary_schema(
-                        BoundaryPhase.EXECUTION,
-                        active_schema=active_schema,
-                        complete_schema=complete_schema,
-                        correction_used=correction_used,
-                    ),
                     ha_error=ha_error,
-                    trace=trace,
                 )
-                return _error_result(user_input, chat_log, ERROR_ACTION_FAILED)
 
             tools_executed = True
-            if len(validated_tool_calls) == 1 and _is_action_tool(
-                tool_map[validated_tool_calls[0][0].name]
-            ):
-                with trace.stage(Stage.RESPONSE) as span:
-                    chat_log.async_add_assistant_content_without_tools(
-                        conversation.AssistantContent(
-                            agent_id=self.entity_id,
-                            content="Done.",
-                        )
-                    )
-                    span.metadata["text_length"] = len("Done.")
-                    return conversation.async_get_result_from_chat_log(
-                        user_input, chat_log
-                    )
+            if len(validated) == 1 and _is_action_tool(tool_map[validated[0][0].name]):
+                return turn.text("Done.")
 
             phase = BoundaryPhase.FOLLOW_UP
-
-            messages = _chat_log_to_messages(chat_log.content)
             try:
-                follow_up = await self._async_chat_completion(
-                    trace,
-                    runtime,
-                    messages,
-                    tools=(
-                        request_schema.tools if request_schema is not None else None
-                    ),
+                follow_up = await turn.complete(
+                    turn.messages, tools=_tools_of(turn.active_schema)
                 )
-            except (
-                SaySoTimeoutError,
-                SaySoConnectionError,
-                SaySoHttpError,
-                SaySoInvalidResponseError,
-                SaySoError,
-            ) as err:
-                return _client_exception_result(
-                    self._entry.entry_id,
-                    BoundaryPhase.FOLLOW_UP,
-                    complete_schema,
-                    active_schema,
-                    user_input,
-                    chat_log,
-                    err,
-                    log_label="llama.cpp follow-up",
-                    trace=trace,
+            except SaySoError as err:
+                return turn.model_failure(
+                    err, phase, log_label="llama.cpp follow-up"
                 )
 
             if follow_up.tool_calls:
-                if iteration >= runtime.max_tool_iterations:
-                    _record_boundary(
-                        self._entry.entry_id,
+                if iteration >= turn.runtime.max_tool_iterations:
+                    return turn.boundary_failure(
                         BoundaryFailureCode.ITERATION_LIMIT,
-                        BoundaryPhase.FOLLOW_UP,
-                        _boundary_schema(
-                            BoundaryPhase.FOLLOW_UP,
-                            active_schema=active_schema,
-                            complete_schema=complete_schema,
-                            correction_used=correction_used,
-                        ),
-                        trace=trace,
-                    )
-                    return _error_result(
-                        user_input, chat_log, ERROR_TOOL_ITERATION_LIMIT
+                        phase,
+                        speech=ERROR_TOOL_ITERATION_LIMIT,
                     )
                 iteration += 1
-                current_tool_calls = follow_up.tool_calls
+                current = follow_up.tool_calls
                 continue
 
-            error_message = _validate_text_completion(follow_up)
-            if error_message is not None:
-                return _error_result(
-                    user_input,
-                    chat_log,
-                    error_message,
-                    trace=trace,
+            if not (follow_up.content or "").strip():
+                return turn.error(
+                    ERROR_EMPTY_RESPONSE,
                     stage=Stage.RESPONSE,
                     error_type=ErrorType.EMPTY_RESPONSE,
                 )
-
-            with trace.stage(Stage.RESPONSE) as span:
-                chat_log.async_add_assistant_content_without_tools(
-                    conversation.AssistantContent(
-                        agent_id=self.entity_id,
-                        content=follow_up.content,
-                    )
-                )
-                span.metadata["text_length"] = len(follow_up.content or "")
-                return conversation.async_get_result_from_chat_log(
-                    user_input, chat_log
-                )
+            return turn.text(follow_up.content)
 
 
-def _boundary_schema(
-    phase: BoundaryPhase,
-    *,
-    active_schema: CompiledToolSchema | None,
-    complete_schema: CompiledToolSchema | None,
-    correction_used: bool = False,
-) -> CompiledToolSchema | None:
-    """Return the schema whose fingerprint matches the tools sent in this phase."""
-    if phase == BoundaryPhase.CORRECTION:
-        return complete_schema
-    if phase == BoundaryPhase.EXECUTION and correction_used:
-        return complete_schema
-    if active_schema is not None:
-        return active_schema
-    return complete_schema
-
-
-def _record_boundary(
-    entry_id: str,
-    code: BoundaryFailureCode,
-    phase: BoundaryPhase,
+def _tools_of(
     schema: CompiledToolSchema | None,
-    *,
-    ha_error: str | None = None,
-    trace: TraceContext | None = None,
-) -> None:
-    """Record one boundary failure and log its stable code and phase."""
-    fingerprint = schema.fingerprint if schema else None
-    record_boundary_failure(
-        entry_id,
-        code,
-        phase,
-        fingerprint=fingerprint,
-        ha_error=ha_error,
-    )
-    trace_id = trace.trace_id if trace is not None else None
-    _LOGGER.debug(
-        "trace_id=%s SaySo boundary failure: code=%s phase=%s",
-        trace_id,
-        code.value,
-        phase.value,
-    )
-    if code == BoundaryFailureCode.TOOL_EXECUTION_FAILED and ha_error:
-        _LOGGER.warning(
-            "trace_id=%s SaySo tool execution failed: ha_error=%s", trace_id, ha_error
-        )
-    if trace is not None:
-        trace.fail(
-            _BOUNDARY_STAGES.get(code, Stage.SAYSO_REQUEST),
-            _BOUNDARY_ERROR_TYPES.get(code, ErrorType.UNKNOWN),
-            ha_error or code.value,
-        )
-
-
-def _inference_error_type(err: BaseException) -> ErrorType:
-    """Classify why one llama.cpp request failed."""
-    if isinstance(err, SaySoTimeoutError):
-        return ErrorType.MODEL_TIMEOUT
-    if isinstance(err, SaySoInvalidResponseError):
-        return ErrorType.INVALID_MODEL_OUTPUT
-    if isinstance(err, (SaySoConnectionError, SaySoHttpError, SaySoError)):
-        return ErrorType.MODEL_UNAVAILABLE
-    return ErrorType.UNKNOWN
-
-
-def _first_target(tool_result: dict[str, Any]) -> str | None:
-    """Return the first entity Home Assistant reported as successfully targeted."""
-    data = tool_result.get("data")
-    if not isinstance(data, dict):
-        return None
-    successes = data.get("success")
-    if not isinstance(successes, list):
-        return None
-    for target in successes:
-        if isinstance(target, dict) and isinstance(target.get("id"), str):
-            return target["id"]
-    return None
+) -> tuple[dict[str, Any], ...] | None:
+    """Return a compiled schema's tools, or nothing when there is no schema."""
+    return schema.tools if schema is not None else None
 
 
 def _system_prompt_with_area(
@@ -789,8 +569,7 @@ def _system_prompt_with_area(
         device = device_reg.async_get(device_id)
         if device is None or device.area_id is None:
             continue
-        area_reg = ar.async_get(hass)
-        area = area_reg.async_get_area(device.area_id)
+        area = ar.async_get(hass).async_get_area(device.area_id)
         if area is not None:
             return f"{system_prompt}\narea={area.name}"
     return system_prompt
@@ -802,279 +581,6 @@ def _is_action_tool(tool: llm.Tool) -> bool:
     return isinstance(source, (llm.ActionTool, llm.IntentTool)) and not _is_query_tool(
         source
     )
-
-
-def _action_metadata(
-    validated_tool_calls: list[tuple[ToolCall, dict[str, Any]]],
-    tool_map: dict[str, Any],
-) -> dict[str, Any]:
-    """Return small, non-sensitive metadata describing a tool batch.
-
-    Only identifiers are kept: no full arguments, prompts or state dumps.
-    """
-    if not validated_tool_calls:
-        return {}
-    tool_call, normalized_args = validated_tool_calls[0]
-    metadata: dict[str, Any] = {"tool": tool_map[tool_call.name].name}
-    if len(validated_tool_calls) > 1:
-        metadata["batch"] = len(validated_tool_calls)
-    domain = normalized_args.get("domain")
-    if isinstance(domain, str) and domain:
-        metadata["domain"] = domain
-    elif isinstance(domain, list) and domain and isinstance(domain[0], str):
-        metadata["domain"] = domain[0]
-    name = normalized_args.get("name")
-    if isinstance(name, str) and name:
-        metadata["target"] = name
-    return metadata
-
-
-def _apply_action_summary(trace: TraceContext, span: Any) -> None:
-    """Promote the executed action onto the interaction summary."""
-    trace.tool = span.metadata.get("tool") or trace.tool
-    target = span.metadata.get("target")
-    if isinstance(target, str) and target:
-        trace.target = target
-        if "." in target:
-            trace.domain = target.split(".", 1)[0]
-    if trace.domain is None:
-        domain = span.metadata.get("domain")
-        if isinstance(domain, str) and domain:
-            trace.domain = domain
-
-
-def _client_exception_result(
-    entry_id: str,
-    phase: BoundaryPhase,
-    complete_schema: CompiledToolSchema | None,
-    active_schema: CompiledToolSchema | None,
-    user_input: conversation.ConversationInput,
-    chat_log: conversation.ChatLog,
-    err: BaseException,
-    *,
-    log_label: str = "llama.cpp",
-    trace: TraceContext | None = None,
-) -> conversation.ConversationResult:
-    """Map a SaySo client exception to a spoken error after recording timeout boundaries."""
-    trace_id = trace.trace_id if trace is not None else None
-    if isinstance(err, SaySoTimeoutError):
-        _record_boundary(
-            entry_id,
-            BoundaryFailureCode.REQUEST_TIMEOUT,
-            phase,
-            _boundary_schema(
-                phase,
-                active_schema=active_schema,
-                complete_schema=complete_schema,
-            ),
-            trace=trace,
-        )
-        return _error_result(user_input, chat_log, ERROR_REQUEST_TIMEOUT)
-    if isinstance(err, SaySoConnectionError):
-        return _error_result(
-            user_input,
-            chat_log,
-            ERROR_MODEL_UNAVAILABLE,
-            trace=trace,
-            stage=Stage.INFERENCE,
-            error_type=ErrorType.MODEL_UNAVAILABLE,
-        )
-    if isinstance(err, (SaySoHttpError, SaySoInvalidResponseError)):
-        _LOGGER.debug("trace_id=%s %s response error: %s", trace_id, log_label, err)
-        return _error_result(
-            user_input,
-            chat_log,
-            ERROR_MODEL_UNAVAILABLE,
-            trace=trace,
-            stage=Stage.INFERENCE,
-            error_type=(
-                ErrorType.INVALID_MODEL_OUTPUT
-                if isinstance(err, SaySoInvalidResponseError)
-                else ErrorType.MODEL_UNAVAILABLE
-            ),
-        )
-    if isinstance(err, SaySoError):
-        _LOGGER.debug("trace_id=%s SaySo error: %s", trace_id, err)
-        return _error_result(
-            user_input,
-            chat_log,
-            ERROR_MODEL_UNAVAILABLE,
-            trace=trace,
-            stage=Stage.INFERENCE,
-            error_type=ErrorType.MODEL_UNAVAILABLE,
-        )
-    raise err
-
-
-def _validation_failure_code(
-    error: ToolArgumentValidationError,
-) -> BoundaryFailureCode:
-    """Map a tool-argument validation error to a boundary diagnostic code."""
-    if error.code == ToolArgumentFailureCode.SCHEMA_MISMATCH:
-        return BoundaryFailureCode.SCHEMA_MISMATCH
-    return BoundaryFailureCode.INVALID_ARGUMENTS
-
-
-def _batch_validation_failure_code(
-    tool_calls: list[ToolCall],
-    allowed_tools: set[str],
-) -> BoundaryFailureCode:
-    """Map a batch prevalidation failure to a boundary diagnostic code."""
-    for tool_call in tool_calls:
-        if tool_call.name not in allowed_tools:
-            return BoundaryFailureCode.UNAVAILABLE_TOOL
-    return BoundaryFailureCode.INVALID_ARGUMENTS
-
-
-def _build_filtered_miss_correction_messages(
-    base_messages: list[dict[str, Any]],
-    filtered_misses: list[ToolCall],
-    allowed_tools: set[str],
-    fingerprint: str,
-) -> list[dict[str, Any]]:
-    """Append a synthetic transcript for one filtered-schema correction request."""
-    validation_failures = [
-        (
-            tool_call,
-            ToolArgumentValidationError(
-                code=ToolArgumentFailureCode.SCHEMA_MISMATCH,
-                message=(
-                    f"Tool {tool_call.name} is not available in the active schema subset"
-                ),
-                tool_name=tool_call.name,
-            ),
-        )
-        for tool_call in filtered_misses
-    ]
-    return _build_pre_execution_correction_messages(
-        base_messages,
-        validation_failures,
-        allowed_tools,
-        fingerprint,
-    )
-
-
-def _build_pre_execution_correction_messages(
-    base_messages: list[dict[str, Any]],
-    validation_failures: list[tuple[ToolCall, ToolArgumentValidationError]],
-    allowed_tools: set[str],
-    fingerprint: str,
-) -> list[dict[str, Any]]:
-    """Append a synthetic assistant/tool transcript for one correction request."""
-    messages = list(base_messages)
-    allowed_tool_names = sorted(allowed_tools)
-    messages.append(
-        {
-            "role": "assistant",
-            "content": "",
-            "tool_calls": [
-                {
-                    "id": tool_call.id,
-                    "type": "function",
-                    "function": {
-                        "name": tool_call.name,
-                        "arguments": json.dumps(
-                            tool_call.arguments, sort_keys=True
-                        ),
-                    },
-                }
-                for tool_call, _error in validation_failures
-            ],
-        }
-    )
-    for tool_call, validation_error in validation_failures:
-        messages.append(
-            {
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": json.dumps(
-                    format_synthetic_validation_error(
-                        validation_error,
-                        allowed_tools=allowed_tool_names,
-                        fingerprint=fingerprint,
-                    )
-                ),
-            }
-        )
-    return messages
-
-
-def _is_tool_execution_failure(tool_result: dict[str, Any]) -> bool:
-    """Return whether HA reported a tool execution exception, not a negative result."""
-    return "error" in tool_result and "success" not in tool_result
-
-
-def _validate_tool_call_batch_structure(tool_calls: list[ToolCall]) -> bool:
-    """Return whether every call in the batch is structurally well-formed."""
-    seen_ids: set[str] = set()
-    for tool_call in tool_calls:
-        if not tool_call.id or not tool_call.name:
-            return False
-        if tool_call.id in seen_ids:
-            return False
-        seen_ids.add(tool_call.id)
-        if not isinstance(tool_call.arguments, dict):
-            return False
-    return True
-
-
-def _validate_tool_call_batch(
-    tool_calls: list[ToolCall],
-    allowed_tools: set[str],
-) -> bool:
-    """Return whether every call in the batch is well-formed and authorized."""
-    if not _validate_tool_call_batch_structure(tool_calls):
-        return False
-    return all(tool_call.name in allowed_tools for tool_call in tool_calls)
-
-
-def _validate_text_completion(result: ChatCompletionResult) -> str | None:
-    """Return a user-facing error when the model output is unusable text."""
-    content = (result.content or "").strip()
-    if not content:
-        return ERROR_EMPTY_RESPONSE
-
-    return None
-
-
-def _chat_log_to_messages(
-    content: list[conversation.Content],
-) -> list[dict[str, Any]]:
-    """Convert Home Assistant chat log entries to llama.cpp messages."""
-    messages: list[dict[str, Any]] = []
-    for item in content:
-        if isinstance(item, conversation.SystemContent):
-            if item.content:
-                messages.append({"role": "system", "content": item.content})
-        elif isinstance(item, conversation.UserContent):
-            messages.append({"role": "user", "content": item.content})
-        elif isinstance(item, conversation.AssistantContent):
-            message: dict[str, Any] = {
-                "role": "assistant",
-                "content": item.content or "",
-            }
-            if item.tool_calls:
-                message["tool_calls"] = [
-                    {
-                        "id": tool_call.id,
-                        "type": "function",
-                        "function": {
-                            "name": tool_call.tool_name,
-                            "arguments": json.dumps(tool_call.tool_args, sort_keys=True),
-                        },
-                    }
-                    for tool_call in item.tool_calls
-                ]
-            messages.append(message)
-        elif isinstance(item, conversation.ToolResultContent):
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": item.tool_call_id,
-                    "content": json.dumps(item.tool_result),
-                }
-            )
-    return messages
 
 
 def _error_result(

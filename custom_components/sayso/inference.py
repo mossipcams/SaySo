@@ -22,7 +22,14 @@ from typing import Any, Protocol
 
 from homeassistant.const import CONF_URL
 
-from .client import ChatCompletionResult, LlamaCppClient, ToolCall
+from .client import (
+    ChatCompletionResult,
+    LlamaCppClient,
+    ToolCall,
+    parse_choice_message,
+    parse_tool_calls,
+    prompt_tokens_of,
+)
 from .const import (
     BACKEND_EMBEDDED,
     BACKEND_EXTERNAL,
@@ -47,6 +54,14 @@ _LOGGER = logging.getLogger(__name__)
 # applies with --jinja is not available and SaySo strips them itself.
 _TOOL_CALL_START = "<|tool_call_start|>"
 _TOOL_CALL_END = "<|tool_call_end|>"
+
+# Prefix for the errors this backend raises, so a trace says which one failed.
+_SUBJECT = "Local inference"
+
+
+def _call_id() -> str:
+    """Mint a tool-call id for a backend that does not supply one."""
+    return f"call_{uuid.uuid4().hex[:8]}"
 
 
 def default_thread_count() -> int:
@@ -98,7 +113,7 @@ def extract_tool_calls(content: str) -> tuple[str | None, list[ToolCall]]:
 
     calls = [
         ToolCall(
-            id=f"call_{uuid.uuid4().hex[:8]}",
+            id=_call_id(),
             name=call["name"],
             arguments=call["arguments"],
         )
@@ -309,20 +324,14 @@ def _parse_embedded_result(raw: Any) -> ChatCompletionResult:
     if not isinstance(raw, dict):
         raise SaySoInvalidResponseError("Local inference returned no result")
 
-    choices = raw.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise SaySoInvalidResponseError("Local inference returned no choices")
-    message = choices[0].get("message") if isinstance(choices[0], dict) else None
-    if not isinstance(message, dict):
-        raise SaySoInvalidResponseError("Local inference returned no choices")
-
-    content = message.get("content")
-    if content is not None and not isinstance(content, str):
-        raise SaySoInvalidResponseError("Local inference returned invalid content")
+    content, message = parse_choice_message(raw, _SUBJECT)
 
     # Honour structured tool_calls when a handler produced them, and fall back
-    # to parsing LFM2's native text format otherwise.
-    tool_calls = _structured_tool_calls(message.get("tool_calls"))
+    # to parsing LFM2's native text format otherwise. llama-cpp-python omits
+    # call ids, so one is minted here rather than failing the turn.
+    tool_calls = parse_tool_calls(
+        message.get("tool_calls"), subject=_SUBJECT, mint_id=_call_id
+    )
     if tool_calls:
         text: str | None = content
     else:
@@ -333,53 +342,8 @@ def _parse_embedded_result(raw: Any) -> ChatCompletionResult:
             "Local inference returned neither content nor tool calls"
         )
 
-    usage = raw.get("usage")
-    prompt_tokens = (
-        usage.get("prompt_tokens") if isinstance(usage, dict) else None
-    )
-
     return ChatCompletionResult(
         content=text,
         tool_calls=tool_calls,
-        prompt_tokens=prompt_tokens if isinstance(prompt_tokens, int) else None,
+        prompt_tokens=prompt_tokens_of(raw),
     )
-
-
-def _structured_tool_calls(raw: Any) -> list[ToolCall]:
-    """Parse OpenAI-shaped tool_calls when the backend supplied them."""
-    if not isinstance(raw, list) or not raw:
-        return []
-
-    import json
-
-    calls: list[ToolCall] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            raise SaySoInvalidResponseError("Local inference returned invalid tool calls")
-        function = item.get("function")
-        if not isinstance(function, dict):
-            raise SaySoInvalidResponseError("Local inference returned invalid tool calls")
-        name = function.get("name")
-        if not isinstance(name, str) or not name:
-            raise SaySoInvalidResponseError("Local inference returned invalid tool calls")
-        arguments = function.get("arguments")
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError as err:
-                raise SaySoInvalidResponseError(
-                    "Local inference returned invalid tool call arguments"
-                ) from err
-        if not isinstance(arguments, dict):
-            raise SaySoInvalidResponseError(
-                "Local inference returned invalid tool call arguments"
-            )
-        call_id = item.get("id")
-        calls.append(
-            ToolCall(
-                id=call_id if isinstance(call_id, str) and call_id else f"call_{uuid.uuid4().hex[:8]}",
-                name=name,
-                arguments=arguments,
-            )
-        )
-    return calls
