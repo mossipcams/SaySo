@@ -274,6 +274,23 @@ def install_voice_handlers(
                 lambda: _abandon("playback done callback never fired"),
             )
 
+    def _fail_turn(self: Any, stage: str, error: str, capture_reason: str) -> None:
+        """End a failed turn: record it, play the failure chime, then rearm.
+
+        Rearming waits for the chime's own callback. Rearming before it
+        finishes would let the failure sound itself re-trigger the wake word.
+        """
+        trace.fail(stage, error)
+        _finish_capture(self, transcript="", failed_reason=capture_reason)
+        self._chime_rearm_pending = True
+
+        def _done() -> None:
+            self._chime_rearm_pending = False
+            if wake_hook is not None:
+                wake_hook.rearm()
+
+        _schedule_chime_play(self.state.tts_player, str(sounds.failure), _done)
+
     def handle_voice_event(
         self,
         event_type: VoiceAssistantEventType,
@@ -300,36 +317,10 @@ def install_voice_handlers(
                 _schedule_chime_play(self.state.tts_player, str(sounds.wake), None)
             else:
                 _LOGGER.debug("Playing failure sound after empty STT transcript")
-                trace.fail("stt", "stt_failed")
-                _finish_capture(self, transcript="", failed_reason="empty_transcript")
-                self._chime_rearm_pending = True
-
-                def _failure_chime_done() -> None:
-                    self._chime_rearm_pending = False
-                    if wake_hook is not None:
-                        wake_hook.rearm()
-
-                _schedule_chime_play(
-                    self.state.tts_player,
-                    str(sounds.failure),
-                    _failure_chime_done,
-                )
+                _fail_turn(self, "stt", "stt_failed", "empty_transcript")
         elif event_type == event_error:
             _LOGGER.debug("Playing failure sound after voice pipeline error")
-            trace.fail("pipeline", "pipeline_error")
-            _finish_capture(self, transcript="", failed_reason="pipeline_error")
-            self._chime_rearm_pending = True
-
-            def _error_chime_done() -> None:
-                self._chime_rearm_pending = False
-                if wake_hook is not None:
-                    wake_hook.rearm()
-
-            _schedule_chime_play(
-                self.state.tts_player,
-                str(sounds.failure),
-                _error_chime_done,
-            )
+            _fail_turn(self, "pipeline", "pipeline_error", "pipeline_error")
 
     def _tts_finished(self) -> None:
         original_tts_finished(self)
