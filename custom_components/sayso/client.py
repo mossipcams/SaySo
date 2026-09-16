@@ -93,13 +93,22 @@ def parse_tool_calls(
     """Parse OpenAI-shaped ``tool_calls`` from any SaySo inference backend.
 
     ``mint_id`` supplies an id when the backend omits one. The HTTP client
-    passes none: a server that cannot label its own calls is not speaking the
-    protocol, and an unlabelled call must fail closed rather than be guessed at.
+    passes none, which also makes parsing strict: a server that sends a
+    non-list ``tool_calls`` or an unlabelled call is not speaking the protocol,
+    and that must fail closed rather than be read as "no tool calls" and let
+    the accompanying text be spoken as if an action ran. The embedded backend
+    stays lenient and falls back to parsing LFM2's native text format.
     """
-    if not isinstance(raw, list) or not raw:
+    invalid = SaySoInvalidResponseError(f"{subject} returned invalid tool calls")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        if mint_id is None:
+            raise invalid
+        return []
+    if not raw:
         return []
 
-    invalid = SaySoInvalidResponseError(f"{subject} returned invalid tool calls")
     calls: list[ToolCall] = []
     for item in raw:
         if not isinstance(item, dict):

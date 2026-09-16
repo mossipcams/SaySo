@@ -195,6 +195,8 @@ def spec(
 
     ``quality_eval`` marks a row as part of a promotion gate. Shadow rows are
     the same shape but are an overfitting check, so they carry no such claim.
+    ``target_names=None`` derives the names from the expected calls; an
+    explicit empty list is kept as given.
     """
     row: dict[str, Any] = {
         "candidate_id": candidate_id,
@@ -203,7 +205,9 @@ def spec(
         "subcategory": subcategory,
         "home": home,
         "expected": expected,
-        "target_names": target_names or _target_names(expected),
+        "target_names": (
+            target_names if target_names is not None else _target_names(expected)
+        ),
         "spoken_targets": {},
         "excluded_names": [],
         "contrastive_group": None,

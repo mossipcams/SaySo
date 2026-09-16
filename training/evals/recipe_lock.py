@@ -61,7 +61,7 @@ def _spec(
         utterance=utterance,
         home=home,
         expected=expected,
-        target_names=target_names,
+        target_names=target_names or None,
         request_hint=request_hint,
         recipe=recipe,
         recipe_row=row,

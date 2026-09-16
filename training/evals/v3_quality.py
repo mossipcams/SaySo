@@ -74,7 +74,7 @@ def _spec(
         utterance=utterance,
         home=home,
         expected=expected,
-        target_names=target_names,
+        target_names=target_names or None,
         request_hint=request_hint,
         dataset="v3_quality_gold",
     )
