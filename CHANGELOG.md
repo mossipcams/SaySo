@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.3.0](https://github.com/mossipcams/SaySo/compare/1.2.0...1.3.0) (2026-09-16)
+
+
+### Features
+
+* **integration:** run inference on the CPU inside the integration ([95a7730](https://github.com/mossipcams/SaySo/commit/95a77300f38bb65b0fae117bcc13f78ae145f12d))
+* **scripts:** verify the native backend and publish model weights ([03ff8df](https://github.com/mossipcams/SaySo/commit/03ff8df242a0e45019558fc97b5fd75d023d3d2e))
+
+
+### Bug Fixes
+
+* handle satellite routing and action acknowledgements ([8890f79](https://github.com/mossipcams/SaySo/commit/8890f79e4e6b2e083520ec5ed4b469b0d69ff4a7))
+
+
+### Documentation
+
+* record the shipped model and correct the champion ([d1224f3](https://github.com/mossipcams/SaySo/commit/d1224f3f7fb3cd7ec016c3fcc55dd9822804b27e))
+
 ## [1.2.0](https://github.com/mossipcams/SaySo/compare/1.1.0...1.2.0) (2026-09-14)
 
 
