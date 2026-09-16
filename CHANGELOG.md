@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/mossipcams/SaySo/compare/1.3.0...1.3.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([a2fea61](https://github.com/mossipcams/SaySo/commit/a2fea61b1e70a75d3ddb2434a0b43d92307630b3))
+* restore fail-closed parsing of malformed HTTP tool_calls ([2034ea0](https://github.com/mossipcams/SaySo/commit/2034ea01d03e977797962a8a803dc8efd8935dda))
+
 ## [1.3.0](https://github.com/mossipcams/SaySo/compare/1.2.0...1.3.0) (2026-09-16)
 
 
