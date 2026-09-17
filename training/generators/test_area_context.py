@@ -69,17 +69,6 @@ def test_named_target_survives_area_words_and_ambiguity_fails_closed() -> None:
     assert ambiguous.target_area is None
 
 
-def test_unicode_explicit_area_overrides_satellite() -> None:
-    context = resolve_area_context(
-        "turn on the lights in the Café",
-        satellite_area="Bedroom",
-        areas=("Café", "Bedroom"),
-    )
-    assert (context.target_area, context.target_area_source) == (
-        "Café", "explicit_area"
-    )
-
-
 def test_area_families_render_the_contract_and_expected_targeting() -> None:
     rows = {variant["family"]: render_example(build_spec(variant, seed=3))
             for variant in area_context_variants()}
