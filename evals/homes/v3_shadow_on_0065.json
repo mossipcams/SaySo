@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_on_0065",
+  "satellite_area": "Studio",
+  "sayso_entity_area": "Studio",
+  "areas": {
+    "Studio": []
+  },
+  "area_aliases": {
+    "Studio": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.studio_task_light",
+      "name": "Studio Task Light",
+      "aliases": [
+        "light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Studio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

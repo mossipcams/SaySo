@@ -9,9 +9,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT.parent
+sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(ROOT))
 
-from evals.llamacpp import parse_chat_completion  # noqa: E402
+from sayso_contract import completion  # noqa: E402
 
 
 def main() -> int:
@@ -41,8 +43,10 @@ def main() -> int:
         timeout=120,
     )
     response.raise_for_status()
-    parsed = parse_chat_completion(response.json())
-    print(json.dumps(parsed, indent=2))
+    parsed = completion.parse_completion_result(response.json())
+    print(json.dumps({"content": parsed.content, "tool_calls": [
+        {"name": call.name, "arguments": call.arguments} for call in parsed.tool_calls
+    ]}, indent=2))
     return 0
 
 

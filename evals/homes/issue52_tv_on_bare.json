@@ -1,0 +1,38 @@
+{
+  "home_id": "issue52_tv_on_bare",
+  "satellite_area": "Living Room",
+  "sayso_entity_area": "Living Room",
+  "areas": {
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.tv",
+      "name": "TV",
+      "aliases": [
+        "TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    }
+  ]
+}

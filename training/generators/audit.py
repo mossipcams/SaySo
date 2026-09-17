@@ -8,7 +8,7 @@ import re
 
 from adapters.schema import tool_schema_map, validate_tool_arguments
 from generators.capability_registry import SCRIPT_ACTION_TOOL
-from generators.coverage import ABSENCE, classify_row, expected_tool
+from generators.coverage import ABSENCE, bare_tool_name, classify_row, expected_tool
 from generators.pipeline import _check_quality_eval_overlap
 
 
@@ -79,12 +79,14 @@ def audit_rows(
             raise ValueError(f"empty request or eval overlap: {row_id}")
         calls = [c["function"] for m in messages for c in m.get("tool_calls", [])]
         schemas = tool_schema_map(row["tools"])
+        # Rows carry production names; registry and metadata name tools bare.
+        offered_bare = {bare_tool_name(name) for name in schemas}
         final = messages[-1].get("content", "")
         if not calls and meta.get("capability") == "timers":
             required = expected_tool("timers", meta.get("operation") or "")
-            if required in schemas or re.search(r"has no .* available", final, re.I):
+            if required in offered_bare or re.search(r"has no .* available", final, re.I):
                 raise ValueError(f"contradictory timer refusal: {row_id}")
-        if any(call["name"] == "GetLiveContext" for call in calls) and final.strip().lower() == "done.":
+        if any(bare_tool_name(call["name"]) == "GetLiveContext" for call in calls) and final.strip().lower() == "done.":
             raise ValueError(f"state query labeled as action: {row_id}")
         for call in calls:
             arguments = call["arguments"]
@@ -94,7 +96,7 @@ def audit_rows(
                 raise ValueError(f"{row_id}: {reason}")
             if arguments.get("name") in meta.get("excluded_names", []):
                 raise ValueError(f"excluded target called: {row_id}")
-        if set(meta.get("unavailable_tools", [])) & schemas.keys():
+        if set(meta.get("unavailable_tools", [])) & offered_bare:
             raise ValueError(f"blocked tool is offered: {row_id}")
         excluded = meta.get("excluded_names", [])
         if excluded and ("leave" not in user.lower() or any(name.lower() not in user.lower() for name in excluded)):

@@ -1,234 +1,183 @@
-"""Load and run offline evaluation cases."""
+"""One behavioral execution pipeline.
+
+For each case: build the production area context from the household and
+utterance (never from the expected answer), render the production system
+prompt, compile the household's production tool catalog (minus only the
+capability an unavailable case withholds), ask the model through the
+configured adapter, parse with the production parser, validate with the
+production contract check, and score with the shared scorer.
+
+Evaluation never executes Home Assistant actions.
+"""
 
 from __future__ import annotations
 
+import hashlib
 import json
-from dataclasses import dataclass
+import subprocess
+import sys
+import urllib.error
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
+from uuid import uuid4
 
-from evals.metrics import build_confident_routing_metrics, build_metrics_report, derive_latency_tolerance_ms
-from evals.scorer import (
-    CheckName,
-    EvalActual,
-    EvalCase,
-    case_score_to_dict,
-    score_case,
+from evals.cases import (
+    Case,
+    fingerprint_cases,
+    load_gates,
+    load_home,
+    production_contract_fingerprint,
+    select_cases,
 )
-
-_TOOL_QUALITY_CHECKS = frozenset(
-    {
-        CheckName.TOOL_NAME,
-        CheckName.TOOL_ARGS,
-        CheckName.TOOL_ORDER,
-        CheckName.WRONG_TOOL,
-    }
+from evals.outcomes import (
+    PRODUCTION_MAX_OUTPUT_TOKENS,
+    PRODUCTION_TEMPERATURE,
+    CaseResult,
+    Expectation,
+    ResponseType,
+    read_completion,
 )
+from evals.scorer import check_gates, score, summarize
+
+ROOT = Path(__file__).resolve().parents[1]
+RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
 
-@dataclass(frozen=True, slots=True)
-class EvalCaseSet:
-    """Versioned collection of offline evaluation cases."""
+class ModelAdapter(Protocol):
+    name: str
 
-    version: int
-    cases: tuple[EvalCase, ...]
+    def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Any: ...
 
 
-@dataclass(frozen=True, slots=True)
-class EvalRecord:
-    """Recorded llama.cpp outcome plus request and latency measurements."""
-
-    actual: EvalActual
-    request_payload: dict[str, Any]
-    request_bytes: int
-    prompt_tokens: int | None = None
-    latency_ms: float = 0.0
-    confidently_routed: bool = False
-
-
-def _parse_checks(raw_checks: Any) -> tuple[CheckName, ...]:
-    if not isinstance(raw_checks, list):
-        return ()
-    checks: list[CheckName] = []
-    for item in raw_checks:
-        checks.append(CheckName(str(item)))
-    return tuple(checks)
+@contextmanager
+def training_path():
+    """Expose ``training/generators`` without shadowing the repo ``tests`` package."""
+    path = str(ROOT / "training")
+    added = path not in sys.path
+    if added:
+        sys.path.append(path)
+    try:
+        yield
+    finally:
+        if added:
+            sys.path.remove(path)
 
 
-def _parse_case(raw: dict[str, Any]) -> EvalCase:
-    return EvalCase(
-        id=str(raw["id"]),
-        category=str(raw["category"]),
-        scenario=str(raw["scenario"]),
-        description=str(raw.get("description", "")),
-        expect=dict(raw.get("expect", {})),
-        checks=_parse_checks(raw.get("checks")),
-    )
+def production_catalog(home: dict[str, Any], *, removed_tools: list[str] | None = None) -> list[dict[str, Any]]:
+    with training_path():
+        from generators.tools import production_catalog as _production_catalog  # noqa: PLC0415
+
+    return _production_catalog(home, removed_tools=removed_tools or [])
 
 
-def load_cases(path: str | Path) -> EvalCaseSet:
-    """Load a versioned JSON case set from disk."""
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    version = int(payload["version"])
-    raw_cases = payload.get("cases", [])
-    if not isinstance(raw_cases, list):
-        raise ValueError("cases must be a list")
-    cases = tuple(_parse_case(entry) for entry in raw_cases if isinstance(entry, dict))
-    return EvalCaseSet(version=version, cases=cases)
+def render_case(case: Case) -> dict[str, Any]:
+    """Everything the model and the scorer see for one case."""
+    with training_path():
+        from generators.context import area_context_for, serialize_context  # noqa: PLC0415
 
-
-def run_eval(
-    case_set: EvalCaseSet,
-    actuals: dict[str, EvalActual],
-) -> dict[str, Any]:
-    """Score all cases and return a deterministic JSON report."""
-    results: list[dict[str, Any]] = []
-    passed_count = 0
-    failed_count = 0
-    skipped_count = 0
-
-    for case in sorted(case_set.cases, key=lambda item: item.id):
-        actual = actuals.get(case.id)
-        if actual is None:
-            skipped_count += 1
-            results.append(
-                {
-                    "case_id": case.id,
-                    "category": case.category,
-                    "scenario": case.scenario,
-                    "status": "skipped",
-                    "passed": None,
-                    "checks": {},
-                }
-            )
-            continue
-
-        score = score_case(case, actual)
-        if score.passed:
-            passed_count += 1
-            status = "passed"
-        else:
-            failed_count += 1
-            status = "failed"
-
-        entry = case_score_to_dict(score)
-        entry["status"] = status
-        results.append(entry)
-
+    home = load_home(case.household)
+    removed = (case.unavailable or {}).get("removed_tools") or []
+    expected = case.expected
+    area = area_context_for(home, case.utterance)
     return {
-        "version": case_set.version,
-        "summary": {
-            "total": len(case_set.cases),
-            "passed": passed_count,
-            "failed": failed_count,
-            "skipped": skipped_count,
-        },
-        "results": results,
+        "messages": [
+            {"role": "system", "content": serialize_context(home, case.utterance)},
+            {"role": "user", "content": case.utterance},
+        ],
+        "tools": production_catalog(home, removed_tools=removed),
+        "exposed_domains": frozenset(entity["domain"] for entity in home["entities"]),
+        "area_context": area.as_dict(),
+        "expectation": Expectation(
+            category=case.category,
+            response_type=ResponseType(expected["response_type"]),
+            calls=tuple(expected["calls"]),
+            forbidden_entities=tuple(expected["forbidden_entities"]),
+            target_area=area.target_area,
+        ),
     }
 
 
-def _tool_quality_checks(case: EvalCase) -> tuple[CheckName, ...]:
-    return tuple(check for check in case.checks if check in _TOOL_QUALITY_CHECKS)
+def evaluate(cases: list[Case], adapter: ModelAdapter) -> list[CaseResult]:
+    """Score every case through the shared parser, validator, and scorer."""
+    results: list[CaseResult] = []
+    for case in cases:
+        rendered = render_case(case)
+        try:
+            raw = adapter.complete(rendered["messages"], rendered["tools"])
+            transport_error = None
+        except (urllib.error.URLError, TimeoutError, OSError, ConnectionError) as err:
+            raw = {"transport_error": str(err)}
+            transport_error = str(err)
+        turn = read_completion(raw, rendered["tools"], rendered["exposed_domains"])
+        result = score(case.id, rendered["expectation"], turn)
+        if transport_error:
+            result.flags.append("transport_error")
+        results.append(result)
+    return results
 
 
-def _aggregate_metrics(
-    case_set: EvalCaseSet,
-    records: dict[str, EvalRecord],
-    report: dict[str, Any],
-) -> dict[str, Any]:
-    serialized_request_bytes: list[int] = []
-    prompt_tokens: list[int | None] = []
-    latencies_ms: list[float] = []
-    tool_case_count = 0
-    tool_case_passed = 0
-    tool_call_case_count = 0
-    invalid_call_case_count = 0
-
-    results_by_id = {
-        str(entry["case_id"]): entry for entry in report.get("results", [])
-    }
-
-    for case in sorted(case_set.cases, key=lambda item: item.id):
-        record = records.get(case.id)
-        if record is None:
-            continue
-
-        serialized_request_bytes.append(record.request_bytes)
-        prompt_tokens.append(record.prompt_tokens)
-        latencies_ms.append(record.latency_ms)
-
-        if record.actual.tool_calls:
-            tool_call_case_count += 1
-            if record.actual.validation_errors:
-                invalid_call_case_count += 1
-
-        quality_checks = _tool_quality_checks(case)
-        if quality_checks:
-            tool_case_count += 1
-            result = results_by_id.get(case.id, {})
-            checks = result.get("checks", {})
-            if all(
-                isinstance(checks.get(check.value), dict)
-                and checks[check.value].get("passed") is True
-                for check in quality_checks
-            ):
-                tool_case_passed += 1
-
-    return build_metrics_report(
-        serialized_request_bytes=serialized_request_bytes,
-        prompt_tokens=prompt_tokens,
-        tool_case_count=tool_case_count,
-        tool_case_passed=tool_case_passed,
-        tool_call_case_count=tool_call_case_count,
-        invalid_call_case_count=invalid_call_case_count,
-        latencies_ms=latencies_ms,
-    )
+def _git_revision() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
 
 
-def run_eval_with_metrics(
-    case_set: EvalCaseSet,
-    records: dict[str, EvalRecord],
-) -> dict[str, Any]:
-    """Score cases and attach aggregate request/tool/latency metrics."""
-    actuals = {case_id: record.actual for case_id, record in records.items()}
-    report = run_eval(case_set, actuals)
-    report["metrics"] = _aggregate_metrics(case_set, records, report)
-    return report
-
-
-def _aggregate_confident_routing(
-    records: dict[str, EvalRecord],
-) -> dict[str, Any]:
-    prompt_tokens_by_case = {
-        case_id: record.prompt_tokens for case_id, record in records.items()
-    }
-    confidently_routed_by_case = {
-        case_id: record.confidently_routed for case_id, record in records.items()
-    }
-    return build_confident_routing_metrics(
-        prompt_tokens_by_case=prompt_tokens_by_case,
-        confidently_routed_by_case=confidently_routed_by_case,
-    )
-
-
-def build_release_report(
-    case_set: EvalCaseSet,
-    records: dict[str, EvalRecord],
+def write_run(
     *,
-    matrix_id: str,
-    metadata: dict[str, Any],
-    fingerprints: dict[str, Any],
-    live_latency: dict[str, Any],
-    latency_explanations: dict[str, str] | None = None,
-) -> dict[str, Any]:
-    """Build a release-ready eval report with metadata, metrics, and tolerances."""
-    report = run_eval_with_metrics(case_set, records)
-    report["matrix_id"] = matrix_id
-    report["metadata"] = dict(metadata)
-    report["fingerprints"] = dict(fingerprints)
-    report["confident_routing"] = _aggregate_confident_routing(records)
-    report["live_latency"] = live_latency
-    report["latency_tolerance_ms"] = derive_latency_tolerance_ms(live_latency)
-    if latency_explanations:
-        report["latency_explanations"] = dict(latency_explanations)
-    return report
+    cases: list[Case],
+    results: list[CaseResult],
+    adapter: ModelAdapter,
+    suite: str | None,
+    extra_metadata: dict[str, Any] | None = None,
+) -> Path:
+    run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8]
+    dest = RESULTS_DIR / run_id
+    dest.mkdir(parents=True, exist_ok=True)
+    summary = summarize(results)
+    gates = load_gates(suite) if suite else None
+    failures = check_gates(summary, gates, expected_count=len(cases)) if gates else []
+    metadata = {
+        "run_id": run_id,
+        "suite": suite,
+        "adapter": adapter.name,
+        "checkpoint": getattr(adapter, "model", None) or (extra_metadata or {}).get("checkpoint"),
+        "code_revision": _git_revision(),
+        "case_hash": fingerprint_cases(cases),
+        "suite_hash": hashlib.sha256("\n".join(case.id for case in cases).encode()).hexdigest(),
+        "production_contract_fingerprint": production_contract_fingerprint(),
+        "decoding": {
+            "temperature": PRODUCTION_TEMPERATURE,
+            "max_output_tokens": PRODUCTION_MAX_OUTPUT_TOKENS,
+        },
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+    if extra_metadata:
+        metadata.update(extra_metadata)
+    if hasattr(adapter, "server"):
+        metadata["server"] = adapter.server
+    (dest / "metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    report = {
+        "summary": summary,
+        "promotion": {"passed": not failures, "failures": failures} if gates else None,
+    }
+    (dest / "summary.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    outcomes = dest / "outcomes.jsonl"
+    with outcomes.open("w", encoding="utf-8") as handle:
+        for result in results:
+            handle.write(json.dumps(result.as_dict(), ensure_ascii=False) + "\n")
+    raw_dir = dest / "raw"
+    raw_dir.mkdir()
+    for result in results:
+        (raw_dir / f"{result.case_id}.json").write_text(
+            json.dumps(result.turn.raw, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    return dest

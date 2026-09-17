@@ -3,7 +3,7 @@
 Status: measured, then implemented in this branch.
 Author: agent, 2026-09-14.
 Scope: `custom_components/sayso/schema.py`, `custom_components/sayso/manifest.json`,
-`training/generators/`, `training/evals/grounding_eval.py`, docs.
+`training/generators/`, `evals/cases/regressions.jsonl`, docs.
 
 ## 1. What the evidence actually says
 
@@ -144,7 +144,7 @@ So: two production defects and one data defect, in that order of impact.
 | `training/generators/grounding.py` | TV families: name vs area, alias, room-qualified, ambiguity, absence, speaker distractor |
 | `training/generators/pipeline.py` | route the new families; enforce coverage after validation/dedup |
 | `training/generators/validate.py` | label/evidence consistency on the rendered row |
-| `training/evals/grounding_eval.py` | the three issue utterances, held out |
+| `evals/cases/regressions.jsonl` | the three issue utterances, held out |
 | `docs/PLAN_ISSUE_52_TV_CONTROL.md` | this file |
 
 ## 4. Verification
@@ -207,7 +207,7 @@ So: two production defects and one data defect, in that order of impact.
   namespaced share shipped at 11.5% against a 35% request with no error.
 - Rate gates now cover both new shares, asserted on accepted rows after
   validation, dedup and the quota.
-- `evals/grounding_eval.py` holds the three issue utterances verbatim. The
+- `evals/cases/regressions.jsonl` (tag `grounding`) holds the three issue utterances verbatim. The
   previous "exact production regression" anchor actually said "turn on the living
   room media player", which is neither what a user says nor what was reported.
 - Bare `TV` is reserved out of the training site vocabulary the way Living Room

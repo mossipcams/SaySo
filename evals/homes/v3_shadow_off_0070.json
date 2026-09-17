@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_off_0070",
+  "satellite_area": "Balcony",
+  "sayso_entity_area": "Balcony",
+  "areas": {
+    "Balcony": []
+  },
+  "area_aliases": {
+    "Balcony": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.balcony_ceiling_fan",
+      "name": "Balcony Ceiling Fan",
+      "aliases": [
+        "fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Balcony",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

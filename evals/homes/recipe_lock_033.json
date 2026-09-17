@@ -1,0 +1,49 @@
+{
+  "home_id": "recipe_lock_033",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Kitchen": [],
+    "Patio": []
+  },
+  "area_aliases": {
+    "Kitchen": [],
+    "Patio": []
+  },
+  "entities": [
+    {
+      "entity_id": "lock.kitchen_back_door_lock",
+      "name": "Kitchen Back Door Lock",
+      "aliases": [
+        "door"
+      ],
+      "domain": "lock",
+      "kind": "lock",
+      "device_class": "door",
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "lock",
+        "unlock"
+      ]
+    },
+    {
+      "entity_id": "lock.patio_side_door_lock",
+      "name": "Patio Side Door Lock",
+      "aliases": [
+        "patio door"
+      ],
+      "domain": "lock",
+      "kind": "lock",
+      "device_class": "door",
+      "area": "Patio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "lock",
+        "unlock"
+      ]
+    }
+  ]
+}

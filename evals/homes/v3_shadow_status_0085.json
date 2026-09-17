@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_status_0085",
+  "satellite_area": "Atrium",
+  "sayso_entity_area": "Atrium",
+  "areas": {
+    "Atrium": []
+  },
+  "area_aliases": {
+    "Atrium": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.atrium_lounge_tv",
+      "name": "Atrium Lounge TV",
+      "aliases": [
+        "Atrium Lounge TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Atrium",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

@@ -81,9 +81,8 @@ Rejected alternatives:
 - Forced `tool_choice={"type": "function", ...}` returns structured calls but
   cannot decline to call a tool, and produced wrong arguments in the probe.
 
-**This is not new work.** `training/evals/lfm_python_parse.py` already parses
-exactly this format, apostrophe-safe. It moves into the integration and gets
-reused.
+**This is not new work.** `custom_components/sayso/lfm_parse.py` already parses
+exactly this format, apostrophe-safe.
 
 This is also a small win: `docs/TRAINING_PLAN.md` §4 records that llama-server's
 structured `tool_calls` truncate names like `O'Malley's` and `Kids'` — a known
@@ -119,7 +118,7 @@ New:
 | File | Responsibility |
 |---|---|
 | `custom_components/sayso/inference.py` | `SaySoInferenceEngine` protocol; `EmbeddedEngine`; `ExternalEngine` wrapping the existing `LlamaCppClient` |
-| `custom_components/sayso/lfm_parse.py` | Apostrophe-safe LFM2 tool-call parser, moved from `training/evals/lfm_python_parse.py` |
+| `custom_components/sayso/lfm_parse.py` | Apostrophe-safe LFM2 tool-call parser |
 | `custom_components/sayso/model_store.py` | Wheel install + GGUF download/verify under `/config/sayso/` |
 | `tests/test_inference.py` | Engine contract, parser, error mapping |
 
@@ -132,7 +131,6 @@ Changed:
 | `config_flow.py` | Local-first; URL/key fields behind an advanced external option |
 | `const.py` | Backend, model path, thread and context constants |
 | `manifest.json` | Requirements stay `[]` — see §1.1 |
-| `training/evals/lfm_python_parse.py` | Re-export from the integration so the eval scorer and runtime cannot drift |
 
 `ARCHITECTURE.md` needs one edit: the "Model hosting and lifecycle" ownership row
 and invariant 2 currently say llama.cpp is user-managed. Embedded inference moves
@@ -219,7 +217,7 @@ worker finishes; the single-worker queue naturally backpressures the next turn.
 3. `tests/test_inference.py` — parser round-trips the recorded LFM2 outputs
    including apostrophe names; engine maps load and inference failures to the
    existing exception types.
-4. `python -m evals.runner` — offline eval scores must not regress against
+4. `python -m evals.cli run --suite smoke --adapter endpoint --server ...` — offline eval scores must not regress against
    `evals/baselines/current.json`.
 5. Manual: HAOS install with no llama.cpp server running; confirm setup
    downloads the model, a voice command executes, and reload/unload frees memory.

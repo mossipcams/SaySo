@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_gold_timer_pause",
+  "satellite_area": "Sunroom",
+  "sayso_entity_area": "Sunroom",
+  "areas": {
+    "Sunroom": []
+  },
+  "area_aliases": {
+    "Sunroom": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.sunroom_accent_light",
+      "name": "Sunroom Accent Light",
+      "aliases": [
+        "light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Sunroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

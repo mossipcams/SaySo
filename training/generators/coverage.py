@@ -138,7 +138,7 @@ def classify_row(row: dict[str, Any]) -> dict[str, Any]:
 
     if not calls:
         outcome = _NO_ACTION_OUTCOMES.get(reason or "", CLARIFY)
-    elif any(call["name"] == "GetLiveContext" for call in calls):
+    elif any(bare_tool_name(call["name"]) == "GetLiveContext" for call in calls):
         outcome = STATUS
     else:
         outcome = ACTION

@@ -86,8 +86,12 @@ def test_overview_carries_no_state_and_uses_home_assistant_fields() -> None:
 def test_serialized_context_is_yaml_and_omits_live_state() -> None:
     prompt = serialize_context(HOME)
     assert "Static Context: An overview of the areas and the devices in this smart home:" in prompt
-    assert "You are in area Kitchen (floor Ground)" in prompt
-    assert "GetLiveContext" in prompt
+    # SaySo's structured area block replaces Home Assistant's area sentence.
+    assert "You are in area" not in prompt
+    assert prompt.endswith(
+        "Area context:\nsatellite_area: Kitchen\ntarget_area: Kitchen\ntarget_area_source: satellite"
+    )
+    assert "homeassistant__GetLiveContext" in prompt
 
     block = prompt.split("smart home:\n", 1)[1].split("\nWhen controlling Home Assistant", 1)[0]
     # the model must not be able to read state straight out of the entity overview

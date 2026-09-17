@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_ambiguity_0093",
+  "satellite_area": "Balcony",
+  "sayso_entity_area": "Balcony",
+  "areas": {
+    "Balcony": []
+  },
+  "area_aliases": {
+    "Balcony": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.balcony_reading_lamp",
+      "name": "Balcony Reading Lamp",
+      "aliases": [
+        "reading lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Balcony",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

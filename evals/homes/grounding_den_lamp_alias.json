@@ -1,0 +1,56 @@
+{
+  "home_id": "grounding_den_lamp_alias",
+  "satellite_area": "Den",
+  "sayso_entity_area": "Den",
+  "areas": {
+    "Den": []
+  },
+  "area_aliases": {
+    "Den": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.corner_lamp",
+      "name": "Corner Lamp",
+      "aliases": [
+        "Corner Lamp",
+        "mood light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Den",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    },
+    {
+      "entity_id": "light.ceiling_light",
+      "name": "Ceiling Light",
+      "aliases": [
+        "Ceiling Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Den",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    }
+  ]
+}

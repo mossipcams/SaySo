@@ -15,6 +15,7 @@ from generators.pipeline import generate_row
 from generators.pipeline import _unique_no_action_hint
 from generators.scenarios import build_scenario
 from generators.labels import scenario_to_spec, render_example
+from generators.tools import namespaced_tool_name
 from generators.utterances import expand_utterance
 from generators.validate import validate_row, validate_spec
 from generators.pipeline import run_generation
@@ -328,7 +329,8 @@ def test_timer_semantics_do_not_depend_on_device_inventory(operation, tool):
                              if robustness == "unsupported" else expand_utterance(spec))
         assert validate_row(spec) is None
         row = render_example(spec)
-        assert (tool in {t["function"]["name"] for t in row["tools"]}) == (robustness != "unsupported")
+        offered = {t["function"]["name"] for t in row["tools"]}
+        assert (namespaced_tool_name(tool) in offered) == (robustness != "unsupported")
 
 
 def test_validator_rejects_false_timer_refusals_and_unsupported_claims():
@@ -360,10 +362,12 @@ def test_final_audit_rejects_timer_inventory_refusals(offered):
 
 
 def test_frozen_realistic_eval_prompts_stay_held_out():
+    from evals.cases import excluded_train_utterances
     from generators.pipeline import _check_quality_eval_overlap
-    fixture = Path(__file__).resolve().parents[1] / "fixtures" / "realistic_eval_20260908_v2.json"
-    for case in json.loads(fixture.read_text())["cases"]:
-        prompt = next(m["content"] for m in case["messages"] if m["role"] == "user")
+
+    prompts = excluded_train_utterances()
+    assert len(prompts) >= 120
+    for prompt in prompts:
         for variant in (prompt, prompt.upper(), f"Please {prompt}", f"Could you {prompt} for me?"):
             assert _check_quality_eval_overlap(variant), variant
 

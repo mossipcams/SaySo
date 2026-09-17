@@ -110,4 +110,4 @@ jobs:
             exit 1
           fi
           VENV="${RUNNER_TEMP}/sayso-compat-${{ matrix.id }}"
-          "$VENV/bin/pytest" tests/test_eval.py -k "live_latency" -v
+          "$VENV/bin/pytest" tests/test_live_latency.py -k "live_latency" -v

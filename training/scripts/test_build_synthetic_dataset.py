@@ -1047,9 +1047,9 @@ def test_system_context_includes_sayso_conversation_entity_area() -> None:
     spec = build_specs(100, seed=11)[0]
     spec["utterance"] = expand_utterance(spec)
     system = render_example(spec)["messages"][0]["content"]
-    # Home Assistant's own area wording (components/intent/llm.py)
-    assert "and all generic commands like" in system
-    assert f"You are in area {spec['home']['sayso_entity_area']}" in system
+    # SaySo's structured area block, not Home Assistant's legacy sentence.
+    assert "and all generic commands like" not in system
+    assert f"\nsatellite_area: {spec['home']['sayso_entity_area']}\n" in system
 
 
 def test_banned_please_what_status_and_chatml_labels_rejected() -> None:

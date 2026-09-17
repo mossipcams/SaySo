@@ -1,0 +1,31 @@
+{
+  "home_id": "recipe_lock_003",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Kitchen": []
+  },
+  "area_aliases": {
+    "Kitchen": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.kitchen_herb_garden_cool_light",
+      "name": "Kitchen Herb Garden Cool Light",
+      "aliases": [
+        "Kitchen Herb Garden Cool Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

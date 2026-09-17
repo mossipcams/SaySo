@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_climate_0000",
+  "satellite_area": "Annex",
+  "sayso_entity_area": "Annex",
+  "areas": {
+    "Annex": []
+  },
+  "area_aliases": {
+    "Annex": []
+  },
+  "entities": [
+    {
+      "entity_id": "climate.annex_comfort_thermostat",
+      "name": "Annex Comfort Thermostat",
+      "aliases": [
+        "Annex Comfort Thermostat"
+      ],
+      "domain": "climate",
+      "kind": "climate",
+      "device_class": null,
+      "area": "Annex",
+      "floor": "Main Floor",
+      "state": "heat",
+      "capabilities": [
+        "heat",
+        "cool",
+        "off"
+      ]
+    }
+  ]
+}

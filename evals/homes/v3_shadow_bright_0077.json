@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_bright_0077",
+  "satellite_area": "Veranda",
+  "sayso_entity_area": "Veranda",
+  "areas": {
+    "Veranda": []
+  },
+  "area_aliases": {
+    "Veranda": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.veranda_reading_lamp",
+      "name": "Veranda Reading Lamp",
+      "aliases": [
+        "light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Veranda",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

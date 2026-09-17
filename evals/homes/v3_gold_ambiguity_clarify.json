@@ -1,0 +1,49 @@
+{
+  "home_id": "v3_gold_ambiguity_clarify",
+  "satellite_area": "Sunroom",
+  "sayso_entity_area": "Sunroom",
+  "areas": {
+    "Sunroom": []
+  },
+  "area_aliases": {
+    "Sunroom": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.sunroom_table_lamp",
+      "name": "Sunroom Table Lamp",
+      "aliases": [
+        "accent light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Sunroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    },
+    {
+      "entity_id": "light.sunroom_floor_lamp",
+      "name": "Sunroom Floor Lamp",
+      "aliases": [
+        "accent light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Sunroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

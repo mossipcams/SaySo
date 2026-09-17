@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_pause_0010",
+  "satellite_area": "Balcony",
+  "sayso_entity_area": "Balcony",
+  "areas": {
+    "Balcony": []
+  },
+  "area_aliases": {
+    "Balcony": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.balcony_corner_tv",
+      "name": "Balcony Corner TV",
+      "aliases": [
+        "Balcony Corner TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Balcony",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

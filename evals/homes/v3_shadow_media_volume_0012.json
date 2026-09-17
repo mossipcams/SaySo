@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_volume_0012",
+  "satellite_area": "Atrium",
+  "sayso_entity_area": "Atrium",
+  "areas": {
+    "Atrium": []
+  },
+  "area_aliases": {
+    "Atrium": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.atrium_soundbar_tv",
+      "name": "Atrium Soundbar TV",
+      "aliases": [
+        "Atrium Soundbar TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Atrium",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

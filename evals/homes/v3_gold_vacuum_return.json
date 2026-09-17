@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_gold_vacuum_return",
+  "satellite_area": "Mudroom",
+  "sayso_entity_area": "Mudroom",
+  "areas": {
+    "Mudroom": []
+  },
+  "area_aliases": {
+    "Mudroom": []
+  },
+  "entities": [
+    {
+      "entity_id": "vacuum.mudroom_robot_vacuum",
+      "name": "Mudroom Robot Vacuum",
+      "aliases": [
+        "Mudroom Robot Vacuum"
+      ],
+      "domain": "vacuum",
+      "kind": "vacuum",
+      "device_class": null,
+      "area": "Mudroom",
+      "floor": "Main Floor",
+      "state": "cleaning",
+      "capabilities": [
+        "start",
+        "stop"
+      ]
+    }
+  ]
+}

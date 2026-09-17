@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_climate_0001",
+  "satellite_area": "Atrium",
+  "sayso_entity_area": "Atrium",
+  "areas": {
+    "Atrium": []
+  },
+  "area_aliases": {
+    "Atrium": []
+  },
+  "entities": [
+    {
+      "entity_id": "climate.atrium_comfort_thermostat",
+      "name": "Atrium Comfort Thermostat",
+      "aliases": [
+        "Atrium Comfort Thermostat"
+      ],
+      "domain": "climate",
+      "kind": "climate",
+      "device_class": null,
+      "area": "Atrium",
+      "floor": "Main Floor",
+      "state": "heat",
+      "capabilities": [
+        "heat",
+        "cool",
+        "off"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "home_id": "grounding_bathroom_fan_absent",
+  "satellite_area": "Bathroom",
+  "sayso_entity_area": "Bathroom",
+  "areas": {
+    "Bathroom": []
+  },
+  "area_aliases": {
+    "Bathroom": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.mirror_light",
+      "name": "Mirror Light",
+      "aliases": [
+        "Mirror Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Bathroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    }
+  ]
+}

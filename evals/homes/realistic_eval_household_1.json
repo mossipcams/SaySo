@@ -1,0 +1,157 @@
+{
+  "home_id": "realistic_eval_household_1",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Bathroom": [],
+    "Bedroom": [],
+    "Entryway": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Bathroom": [],
+    "Bedroom": [],
+    "Entryway": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "name": "Alex's Bedside Lamp",
+      "aliases": [
+        "bedside lamp",
+        "my bedside light"
+      ],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Bathroom Mirror Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Bathroom"
+    },
+    {
+      "name": "Bedroom Blinds",
+      "aliases": [],
+      "domain": "cover",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Bedroom Ceiling Fan",
+      "aliases": [
+        "bedroom fan"
+      ],
+      "domain": "fan",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Chris's Bedside Lamp",
+      "aliases": [
+        "bedside lamp"
+      ],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Coffee Maker Plug",
+      "aliases": [
+        "coffee plug"
+      ],
+      "domain": "switch",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Downstairs Robot Vacuum",
+      "aliases": [],
+      "domain": "vacuum",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Evening Lights",
+      "aliases": [],
+      "domain": "scene",
+      "area": "Living Room"
+    },
+    {
+      "name": "Front Door Lock",
+      "aliases": [],
+      "domain": "lock",
+      "area": "Entryway"
+    },
+    {
+      "name": "Grocery List",
+      "aliases": [],
+      "domain": "todo",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Hallway Thermostat",
+      "aliases": [],
+      "domain": "climate",
+      "area": "Hallway"
+    },
+    {
+      "name": "Kitchen Ceiling Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Counter Lights",
+      "aliases": [
+        "prep lights"
+      ],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Sink Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Living Room Floor Lamp",
+      "aliases": [
+        "reading light",
+        "sofa lamp"
+      ],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "name": "Living Room TV",
+      "aliases": [
+        "big screen"
+      ],
+      "domain": "media_player",
+      "area": "Living Room"
+    },
+    {
+      "name": "Living Room Table Lamp",
+      "aliases": [
+        "reading light"
+      ],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "entity_id": "script.leaving_home",
+      "name": "Leaving Home",
+      "aliases": [],
+      "domain": "script",
+      "area": null
+    },
+    {
+      "entity_id": "script.welcome_back",
+      "name": "Welcome Back",
+      "aliases": [],
+      "domain": "script",
+      "area": null
+    }
+  ]
+}

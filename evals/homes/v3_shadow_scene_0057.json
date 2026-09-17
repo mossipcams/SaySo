@@ -1,0 +1,29 @@
+{
+  "home_id": "v3_shadow_scene_0057",
+  "satellite_area": "Conservatory",
+  "sayso_entity_area": "Conservatory",
+  "areas": {
+    "Conservatory": []
+  },
+  "area_aliases": {
+    "Conservatory": []
+  },
+  "entities": [
+    {
+      "entity_id": "scene.conservatory_relax_scene",
+      "name": "Conservatory Relax Scene",
+      "aliases": [
+        "Conservatory Relax Scene"
+      ],
+      "domain": "scene",
+      "kind": "scene",
+      "device_class": null,
+      "area": "Conservatory",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "activate"
+      ]
+    }
+  ]
+}

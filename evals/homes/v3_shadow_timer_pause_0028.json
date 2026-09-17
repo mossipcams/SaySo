@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_timer_pause_0028",
+  "satellite_area": "Balcony",
+  "sayso_entity_area": "Balcony",
+  "areas": {
+    "Porch": []
+  },
+  "area_aliases": {
+    "Porch": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.porch_accent_light",
+      "name": "Porch Accent Light",
+      "aliases": [
+        "Porch Accent Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Porch",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "home_id": "v3_gold_scene_b",
+  "satellite_area": "Guest Suite",
+  "sayso_entity_area": "Guest Suite",
+  "areas": {
+    "Guest Suite": []
+  },
+  "area_aliases": {
+    "Guest Suite": []
+  },
+  "entities": [
+    {
+      "entity_id": "scene.bedtime_scene",
+      "name": "Bedtime Scene",
+      "aliases": [
+        "Bedtime Scene"
+      ],
+      "domain": "scene",
+      "kind": "scene",
+      "device_class": null,
+      "area": "Guest Suite",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "activate"
+      ]
+    }
+  ]
+}

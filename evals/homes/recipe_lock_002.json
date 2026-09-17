@@ -1,0 +1,31 @@
+{
+  "home_id": "recipe_lock_002",
+  "satellite_area": "Living Room",
+  "sayso_entity_area": "Living Room",
+  "areas": {
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.living_room_ceiling_fan",
+      "name": "Living Room Ceiling Fan",
+      "aliases": [
+        "fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

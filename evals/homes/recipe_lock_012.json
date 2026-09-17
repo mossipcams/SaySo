@@ -1,0 +1,71 @@
+{
+  "home_id": "recipe_lock_012",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Kitchen": [],
+    "Hallway": [],
+    "Office": []
+  },
+  "area_aliases": {
+    "Kitchen": [],
+    "Hallway": [],
+    "Office": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.kitchen_ceiling_cool_light",
+      "name": "Kitchen Ceiling Cool Light",
+      "aliases": [
+        "light",
+        "kitchen light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    },
+    {
+      "entity_id": "switch.hallway_east_outlet",
+      "name": "Hallway East Outlet",
+      "aliases": [
+        "outlet"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "device_class": null,
+      "area": "Hallway",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "light.office_main_light",
+      "name": "Office Main Light",
+      "aliases": [
+        "office light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Office",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

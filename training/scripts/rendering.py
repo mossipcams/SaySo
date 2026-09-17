@@ -18,8 +18,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from generators.context import system_prompt  # noqa: E402
-from generators.tools import offered_tools, script_tool_name, script_tools  # noqa: E402
+from generators.context import area_context_for, system_prompt  # noqa: E402
+from generators.tools import namespaced_tool_name, offered_tools, production_catalog, script_tool_name, script_tools  # noqa: E402
 from generators.utterances import (  # noqa: E402
     expand_utterance as render_utterance,
     request_seed_from_spec,
@@ -43,9 +43,9 @@ _UNNATURAL_FRAMING = re.compile(
 )
 
 
-def _system_prompt(home: dict[str, Any]) -> str:
+def _system_prompt(home: dict[str, Any], utterance: str) -> str:
     """Same Home Assistant prompt the v3 rows use, so eval sets stay in distribution."""
-    return system_prompt(home)
+    return system_prompt(home, utterance)
 
 
 def _call_id(candidate_id: str, index: int, call: dict[str, Any]) -> str:
@@ -83,7 +83,7 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("missing_utterance")
     calls = spec["expected"].get("calls") or []
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": _system_prompt(spec["home"]), "train_on_turn": False},
+        {"role": "system", "content": _system_prompt(spec["home"], utterance.strip()), "train_on_turn": False},
         {"role": "user", "content": utterance.strip(), "train_on_turn": False},
     ]
     if calls:
@@ -97,7 +97,7 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
                     "id": call_id,
                     "type": "function",
                     "function": {
-                        "name": call["name"],
+                        "name": namespaced_tool_name(call["name"]),
                         "arguments": json.dumps(call["arguments"], ensure_ascii=False, sort_keys=True),
                     },
                 }
@@ -140,16 +140,27 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         "subcategory": spec["subcategory"],
         "home_id": spec["home"]["home_id"],
         "contrastive_group": spec["contrastive_group"],
+        "no_action_reason": spec["expected"].get("response"),
+        "excluded_names": spec.get("excluded_names") or [],
+        "unavailable_tools": spec["expected"].get("unavailable_tools") or [],
+        "contract": "production_v3",
+        "area_context": area_context_for(spec["home"], utterance.strip()).as_dict(),
     }
     if "quality" in spec:
         metadata["quality"] = spec["quality"]
-    # Same candidate-set shape as the v3 train rows, so the eval sets rendered through
-    # here are not out of distribution against a model trained on 8 offered tools.
-    offered = offered_tools(
-        [call["name"] for call in calls],
-        spec["candidate_id"],
-        extra_tools=script_tools(spec["home"]),
-    )
+    if spec.get("quality_eval"):
+        # Smoke/gold rows see the household catalog production would advertise.
+        removed = [namespaced_tool_name(name) for name in metadata["unavailable_tools"]]
+        offered = production_catalog(spec["home"], removed_tools=removed)
+    else:
+        # Same candidate-set shape as the v3 train rows, so older v2-pipeline
+        # eval sets rendered through here are not out of distribution against a
+        # model trained on 8 offered tools.
+        offered = offered_tools(
+            [call["name"] for call in calls],
+            spec["candidate_id"],
+            extra_tools=script_tools(spec["home"]),
+        )
     return {"messages": messages, "tools": offered, "metadata": metadata}
 
 

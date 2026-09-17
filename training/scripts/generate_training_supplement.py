@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT.parent
+sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -27,7 +29,7 @@ from build_synthetic_dataset import (  # noqa: E402
     validate_utterance,
     write_jsonl,
 )
-from evals.recipe_lock import locked_specs, quality_eval_user_prompts  # noqa: E402
+from evals.cases import cases_with_tag, entity_names_for_tag, excluded_train_utterances  # noqa: E402
 
 DEFAULT_CORRECTIVE_OUT = ROOT / "datasets" / "sayso_train_supplement.jsonl"
 DEFAULT_SHADOW_OUT = ROOT / "datasets" / "sayso_shadow_eval.jsonl"
@@ -191,13 +193,12 @@ _STT_SUBSTITUTIONS = (
 )
 
 
+def _recipe_lock_utterances() -> set[str]:
+    return {_normalized(case.utterance) for case in cases_with_tag("recipe-lock")}
+
+
 def _recipe_lock_entity_names() -> set[str]:
-    names: set[str] = set()
-    for spec in locked_specs():
-        for entity in spec["home"]["entities"]:
-            names.add(entity["name"])
-            names.update(entity.get("aliases") or [])
-    return names
+    return entity_names_for_tag("recipe-lock")
 
 
 def _spec_shell(
@@ -943,7 +944,7 @@ def _load_excluded_utterances(
     for path in (heldout_path, base_train_path):
         if path and path.is_file():
             excluded.update(_normalized(text) for text in load_user_utterances(path))
-    excluded.update(_normalized(text) for text in quality_eval_user_prompts())
+    excluded.update(_normalized(text) for text in excluded_train_utterances())
     return excluded
 
 
@@ -1069,7 +1070,7 @@ def build_corrective_examples(
     _assign_utterances(specs, random.Random(seed), excluded_utterances=excluded)
     validate_corrective_specs(
         specs,
-        recipe_lock_utterances={_normalized(text) for text in quality_eval_user_prompts()},
+        recipe_lock_utterances=_recipe_lock_utterances(),
         recipe_lock_entities=_recipe_lock_entity_names(),
         heldout_utterances=heldout_utterances,
     )
@@ -1093,7 +1094,7 @@ def build_shadow_examples(
     _assign_utterances(specs, random.Random(seed + 1), excluded_utterances=excluded)
     validate_shadow_specs(
         specs,
-        recipe_lock_utterances={_normalized(text) for text in quality_eval_user_prompts()},
+        recipe_lock_utterances=_recipe_lock_utterances(),
         recipe_lock_entities=_recipe_lock_entity_names(),
         heldout_utterances=heldout_utterances,
     )

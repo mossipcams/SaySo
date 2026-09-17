@@ -1,11 +1,5 @@
-"""Offline evaluation for SaySo."""
+"""Offline model evaluation for SaySo.
 
-from evals.runner import load_cases, run_eval
-from evals.scorer import EvalActual, score_case
-
-__all__ = [
-    "EvalActual",
-    "load_cases",
-    "run_eval",
-    "score_case",
-]
+Cases, suites, and scoring live here. Rendering, parsing, and validation stay
+in the production modules. Evaluation never executes Home Assistant actions.
+"""

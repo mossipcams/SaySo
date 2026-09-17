@@ -1,0 +1,55 @@
+{
+  "home_id": "grounding_kitchen_light_pair",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Kitchen": []
+  },
+  "area_aliases": {
+    "Kitchen": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.sink_light",
+      "name": "Sink Light",
+      "aliases": [
+        "Sink Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    },
+    {
+      "entity_id": "light.island_pendants",
+      "name": "Island Pendants",
+      "aliases": [
+        "Island Pendants"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    }
+  ]
+}

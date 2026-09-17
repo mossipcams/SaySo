@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "description": "Rows reserved for area grounding in the production area-context format. Each scenario gets max(min, round(count * per_1000 / 1000)) rows; generation fails when fewer are accepted. Every other row also carries the production area block from its home's satellite area.",
+  "min_satellite_area_share_of_actionable_rows": 0.6,
+  "scenarios": {
+    "implicit_satellite_area": {"per_1000": 8, "min": 0},
+    "explicit_area": {"per_1000": 6, "min": 0},
+    "exact_name_in_satellite_area": {"per_1000": 4, "min": 0},
+    "exact_name_outside_satellite_area": {"per_1000": 4, "min": 0},
+    "unique_entity_across_home": {"per_1000": 4, "min": 0},
+    "duplicate_name_clarification": {"per_1000": 4, "min": 0},
+    "area_wide_action": {"per_1000": 4, "min": 0},
+    "area_alias": {"per_1000": 4, "min": 0},
+    "missing_satellite_area": {"per_1000": 3, "min": 0},
+    "unresolved_target_area": {"per_1000": 3, "min": 0},
+    "explicit_area_conflicts_with_satellite": {"per_1000": 4, "min": 0},
+    "multi_action_across_areas": {"per_1000": 4, "min": 0},
+    "exclusion_within_area": {"per_1000": 4, "min": 0}
+  }
+}

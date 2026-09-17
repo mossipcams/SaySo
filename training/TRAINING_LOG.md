@@ -425,7 +425,7 @@ The corrected run starts again from `LFM2.5-230M-Base`.
 ## Additional Base baseline: realistic 120-case eval
 
 The new realistic 40k corpus (`e088b3a6066f7fba`, source `52b89a4`) has a
-separate 120-case diagnostic eval. The [frozen fixture and report](fixtures/realistic_eval_20260908_v2.md)
+separate 120-case diagnostic eval. The [frozen fixture and report](../evals/archive/realistic_eval_20260908_v2.md)
 include the complete case list and commands to reconstruct the exact evaluated
 JSONL. Eval sha256: `35e6be66fd42e73ca`. The five households and every normalized
 request were checked against the actual training file: no identical contexts

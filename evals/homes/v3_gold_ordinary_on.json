@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_gold_ordinary_on",
+  "satellite_area": "Dining Room",
+  "sayso_entity_area": "Dining Room",
+  "areas": {
+    "Dining Room": []
+  },
+  "area_aliases": {
+    "Dining Room": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.dining_room_pendant_light",
+      "name": "Dining Room Pendant Light",
+      "aliases": [
+        "light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Dining Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

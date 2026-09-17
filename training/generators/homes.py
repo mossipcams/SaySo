@@ -232,20 +232,21 @@ def make_entity(
 
 @lru_cache(maxsize=1)
 def _eval_entity_names() -> frozenset[str]:
-    """Names the v3 suites test on. Held out so eval targets stay unseen.
+    """Names the quality gold/shadow suites test on. Held out so eval targets stay unseen."""
+    import sys
+    from pathlib import Path
 
-    Areas overlap by design now that both sides use real room names, so the
-    guard is on the whole name. Lazy, mirroring pipeline._excluded_prompts().
-    """
+    repo = Path(__file__).resolve().parents[2]
+    if str(repo) not in sys.path:
+        sys.path.append(str(repo))
     try:
-        from evals.v3_quality import build_shadow_specs, gold_specs
+        from evals.cases import entity_names_for_tag
     except Exception:  # noqa: BLE001 - generation must not depend on the eval package
         return frozenset()
-    return frozenset(
-        entity["name"].casefold()
-        for spec in gold_specs() + build_shadow_specs()
-        for entity in spec["home"]["entities"]
+    names = entity_names_for_tag("gold", include_aliases=False) | entity_names_for_tag(
+        "shadow", include_aliases=False
     )
+    return frozenset(name.casefold() for name in names)
 
 
 def _random_entity_name(

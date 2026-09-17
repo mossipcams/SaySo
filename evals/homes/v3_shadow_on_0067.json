@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_on_0067",
+  "satellite_area": "Balcony",
+  "sayso_entity_area": "Balcony",
+  "areas": {
+    "Balcony": []
+  },
+  "area_aliases": {
+    "Balcony": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.balcony_task_light",
+      "name": "Balcony Task Light",
+      "aliases": [
+        "light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Balcony",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, override
 
 from homeassistant.components import conversation
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
@@ -26,6 +27,7 @@ from homeassistant.helpers import intent, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SaySoConfigEntry, SaySoRuntimeData
+from .area_context import AreaContext, apply_area_context, build_area_context
 from .boundary import (
     action_metadata,
     apply_action_summary,
@@ -63,13 +65,15 @@ from .routing import (
 )
 from .schema import (
     CompiledToolSchema,
+    ToolArgumentFailureCode,
+    ToolArgumentValidationError,
     _is_query_tool,
     _unwrap_source_tool,
     build_tool_availability_names,
     build_tool_map,
     compile_llm_tools,
-    expand_compiled_tool_name_aliases,
 )
+from .tool_contract import check_tool_call, tools_by_name
 from .transcript import (
     build_correction_messages,
     chat_log_to_messages as _chat_log_to_messages,
@@ -102,11 +106,16 @@ class _Turn:
     complete_schema: CompiledToolSchema | None = None
     active_schema: CompiledToolSchema | None = None
     correction_used: bool = False
+    area_context: AreaContext | None = None
+    exposed_domains: frozenset[str] = frozenset()
 
     @property
     def messages(self) -> list[dict[str, Any]]:
         """The conversation so far, in llama.cpp's message shape."""
-        return _chat_log_to_messages(self.chat_log.content)
+        messages = _chat_log_to_messages(self.chat_log.content)
+        if self.area_context is None:
+            return messages
+        return apply_area_context(messages, self.area_context)
 
     def error(
         self,
@@ -343,9 +352,7 @@ class SaySoConversationEntity(
                 await chat_log.async_provide_llm_data(
                     llm_context,
                     turn.runtime.llm_api,
-                    _system_prompt_with_area(
-                        turn.runtime.system_prompt, self.hass, turn.user_input
-                    ),
+                    turn.runtime.system_prompt,
                     turn.user_input.extra_system_prompt,
                 )
             except conversation.ConverseError as err:
@@ -377,6 +384,21 @@ class SaySoConversationEntity(
                 )
                 if turn.complete_schema is not None
                 else None
+            )
+            turn.area_context = build_area_context(
+                turn.user_input.text,
+                {
+                    area.name: area.aliases
+                    for area in ar.async_get(self.hass).async_list_areas()
+                },
+                _satellite_area_name(self.hass, turn.user_input),
+            )
+            turn.exposed_domains = frozenset(
+                state.domain
+                for state in self.hass.states.async_all()
+                if async_should_expose(
+                    self.hass, llm_context.assistant, state.entity_id
+                )
             )
             messages = turn.messages
             span.metadata["domain_hint"] = domain_hint
@@ -416,11 +438,12 @@ class SaySoConversationEntity(
         # routing miss and is recoverable; a name in neither never executes.
         available_tools = build_tool_availability_names(chat_log.llm_api.tools)
         offered_tools = (
-            expand_compiled_tool_name_aliases(
-                {tool["function"]["name"] for tool in turn.active_schema.tools}
-            )
+            {tool["function"]["name"] for tool in turn.active_schema.tools}
             if turn.active_schema is not None
             else available_tools
+        )
+        compiled_tools = tools_by_name(
+            turn.complete_schema.tools if turn.complete_schema is not None else ()
         )
         tool_map = build_tool_map(chat_log.llm_api.tools)
         iteration = 1
@@ -444,8 +467,13 @@ class SaySoConversationEntity(
             # rejects are the same failure — the model saw the wrong contract —
             # so they report identically and share one correction budget.
             misses = [call for call in current if call.name not in offered_tools]
+            contract_failures = _contract_failures(
+                current, compiled_tools, turn.exposed_domains
+            )
             if misses:
                 validated, failures = [], filtered_miss_failures(misses)
+            elif contract_failures:
+                validated, failures = [], contract_failures
             else:
                 validated, failures = validate_arguments(current, tool_map, trace)
 
@@ -550,12 +578,11 @@ def _tools_of(
     return schema.tools if schema is not None else None
 
 
-def _system_prompt_with_area(
-    system_prompt: str,
+def _satellite_area_name(
     hass: HomeAssistant,
     user_input: conversation.ConversationInput,
-) -> str:
-    """Add the requesting device's area to model context when available."""
+) -> str | None:
+    """Return the area of the requesting device or satellite, when it has one."""
     device_reg = dr.async_get(hass)
     device_ids = [user_input.device_id]
     satellite_id = getattr(user_input, "satellite_id", None)
@@ -571,8 +598,41 @@ def _system_prompt_with_area(
             continue
         area = ar.async_get(hass).async_get_area(device.area_id)
         if area is not None:
-            return f"{system_prompt}\narea={area.name}"
-    return system_prompt
+            return area.name
+    return None
+
+
+def _contract_failures(
+    tool_calls: list[ToolCall],
+    compiled_tools: dict[str, Any],
+    exposed_domains: frozenset[str],
+) -> list[tuple[ToolCall, ToolArgumentValidationError]]:
+    """Calls the compiled contract rejects, shaped for the correction path.
+
+    The offline eval runs the same ``check_tool_call``. Unavailable names fail
+    before this, so every violation here is a schema mismatch or a bad value.
+    An empty ``exposed_domains`` skips the domain check: with nothing exposed
+    Home Assistant offers no device tools to misuse.
+    """
+    if not compiled_tools:
+        return []
+    failures = []
+    for call in tool_calls:
+        violation = check_tool_call(
+            call.name, call.arguments, compiled_tools, exposed_domains or None
+        )
+        if violation is not None:
+            failures.append(
+                (
+                    call,
+                    ToolArgumentValidationError(
+                        code=ToolArgumentFailureCode(violation.code),
+                        message=violation.message,
+                        tool_name=call.name,
+                    ),
+                )
+            )
+    return failures
 
 
 def _is_action_tool(tool: llm.Tool) -> bool:

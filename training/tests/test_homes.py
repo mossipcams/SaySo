@@ -53,13 +53,11 @@ def test_generator_cannot_emit_an_eval_entity_name() -> None:
     """Real homes share room names, so training and eval areas overlap on
     purpose. The property that has to hold is narrower: no generated entity name
     may equal one the suites test on, or that eval row stops being held out."""
-    from evals.v3_quality import build_shadow_specs, gold_specs
+    from evals.cases import entity_names_for_tag
 
-    eval_names = {
-        entity["name"]
-        for spec in gold_specs() + build_shadow_specs(seed=20260906, count=100)
-        for entity in spec["home"]["entities"]
-    }
+    eval_names = entity_names_for_tag("gold", include_aliases=False) | entity_names_for_tag(
+        "shadow", include_aliases=False
+    )
     generated: set[str] = set()
     rng = random.Random(11)
     for index, size in enumerate([32, 64] * 120):

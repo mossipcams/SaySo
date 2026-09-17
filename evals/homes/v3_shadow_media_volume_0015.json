@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_volume_0015",
+  "satellite_area": "Studio",
+  "sayso_entity_area": "Studio",
+  "areas": {
+    "Studio": []
+  },
+  "area_aliases": {
+    "Studio": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.studio_soundbar_tv",
+      "name": "Studio Soundbar TV",
+      "aliases": [
+        "Studio Soundbar TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Studio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

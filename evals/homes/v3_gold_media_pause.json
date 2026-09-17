@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_gold_media_pause",
+  "satellite_area": "Rec Room",
+  "sayso_entity_area": "Rec Room",
+  "areas": {
+    "Rec Room": []
+  },
+  "area_aliases": {
+    "Rec Room": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.rec_room_tv",
+      "name": "Rec Room TV",
+      "aliases": [
+        "Rec Room TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Rec Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

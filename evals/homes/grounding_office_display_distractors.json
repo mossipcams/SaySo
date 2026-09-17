@@ -1,0 +1,124 @@
+{
+  "home_id": "grounding_office_display_distractors",
+  "satellite_area": "Office",
+  "sayso_entity_area": "Office",
+  "areas": {
+    "Office": [],
+    "Basement": []
+  },
+  "area_aliases": {
+    "Office": [],
+    "Basement": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.office_display_2",
+      "name": "Office Display",
+      "aliases": [
+        "Office Display",
+        "the monitor"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Office",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    },
+    {
+      "entity_id": "light.floor_lamp",
+      "name": "Floor Lamp",
+      "aliases": [
+        "Floor Lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Office",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    },
+    {
+      "entity_id": "light.corner_lamp",
+      "name": "Corner Lamp",
+      "aliases": [
+        "Corner Lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Office",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    },
+    {
+      "entity_id": "switch.console_outlet",
+      "name": "Console Outlet",
+      "aliases": [
+        "Console Outlet"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Office",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "media_player.basement_speaker",
+      "name": "Basement Speaker",
+      "aliases": [
+        "Basement Speaker"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "area": "Basement",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    }
+  ]
+}

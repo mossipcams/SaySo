@@ -1,0 +1,36 @@
+{
+  "home_id": "grounding_porch_speaker_capable",
+  "satellite_area": "Porch",
+  "sayso_entity_area": "Porch",
+  "areas": {
+    "Porch": []
+  },
+  "area_aliases": {
+    "Porch": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.porch_speaker",
+      "name": "Porch Speaker",
+      "aliases": [
+        "Porch Speaker"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "area": "Porch",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute"
+      ]
+    }
+  ]
+}

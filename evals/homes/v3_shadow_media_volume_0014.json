@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_volume_0014",
+  "satellite_area": "Solarium",
+  "sayso_entity_area": "Solarium",
+  "areas": {
+    "Solarium": []
+  },
+  "area_aliases": {
+    "Solarium": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.solarium_soundbar_tv",
+      "name": "Solarium Soundbar TV",
+      "aliases": [
+        "Solarium Soundbar TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Solarium",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

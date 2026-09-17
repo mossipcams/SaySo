@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_mute_0018",
+  "satellite_area": "Cellar",
+  "sayso_entity_area": "Cellar",
+  "areas": {
+    "Cellar": []
+  },
+  "area_aliases": {
+    "Cellar": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.cellar_bedroom_tv",
+      "name": "Cellar Bedroom TV",
+      "aliases": [
+        "Cellar Bedroom TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Cellar",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

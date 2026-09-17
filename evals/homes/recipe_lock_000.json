@@ -1,0 +1,31 @@
+{
+  "home_id": "recipe_lock_000",
+  "satellite_area": "Office",
+  "sayso_entity_area": "Office",
+  "areas": {
+    "Office": []
+  },
+  "area_aliases": {
+    "Office": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.office_main_light",
+      "name": "Office Main Light",
+      "aliases": [
+        "office light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Office",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

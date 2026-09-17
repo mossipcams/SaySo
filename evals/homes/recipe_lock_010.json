@@ -1,0 +1,31 @@
+{
+  "home_id": "recipe_lock_010",
+  "satellite_area": "Guest Room",
+  "sayso_entity_area": "Guest Room",
+  "areas": {
+    "Guest Room": []
+  },
+  "area_aliases": {
+    "Guest Room": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.kids__room_light",
+      "name": "Kids' Room Light",
+      "aliases": [
+        "kids room light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Guest Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

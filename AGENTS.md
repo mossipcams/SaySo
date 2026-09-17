@@ -32,7 +32,7 @@ Keep (do not skip to “save time”):
   already checks outcomes
 - Metric scoring and the runnable offline eval path under `evals/`
 - Core/safety/follow-up coverage already represented in `evals/cases/`
-- The 38 recipe-lock golden cases and the shadow eval in `training/`
+- The smoke suite (~24 promotion cases) and the locked 120-case promotion suite
 
 Defer if they threaten the voice path:
 
@@ -49,15 +49,16 @@ Defer if they threaten the voice path:
   verification steps before implementation begins.
 - Read `ARCHITECTURE.md` at the repo root before changing runtime wiring or
   assuming topology. It documents boundaries and the integration shape.
-- Offline eval cases and runners live in `evals/` (`evals/cases/`,
-  `evals/runner.py`, `evals/scorer.py`, `evals/metrics.py`). Do not train on
-  ChatML `<tool_call>` labels or on eval case IDs from `evals/cases/`.
+- Offline eval cases and the single runner live in `evals/` (`evals/cases/`,
+  `evals/suites/`, `evals/runner.py`, `evals/scorer.py`, `evals/cli.py`).
+  Evaluator tests live in `evals/tests/`. Do not train on ChatML `<tool_call>`
+  labels or on eval case IDs/utterances from `evals/cases/`.
 - Training design lives only in `docs/TRAINING_PLAN.md`. The target is
   `LFM2.5-230M-Base` with schema-conditioned function calling. `ALLOWED_HASS_TOOLS`
   validates the pinned training contract only — it does not define runtime support.
-- Python throughout. Extend the existing test suite: `tests/` and colocated
-  `custom_components/sayso/test_*.py`. Do not add another `tests/` tree or a new
-  test framework.
+- Python throughout. Extend the existing test suite: `tests/`, `evals/tests/`,
+  and colocated `custom_components/sayso/test_*.py`. Do not add another top-level
+  `tests/` tree or a new test framework.
 - Do not commit `context.json`.
 
 ## Architecture alignment

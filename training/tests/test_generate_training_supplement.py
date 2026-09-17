@@ -7,11 +7,14 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT.parent
+sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from build_synthetic_dataset import _normalized, load_user_utterances  # noqa: E402
-from evals.lfm_python_parse import parse_lfm_python_tool_call  # noqa: E402
-from evals.recipe_lock import locked_specs, quality_eval_user_prompts  # noqa: E402
+from custom_components.sayso.lfm_parse import parse_lfm_python_tool_call  # noqa: E402
+from evals.cases import cases_with_tag, entity_names_for_tag  # noqa: E402
 from generate_training_supplement import (  # noqa: E402
     CORRECTIVE_MAX,
     CORRECTIVE_MIN,
@@ -32,8 +35,8 @@ BASE_TRAIN = ROOT / "datasets" / "sayso_train_first_10000.jsonl"
 
 
 def _recipe_lock_sets() -> tuple[set[str], set[str]]:
-    utterances = {_normalized(text) for text in quality_eval_user_prompts()}
-    entities = {entity["name"] for spec in locked_specs() for entity in spec["home"]["entities"]}
+    utterances = {_normalized(case.utterance) for case in cases_with_tag("recipe-lock")}
+    entities = entity_names_for_tag("recipe-lock")
     return utterances, entities
 
 
@@ -98,7 +101,7 @@ def test_validate_corrective_specs_rejects_recipe_lock_utterance_overlap() -> No
     recipe_lock_utterances, recipe_lock_entities = _recipe_lock_sets()
     specs = build_corrective_specs(seed=20260905)
     bad = dict(specs[0])
-    bad["utterance"] = next(iter(quality_eval_user_prompts()))
+    bad["utterance"] = next(iter(recipe_lock_utterances))
     try:
         validate_corrective_specs(
             [bad],

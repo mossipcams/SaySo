@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
-import re
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
@@ -26,10 +23,21 @@ except ImportError:  # pragma: no cover - Home Assistant >= 2026.9 dropped it
     convert = None
 
 from .exceptions import SaySoInvalidToolEnvelopeError
+# Re-exported: callers and tests import the compiled-schema helpers from here.
+from .tool_schema import (  # noqa: F401
+    CompiledToolSchema,
+    build_compiled_tools_from_source as _build_compiled_tools_from_source,
+    canonicalize_compiled_tools,
+    canonicalize_schema,
+    emit_canonical_json,
+    function_envelope,
+    normalize_schema,
+    schema_fingerprint,
+    tool_source_json,
+    validate_compiled_tool_envelope,
+)
 
 COMPILE_CACHE_MAXSIZE = 32
-
-_FUNCTION_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 _UNSUPPORTED_OPENAPI_FALLBACK: dict[str, str] = {"type": "string"}
 
@@ -83,14 +91,6 @@ def _convert_parameters(
             "Compiled tool parameters are not a JSON object"
         )
     return sanitized
-
-
-@dataclass(frozen=True, slots=True)
-class CompiledToolSchema:
-    """Compiled OpenAI tools and compatibility fingerprint for one model turn."""
-
-    tools: tuple[dict[str, Any], ...]
-    fingerprint: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,137 +198,6 @@ def sanitize_openapi_schema(node: Any) -> Any:
     return dict(_UNSUPPORTED_OPENAPI_FALLBACK)
 
 
-def normalize_schema(
-    node: Any,
-    *,
-    name: str | None = None,
-    top_level: bool = False,
-) -> Any:
-    """Recursively remove redundant OpenAPI metadata from compiled schemas."""
-    if isinstance(node, list):
-        return [normalize_schema(item) for item in node]
-
-    if not isinstance(node, dict):
-        return node
-
-    normalized: dict[str, Any] = {}
-    for key, value in node.items():
-        if top_level and key == "$schema":
-            continue
-        if key == "properties" and isinstance(value, dict):
-            normalized[key] = {
-                prop_name: normalize_schema(value[prop_name], name=prop_name)
-                for prop_name in value
-            }
-            continue
-        if key == "function" and isinstance(value, dict):
-            fn_name = value.get("name")
-            fn_name_str = fn_name if isinstance(fn_name, str) else None
-            normalized[key] = normalize_schema(value, name=fn_name_str)
-            continue
-        if key == "parameters" and isinstance(value, dict):
-            normalized[key] = normalize_schema(value, top_level=True)
-            continue
-        normalized[key] = normalize_schema(value)
-
-    if name is not None and normalized.get("title") == name:
-        normalized.pop("title", None)
-
-    description = normalized.get("description")
-    if isinstance(description, str) and not description.strip():
-        normalized.pop("description", None)
-
-    return normalized
-
-
-def canonicalize_schema(node: Any) -> Any:
-    """Recursively sort mapping keys and required arrays for stable serialization."""
-    if isinstance(node, list):
-        return [canonicalize_schema(item) for item in node]
-
-    if not isinstance(node, dict):
-        return node
-
-    canonical: dict[str, Any] = {}
-    for key in sorted(node):
-        value = node[key]
-        if key == "required" and isinstance(value, list):
-            canonical[key] = sorted(value)
-        else:
-            canonical[key] = canonicalize_schema(value)
-    return canonical
-
-
-def canonicalize_compiled_tools(
-    tools: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Canonicalize compiled tools and sort them by function name."""
-    canonical_tools = [canonicalize_schema(tool) for tool in tools]
-    return sorted(canonical_tools, key=lambda tool: tool["function"]["name"])
-
-
-def emit_canonical_json(tools: list[dict[str, Any]]) -> bytes:
-    """Emit byte-identical canonical JSON for compiled tools."""
-    canonical_tools = canonicalize_compiled_tools(tools)
-    return json.dumps(
-        canonical_tools,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    ).encode("utf-8")
-
-
-def schema_fingerprint(tools: list[dict[str, Any]]) -> str:
-    """Return the SHA-256 fingerprint of the canonical compiled-tool JSON."""
-    digest = hashlib.sha256(emit_canonical_json(tools)).hexdigest()
-    return f"sha256:{digest}"
-
-
-def validate_compiled_tool_envelope(
-    tools: list[dict[str, Any]] | tuple[dict[str, Any], ...],
-) -> None:
-    """Reject invalid outer tool envelopes before caching or transport."""
-    seen_names: set[str] = set()
-    for index, tool in enumerate(tools):
-        if not isinstance(tool, dict):
-            raise SaySoInvalidToolEnvelopeError(
-                f"Tool entry at index {index} must be an object"
-            )
-        if tool.get("type") != "function":
-            raise SaySoInvalidToolEnvelopeError(
-                f"Tool entry at index {index} must have type 'function'"
-            )
-
-        function = tool.get("function")
-        if not isinstance(function, dict):
-            raise SaySoInvalidToolEnvelopeError(
-                f"Tool entry at index {index} must include a function object"
-            )
-
-        name = function.get("name")
-        if not isinstance(name, str) or not _FUNCTION_NAME_RE.fullmatch(name):
-            raise SaySoInvalidToolEnvelopeError(
-                f"Tool entry at index {index} has an invalid function name"
-            )
-        if name in seen_names:
-            raise SaySoInvalidToolEnvelopeError(
-                f"Duplicate function name {name!r} in compiled tool envelope"
-            )
-        seen_names.add(name)
-
-        parameters = function.get("parameters")
-        if not isinstance(parameters, dict) or parameters.get("type") != "object":
-            raise SaySoInvalidToolEnvelopeError(
-                f"Tool {name!r} must have parameters with type 'object'"
-            )
-
-        try:
-            json.dumps(tool, ensure_ascii=False)
-        except TypeError as err:
-            raise SaySoInvalidToolEnvelopeError(
-                f"Tool {name!r} is not JSON-serializable"
-            ) from err
-
-
 def compile_parameters(
     schema: Any,
     *,
@@ -340,25 +209,6 @@ def compile_parameters(
         top_level=True,
     )
     return canonicalize_schema(normalized)
-
-
-def function_envelope(
-    name: str, parameters: Any, description: str | None
-) -> dict[str, Any]:
-    """Wrap compiled parameters in the canonical OpenAI function envelope.
-
-    The single place a tool takes its wire shape, so compiling from a live HA
-    tool and rebuilding from cached source JSON cannot drift apart.
-    """
-    tool_spec: dict[str, Any] = {
-        "name": name,
-        "parameters": normalize_schema(parameters, top_level=True),
-    }
-    if description:
-        tool_spec["description"] = description
-    return canonicalize_schema(
-        normalize_schema({"type": "function", "function": tool_spec}, top_level=True)
-    )
 
 
 def compile_tool(
@@ -403,34 +253,12 @@ def emit_tools_source_json(
         _emit_tool_source_entry(tool, custom_serializer=custom_serializer)
         for tool in tools
     ]
-    entries.sort(key=lambda entry: entry["name"])
     try:
-        return json.dumps(
-            entries,
-            separators=(",", ":"),
-            ensure_ascii=False,
-            sort_keys=True,
-        )
+        return tool_source_json(entries)
     except TypeError as err:
         raise SaySoInvalidToolEnvelopeError(
             "Compiled tool source is not JSON-serializable"
         ) from err
-
-
-def _build_compiled_tools_from_source(
-    source_json: str,
-) -> tuple[dict[str, Any], ...]:
-    """Normalize and canonicalize compiled tools from canonical source JSON."""
-    compiled = canonicalize_compiled_tools(
-        [
-            function_envelope(
-                entry["name"], entry["parameters"], entry.get("description")
-            )
-            for entry in json.loads(source_json)
-        ]
-    )
-    validate_compiled_tool_envelope(compiled)
-    return tuple(compiled)
 
 
 @lru_cache(maxsize=COMPILE_CACHE_MAXSIZE)
@@ -469,34 +297,18 @@ class ToolArgumentValidationError:
 
 
 def build_tool_map(tools: list[llm.Tool]) -> dict[str, llm.Tool]:
-    """Map tool name to the HA tool definition.
+    """Map each tool's exact Home Assistant name to its definition.
 
-    Indexes each tool by its canonical HA name. When the name contains ``__``,
-    also indexes the suffix after the first delimiter so unprefixed model calls
-    (for example ``HassTurnOn``) resolve to namespaced HA tools
-    (for example ``intent__HassTurnOn``). Exact names win; suffix aliases use
-    ``setdefault``.
+    Names are exact. Home Assistant 2026.9 names tools ``intent__HassTurnOn``;
+    a model that says ``HassTurnOn`` asked for a tool Home Assistant never
+    offered, and resolving it anyway would hide that from every eval.
     """
-    tool_map: dict[str, llm.Tool] = {}
-    for tool in tools:
-        tool_map[tool.name] = tool
-        if "__" in tool.name:
-            tool_map.setdefault(tool.name.split("__", 1)[1], tool)
-    return tool_map
+    return {tool.name: tool for tool in tools}
 
 
 def build_tool_availability_names(tools: list[llm.Tool]) -> set[str]:
-    """Return canonical tool names plus unprefixed suffix aliases."""
+    """Return the exact tool names Home Assistant currently offers."""
     return set(build_tool_map(tools))
-
-
-def expand_compiled_tool_name_aliases(names: set[str]) -> set[str]:
-    """Add unprefixed suffix aliases for namespaced compiled tool names."""
-    expanded = set(names)
-    for name in names:
-        if "__" in name:
-            expanded.add(name.split("__", 1)[1])
-    return expanded
 
 
 def _schema_marker_name(marker: Any) -> str | None:

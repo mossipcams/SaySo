@@ -1,0 +1,29 @@
+{
+  "home_id": "v3_gold_script_a",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Kitchen": []
+  },
+  "area_aliases": {
+    "Kitchen": []
+  },
+  "entities": [
+    {
+      "entity_id": "script.good_morning_script",
+      "name": "Good Morning Script",
+      "aliases": [
+        "Good Morning Script"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    }
+  ]
+}

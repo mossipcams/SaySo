@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_unsupported_0098",
+  "satellite_area": "Attic",
+  "sayso_entity_area": "Attic",
+  "areas": {
+    "Attic": []
+  },
+  "area_aliases": {
+    "Attic": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.attic_hall_light",
+      "name": "Attic Hall Light",
+      "aliases": [
+        "Attic Hall Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Attic",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

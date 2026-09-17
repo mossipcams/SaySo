@@ -21,7 +21,7 @@ sys.path.insert(0, str(TRAINING_ROOT))
 
 from generators.capability_registry import entity_supports
 from generators.config import GeneratorConfig
-from generators.coverage import classify_row, expected_tool
+from generators.coverage import bare_tool_name, classify_row, expected_tool
 from generators.pipeline import run_generation
 from generators.real_home import (
     LIVE_EXPOSURE_SOURCES,
@@ -86,10 +86,10 @@ def test_mixing_produces_positive_tv_rows_for_its_supported_operations():
         for message in row["messages"]:
             for call in message.get("tool_calls") or []:
                 if (
-                    call["function"]["name"] == wanted
+                    bare_tool_name(call["function"]["name"]) == wanted
                     and json.loads(call["function"]["arguments"]).get("name") == "TV"
                 ):
-                    operations.add((facets["operation"], call["function"]["name"]))
+                    operations.add((facets["operation"], wanted))
     assert operations >= {
         ("turn_on", "HassTurnOn"),
         ("turn_off", "HassTurnOff"),

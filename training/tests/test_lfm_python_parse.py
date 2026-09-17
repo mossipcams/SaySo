@@ -6,9 +6,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT.parent
+sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(ROOT))
 
-from evals.lfm_python_parse import parse_lfm_python_tool_call, parse_lfm_python_tool_calls  # noqa: E402
+from custom_components.sayso.lfm_parse import parse_lfm_python_tool_call, parse_lfm_python_tool_calls  # noqa: E402
 
 
 def test_parse_apostrophe_names_in_single_quoted_values() -> None:

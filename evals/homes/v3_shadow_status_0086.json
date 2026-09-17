@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_status_0086",
+  "satellite_area": "Conservatory",
+  "sayso_entity_area": "Conservatory",
+  "areas": {
+    "Conservatory": []
+  },
+  "area_aliases": {
+    "Conservatory": []
+  },
+  "entities": [
+    {
+      "entity_id": "climate.conservatory_thermostat",
+      "name": "Conservatory Thermostat",
+      "aliases": [
+        "Conservatory Thermostat"
+      ],
+      "domain": "climate",
+      "kind": "climate",
+      "device_class": null,
+      "area": "Conservatory",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "heat",
+        "cool",
+        "off"
+      ]
+    }
+  ]
+}

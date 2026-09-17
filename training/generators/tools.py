@@ -8,6 +8,8 @@ from collections.abc import Callable
 from typing import Any
 
 from adapters.schema import v2_openai_tools
+from generators.context import _REPO_ROOT  # noqa: F401 - puts sayso_contract on sys.path
+from sayso_contract import tool_schema
 from generators.capability_registry import CAPABILITIES, TRAINING_COVERAGE_EXCLUDED
 
 # Home Assistant supplies only the tools exposed for a request, so a row offers a
@@ -72,14 +74,50 @@ def namespaced_tool_name(name: str) -> str:
     return f"{namespace}__{name}" if namespace else name
 
 
-def apply_tool_namespace(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Rewrite a compiled tool list into the production namespaced contract."""
-    renamed = []
-    for tool in tools:
-        function = dict(tool["function"])
-        function["name"] = namespaced_tool_name(function["name"])
-        renamed.append({**tool, "function": function})
-    return sorted(renamed, key=lambda item: item["function"]["name"])
+# Namespaces whose tools Home Assistant offers regardless of which domains are
+# exposed: date/time, live context, and the generic intents and timers.
+_ALWAYS_OFFERED_NAMESPACES = frozenset({"llm", "homeassistant", "intent"})
+
+
+def compile_catalog(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Name tools as Home Assistant 2026.9 does and compile them with the
+    integration's own compiler, so every row's schema bytes match production."""
+    return list(
+        tool_schema.compile_source_tools(
+            [
+                {
+                    "name": namespaced_tool_name(tool["function"]["name"]),
+                    "description": tool["function"].get("description") or "",
+                    "parameters": tool["function"]["parameters"],
+                }
+                for tool in tools
+            ]
+        ).tools
+    )
+
+
+def production_catalog(
+    home: dict[str, Any], *, removed_tools: tuple[str, ...] | list[str] = ()
+) -> list[dict[str, Any]]:
+    """The tool list Home Assistant would offer a satellite in ``home``.
+
+    Domain tools (``light__HassLightSet``) appear only when an entity of that
+    domain is exposed, exactly as each component's ``llm.py`` decides; the
+    generic intents, timers, live context and date/time are always offered;
+    every exposed script is its own tool. ``removed_tools`` takes production
+    names and withholds only those, for a deliberate missing-capability case.
+    """
+    domains = {entity["domain"] for entity in home.get("entities", [])}
+    offered = [
+        tool
+        for tool in v2_openai_tools()
+        if HA_TOOL_NAMESPACES[tool["function"]["name"]] in _ALWAYS_OFFERED_NAMESPACES | domains
+    ]
+    catalog = compile_catalog([*offered, *script_tools(home)])
+    unknown = set(removed_tools) - {tool["function"]["name"] for tool in catalog}
+    if unknown:
+        raise ValueError(f"cannot remove tools the catalog does not offer: {sorted(unknown)}")
+    return [tool for tool in catalog if tool["function"]["name"] not in set(removed_tools)]
 
 
 def script_tool_name(entity: dict[str, Any]) -> str:
@@ -127,7 +165,6 @@ def offered_tools(
     extra_tools: list[dict[str, Any]] | None = None,
     excluded_names: list[str] | None = None,
     full_catalog: bool = False,
-    namespaced: bool = False,
 ) -> list[dict[str, Any]]:
     """Candidate tools for one row: every called tool, the ambient pair, then distractors.
 
@@ -142,7 +179,8 @@ def offered_tools(
     know contained the answer; production sends ~23 tools. ``excluded_names``
     still applies, so a deliberate missing-tool row stays missing a tool.
 
-    ``namespaced`` renders the Home Assistant 2026.9 ``domain__Intent`` contract.
+    Names and schemas are always the Home Assistant 2026.9 production contract
+    (``intent__HassTurnOn``), compiled by the integration.
     """
     catalog = {tool["function"]["name"]: tool for tool in v2_openai_tools()}
     for tool in extra_tools or []:
@@ -158,8 +196,7 @@ def offered_tools(
         rng = random.Random(zlib.crc32(str(seed_key).encode()))
         rng.shuffle(pool)
         keep.update(pool[: max(0, count - len(keep))])
-    tools = [catalog[name] for name in sorted(keep)]
-    return apply_tool_namespace(tools) if namespaced else tools
+    return compile_catalog([catalog[name] for name in sorted(keep)])
 
 
 def _domain_args(entity: dict[str, Any]) -> dict[str, Any]:

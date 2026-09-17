@@ -1,0 +1,29 @@
+{
+  "home_id": "v3_shadow_script_0064",
+  "satellite_area": "Balcony",
+  "sayso_entity_area": "Balcony",
+  "areas": {
+    "Balcony": []
+  },
+  "area_aliases": {
+    "Balcony": []
+  },
+  "entities": [
+    {
+      "entity_id": "script.balcony_away_script",
+      "name": "Balcony Away Script",
+      "aliases": [
+        "Balcony Away Script"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "device_class": null,
+      "area": "Balcony",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "home_id": "recipe_lock_021",
+  "satellite_area": "Basement",
+  "sayso_entity_area": "Basement",
+  "areas": {
+    "Basement": []
+  },
+  "area_aliases": {
+    "Basement": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.basement_south_fan",
+      "name": "Basement South Fan",
+      "aliases": [
+        "basement fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Basement",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

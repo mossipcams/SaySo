@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_unsupported_0099",
+  "satellite_area": "Porch",
+  "sayso_entity_area": "Porch",
+  "areas": {
+    "Porch": []
+  },
+  "area_aliases": {
+    "Porch": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.porch_hall_light",
+      "name": "Porch Hall Light",
+      "aliases": [
+        "Porch Hall Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Porch",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

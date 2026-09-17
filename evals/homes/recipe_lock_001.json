@@ -1,0 +1,30 @@
+{
+  "home_id": "recipe_lock_001",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Kitchen": []
+  },
+  "area_aliases": {
+    "Kitchen": []
+  },
+  "entities": [
+    {
+      "entity_id": "cover.kitchen_north_garage_door",
+      "name": "Kitchen North Garage Door",
+      "aliases": [
+        "Kitchen North Garage Door"
+      ],
+      "domain": "cover",
+      "kind": "garage_door",
+      "device_class": "garage",
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "open",
+        "close"
+      ]
+    }
+  ]
+}

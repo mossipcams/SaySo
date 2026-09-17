@@ -1,0 +1,157 @@
+{
+  "home_id": "realistic_eval_household_3",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Bathroom": [],
+    "Bedroom": [],
+    "Entryway": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Bathroom": [],
+    "Bedroom": [],
+    "Entryway": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "name": "Bathroom Ceiling Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Bathroom"
+    },
+    {
+      "name": "Bedroom Roller Blind",
+      "aliases": [],
+      "domain": "cover",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Bedroom Tower Fan",
+      "aliases": [
+        "bedroom fan"
+      ],
+      "domain": "fan",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Entry Door Lock",
+      "aliases": [],
+      "domain": "lock",
+      "area": "Entryway"
+    },
+    {
+      "name": "Kitchen Ceiling Spots",
+      "aliases": [
+        "prep lights"
+      ],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Cooker Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Under Cabinet Lights",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Lee's Bedside Lamp",
+      "aliases": [
+        "bedside lamp"
+      ],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Living Room Floor Lamp",
+      "aliases": [
+        "reading light"
+      ],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "name": "Living Room Shelves Light",
+      "aliases": [
+        "reading light",
+        "sofa lamp"
+      ],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "name": "Living Room Television",
+      "aliases": [
+        "big screen"
+      ],
+      "domain": "media_player",
+      "area": "Living Room"
+    },
+    {
+      "name": "Main Thermostat",
+      "aliases": [],
+      "domain": "climate",
+      "area": "Hallway"
+    },
+    {
+      "name": "Morgan's Bedside Lamp",
+      "aliases": [
+        "bedside lamp",
+        "my bedside light"
+      ],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Reading Time",
+      "aliases": [],
+      "domain": "scene",
+      "area": "Living Room"
+    },
+    {
+      "name": "Roomba",
+      "aliases": [],
+      "domain": "vacuum",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Toaster Plug",
+      "aliases": [
+        "coffee plug"
+      ],
+      "domain": "switch",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Weekly Groceries",
+      "aliases": [],
+      "domain": "todo",
+      "area": "Kitchen"
+    },
+    {
+      "entity_id": "script.away_mode",
+      "name": "Away Mode",
+      "aliases": [],
+      "domain": "script",
+      "area": null
+    },
+    {
+      "entity_id": "script.morning_routine",
+      "name": "Morning Routine",
+      "aliases": [],
+      "domain": "script",
+      "area": null
+    }
+  ]
+}

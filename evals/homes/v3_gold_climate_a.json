@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_gold_climate_a",
+  "satellite_area": "Great Room",
+  "sayso_entity_area": "Great Room",
+  "areas": {
+    "Great Room": []
+  },
+  "area_aliases": {
+    "Great Room": []
+  },
+  "entities": [
+    {
+      "entity_id": "climate.great_room_thermostat",
+      "name": "Great Room Thermostat",
+      "aliases": [
+        "Great Room Thermostat"
+      ],
+      "domain": "climate",
+      "kind": "climate",
+      "device_class": null,
+      "area": "Great Room",
+      "floor": "Main Floor",
+      "state": "heat",
+      "capabilities": [
+        "heat",
+        "cool",
+        "off"
+      ]
+    }
+  ]
+}

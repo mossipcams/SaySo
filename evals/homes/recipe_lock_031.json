@@ -1,0 +1,66 @@
+{
+  "home_id": "recipe_lock_031",
+  "satellite_area": "Hallway",
+  "sayso_entity_area": "Hallway",
+  "areas": {
+    "Hallway": [],
+    "Nursery": []
+  },
+  "area_aliases": {
+    "Hallway": [],
+    "Nursery": []
+  },
+  "entities": [
+    {
+      "entity_id": "switch.hallway_east_outlet",
+      "name": "Hallway East Outlet",
+      "aliases": [
+        "outlet"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "device_class": null,
+      "area": "Hallway",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.hallway_west_outlet",
+      "name": "Hallway West Outlet",
+      "aliases": [
+        "outlet"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "device_class": null,
+      "area": "Hallway",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.nursery_east_outlet",
+      "name": "Nursery East Outlet",
+      "aliases": [
+        "Nursery East Outlet"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "device_class": null,
+      "area": "Nursery",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

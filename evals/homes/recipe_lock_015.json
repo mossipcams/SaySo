@@ -1,0 +1,88 @@
+{
+  "home_id": "recipe_lock_015",
+  "satellite_area": "Workshop",
+  "sayso_entity_area": "Workshop",
+  "areas": {
+    "Workshop": [],
+    "Primary Bedroom": [],
+    "Patio": [],
+    "Garage": []
+  },
+  "area_aliases": {
+    "Workshop": [],
+    "Primary Bedroom": [],
+    "Patio": [],
+    "Garage": []
+  },
+  "entities": [
+    {
+      "entity_id": "cover.joe_s_workshop_blinds",
+      "name": "Joe's Workshop Blinds",
+      "aliases": [
+        "Joe's Workshop Blinds"
+      ],
+      "domain": "cover",
+      "kind": "blinds",
+      "device_class": "blind",
+      "area": "Workshop",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "open",
+        "close"
+      ]
+    },
+    {
+      "entity_id": "cover.primary_bedroom_corner_garage_door",
+      "name": "Primary Bedroom Corner Garage Door",
+      "aliases": [
+        "Primary Bedroom Corner Garage Door"
+      ],
+      "domain": "cover",
+      "kind": "garage_door",
+      "device_class": "garage",
+      "area": "Primary Bedroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "open",
+        "close"
+      ]
+    },
+    {
+      "entity_id": "lock.patio_side_door_lock",
+      "name": "Patio Side Door Lock",
+      "aliases": [
+        "patio door"
+      ],
+      "domain": "lock",
+      "kind": "lock",
+      "device_class": "door",
+      "area": "Patio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "lock",
+        "unlock"
+      ]
+    },
+    {
+      "entity_id": "fan.garage_ceiling_fan",
+      "name": "Garage Ceiling Fan",
+      "aliases": [
+        "Garage Ceiling Fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Garage",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

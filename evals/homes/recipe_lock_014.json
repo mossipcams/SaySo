@@ -1,0 +1,70 @@
+{
+  "home_id": "recipe_lock_014",
+  "satellite_area": "Nursery",
+  "sayso_entity_area": "Nursery",
+  "areas": {
+    "Nursery": [],
+    "Living Room": [],
+    "Kitchen": []
+  },
+  "area_aliases": {
+    "Nursery": [],
+    "Living Room": [],
+    "Kitchen": []
+  },
+  "entities": [
+    {
+      "entity_id": "switch.nursery_east_outlet",
+      "name": "Nursery East Outlet",
+      "aliases": [
+        "Nursery East Outlet"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "device_class": null,
+      "area": "Nursery",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "fan.living_room_ceiling_fan",
+      "name": "Living Room Ceiling Fan",
+      "aliases": [
+        "fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    },
+    {
+      "entity_id": "light.joe_s_kitchen_light",
+      "name": "Joe's Kitchen Light",
+      "aliases": [
+        "kitchen light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

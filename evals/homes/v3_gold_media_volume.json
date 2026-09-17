@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_gold_media_volume",
+  "satellite_area": "Family Room",
+  "sayso_entity_area": "Family Room",
+  "areas": {
+    "Family Room": []
+  },
+  "area_aliases": {
+    "Family Room": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.family_room_tv",
+      "name": "Family Room TV",
+      "aliases": [
+        "tv"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Family Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}
