@@ -120,7 +120,7 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
         return expected_status(entity)
 
     if targeting == "context":
-        area = home.get("satellite_area", home.get("sayso_entity_area"))
+        area = home.get("satellite_area")
         if not area:
             return expected_no_action("clarify")
         if not entities_supporting(
@@ -135,9 +135,7 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
         ]}
 
     if targeting == "area":
-        area = scenario.get("area") or home.get(
-            "satellite_area", home.get("sayso_entity_area")
-        )
+        area = scenario.get("area") or home.get("satellite_area")
         if not area:
             return expected_no_action("clarify")
         present = entities_in_area(home, capability, area)
@@ -230,9 +228,7 @@ def _requested(
 ) -> tuple[str, list[dict[str, Any]]]:
     """(area the request means, entities the request could refer to)."""
     intent = intent or {}
-    area = intent.get("area") or home.get(
-        "satellite_area", home.get("sayso_entity_area")
-    )
+    area = intent.get("area") or home.get("satellite_area")
     if not area:
         return "", []
     present = entities_in_area(home, capability, area)

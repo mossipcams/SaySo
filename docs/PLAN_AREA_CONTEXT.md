@@ -17,9 +17,9 @@ categories or requested rates are absent.
 - `training/generators/scenarios.py` and `training/generators/gold.py`: carry
   satellite and target area semantics into authoritative labels.
 - `training/generators/grounding.py`: add area-focused contrast families.
-- `training/generators/config.py`, `pipeline.py`, `stats.py`, and
-  `training/scripts/build_synthetic_dataset.py`: configure the area mix,
-  production recipe, manifest rates, and fail-closed gates.
+- `training/generators/config.py`, `pipeline.py`, `stats.py`, and `cli.py`:
+  configure the area mix, production recipe, manifest rates, and fail-closed
+  gates.
 - `training/generators/test_area_context.py`: colocated regression coverage.
 - `training/configs/lfm25-230m-40k-grounded-gauntlet-trl.yml`: document the
   production recipe output contract if the existing recipe is superseded.
@@ -39,7 +39,7 @@ categories or requested rates are absent.
 - Keep area-context utterances grammatical and validate the generated default
   corpus with the existing linguistic suite.
 - Make `satellite_area` authoritative throughout gold labels and context
-  rendering, while retaining legacy fallback support for older fixtures.
+  rendering.
 - Wire the six fixed area families into the v3 production quota and report
   their delivery separately from source rates.
 - Make source-category gates conditional on a positive requested area rate and

@@ -29,7 +29,6 @@ from generators.labels import render_example, scenario_to_spec
 from generators.gold import target_names_from_expected
 from generators.homes import make_entity, _ENTITY_TEMPLATES
 from generators.tools import build_call_for_operation
-from generators.paraphrase import load_paraphraser
 from generators.real_home import derive_entity_cap, load_real_home
 from generators.sampling import QuotaTracker, build_quota_plan
 from generators.scenarios import build_scenario, pick_robustness, pick_targeting
@@ -262,9 +261,7 @@ def _unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
         })
     capability = spec["capability"]
     operation = spec["operation"]
-    area = spec["home"].get(
-        "satellite_area", spec["home"].get("sayso_entity_area")
-    )
+    area = spec["home"].get("satellite_area")
     if not area:
         return "turn on the lights"
     entity = None
@@ -785,7 +782,7 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
         >= GROUNDING_FAMILY_SLACK * len(required_grounding)
         else {}
     )
-    # v1 shipped a 14x grounding shortfall because forcing stopped the instant
+    # Earlier generation shipped a 14x grounding shortfall because forcing stopped the instant
     # one row landed (`not grounding_rows`) and the rest reverted to a 3% random
     # draw. Track the rate against rows accepted so far so demand is maintained
     # across the whole run. (``grounding_target`` is set above, with the
@@ -811,7 +808,6 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
     attempts = 0
     max_attempts = config.max_attempts()
 
-    load_paraphraser(config.paraphrase_enabled)
     stt_target = int(round(config.count * config.stt_noise_rate))
 
     while not quota.is_complete() and attempts < max_attempts:

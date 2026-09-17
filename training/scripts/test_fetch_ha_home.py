@@ -95,7 +95,7 @@ def test_entity_ids_and_areas_come_from_home_assistant(home):
     assert outlet["entity_id"] == "switch.pond_aerator"
     assert outlet["area"] == "Unassigned"
     assert outlet["device_class"] == "outlet"
-    assert home["sayso_entity_area"] == "Kitchen"
+    assert home["satellite_area"] is None
 
 
 def test_active_timers_convert_to_seconds(home):

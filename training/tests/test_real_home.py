@@ -73,7 +73,7 @@ def test_the_real_fixture_splits_without_losing_capabilities():
     assert holdout["entities"]
     assert train["home_id"].endswith("_train")
     assert train["size"] == len(train["entities"])
-    assert train["sayso_entity_area"] in {e["area"] for e in train["entities"]}
+    assert train["satellite_area"] in {e["area"] for e in train["entities"]}
     fixture = json.load(open(FIXTURE, encoding="utf-8"))
     assert {e["capability"] for e in fixture["entities"]} == {
         e["capability"] for e in train["entities"]

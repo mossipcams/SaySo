@@ -49,7 +49,7 @@ def _final_text(spec: dict[str, Any]) -> str:
 
 
 def scenario_to_spec(scenario: dict[str, Any]) -> dict[str, Any]:
-    """Convert v3 scenario to legacy spec shape for rendering."""
+    """Convert a scenario to the renderer's validated spec shape."""
     expected = scenario["expected"]
     return {
         "candidate_id": scenario.get("semantic_id", f"candidate_{scenario.get('scenario_index', 0):06d}"),
@@ -90,9 +90,7 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("missing_utterance")
     area_context = resolve_area_context(
         utterance,
-        satellite_area=spec["home"].get(
-            "satellite_area", spec["home"].get("sayso_entity_area")
-        ),
+        satellite_area=spec["home"].get("satellite_area"),
         areas=spec["home"].get("areas", ()),
         entities=spec["home"].get("entities", ()),
     )
@@ -179,9 +177,7 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         "home_id": spec["home"]["home_id"],
         "home_size": spec["home"].get("size"),
         "expected_target_names": spec.get("target_names", []),
-        "satellite_area": spec["home"].get(
-            "satellite_area", spec["home"].get("sayso_entity_area")
-        ),
+        "satellite_area": spec["home"].get("satellite_area"),
         "target_area": spec.get("target_area"),
         "target_area_source": spec.get("target_area_source"),
         "area_context": bool(spec.get("area_context")),
@@ -189,7 +185,6 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         "targeting": spec.get("targeting"),
         "contrastive_group": spec.get("contrastive_group"),
         "stt_corruption": spec.get("stt_corruption"),
-        "paraphrase_source": spec.get("paraphrase_source"),
         "excluded_names": spec.get("excluded_names", []),
         "spoken_targets": spec.get("spoken_targets", {}),
         "no_action_reason": spec["expected"].get("response"),
@@ -211,3 +206,33 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
     )
     metadata["offered_tool_count"] = len(offered)
     return {"messages": messages, "tools": offered, "metadata": metadata}
+
+
+def render_for_trl(example: dict[str, Any]) -> dict[str, Any]:
+    """Return the canonical row with native tool arguments for TRL only."""
+    from adapters.schema import extract_text_content, normalize_tool_arguments
+
+    rendered = dict(example)
+    rendered["messages"] = []
+    for original in example.get("messages", []):
+        message = dict(original)
+        content = message.get("content")
+        if isinstance(content, list):
+            message["content"] = extract_text_content(content)
+        elif content is None and message.get("role") == "assistant" and message.get("tool_calls"):
+            message["content"] = ""
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            calls = []
+            for original_call in message["tool_calls"]:
+                call = dict(original_call)
+                function = dict(call.get("function") or {})
+                arguments = function.get("arguments")
+                if isinstance(arguments, str):
+                    parsed = normalize_tool_arguments(arguments)
+                    if parsed is not None:
+                        function["arguments"] = parsed
+                call["function"] = function
+                calls.append(call)
+            message["tool_calls"] = calls
+        rendered["messages"].append(message)
+    return rendered

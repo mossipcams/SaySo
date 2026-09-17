@@ -309,7 +309,7 @@ def generate_home(
     size: int,
     rng: random.Random,
     *,
-    sayso_entity_area: str | None = None,
+    satellite_area: str | None = None,
 ) -> dict[str, Any]:
     """Build a coherent synthetic home with distractors."""
     capabilities = _capability_slots(size, rng)
@@ -376,11 +376,10 @@ def generate_home(
             )
 
     remove_canonical_alias_collisions(entities)
-    area = sayso_entity_area or entities[index % len(entities)]["area"]
+    area = satellite_area or entities[index % len(entities)]["area"]
     return {
         "home_id": f"home_{index:06d}_{size}",
         "size": size,
-        "sayso_entity_area": area,
         "satellite_area": area,
         "entities": entities,
         "active_timers": _synthetic_timers(rng) if rng.random() < 0.3 else [],

@@ -1,5 +1,5 @@
 # 40k Grounded Gauntlet supervised train set (sayso_40k_grounded_gauntlet_20260911).
-# Built by build_synthetic_dataset.py --pipeline v3 --home-recipe against the
+# Built by generators/cli.py against the
 # assist_exposure snapshot of the real home; copy the render file here and check
 # manifest render_rows == accepted == 40000 before training. The one production
 # recipe also enables area context plus full-catalog and namespaced-tool rows.

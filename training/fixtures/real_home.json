@@ -1,7 +1,7 @@
 {
   "home_id": "real_home",
   "size": 35,
-  "sayso_entity_area": "Hallway",
+  "satellite_area": "Hallway",
   "entities": [
     {
       "entity_id": "climate.thermostat",

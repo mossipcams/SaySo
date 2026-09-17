@@ -12,14 +12,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from build_synthetic_dataset import write_jsonl  # noqa: E402
+from generators.pipeline import write_jsonl  # noqa: E402
 from evals.v3_quality import (  # noqa: E402
     DEFAULT_SHADOW_COUNT,
     build_gold_examples,
     build_shadow_examples,
     excluded_train_prompts,
-    gold_user_prompts,
-    shadow_user_prompts,
     v3_quality_summary,
 )
 

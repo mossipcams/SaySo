@@ -167,7 +167,7 @@ def build_home(
     area_rows: list[list[Any]],
     *,
     home_id: str = "real_home",
-    sayso_entity_area: str | None = None,
+    satellite_area: str | None = None,
     domains: tuple[str, ...] = DEFAULT_DOMAINS,
     keep_entities: frozenset[str] = frozenset(),
     exposed_entities: frozenset[str] | None = None,
@@ -230,7 +230,6 @@ def build_home(
         if state["entity_id"].startswith("timer.") and state.get("state") == "active"
     ]
 
-    default_area = next((e["area"] for e in entities if e["area"] != "Unassigned"), "Unassigned")
     # Same keys generate_home returns: build_scenario injects a missing capability
     # into whatever home it is handed and needs the area/floor map to place it.
     area_floors: dict[str, str] = {}
@@ -239,7 +238,7 @@ def build_home(
     return {
         "home_id": home_id,
         "size": len(entities),
-        "sayso_entity_area": sayso_entity_area or default_area,
+        "satellite_area": satellite_area,
         "entities": entities,
         "active_timers": timers,
         "areas": list(area_floors),
@@ -264,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True, help="Where to write the home JSON")
     parser.add_argument("--home-id", default="real_home")
-    parser.add_argument("--sayso-entity-area", default=None)
+    parser.add_argument("--satellite-area", default=None)
     parser.add_argument(
         "--domains",
         default=",".join(DEFAULT_DOMAINS),
@@ -327,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
         states,
         area_rows,
         home_id=args.home_id,
-        sayso_entity_area=args.sayso_entity_area,
+        satellite_area=args.satellite_area,
         domains=tuple(d.strip() for d in args.domains.split(",") if d.strip()),
         keep_entities=frozenset(args.keep_entity),
         exposed_entities=exposed,

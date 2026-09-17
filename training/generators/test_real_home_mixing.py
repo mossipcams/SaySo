@@ -49,7 +49,6 @@ def _mixed_run(**overrides):
                 seed=515,
                 real_home_path=FIXTURE,
                 real_home_rate=0.25,
-                paraphrase_enabled=False,
                 **overrides,
             )
         )

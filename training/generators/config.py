@@ -33,8 +33,6 @@ class GeneratorConfig:
     tier_proportions: dict[int, float] = field(default_factory=lambda: dict(TIER_PROPORTIONS))
     home_size_weights: dict[int, int] = field(default_factory=lambda: dict(HOME_SIZE_WEIGHTS))
     stt_noise_rate: float = DEFAULT_STT_RATE
-    paraphrase_enabled: bool = False
-    paraphrase_variants: int = 0
     token_budget: int = DEFAULT_TOKEN_BUDGET
     near_duplicate_limit: int = DEFAULT_NEAR_DUPLICATE_LIMIT
     max_attempts_multiplier: int = DEFAULT_MAX_ATTEMPTS_MULTIPLIER
@@ -133,8 +131,6 @@ class GeneratorConfig:
             "tier_proportions": self.tier_proportions,
             "home_size_weights": self.home_size_weights,
             "stt_noise_rate": self.stt_noise_rate,
-            "paraphrase_enabled": self.paraphrase_enabled,
-            "paraphrase_variants": self.paraphrase_variants,
             "token_budget": self.token_budget,
             "near_duplicate_limit": self.near_duplicate_limit,
             "ordinary_rate": self.ordinary_rate,

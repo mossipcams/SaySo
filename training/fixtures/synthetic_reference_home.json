@@ -1,7 +1,7 @@
 {
   "home_id": "synthetic_reference_home",
   "size": 30,
-  "sayso_entity_area": "Living Room",
+  "satellite_area": "Living Room",
   "entities": [
     {
       "entity_id": "media_player.living_room_tv",

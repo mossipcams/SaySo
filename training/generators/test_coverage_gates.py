@@ -39,7 +39,7 @@ from generators.scenarios import build_scenario
 from generators.labels import render_example, scenario_to_spec
 from generators.validate import validate_spec
 
-SMOKE = GeneratorConfig(count=300, seed=31337, paraphrase_enabled=False)
+SMOKE = GeneratorConfig(count=300, seed=31337)
 
 
 def _row(tool_calls, *, capability="media_players", operation="turn_on", tier=1, reason=None,
@@ -207,7 +207,7 @@ def test_generation_covers_every_tool_inside_declared_coverage():
 
 def test_enabling_grounding_produces_grounding_supervision():
     report = run_generation(
-        GeneratorConfig(count=1200, seed=20260911, paraphrase_enabled=False)
+        GeneratorConfig(count=1200, seed=20260911)
     )["stats"]["grounding"]
     required = {variant["family"] for variant in grounding.required_training_variants()}
     assert required <= set(report["by_family"])
@@ -230,7 +230,7 @@ def test_an_entity_without_the_feature_cannot_be_given_the_action():
     spec = {
         "capability": "media_players",
         "operation": "turn_on",
-        "home": {"entities": [speaker], "sayso_entity_area": "Hallway"},
+        "home": {"entities": [speaker], "satellite_area": "Hallway"},
         "expected": {
             "kind": "action",
             "calls": [{"name": "HassTurnOn",
@@ -248,7 +248,7 @@ def test_a_device_unsupported_refusal_must_match_the_entity_graph():
     spec = {
         "capability": "media_players",
         "operation": "volume_set",
-        "home": {"entities": [capable], "sayso_entity_area": "Study"},
+        "home": {"entities": [capable], "satellite_area": "Study"},
         "expected": {"kind": "no_action", "response": "device_unsupported", "calls": [],
                      "unsupported_names": ["Study TV"]},
     }

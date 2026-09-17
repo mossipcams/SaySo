@@ -35,10 +35,9 @@ def test_satellite_fallback_and_explicit_area_are_distinct() -> None:
     )
 
 
-def test_gold_uses_satellite_area_when_legacy_area_differs() -> None:
+def test_gold_uses_satellite_area() -> None:
     home = {
         "satellite_area": "Kitchen",
-        "sayso_entity_area": "Bedroom",
         "entities": [
             {"name": "Kitchen Light", "capability": "lights", "area": "Kitchen",
              "features": ("on",), "domain": "light"},

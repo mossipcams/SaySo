@@ -38,7 +38,7 @@ def test_request_case_does_not_reveal_call_decision():
 
 def test_unavailable_request_preserves_the_requested_device_type():
     spec = {"capability": "climate", "operation": "set_temperature",
-            "home": {"sayso_entity_area": "Workshop"},
+            "home": {"satellite_area": "Workshop"},
             "expected": {"kind": "no_action", "response": "area_unavailable"}}
     for seed in range(20):
         request = _unique_no_action_hint(spec, random.Random(seed))
@@ -372,7 +372,7 @@ def test_unambiguous_status_query_keeps_state_and_status_label():
     from generators.gold import gold_from_scenario
     entity = {"name": "Entryway Ceiling Lights", "capability": "lights", "domain": "light",
               "area": "Entryway", "state": "on"}
-    scenario = {"home": {"entities": [entity], "sayso_entity_area": "Entryway"},
+    scenario = {"home": {"entities": [entity], "satellite_area": "Entryway"},
                 "capability": "lights", "operation": "query_state", "robustness": "ambiguity"}
     expected = gold_from_scenario(scenario, random.Random(1))
     assert expected["kind"] == "status"
@@ -414,7 +414,7 @@ def test_unique_room_device_requests_keep_generic_wording_and_operation(operatio
             continue
         assert row, reason
         user = next(m["content"].lower() for m in row["messages"] if m["role"] == "user")
-        assert f"the {scenario['home']['sayso_entity_area'].lower()} light" in user, user
+        assert f"the {scenario['home']['satellite_area'].lower()} light" in user, user
         if operation == "turn_off":
             assert "off" in user and "on" not in user.split()
         if operation == "query_state":

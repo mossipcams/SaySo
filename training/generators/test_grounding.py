@@ -107,7 +107,7 @@ def test_every_generated_site_keeps_its_family_contrast():
         return calls[0] if calls else None
 
     def in_area(item, capability):
-        area = item["home"]["sayso_entity_area"]
+        area = item["home"]["satellite_area"]
         return [e for e in item["home"]["entities"]
                 if e["capability"] == capability and e["area"] == area]
 

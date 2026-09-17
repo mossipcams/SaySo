@@ -87,13 +87,13 @@ def entity(
 
 def home(
     *entities: dict[str, Any],
-    sayso_entity_area: str,
+    satellite_area: str,
     home_id: str,
 ) -> dict[str, Any]:
     """The entity graph one row is answered against."""
     return {
         "home_id": home_id,
-        "sayso_entity_area": sayso_entity_area,
+        "satellite_area": satellite_area,
         "entities": list(entities),
     }
 

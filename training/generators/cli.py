@@ -10,8 +10,9 @@ from pathlib import Path
 TRAINING_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TRAINING_ROOT))
 
-from generators.config import DEFAULT_TRAIN_COUNT, GeneratorConfig
-from generators.pipeline import run_generation, write_jsonl, write_manifest
+from generators.config import DEFAULT_TRAIN_COUNT, GeneratorConfig  # noqa: E402
+from generators.labels import render_for_trl  # noqa: E402
+from generators.pipeline import run_generation, write_jsonl, write_manifest  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -21,8 +22,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--split", default="train")
     parser.add_argument("--output", type=Path, default=TRAINING_ROOT / "datasets" / "synthetic_v3_train.jsonl")
     parser.add_argument("--manifest", type=Path, default=None)
+    parser.add_argument("--render-output", type=Path, default=None)
     parser.add_argument("--stt-rate", type=float, default=0.15)
-    parser.add_argument("--paraphrase", action="store_true", default=False)
     parser.add_argument("--token-budget", type=int, default=4096)
     parser.add_argument("--exclude-prompts", type=Path, default=None)
     parser.add_argument(
@@ -118,7 +119,6 @@ def main(argv: list[str] | None = None) -> int:
         output_path=args.output,
         manifest_path=args.manifest or args.output.with_suffix(".manifest.json"),
         stt_noise_rate=args.stt_rate,
-        paraphrase_enabled=args.paraphrase,
         token_budget=args.token_budget,
         exclude_prompts_path=args.exclude_prompts,
         real_home_path=args.real_home,
@@ -127,6 +127,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     result = run_generation(config)
     write_jsonl(config.output_path, result["rows"])
+    if args.render_output:
+        rendered = [render_for_trl(row) for row in result["rows"]]
+        write_jsonl(args.render_output, rendered)
+        result["stats"].update(
+            render_path=str(args.render_output), render_rows=len(rendered)
+        )
     write_manifest(config.manifest_path, result["stats"])
     print(json.dumps(result["stats"], indent=2, default=str))
     return 0

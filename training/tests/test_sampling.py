@@ -44,7 +44,7 @@ def test_tier1_covers_weight_is_six() -> None:
 def test_generation_hits_tier_proportions_within_tolerance() -> None:
     count = 400
     tolerance = 0.05
-    result = run_generation(GeneratorConfig(count=count, seed=4040, paraphrase_enabled=False))
+    result = run_generation(GeneratorConfig(count=count, seed=4040))
     tiers = Counter(row["metadata"]["tier"] for row in result["rows"])
     for tier, proportion in TIER_PROPORTIONS.items():
         expected = count * proportion
@@ -55,7 +55,7 @@ def test_generation_hits_tier_proportions_within_tolerance() -> None:
 
 
 def test_quota_tracker_reports_requested_and_achieved() -> None:
-    result = run_generation(GeneratorConfig(count=200, seed=9090, paraphrase_enabled=False))
+    result = run_generation(GeneratorConfig(count=200, seed=9090))
     quota = result["stats"]["quota"]
     assert quota["requested"]["tier"]
     assert quota["achieved"]["tier"]

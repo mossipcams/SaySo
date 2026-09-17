@@ -43,7 +43,7 @@ def home_areas(home: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
     for entity in home.get("entities", []):
         derived.setdefault(entity["area"], entity.get("floor") or "Main Floor")
     if not derived:
-        derived[home.get("satellite_area", home.get("sayso_entity_area")) or "Living Room"] = "Main Floor"
+        derived[home.get("satellite_area") or "Living Room"] = "Main Floor"
     return list(derived), derived
 
 
@@ -130,7 +130,6 @@ def build_scenario(
     if home is None:
         home = generate_home(index, home_size, rng)
     if clear_satellite_area:
-        home["sayso_entity_area"] = None
         home["satellite_area"] = None
     cap_entities = entities_of_capability(home, capability)
     if capability == "timers":
@@ -179,9 +178,7 @@ def build_scenario(
             next(i for i, e in enumerate(cap_entities) if e is target_entity)
             if target_entity else 0
         ),
-        "area": target_entity["area"] if target_entity else home.get(
-            "satellite_area", home.get("sayso_entity_area")
-        ),
+        "area": target_entity["area"] if target_entity else home.get("satellite_area"),
         "floor": target_entity["floor"] if target_entity else None,
         "excluded_names": [],
         "provenance": {
@@ -202,7 +199,7 @@ def build_scenario(
         scenario["targeting"] = "multiple"
     scenario["expected"] = gold_from_scenario(scenario, rng)
     intent = request_intent or {}
-    satellite_area = home.get("satellite_area", home.get("sayso_entity_area"))
+    satellite_area = home.get("satellite_area")
     if intent.get("area"):
         target_area, target_area_source = intent["area"], "explicit_area"
     elif intent.get("name") and target_entity:

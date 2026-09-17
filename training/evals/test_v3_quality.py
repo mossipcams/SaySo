@@ -95,7 +95,7 @@ def test_shadow_specs_use_fresh_areas_and_do_not_reuse_gold_utterances() -> None
         shadow_norm.add(norm)
         for entity in spec["home"]["entities"]:
             assert entity["name"] not in gold_entities
-        assert spec["home"]["sayso_entity_area"] in {
+        assert spec["home"]["satellite_area"] in {
             "Annex",
             "Atrium",
             "Conservatory",

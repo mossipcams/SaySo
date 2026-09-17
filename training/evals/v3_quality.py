@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import random
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -14,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from adapters.schema import tool_schema_map, validate_tool_arguments, v2_openai_tools  # noqa: E402
-from build_synthetic_dataset import render_example  # noqa: E402
+from generators.labels import render_example  # noqa: E402
 from evals.metrics import parse_tool_arguments  # noqa: E402
 from generators.tools import script_tool_name  # noqa: E402
 from generators.utterances import _phrase_for_call, expand_utterance, request_seed_from_spec  # noqa: E402
@@ -22,14 +21,13 @@ from evals.specs import (  # noqa: E402
     action as _action,
     assert_row_contract,
     entity as _entity,
-    expected_tool_calls,
+    expected_tool_calls,  # noqa: F401
     fan_speed as _fan_speed,
     home as _home,
     light_set as _light_set,
     no_action as _no_action,
     normalized as _normalized,
-    score_quality_gold,
-    slug as _slug,
+    score_quality_gold,  # noqa: F401
     spec as _spec_base,
     status as _status,
     turn_off as _turn_off,
@@ -133,7 +131,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="climate_setpoint",
             subcategory="named_device",
             utterance="Set Great Room Thermostat to 72 degrees",
-            home=_home(great_room_thermostat, sayso_entity_area="Great Room", home_id="v3_gold_climate_a"),
+            home=_home(great_room_thermostat, satellite_area="Great Room", home_id="v3_gold_climate_a"),
             expected=_action(
                 {
                     "name": "HassClimateSetTemperature",
@@ -148,7 +146,7 @@ def gold_specs() -> list[dict[str, Any]]:
             utterance="Could you set the family room thermostat to 68 degrees for me?",
             home=_home(
                 _entity(name="Family Room Thermostat", kind="climate", area="Family Room", state="cool"),
-                sayso_entity_area="Family Room",
+                satellite_area="Family Room",
                 home_id="v3_gold_climate_b",
             ),
             expected=_action(
@@ -163,7 +161,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="media_play",
             subcategory="named_device",
             utterance="Play Home Theater TV",
-            home=_home(home_theater_tv, sayso_entity_area="Home Theater", home_id="v3_gold_media_play"),
+            home=_home(home_theater_tv, satellite_area="Home Theater", home_id="v3_gold_media_play"),
             expected=_action({"name": "HassMediaUnpause", "arguments": {"name": "Home Theater TV", "domain": ["media_player"], "device_class": ["tv"]}}),
         ),
         _spec(
@@ -171,7 +169,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="media_pause",
             subcategory="named_device",
             utterance="Pause Rec Room TV",
-            home=_home(rec_room_tv, sayso_entity_area="Rec Room", home_id="v3_gold_media_pause"),
+            home=_home(rec_room_tv, satellite_area="Rec Room", home_id="v3_gold_media_pause"),
             expected=_action({"name": "HassMediaPause", "arguments": {"name": "Rec Room TV", "domain": ["media_player"], "device_class": ["tv"]}}),
         ),
         _spec(
@@ -179,7 +177,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="media_volume",
             subcategory="absolute",
             utterance="Set Family Room TV volume to 45 percent",
-            home=_home(family_room_tv, sayso_entity_area="Family Room", home_id="v3_gold_media_volume"),
+            home=_home(family_room_tv, satellite_area="Family Room", home_id="v3_gold_media_volume"),
             expected=_action(
                 {
                     "name": "HassSetVolume",
@@ -192,7 +190,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="media_volume",
             subcategory="relative",
             utterance="Turn up Guest Suite TV volume",
-            home=_home(bedroom_tv, sayso_entity_area="Guest Suite", home_id="v3_gold_media_volume_rel"),
+            home=_home(bedroom_tv, satellite_area="Guest Suite", home_id="v3_gold_media_volume_rel"),
             expected=_action(
                 {
                     "name": "HassSetVolumeRelative",
@@ -205,7 +203,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="media_mute",
             subcategory="named_device",
             utterance="Mute Home Theater TV",
-            home=_home(home_theater_tv, sayso_entity_area="Home Theater", home_id="v3_gold_media_mute"),
+            home=_home(home_theater_tv, satellite_area="Home Theater", home_id="v3_gold_media_mute"),
             expected=_action({"name": "HassMediaPlayerMute", "arguments": {"name": "Home Theater TV", "domain": ["media_player"], "device_class": ["tv"]}}),
         ),
         _spec(
@@ -213,7 +211,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="timer_start",
             subcategory="minutes",
             utterance="Start a 15 minute timer",
-            home=_home(sunroom_light, sayso_entity_area="Sunroom", home_id="v3_gold_timer_start"),
+            home=_home(sunroom_light, satellite_area="Sunroom", home_id="v3_gold_timer_start"),
             expected=_action({"name": "HassStartTimer", "arguments": {"minutes": 15}}),
             target_names=[],
         ),
@@ -222,7 +220,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="timer_start",
             subcategory="hours",
             utterance="Start a 1 hour timer",
-            home=_home(sunroom_light, sayso_entity_area="Sunroom", home_id="v3_gold_timer_start_named"),
+            home=_home(sunroom_light, satellite_area="Sunroom", home_id="v3_gold_timer_start_named"),
             expected=_action({"name": "HassStartTimer", "arguments": {"hours": 1}}),
             target_names=[],
         ),
@@ -231,7 +229,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="timer_pause",
             subcategory="generic",
             utterance="Pause the timer",
-            home=_home(sunroom_light, sayso_entity_area="Sunroom", home_id="v3_gold_timer_pause"),
+            home=_home(sunroom_light, satellite_area="Sunroom", home_id="v3_gold_timer_pause"),
             expected=_action({"name": "HassPauseTimer", "arguments": {}}),
             target_names=[],
         ),
@@ -240,7 +238,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="timer_status",
             subcategory="generic",
             utterance="What is the timer status?",
-            home=_home(sunroom_light, sayso_entity_area="Sunroom", home_id="v3_gold_timer_status"),
+            home=_home(sunroom_light, satellite_area="Sunroom", home_id="v3_gold_timer_status"),
             expected=_action({"name": "HassTimerStatus", "arguments": {}}),
             target_names=[],
         ),
@@ -249,7 +247,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="timer_cancel",
             subcategory="all",
             utterance="Cancel all timers",
-            home=_home(sunroom_light, sayso_entity_area="Sunroom", home_id="v3_gold_timer_cancel_all"),
+            home=_home(sunroom_light, satellite_area="Sunroom", home_id="v3_gold_timer_cancel_all"),
             expected=_action({"name": "HassCancelAllTimers", "arguments": {}}),
             target_names=[],
         ),
@@ -258,7 +256,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="timer_cancel",
             subcategory="area",
             utterance="Cancel all timers in the Sunroom",
-            home=_home(sunroom_light, sayso_entity_area="Sunroom", home_id="v3_gold_timer_cancel_named"),
+            home=_home(sunroom_light, satellite_area="Sunroom", home_id="v3_gold_timer_cancel_named"),
             expected=_action({"name": "HassCancelAllTimers", "arguments": {"area": "Sunroom"}}),
             target_names=[],
         ),
@@ -267,7 +265,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="vacuum_start",
             subcategory="named_device",
             utterance="Start Upstairs Robot Vacuum",
-            home=_home(upstairs_vacuum, sayso_entity_area="Sunroom", home_id="v3_gold_vacuum_start"),
+            home=_home(upstairs_vacuum, satellite_area="Sunroom", home_id="v3_gold_vacuum_start"),
             expected=_action({"name": "HassVacuumStart", "arguments": {"name": "Upstairs Robot Vacuum", "domain": ["vacuum"]}}),
         ),
         _spec(
@@ -275,7 +273,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="vacuum_return",
             subcategory="named_device",
             utterance="Send Mudroom Robot Vacuum home",
-            home=_home(mudroom_vacuum, sayso_entity_area="Mudroom", home_id="v3_gold_vacuum_return"),
+            home=_home(mudroom_vacuum, satellite_area="Mudroom", home_id="v3_gold_vacuum_return"),
             expected=_action({"name": "HassVacuumReturnToBase", "arguments": {"name": "Mudroom Robot Vacuum", "domain": ["vacuum"]}}),
         ),
         _spec(
@@ -283,7 +281,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="vacuum_clean_area",
             subcategory="area",
             utterance="Vacuum the Sunroom",
-            home=_home(upstairs_vacuum, sayso_entity_area="Sunroom", home_id="v3_gold_vacuum_clean_area"),
+            home=_home(upstairs_vacuum, satellite_area="Sunroom", home_id="v3_gold_vacuum_clean_area"),
             expected=_action(
                 {
                     "name": "HassVacuumCleanArea",
@@ -296,7 +294,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="scene_activate",
             subcategory="named_scene",
             utterance="Activate Movie Night Scene",
-            home=_home(movie_scene, sayso_entity_area="Home Theater", home_id="v3_gold_scene_a"),
+            home=_home(movie_scene, satellite_area="Home Theater", home_id="v3_gold_scene_a"),
             expected=_action(_turn_on(movie_scene)),
         ),
         _spec(
@@ -304,7 +302,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="scene_activate",
             subcategory="conversational",
             utterance="Run the bedtime scene in the guest suite",
-            home=_home(bedtime_scene, sayso_entity_area="Guest Suite", home_id="v3_gold_scene_b"),
+            home=_home(bedtime_scene, satellite_area="Guest Suite", home_id="v3_gold_scene_b"),
             expected=_action(_turn_on(bedtime_scene)),
         ),
         _spec(
@@ -312,7 +310,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="script_run",
             subcategory="named_script",
             utterance="Run Good Morning Script",
-            home=_home(morning_script, sayso_entity_area="Kitchen", home_id="v3_gold_script_a"),
+            home=_home(morning_script, satellite_area="Kitchen", home_id="v3_gold_script_a"),
             expected=_action(_run_script(morning_script)),
         ),
         _spec(
@@ -320,7 +318,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="script_run",
             subcategory="conversational",
             utterance="Please start the leave home script",
-            home=_home(away_script, sayso_entity_area="Foyer", home_id="v3_gold_script_b"),
+            home=_home(away_script, satellite_area="Foyer", home_id="v3_gold_script_b"),
             expected=_action(_run_script(away_script)),
         ),
         _spec(
@@ -328,7 +326,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="ordinary_on",
             subcategory="light",
             utterance="Turn on Dining Room Pendant Light",
-            home=_home(dining_light, sayso_entity_area="Dining Room", home_id="v3_gold_ordinary_on"),
+            home=_home(dining_light, satellite_area="Dining Room", home_id="v3_gold_ordinary_on"),
             expected=_action(_turn_on(dining_light)),
         ),
         _spec(
@@ -336,7 +334,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="ordinary_off",
             subcategory="fan",
             utterance="Turn off Study Desk Fan",
-            home=_home(study_fan, sayso_entity_area="Study", home_id="v3_gold_ordinary_off"),
+            home=_home(study_fan, satellite_area="Study", home_id="v3_gold_ordinary_off"),
             expected=_action(_turn_off(study_fan)),
         ),
         # HassLightSet and HassFanSetSpeed are 12.3% of training calls. Until these
@@ -347,7 +345,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="light_brightness",
             subcategory="named_device",
             utterance="Set Dining Room Pendant Light brightness to 40 percent",
-            home=_home(dining_light, sayso_entity_area="Dining Room", home_id="v3_gold_light_brightness"),
+            home=_home(dining_light, satellite_area="Dining Room", home_id="v3_gold_light_brightness"),
             expected=_action(_light_set(dining_light, 40)),
         ),
         _spec(
@@ -355,7 +353,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="light_brightness",
             subcategory="conversational",
             utterance="Could you dim the Sunroom Accent Light to 25 percent?",
-            home=_home(sunroom_light, sayso_entity_area="Sunroom", home_id="v3_gold_light_brightness_b"),
+            home=_home(sunroom_light, satellite_area="Sunroom", home_id="v3_gold_light_brightness_b"),
             expected=_action(_light_set(sunroom_light, 25)),
         ),
         _spec(
@@ -363,7 +361,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="fan_speed",
             subcategory="named_device",
             utterance="Set Study Desk Fan speed to 40 percent",
-            home=_home(study_fan, sayso_entity_area="Study", home_id="v3_gold_fan_speed"),
+            home=_home(study_fan, satellite_area="Study", home_id="v3_gold_fan_speed"),
             expected=_action(_fan_speed(study_fan, 40)),
         ),
         # Same number, same phrasing shape, both devices present: the row fails if
@@ -376,7 +374,7 @@ def gold_specs() -> list[dict[str, Any]]:
             home=_home(
                 study_fan,
                 dining_light,
-                sayso_entity_area="Study",
+                satellite_area="Study",
                 home_id="v3_gold_fan_speed_contrast",
             ),
             expected=_action(_fan_speed(study_fan, 60)),
@@ -389,7 +387,7 @@ def gold_specs() -> list[dict[str, Any]]:
             home=_home(
                 dining_light,
                 study_fan,
-                sayso_entity_area="Dining Room",
+                satellite_area="Dining Room",
                 home_id="v3_gold_light_brightness_contrast",
             ),
             expected=_action(_light_set(dining_light, 60)),
@@ -399,7 +397,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="status",
             subcategory="media_player",
             utterance="What is the status of Home Theater TV?",
-            home=_home(home_theater_tv, sayso_entity_area="Home Theater", home_id="v3_gold_status_media"),
+            home=_home(home_theater_tv, satellite_area="Home Theater", home_id="v3_gold_status_media"),
             expected=_status(home_theater_tv),
             target_names=["Home Theater TV"],
         ),
@@ -408,7 +406,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="status",
             subcategory="climate",
             utterance="Is the Great Room Thermostat heating?",
-            home=_home(great_room_thermostat, sayso_entity_area="Great Room", home_id="v3_gold_status_climate"),
+            home=_home(great_room_thermostat, satellite_area="Great Room", home_id="v3_gold_status_climate"),
             expected=_status(great_room_thermostat),
             target_names=["Great Room Thermostat"],
         ),
@@ -417,7 +415,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="ambiguity",
             subcategory="one_default_light",
             utterance="Turn on the reading lamp",
-            home=_home(library_light_a, library_light_b, sayso_entity_area="Library", home_id="v3_gold_ambiguity_resolve"),
+            home=_home(library_light_a, library_light_b, satellite_area="Library", home_id="v3_gold_ambiguity_resolve"),
             expected=_action(_turn_on(library_light_a)),
         ),
         _spec(
@@ -428,7 +426,7 @@ def gold_specs() -> list[dict[str, Any]]:
             home=_home(
                 _entity(name="Sunroom Table Lamp", kind="light", area="Sunroom", aliases=["accent light"]),
                 _entity(name="Sunroom Floor Lamp", kind="light", area="Sunroom", aliases=["accent light"]),
-                sayso_entity_area="Sunroom",
+                satellite_area="Sunroom",
                 home_id="v3_gold_ambiguity_clarify",
             ),
             expected=_no_action("clarify"),
@@ -440,7 +438,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="ambiguity",
             subcategory="zero_lights",
             utterance="Turn on the desk light",
-            home=_home(study_fan, sayso_entity_area="Study", home_id="v3_gold_ambiguity_area"),
+            home=_home(study_fan, satellite_area="Study", home_id="v3_gold_ambiguity_area"),
             expected=_no_action(
                 "area_unavailable",
                 unavailable={"area": "study", "type": "lights"},
@@ -453,7 +451,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="unsupported_no_action",
             subcategory="lawn_mower",
             utterance="Start the lawn mower in the courtyard",
-            home=_home(sunroom_light, sayso_entity_area="Sunroom", home_id="v3_gold_unsupported_lawn"),
+            home=_home(sunroom_light, satellite_area="Sunroom", home_id="v3_gold_unsupported_lawn"),
             expected=_no_action("unsupported"),
             target_names=[],
             request_hint="start the lawn mower in the courtyard",
@@ -463,7 +461,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="unsupported_no_action",
             subcategory="todo",
             utterance="Add milk to the shopping list",
-            home=_home(sunroom_light, sayso_entity_area="Sunroom", home_id="v3_gold_unsupported_todo"),
+            home=_home(sunroom_light, satellite_area="Sunroom", home_id="v3_gold_unsupported_todo"),
             expected=_no_action("unsupported"),
             target_names=[],
             request_hint="add milk to the shopping list",
@@ -473,7 +471,7 @@ def gold_specs() -> list[dict[str, Any]]:
             category="unsupported_no_action",
             subcategory="incomplete",
             utterance="Set the thermostat to",
-            home=_home(great_room_thermostat, sayso_entity_area="Great Room", home_id="v3_gold_no_call_clarify"),
+            home=_home(great_room_thermostat, satellite_area="Great Room", home_id="v3_gold_no_call_clarify"),
             expected=_no_action("clarify"),
             target_names=[],
             request_hint="set the thermostat to",
@@ -879,7 +877,7 @@ def build_shadow_specs(
                     subcategory=row["subcategory"],
                     home=_home(
                         *row["entities"],
-                        sayso_entity_area=area,
+                        satellite_area=area,
                         home_id=candidate_id,
                     ),
                     expected=row["expected"],

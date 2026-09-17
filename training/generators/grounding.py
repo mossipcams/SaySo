@@ -49,18 +49,17 @@ def entity(
     return made
 
 
-def home(home_id: str, entities: list[dict[str, Any]], *, sayso_entity_area: str | None) -> dict[str, Any]:
+def home(home_id: str, entities: list[dict[str, Any]], *, satellite_area: str | None) -> dict[str, Any]:
     """A home dict in the shape ``generate_home`` returns."""
     floors = {}
     for item in entities:
         floors.setdefault(item["area"], item.get("floor") or "Main Floor")
-    if sayso_entity_area:
-        floors.setdefault(sayso_entity_area, "Main Floor")
+    if satellite_area:
+        floors.setdefault(satellite_area, "Main Floor")
     return {
         "home_id": home_id,
         "size": len(entities),
-        "sayso_entity_area": sayso_entity_area,
-        "satellite_area": sayso_entity_area,
+        "satellite_area": satellite_area,
         "entities": entities,
         "active_timers": [],
         "areas": list(floors),
@@ -103,7 +102,7 @@ def variant(
         "request_intent": request_intent,
         "home": home(
             f"{prefix}_{label}", entities,
-            sayso_entity_area=area if satellite_area is _DEFAULT_SATELLITE else satellite_area,
+            satellite_area=area if satellite_area is _DEFAULT_SATELLITE else satellite_area,
         ),
         "area_context": area_context,
     }

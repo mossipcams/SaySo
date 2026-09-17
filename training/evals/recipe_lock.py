@@ -10,18 +10,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from build_synthetic_dataset import render_example  # noqa: E402
+from generators.labels import render_example  # noqa: E402
 from evals.specs import (  # noqa: E402
     action as _action,
     assert_row_contract,
     entity as _entity,
-    expected_tool_calls,
-    fan_speed as _fan_speed,
+    expected_tool_calls,  # noqa: F401
     home as _home_base,
     light_set,
     no_action as _no_action,
     normalized as _normalized,
-    score_quality_gold,
+    score_quality_gold,  # noqa: F401
     spec as _spec_base,
     status as _status,
     turn_off as _turn_off,
@@ -31,10 +30,10 @@ from evals.specs import (  # noqa: E402
 _LOCK_HOME_ID = "recipe_lock_home"
 
 
-def _home(*entities: dict[str, Any], sayso_entity_area: str) -> dict[str, Any]:
+def _home(*entities: dict[str, Any], satellite_area: str) -> dict[str, Any]:
     """Every locked row uses one home id; only its contents vary."""
     return _home_base(
-        *entities, sayso_entity_area=sayso_entity_area, home_id=_LOCK_HOME_ID
+        *entities, satellite_area=satellite_area, home_id=_LOCK_HOME_ID
     )
 
 
@@ -106,7 +105,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="a",
             category="clean_direct",
             utterance="Turn on Office Main Light",
-            home=_home(office_main, sayso_entity_area="Office"),
+            home=_home(office_main, satellite_area="Office"),
             expected=_action(_turn_on(office_main)),
         ),
         _spec(
@@ -114,7 +113,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="b",
             category="clean_direct",
             utterance="Close Kitchen North Garage Door",
-            home=_home(kitchen_garage, sayso_entity_area="Kitchen"),
+            home=_home(kitchen_garage, satellite_area="Kitchen"),
             expected=_action(_turn_off(kitchen_garage)),
         ),
         _spec(
@@ -122,7 +121,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="a",
             category="conversational",
             utterance="Hey, when you get a chance, turn on the living room ceiling fan.",
-            home=_home(living_fan, sayso_entity_area="Living Room"),
+            home=_home(living_fan, satellite_area="Living Room"),
             expected=_action(_turn_on(living_fan)),
         ),
         _spec(
@@ -130,7 +129,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="b",
             category="conversational",
             utterance="Could you set the kitchen herb garden cool light to 64 percent for me?",
-            home=_home(herb_light, sayso_entity_area="Kitchen"),
+            home=_home(herb_light, satellite_area="Kitchen"),
             expected=_action(_light_set(herb_light, brightness=64)),
         ),
         _spec(
@@ -138,7 +137,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="a",
             category="entity_identity",
             utterance="Open the patio blinds",
-            home=_home(patio_blinds, sayso_entity_area="Patio"),
+            home=_home(patio_blinds, satellite_area="Patio"),
             expected=_action(_turn_on(patio_blinds)),
         ),
         _spec(
@@ -146,7 +145,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="b",
             category="entity_identity",
             utterance="Lock the patio door",
-            home=_home(patio_lock, sayso_entity_area="Patio"),
+            home=_home(patio_lock, satellite_area="Patio"),
             expected=_action(_turn_on(patio_lock)),
         ),
         _spec(
@@ -154,7 +153,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="c",
             category="entity_identity",
             utterance="turn on office main light",
-            home=_home(office_main, sayso_entity_area="Office"),
+            home=_home(office_main, satellite_area="Office"),
             expected=_action(_turn_on(office_main)),
         ),
         _spec(
@@ -162,7 +161,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="d",
             category="entity_identity",
             utterance="unlock joe's guest room door lock",
-            home=_home(joes_lock, sayso_entity_area="Guest Room"),
+            home=_home(joes_lock, satellite_area="Guest Room"),
             expected=_action(_turn_off(joes_lock)),
         ),
         _spec(
@@ -170,7 +169,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="e",
             category="entity_identity",
             utterance="Turn on Joe's Kitchen Light",
-            home=_home(joes_kitchen, sayso_entity_area="Kitchen"),
+            home=_home(joes_kitchen, satellite_area="Kitchen"),
             expected=_action(_turn_on(joes_kitchen)),
         ),
         _spec(
@@ -178,7 +177,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="f",
             category="entity_identity",
             utterance="Close O'Malley's Study Blinds",
-            home=_home(omalleys_blinds, sayso_entity_area="Office"),
+            home=_home(omalleys_blinds, satellite_area="Office"),
             expected=_action(_turn_off(omalleys_blinds)),
         ),
         _spec(
@@ -186,7 +185,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="g",
             category="entity_identity",
             utterance="Turn off Kids' Room Light",
-            home=_home(kids_light, sayso_entity_area="Guest Room"),
+            home=_home(kids_light, satellite_area="Guest Room"),
             expected=_action(_turn_off(kids_light)),
         ),
         _spec(
@@ -194,7 +193,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="h",
             category="entity_identity",
             utterance="Turn on Kitchen North Light",
-            home=_home(kitchen_north, sayso_entity_area="Kitchen"),
+            home=_home(kitchen_north, satellite_area="Kitchen"),
             expected=_action(_turn_on(kitchen_north)),
         ),
         _spec(
@@ -205,7 +204,7 @@ def locked_specs() -> list[dict[str, Any]]:
                 "Set Kitchen Ceiling Cool Light to 40 percent and turn off Hallway East Outlet, "
                 "but leave Office Main Light alone"
             ),
-            home=_home(kitchen_ceiling, hallway_east, office_main, sayso_entity_area="Kitchen"),
+            home=_home(kitchen_ceiling, hallway_east, office_main, satellite_area="Kitchen"),
             expected=_action(_light_set(kitchen_ceiling, brightness=40), _turn_off(hallway_east)),
             target_names=["Kitchen Ceiling Cool Light", "Hallway East Outlet"],
         ),
@@ -216,7 +215,7 @@ def locked_specs() -> list[dict[str, Any]]:
             utterance=(
                 "Open Patio South Blinds and lock Patio Side Door Lock, but leave Garage West Fan alone"
             ),
-            home=_home(patio_blinds, patio_lock, garage_west_fan, sayso_entity_area="Patio"),
+            home=_home(patio_blinds, patio_lock, garage_west_fan, satellite_area="Patio"),
             expected=_action(_turn_on(patio_blinds), _turn_on(patio_lock)),
             target_names=["Patio South Blinds", "Patio Side Door Lock"],
         ),
@@ -228,7 +227,7 @@ def locked_specs() -> list[dict[str, Any]]:
                 "Turn on Nursery East Outlet and turn off Living Room Ceiling Fan, "
                 "but leave Joe's Kitchen Light alone"
             ),
-            home=_home(nursery_outlet, living_fan, joes_kitchen, sayso_entity_area="Nursery"),
+            home=_home(nursery_outlet, living_fan, joes_kitchen, satellite_area="Nursery"),
             expected=_action(_turn_on(nursery_outlet), _turn_off(living_fan)),
             target_names=["Nursery East Outlet", "Living Room Ceiling Fan"],
         ),
@@ -245,7 +244,7 @@ def locked_specs() -> list[dict[str, Any]]:
                 primary_bedroom_garage,
                 patio_lock,
                 garage_ceiling_fan,
-                sayso_entity_area="Workshop",
+                satellite_area="Workshop",
             ),
             expected=_action(
                 _turn_on(workshop_blinds),
@@ -263,7 +262,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="garage_van",
             category="stt_corrupted",
             utterance="Turn on the garage west van",
-            home=_home(garage_west_fan, sayso_entity_area="Garage"),
+            home=_home(garage_west_fan, satellite_area="Garage"),
             expected=_action(_turn_on(garage_west_fan)),
         ),
         _spec(
@@ -271,7 +270,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="a",
             category="stt_corrupted",
             utterance="Uh unlock basement door lok please",
-            home=_home(basement_south_lock, sayso_entity_area="Basement"),
+            home=_home(basement_south_lock, satellite_area="Basement"),
             expected=_action(_turn_off(basement_south_lock)),
         ),
         _spec(
@@ -279,7 +278,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="b",
             category="stt_corrupted",
             utterance="tern on office main lite",
-            home=_home(office_main, sayso_entity_area="Office"),
+            home=_home(office_main, satellite_area="Office"),
             expected=_action(_turn_on(office_main)),
         ),
         _spec(
@@ -287,7 +286,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="c",
             category="stt_corrupted",
             utterance="close the patio south blends",
-            home=_home(patio_blinds, sayso_entity_area="Patio"),
+            home=_home(patio_blinds, satellite_area="Patio"),
             expected=_action(_turn_off(patio_blinds)),
         ),
         _spec(
@@ -295,7 +294,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="d",
             category="stt_corrupted",
             utterance="lok joe's guest room door",
-            home=_home(joes_lock, sayso_entity_area="Guest Room"),
+            home=_home(joes_lock, satellite_area="Guest Room"),
             expected=_action(_turn_on(joes_lock)),
         ),
         _spec(
@@ -303,7 +302,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="e",
             category="stt_corrupted",
             utterance="turn off basement van",
-            home=_home(basement_south_fan, sayso_entity_area="Basement"),
+            home=_home(basement_south_fan, satellite_area="Basement"),
             expected=_action(_turn_off(basement_south_fan)),
         ),
         _spec(
@@ -311,7 +310,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="a",
             category="status",
             utterance="Check the status of Patio South Blinds",
-            home=_home(patio_blinds, sayso_entity_area="Patio"),
+            home=_home(patio_blinds, satellite_area="Patio"),
             expected=_status(patio_blinds),
             target_names=["Patio South Blinds"],
         ),
@@ -320,7 +319,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="b",
             category="status",
             utterance="Is the Workshop West Fan running?",
-            home=_home(workshop_west_fan, sayso_entity_area="Workshop"),
+            home=_home(workshop_west_fan, satellite_area="Workshop"),
             expected=_status(workshop_west_fan),
             target_names=["Workshop West Fan"],
         ),
@@ -329,7 +328,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="c",
             category="status",
             utterance="What's Joe's Guest Room Door Lock doing?",
-            home=_home(joes_lock, sayso_entity_area="Guest Room"),
+            home=_home(joes_lock, satellite_area="Guest Room"),
             expected=_status(joes_lock),
             target_names=["Joe's Guest Room Door Lock"],
         ),
@@ -338,7 +337,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="d",
             category="status",
             utterance="Is Kitchen North Light off?",
-            home=_home(kitchen_north, sayso_entity_area="Kitchen"),
+            home=_home(kitchen_north, satellite_area="Kitchen"),
             expected=_status({**kitchen_north, "state": "off"}),
             target_names=["Kitchen North Light"],
         ),
@@ -347,7 +346,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="a",
             category="ambiguity",
             utterance="Turn on the light",
-            home=_home(kitchen_sink, office_main, sayso_entity_area="Kitchen"),
+            home=_home(kitchen_sink, office_main, satellite_area="Kitchen"),
             expected=_action(_turn_on(kitchen_sink)),
         ),
         _spec(
@@ -355,7 +354,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="b",
             category="ambiguity",
             utterance="Turn on the light",
-            home=_home(kitchen_sink, kitchen_ceiling, office_main, sayso_entity_area="Kitchen"),
+            home=_home(kitchen_sink, kitchen_ceiling, office_main, satellite_area="Kitchen"),
             expected=_no_action("clarify"),
         ),
         _spec(
@@ -363,7 +362,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="c",
             category="ambiguity",
             utterance="Turn on the office light",
-            home=_home(office_main, sayso_entity_area="Kitchen"),
+            home=_home(office_main, satellite_area="Kitchen"),
             expected=_action(_turn_on(office_main)),
         ),
         _spec(
@@ -371,7 +370,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="d",
             category="ambiguity",
             utterance="Turn on the kitchen light",
-            home=_home(kitchen_sink, kitchen_ceiling, sayso_entity_area="Kitchen"),
+            home=_home(kitchen_sink, kitchen_ceiling, satellite_area="Kitchen"),
             expected=_no_action("clarify"),
         ),
         _spec(
@@ -379,7 +378,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="e",
             category="ambiguity",
             utterance="Turn off the fan",
-            home=_home(living_fan, workshop_fan, sayso_entity_area="Living Room"),
+            home=_home(living_fan, workshop_fan, satellite_area="Living Room"),
             expected=_action(_turn_off(living_fan)),
         ),
         _spec(
@@ -387,7 +386,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="f",
             category="ambiguity",
             utterance="Turn on the outlet",
-            home=_home(hallway_east, hallway_west, nursery_outlet, sayso_entity_area="Hallway"),
+            home=_home(hallway_east, hallway_west, nursery_outlet, satellite_area="Hallway"),
             expected=_no_action("clarify"),
         ),
         _spec(
@@ -395,7 +394,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="g",
             category="ambiguity",
             utterance="Open the blinds",
-            home=_home(patio_blinds, workshop_blinds, sayso_entity_area="Patio"),
+            home=_home(patio_blinds, workshop_blinds, satellite_area="Patio"),
             expected=_action(_turn_on(patio_blinds)),
         ),
         _spec(
@@ -403,7 +402,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="h",
             category="ambiguity",
             utterance="Lock the door",
-            home=_home(kitchen_lock, patio_lock, sayso_entity_area="Kitchen"),
+            home=_home(kitchen_lock, patio_lock, satellite_area="Kitchen"),
             expected=_action(_turn_on(kitchen_lock)),
         ),
         _spec(
@@ -411,7 +410,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="i",
             category="ambiguity",
             utterance="Turn on the light",
-            home=_home(office_main, sayso_entity_area="Kitchen"),
+            home=_home(office_main, satellite_area="Kitchen"),
             expected=_no_action(
                 "area_unavailable",
                 unavailable={"area": "kitchen", "type": "lights"},
@@ -422,7 +421,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="refuse",
             category="unsupported_no_action",
             utterance="Disable the smoke alarm safety system",
-            home=_home(office_main, sayso_entity_area="Office"),
+            home=_home(office_main, satellite_area="Office"),
             expected=_no_action("refuse"),
             request_hint="disable the smoke alarm safety system",
         ),
@@ -431,7 +430,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="clarify",
             category="unsupported_no_action",
             utterance="Set the light to",
-            home=_home(office_main, sayso_entity_area="Office"),
+            home=_home(office_main, satellite_area="Office"),
             expected=_no_action("clarify"),
             request_hint="set the light to",
         ),
@@ -440,7 +439,7 @@ def locked_specs() -> list[dict[str, Any]]:
             row="unsupported",
             category="unsupported_no_action",
             utterance="Play music in the garage",
-            home=_home(garage_west_fan, sayso_entity_area="Garage"),
+            home=_home(garage_west_fan, satellite_area="Garage"),
             expected=_no_action("unsupported"),
             request_hint="play music in the garage",
         ),

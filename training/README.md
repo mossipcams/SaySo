@@ -34,12 +34,10 @@ step, then `nohup`s the real run. Update the row count when the dataset changes.
 
 | Step | Command |
 |------|---------|
-| Build synthetic v3 train (40k, deterministic) | `python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 --out-dir training/datasets/synthetic_v3_train.jsonl --render-out training/datasets/sayso_train_v3_40k_render.jsonl` |
+| Build synthetic train (40k, deterministic) | `python training/generators/cli.py --count 40000 --output training/datasets/synthetic_v3_train.jsonl --render-output training/datasets/sayso_train_v3_40k_render.jsonl` |
 | Generate v3 quality eval (gold + shadow) | `python training/scripts/generate_v3_quality_eval.py` |
-| Generate recipe-lock eval + deterministic 10k train | `python training/scripts/generate_recipe_lock_eval.py` |
-| Generate corrective SFT + shadow eval | `python training/scripts/generate_training_supplement.py` |
+| Generate recipe-lock eval | `python training/scripts/generate_recipe_lock_eval.py` |
 | Generate balanced held-out test set | `python training/scripts/generate_balanced_test_data.py` |
-| Build synthetic train (legacy 10k) | `python training/scripts/build_synthetic_dataset.py --generator-model ... --judge-model ...` |
 | Split 80/10/10 | `python training/scripts/split_dataset.py INPUT.jsonl --out-dir training/datasets` |
 | Fetch the real Home Assistant home | `HA_URL=... HA_TOKEN=... python training/scripts/fetch_ha_home.py --out training/fixtures/real_home.json` |
 | Detect GPU | `python training/scripts/detect_gpu.py` |
@@ -89,18 +87,19 @@ HA_URL=http://homeassistant.local:8123 HA_TOKEN=... \
 
 # the production home recipe: real-home mixing, area context, full catalogue,
 # and the runtime namespaced tool contract are enabled together
-python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 \
-  --real-home training/fixtures/real_home.json --home-recipe
+python training/generators/cli.py --count 40000 \
+  --real-home training/fixtures/real_home.json --real-home-rate 0.10 \
+  --area-context-rate 0.35 --full-catalog-rate 0.35 --namespaced-tool-rate 0.35 \
+  --output training/datasets/synthetic_v3_train.jsonl \
+  --render-output training/datasets/sayso_train_v3_40k_render.jsonl
 
 # the explicit opt-out
-python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 \
-  --synthetic-only
+python training/generators/cli.py --count 40000 --synthetic-only
 ```
 
-`--home-recipe` defaults real-home mixing to 0.10 and area context, full-catalog,
-and namespaced-tool rows to 0.35; each explicit rate flag overrides its default.
-`--synthetic-only` is the only way to turn mixing off on purpose —
-forgetting the flag is not the same decision, so the two are mutually exclusive.
+The production recipe uses real-home mixing at 0.10 and area context,
+full-catalog, and namespaced-tool rows at 0.35. Set those rates explicitly on
+the canonical generator command. `--synthetic-only` turns mixing off on purpose.
 
 `generators.real_home` holds every fifth entity of each capability out of
 training (`split="holdout"`, a capability with one entity stays in train). Those
@@ -264,12 +263,8 @@ training/
   datasets/          Generated JSONL (gitignored)
   evals/             Metrics, harness, recipe lock, v3 quality, adversarial set
   fixtures/          Test fixtures
-  generators/        v3 synthetic generation
-  scripts/           Pipeline operations
-                       v2_scenarios.py   label-first spec vocabulary (v1/v2)
-                       rendering.py      spec -> canonical row, phrasing seeds
-                       llm_curation.py   verbalise, judge, curate (v1/v2 only)
-                       build_synthetic_dataset.py  CLI + v1/v2 orchestration
+  generators/        deterministic scenarios, labels, context, and quotas
+  scripts/            Pipeline operations and dataset exports
   tests/             Unit tests (no model downloads)
 ```
 

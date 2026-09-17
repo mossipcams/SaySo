@@ -30,20 +30,15 @@ def test_locked_specs_cover_all_yes_rows_without_thermostat() -> None:
     assert sum(spec["recipe"] == 8 for spec in specs) == 3
 
 
-def test_quality_eval_includes_sayso_entity_area_context_for_recipe_seven() -> None:
+def test_quality_eval_includes_area_context_for_recipe_seven() -> None:
     examples = build_quality_eval_examples()
     area_rows = [row for row in examples if row["metadata"]["recipe"] == 7]
     assert len(area_rows) == 9
     for example in area_rows:
         system = example["messages"][0]["content"]
-        sayso_area = next(
-            spec["home"]["sayso_entity_area"]
-            for spec in locked_specs()
-            if spec["candidate_id"] == example["metadata"]["candidate_id"]
-        )
-        # Home Assistant's own area wording (components/intent/llm.py)
-        assert "and all generic commands like" in system
-        assert f"You are in area {sayso_area}" in system
+        assert "satellite_area=" in system
+        assert "target_area=" in system
+        assert "target_area_source=" in system
 
 
 def test_kitchen_no_lights_row_has_area_unavailable_next_action() -> None:

@@ -23,7 +23,7 @@ TRAINING_ROOT = Path(__file__).resolve().parents[1]
 if str(TRAINING_ROOT) not in sys.path:
     sys.path.insert(0, str(TRAINING_ROOT))
 
-from generators import grounding
+from generators import grounding  # noqa: E402
 
 EVAL_SEED = 20260911
 

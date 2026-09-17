@@ -21,7 +21,7 @@ from generators.context import (
 REPO = Path(__file__).resolve().parents[2]
 
 HOME = {
-    "sayso_entity_area": "Kitchen",
+    "satellite_area": "Kitchen",
     "entities": [
         {
             "name": "Kitchen Light",
@@ -58,7 +58,7 @@ def test_sayso_prompt_matches_the_integration_default() -> None:
 def test_entity_names_are_deduplicated() -> None:
     """Generators default aliases to [name]; repeating it teaches names come in pairs."""
     home = {
-        "sayso_entity_area": "Kitchen",
+        "satellite_area": "Kitchen",
         "entities": [
             {
                 "name": "Great Room Thermostat",
@@ -86,7 +86,9 @@ def test_overview_carries_no_state_and_uses_home_assistant_fields() -> None:
 def test_serialized_context_is_yaml_and_omits_live_state() -> None:
     prompt = serialize_context(HOME)
     assert "Static Context: An overview of the areas and the devices in this smart home:" in prompt
-    assert "You are in area Kitchen (floor Ground)" in prompt
+    assert "satellite_area=Kitchen" in prompt
+    assert "target_area=Kitchen" in prompt
+    assert "target_area_source=satellite_fallback" in prompt
     assert "GetLiveContext" in prompt
 
     block = prompt.split("smart home:\n", 1)[1].split("\nWhen controlling Home Assistant", 1)[0]

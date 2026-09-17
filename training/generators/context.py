@@ -126,22 +126,11 @@ def _area_prompt(home: dict[str, Any], utterance: str | None = None) -> str:
     """Render the same request-area contract that production sends."""
     context = resolve_area_context(
         utterance or "",
-        satellite_area=home.get("satellite_area", home.get("sayso_entity_area")),
+        satellite_area=home.get("satellite_area"),
         areas=home.get("areas", ()),
         entities=home.get("entities", ()),
     )
-    rendered = render_area_context(context)
-    if utterance is None and context.satellite_area:
-        # Keep the public no-utterance helper readable for existing fixtures;
-        # rendered rows use only the shared three-field contract.
-        floor = next(
-            (entity.get("floor") for entity in home.get("entities", [])
-             if entity.get("area") == context.satellite_area and entity.get("floor")),
-            None,
-        )
-        floor_text = f" (floor {floor})" if floor else ""
-        rendered += f"\nYou are in area {context.satellite_area}{floor_text} and all generic commands like 'turn on the lights' should target this area."
-    return rendered
+    return render_area_context(context)
 
 
 def _namespaced(text: str) -> str:

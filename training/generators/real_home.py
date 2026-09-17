@@ -85,9 +85,7 @@ def _load(path: str, split: str) -> dict[str, Any]:
         "home_id": f"{home['home_id']}_{split}",
         "size": len(entities),
         "entities": entities,
-        "sayso_entity_area": (
-            home["sayso_entity_area"] if home["sayso_entity_area"] in areas else entities[0]["area"]
-        ),
+        "satellite_area": home["satellite_area"] if home["satellite_area"] in areas else None,
     }
 
 

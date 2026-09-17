@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_smoke_generation_small_n() -> None:
-    config = GeneratorConfig(count=100, seed=99, paraphrase_enabled=False)
+    config = GeneratorConfig(count=100, seed=99)
     result = run_generation(config)
     rows = result["rows"]
     assert len(rows) == 100
@@ -39,7 +39,7 @@ sys.path.insert(0, sys.argv[1])
 from generators.config import GeneratorConfig
 from generators.pipeline import run_generation
 
-rows = run_generation(GeneratorConfig(count=60, seed=7, paraphrase_enabled=False))["rows"]
+rows = run_generation(GeneratorConfig(count=60, seed=7))["rows"]
 print(hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest())
 """
 
@@ -62,7 +62,7 @@ def test_generation_is_reproducible_across_processes() -> None:
 
 def test_offered_tools_are_compact_and_always_contain_the_called_tools() -> None:
     """A row must offer every tool its label calls, but not the whole 27-tool catalog."""
-    rows = run_generation(GeneratorConfig(count=300, seed=5, paraphrase_enabled=False))["rows"]
+    rows = run_generation(GeneratorConfig(count=300, seed=5))["rows"]
     sizes: set[int] = set()
     tool_sets: set[tuple[str, ...]] = set()
     for row in rows:
@@ -86,7 +86,7 @@ def test_scripts_are_their_own_tools_and_absent_from_the_entity_overview() -> No
     from generators.tools import script_tool_name, script_tools
 
     home = {
-        "sayso_entity_area": "Kitchen",
+        "satellite_area": "Kitchen",
         "entities": [
             {
                 "entity_id": "script.good_morning",
@@ -122,7 +122,7 @@ def test_scripts_are_their_own_tools_and_absent_from_the_entity_overview() -> No
 
 
 def test_generated_script_rows_call_the_script_tool_not_hass_turn_on() -> None:
-    rows = run_generation(GeneratorConfig(count=400, seed=17, paraphrase_enabled=False))["rows"]
+    rows = run_generation(GeneratorConfig(count=400, seed=17))["rows"]
     script_rows = [r for r in rows if r["metadata"].get("capability") == "scripts"]
     assert script_rows, "no script rows generated"
     for row in script_rows:

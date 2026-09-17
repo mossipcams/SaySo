@@ -1,4 +1,4 @@
-"""Both public rendering paths preserve authoritative request constraints."""
+"""The canonical renderer preserves authoritative request constraints."""
 import sys
 import random
 from pathlib import Path
@@ -8,10 +8,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from generators.utterances import expand_utterance
 from generators.utterances import vary_training_utterance
-from scripts.build_synthetic_dataset import expand_utterance as legacy_expand
 
 
-@pytest.mark.parametrize("render", [expand_utterance, legacy_expand])
+@pytest.mark.parametrize("render", [expand_utterance])
 @pytest.mark.parametrize("calls,targets,required", [
     ([{"name": "HassTurnOn", "arguments": {"name": "Desk"}},
       {"name": "HassTurnOff", "arguments": {"name": "Bed"}}], ["Desk", "Bed"], ["reading lamp", "Bed", "Window"]),
@@ -30,11 +29,13 @@ def test_renderers_preserve_constraints(render, calls, targets, required):
     assert all(value in text for value in required), text
 
 
-def test_renderers_share_deterministic_grammar():
+def test_renderer_is_deterministic():
     spec = {"candidate_id": "same-seed", "category": "clean_direct",
             "expected": {"kind": "action", "calls": [{"name": "HassTurnOn", "arguments": {"name": "Desk", "domain": ["light"]}}]},
             "target_names": ["Desk"], "spoken_targets": {}, "excluded_names": []}
-    assert legacy_expand(spec) == expand_utterance(spec)
+    first = expand_utterance(spec)
+    second = expand_utterance(spec)
+    assert first == second
 
 
 def test_temperature_style_does_not_duplicate_units():

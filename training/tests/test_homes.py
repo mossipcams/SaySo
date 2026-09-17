@@ -15,9 +15,9 @@ def test_home_sizes_respected() -> None:
         assert len(home["entities"]) >= size
 
 
-def test_home_has_sayso_area() -> None:
+def test_home_has_satellite_area() -> None:
     home = generate_home(5, 16, random.Random(7))
-    assert home["sayso_entity_area"]
+    assert home["satellite_area"]
     assert all(e["area"] for e in home["entities"])
 
 

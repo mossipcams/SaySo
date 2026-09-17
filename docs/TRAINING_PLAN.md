@@ -57,7 +57,7 @@ Do not train on:
 - unsupported tools or arguments;
 - model-generated labels that have not passed SaySo schema validation.
 
-Synthetic generation in `training/scripts/build_synthetic_dataset.py` owns
+Synthetic generation in `training/generators/` owns scenarios, labels, and
 utterance diversity; schema validation remains authoritative for every label.
 
 Quotas are accounted on the supervision a row carries, not on its metadata.
@@ -242,7 +242,7 @@ to:
 
 | Concern | Location |
 |---|---|
-| Dataset generation | `training/generators/`, `training/scripts/build_synthetic_dataset.py`, `training/scripts/generate_training_supplement.py`, `training/scripts/generate_balanced_test_data.py` |
+| Dataset generation | `training/generators/`, `training/scripts/generate_balanced_test_data.py` |
 | Coverage accounting and audit | `training/generators/coverage.py`, `training/generators/sampling.py`, `training/generators/audit.py` |
 | Entity-grounding families | `training/generators/grounding.py`, `training/evals/grounding_eval.py` |
 | Real-home export and mixing | `training/scripts/fetch_ha_home.py`, `training/scripts/ha_websocket.py`, `training/generators/real_home.py` |

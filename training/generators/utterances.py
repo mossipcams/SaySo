@@ -70,9 +70,7 @@ def apply_generic_wording(spec: dict[str, Any]) -> dict[str, Any]:
     capability = spec.get("capability")
     if capability in (None, "timers") or not spec.get("target_names"):
         return spec
-    area = spec["home"].get(
-        "satellite_area", spec["home"].get("sayso_entity_area")
-    )
+    area = spec["home"].get("satellite_area")
     by_name = {entity["name"]: entity for entity in spec.get("home", {}).get("entities", [])}
     default_noun = _ENTITY_TEMPLATES[capability][0].lower()
     spoken = {}
