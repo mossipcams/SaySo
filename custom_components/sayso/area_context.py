@@ -19,8 +19,8 @@ class AreaContext(NamedTuple):
 
 
 def _contains_phrase(text: str, phrase: str) -> bool:
-    words = re.findall(r"[a-z0-9]+", phrase.casefold())
-    tokens = re.findall(r"[a-z0-9]+", text.casefold())
+    words = re.findall(r"[^\W_]+", phrase.casefold(), flags=re.UNICODE)
+    tokens = re.findall(r"[^\W_]+", text.casefold(), flags=re.UNICODE)
     return bool(words) and any(
         tokens[i : i + len(words)] == words for i in range(len(tokens))
     )
