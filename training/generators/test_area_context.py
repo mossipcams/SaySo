@@ -71,12 +71,12 @@ def test_named_target_survives_area_words_and_ambiguity_fails_closed() -> None:
 
 def test_unicode_explicit_area_overrides_satellite() -> None:
     context = resolve_area_context(
-        "turn on the lights in the 客厅",
-        satellite_area="卧室",
-        areas=("客厅", "卧室"),
+        "turn on the lights in the Café",
+        satellite_area="Bedroom",
+        areas=("Café", "Bedroom"),
     )
     assert (context.target_area, context.target_area_source) == (
-        "客厅", "explicit_area"
+        "Café", "explicit_area"
     )
 
 
