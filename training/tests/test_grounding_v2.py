@@ -27,13 +27,15 @@ from generators.grounding import (  # noqa: E402
     required_training_variants,
     training_variants,
 )
-from generators.pipeline import (  # noqa: E402
-    _enforce_rate_gate,
-    _grounding_capable_slot,
-    _grounding_pairs,
-    _pick_discriminating_description,
-    _sibling_entities,
-    run_generation,
+from generators.grounding import (  # noqa: E402
+    grounding_capable_slot,
+    grounding_pairs,
+)
+from generators.pipeline import run_generation  # noqa: E402
+from generators.rates import enforce_rate_gate  # noqa: E402
+from generators.scenarios.discrimination import (  # noqa: E402
+    pick_discriminating_description,
+    sibling_entities,
 )
 from generators.sampling import QuotaTracker  # noqa: E402
 from generators.scenarios import build_scenario  # noqa: E402
@@ -46,7 +48,6 @@ def _run(**overrides):
         GeneratorConfig(
             count=COUNT,
             seed=20260913,
-            min_rate_achieved_fraction=0.0,
             **overrides,
         )
     )
@@ -81,8 +82,8 @@ def test_grounding_catalogue_scales_to_a_full_size_corpus():
     # Rows can only land on a slot of their own (capability, operation), so the
     # ceiling has to hold per pair, not just in total.
     per_pair = Counter((v["capability"], v["operation"]) for v in training_variants())
-    for pair in _grounding_pairs():
-        assert per_pair[pair] * config.near_duplicate_limit >= demanded / len(_grounding_pairs()), (
+    for pair in grounding_pairs():
+        assert per_pair[pair] * config.near_duplicate_limit >= demanded / len(grounding_pairs()), (
             f"{pair} has only {per_pair[pair]} variants"
         )
 
@@ -211,14 +212,14 @@ def test_grounding_rows_come_from_grounding_capable_slots():
     v1 called pick_variant on whatever slot came up, and only ~4% of slots can
     host a variant, which is why the requested share collapsed.
     """
-    pairs = _grounding_pairs()
+    pairs = grounding_pairs()
     assert pairs, "grounding variants must declare (capability, operation) pairs"
     assert len(pairs) < 6, f"expected a small set of capable pairs, got {pairs}"
 
     quota = QuotaTracker(COUNT, 20260913, GeneratorConfig().tier_proportions)
     import random
 
-    slot = _grounding_capable_slot(quota, random.Random(1))
+    slot = grounding_capable_slot(quota, random.Random(1))
     assert slot is not None
     assert (slot["capability"], slot["operation"]) in pairs
 
@@ -232,7 +233,7 @@ def test_rate_gate_rejects_a_v1_style_shortfall():
         "rows": 88,
     }
     with pytest.raises(RuntimeError, match="grounding rate shortfall"):
-        _enforce_rate_gate(section, "grounding", config, COUNT, available_share=0.028)
+        enforce_rate_gate(section, "grounding", config, COUNT, available_share=0.028)
 
 
 def test_rate_gate_allows_normal_variance():
@@ -243,20 +244,20 @@ def test_rate_gate_allows_normal_variance():
         "achieved_rate": 0.024,  # low end of the measured 2.4-2.8% band
         "rows": int(COUNT * 0.024),
     }
-    _enforce_rate_gate(section, "grounding", config, COUNT, available_share=0.028)
+    enforce_rate_gate(section, "grounding", config, COUNT, available_share=0.028)
 
 
 def test_rate_gate_is_inert_for_small_runs_and_zero_requests():
     """A percentage is not assertable on a tiny run, and 0 means "not requested"."""
     config = GeneratorConfig(count=50)
-    _enforce_rate_gate(
+    enforce_rate_gate(
         {"requested_rate": 0.5, "achieved_rate": 0.0, "rows": 0},
         "grounding",
         config,
         50,
     )
     config2 = GeneratorConfig(count=COUNT)
-    _enforce_rate_gate(
+    enforce_rate_gate(
         {"requested_rate": 0.0, "achieved_rate": 0.0, "rows": 0},
         "grounding",
         config2,
@@ -311,12 +312,12 @@ def test_discriminating_description_is_unique_and_leaks_no_name():
         )
         import random
 
-        text = _pick_discriminating_description(scenario, random.Random(index))
+        text = pick_discriminating_description(scenario, random.Random(index))
         if not text:
             continue
         produced += 1
         target = scenario.get("target_entity") or {}
-        siblings = _sibling_entities(scenario)
+        siblings = sibling_entities(scenario)
         lowered = text.lower()
         # The description must not contain any listed entity name.
         for entity in [target, *siblings]:
@@ -352,7 +353,7 @@ def test_discrimination_refuses_when_no_sibling_exists():
     }
     import random
 
-    assert _pick_discriminating_description(scenario, random.Random(0)) is None
+    assert pick_discriminating_description(scenario, random.Random(0)) is None
 
 
 def test_generation_is_deterministic_for_v2_config():

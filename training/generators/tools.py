@@ -3,25 +3,13 @@
 from __future__ import annotations
 
 import random
-import zlib
 from collections.abc import Callable
 from typing import Any
 
 from adapters.schema import v2_openai_tools
 from generators.context import _REPO_ROOT  # noqa: F401 - puts sayso_contract on sys.path
 from sayso_contract import tool_schema
-from generators.capability_registry import CAPABILITIES, TRAINING_COVERAGE_EXCLUDED
-
-# Home Assistant supplies only the tools exposed for a request, so a row offers a
-# candidate set rather than the whole catalog. All 27 tools cost ~4k tokens a row
-# (66% of the prompt) and teach nothing about selection. Argument validation still
-# runs against the full pinned v2 contract -- only the prompt is compacted.
-#
-# GetDateTime left the ambient pair with TRAINING_COVERAGE_EXCLUDED: offering a
-# tool that no row ever calls teaches "never call this", which is worse at runtime
-# than never having seen it. Home Assistant still supplies it to the model.
-AMBIENT_TOOLS = ("GetLiveContext",)
-DEFAULT_TOOLS_PER_ROW = 8
+from generators.capability_registry import CAPABILITIES
 
 # Home Assistant 2026.9 names every Assist LLM tool ``f"{DOMAIN}__{intent_type}"``,
 # where DOMAIN is the component that registers the intent handler, and wraps
@@ -155,48 +143,6 @@ def script_tools(home: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return tools
-
-
-def offered_tools(
-    called_names: list[str],
-    seed_key: str,
-    *,
-    count: int = DEFAULT_TOOLS_PER_ROW,
-    extra_tools: list[dict[str, Any]] | None = None,
-    excluded_names: list[str] | None = None,
-    full_catalog: bool = False,
-) -> list[dict[str, Any]]:
-    """Candidate tools for one row: every called tool, the ambient pair, then distractors.
-
-    ``extra_tools`` carries the home's per-script tools, which are not in the pinned
-    catalog. Returned alphabetically so position never leaks which tool is the
-    answer, and seeded by crc32 (not builtin hash) so the same row picks the same
-    distractors in every process.
-
-    ``full_catalog`` offers everything Home Assistant still supplies instead of a
-    sampled subset. The subset is built by keeping the expected answer first, so a
-    corpus made only of subsets never shows the model a list it did not already
-    know contained the answer; production sends ~23 tools. ``excluded_names``
-    still applies, so a deliberate missing-tool row stays missing a tool.
-
-    Names and schemas are always the Home Assistant 2026.9 production contract
-    (``intent__HassTurnOn``), compiled by the integration.
-    """
-    catalog = {tool["function"]["name"]: tool for tool in v2_openai_tools()}
-    for tool in extra_tools or []:
-        catalog[tool["function"]["name"]] = tool
-    for name in (*(excluded_names or []), *TRAINING_COVERAGE_EXCLUDED):
-        catalog.pop(name, None)
-    if full_catalog:
-        keep = set(catalog)
-    else:
-        keep = {name for name in called_names if name in catalog}
-        keep.update(name for name in AMBIENT_TOOLS if name in catalog)
-        pool = sorted(set(catalog) - keep)
-        rng = random.Random(zlib.crc32(str(seed_key).encode()))
-        rng.shuffle(pool)
-        keep.update(pool[: max(0, count - len(keep))])
-    return compile_catalog([catalog[name] for name in sorted(keep)])
 
 
 def _domain_args(entity: dict[str, Any]) -> dict[str, Any]:
@@ -337,6 +283,11 @@ def build_vacuum_clean_area(entity: dict[str, Any]) -> dict[str, Any]:
         "name": "HassVacuumCleanArea",
         "arguments": {"name": entity["name"], "area": entity["area"]},
     }
+
+
+def build_get_datetime() -> dict[str, Any]:
+    """GetDateTime has no entity arguments; Home Assistant answers from clock."""
+    return {"name": "GetDateTime", "arguments": {}}
 
 
 def build_query(entity: dict[str, Any]) -> dict[str, Any]:

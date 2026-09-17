@@ -193,6 +193,10 @@ def render_call(call: dict, target: str, seed="", provenance: list | None = None
                 continue
             if intent == "HassSetVolumeRelative" and not re.match(r"^(turn|increase|decrease|raise|lower|change|adjust)\b", text):
                 continue
+            if intent in {"HassMediaNext", "HassMediaPrevious"} and not re.match(
+                r"^(next|skip|go)\b", text, re.I
+            ):
+                continue
             # Upstream recognition accepts optional plural suffixes; generation
             # chooses the grammatical singular/plural for explicit durations.
             def duration(match):

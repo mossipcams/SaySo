@@ -15,7 +15,7 @@ python -m venv training/.venv
 source training/.venv/bin/activate
 pip install -r training/requirements.txt
 pip install pyyaml   # config validation tests
-python -m pytest training/tests training/scripts training/generators -q
+python -m pytest training/tests training/scripts -q
 ```
 
 ## Active config
@@ -32,12 +32,17 @@ step, then `nohup`s the real run. Update the row count when the dataset changes.
 
 ## Pipeline commands
 
+The canonical generator CLI accepts only `--config` (YAML recipe under
+`training/configs/generation/`) and `--dry-run` (generate in memory, no writes).
+Mixing knobs — real-home rate, grounding/discrimination shares, area
+distribution, STT noise — live in the recipe, not on the command line.
+
 | Step | Command |
 |------|---------|
-| Build synthetic v3 train (40k, deterministic) | `python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 --out-dir training/datasets/synthetic_v3_train.jsonl --render-out training/datasets/sayso_train_v3_40k_render.jsonl` |
-| Generate corrective SFT + shadow eval | `python training/scripts/generate_training_supplement.py` |
+| Generator smoke (recipe self-test) | `cd training && python -m generators.cli --config configs/generation/smoke.yaml` |
+| Generator smoke (dry-run, no files) | `cd training && python -m generators.cli --config configs/generation/smoke.yaml --dry-run` |
+| Build production corpus (40k recipe) | `cd training && python -m generators.cli --config configs/generation/production.yaml` |
 | Generate balanced held-out test set | `python training/scripts/generate_balanced_test_data.py` |
-| Build synthetic train (legacy 10k) | `python training/scripts/build_synthetic_dataset.py --generator-model ... --judge-model ...` |
 | Split 80/10/10 | `python training/scripts/split_dataset.py INPUT.jsonl --out-dir training/datasets` |
 | Fetch the real Home Assistant home | `HA_URL=... HA_TOKEN=... python training/scripts/fetch_ha_home.py --out training/fixtures/real_home.json` |
 | Detect GPU | `python training/scripts/detect_gpu.py` |
@@ -80,23 +85,18 @@ operation (`capability_registry.entity_supports`), so the corpus never labels a
 call Home Assistant would refuse.
 
 ```bash
-# refresh the snapshot (required before the home recipe)
+# refresh the snapshot (required before a real-home recipe)
 HA_URL=http://homeassistant.local:8123 HA_TOKEN=... \
   python training/scripts/fetch_ha_home.py --out training/fixtures/real_home.json \
   --require-entity media_player.living_room_tv
 
-# the home-specific recipe: real-home mixing on, at an explicit nonzero rate
-python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 \
-  --real-home training/fixtures/real_home.json --home-recipe
-
-# the explicit opt-out
-python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 \
-  --synthetic-only
+# point real_home.path and real_home.rate in the recipe YAML, then build
+cd training && python -m generators.cli --config configs/generation/production.yaml
 ```
 
-`--home-recipe` defaults `--real-home-rate` to 0.10; `--real-home-rate` still
-overrides it. `--synthetic-only` is the only way to turn mixing off on purpose —
-forgetting the flag is not the same decision, so the two are mutually exclusive.
+Production defaults to `generation.synthetic_only: true` and `real_home.rate: 0.0`.
+Set `synthetic_only: false`, a snapshot path, and a nonzero `real_home.rate` in
+the recipe to mix a live home in deliberately.
 
 `generators.real_home` holds every fifth entity of each capability out of
 training (`split="holdout"`, a capability with one entity stays in train). Those
@@ -105,21 +105,17 @@ from "learned homes" — the distinction the synthetic suites cannot make.
 
 One home is a few dozen names, so real rows repeat a small vocabulary. Measured at 10% of
 a 10k run: 487 real target labels over 162 distinct names, the most frequent at
-1.8x its fair share. `--real-home-entity-cap` bounds how often one entity may be
-the target; 0 derives it as four times the fair share
+1.8x its fair share. `real_home.entity_cap` in the recipe bounds how often one
+entity may be the target; 0 derives it as four times the fair share
 (`real_home.derive_entity_cap`), which is a safety net rather than an active
 constraint at these settings. A capped row is rejected and retried, and the retry
 re-rolls the real/synthetic draw, so capping redistributes rows instead of
 shrinking the corpus. The manifest records the cap, the row count, and the five
 most-targeted entities under `real_home`.
 
-The cap matters most for a capability the real home has only one of -- climate,
-fan, scene -- where every row of that capability lands on the same name. Set it
-explicitly to bind:
-
-```bash
---real-home-entity-cap 100
-```
+The cap matters most for a capability the real home has only one of — climate,
+fan, scene — where every row of that capability lands on the same name. Set
+`real_home.entity_cap` explicitly in the recipe to bind it.
 
 The manifest separates requested from achieved mixing (`real_home.requested_rate`
 vs `real_home.achieved_rate`) and counts rows, not targets: a row naming three
@@ -148,17 +144,18 @@ than after exhausting `max_attempts`.
 
 `generators/audit.py` then re-derives all of it from the accepted rows and fails
 generation when a required operation or tool has no positive row, or when absence
-answers exceed `--max-absence-rate` (default 10%). The manifest records
+answers exceed `coverage.max_absence_rate` in the recipe (production default 10%).
+The manifest records
 `positive_by_tool`, `positive_by_operation`, `positive_by_domain_targeting`,
 `by_outcome`, `negatives_by_reason` and `absence_rate`, so an absence count is a
 distribution to look at rather than a verdict on its own.
 
-`GetDateTime` is the one pinned-contract tool the corpus does not teach
-(`capability_registry.TRAINING_COVERAGE_EXCLUDED`): it answers from no entity and
-no home state, so an entity-graph generator has no scenario for it. It is
-excluded from distractor sampling too — offering a tool no row ever calls teaches
-"never call this", which is worse than never having seen it. Home Assistant still
-supplies it at runtime; this set bounds only what the dataset claims.
+`GetDateTime` is always offered in the production catalog and must appear in
+`positive_by_tool` when `coverage.get_datetime_positive_min` is set. The
+`datetime` scenario family labels clock queries with no entity graph; the audit
+fails closed when the minimum is unmet. Tools listed in
+`capability_registry.TRAINING_COVERAGE_EXCLUDED` are withheld from declared
+coverage instead.
 
 ## Grounding families
 
@@ -171,8 +168,9 @@ label from the graph and the pinned contract before any wording is applied.
 Families also vary aliases, domains and supported actions, and cover individual
 and area targeting, genuine ambiguity, and presence/absence pairs.
 
-`--grounding-rate` (default 0.03) sets the share; a run large enough to fit every
-required family fails closed if one is missing. Held-out grounding cases live
+`grounding.rate` in the recipe sets the share (production v3 uses `0.0` deliberately;
+see `docs/TRAINING_PLAN.md`). A run large enough to fit every required family
+fails closed if one is missing. Held-out grounding cases live
 in `evals/cases/regressions.jsonl` (tag `grounding`) — the exact Living Room +
 `media_player.living_room_tv` → `intent__HassTurnOn(name="TV", domain=["media_player"])`
 regression plus variations with different names, ids, areas and distractors.
@@ -229,12 +227,8 @@ training/
   configs/           Trainer YAML (TRL recipe is the live path)
   datasets/          Generated JSONL (gitignored)
   fixtures/          Test fixtures
-  generators/        v3 synthetic generation
-  scripts/           Pipeline operations
-                       v2_scenarios.py   label-first spec vocabulary (v1/v2)
-                       rendering.py      spec -> canonical row, phrasing seeds
-                       llm_curation.py   verbalise, judge, curate (v1/v2 only)
-                       build_synthetic_dataset.py  CLI + v1/v2 orchestration
+  generators/        Canonical synthetic generation package and only CLI
+  scripts/           Training, export, exposure, split, and verification operations
   tests/             Unit tests (no model downloads)
 ```
 
@@ -243,6 +237,7 @@ training/
 Run `python training/scripts/detect_gpu.py` before training. Disable BF16 and
 flash-attn. FP16 buys memory, not speed: Pascal has no tensor cores. The card
 OOMs above roughly 5k tokens per row at this vocabulary size, which is why homes
-are capped at 64 entities and rows offer 8 tools rather than the full catalog.
+are capped at 64 entities and every row uses `production_catalog(home)` rather
+than an answer-first subset.
 TRL drops over-length rows silently rather than truncating them, so a `max_length`
 below the longest row shrinks the train set without reporting it.

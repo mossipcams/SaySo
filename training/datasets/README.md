@@ -14,7 +14,6 @@ Canonical model-eval cases live in `evals/cases/`, not here.
 
 Generators:
 
-- `python training/scripts/build_synthetic_dataset.py`
-- `python training/scripts/generate_training_supplement.py`
+- `cd training && python -m generators.cli --config configs/generation/production.yaml`
 - `python training/scripts/generate_balanced_test_data.py`
 - `python training/scripts/split_dataset.py`

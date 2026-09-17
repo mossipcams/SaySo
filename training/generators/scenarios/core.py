@@ -12,7 +12,9 @@ from typing import Any
 from generators.capability_registry import (
     CAPABILITIES,
     CapabilitySpec,
+    SupportLevel,
     entities_supporting,
+    operation_spec,
     required_features,
     trainable_operations,
 )
@@ -74,6 +76,144 @@ def semantic_id(scenario: dict[str, Any]) -> str:
     return f"sem_{digest}"
 
 
+def _ensure_supporting_in_area(
+    home: dict[str, Any],
+    capability: str,
+    operation: str,
+    area: str,
+    minimum: int,
+    rng: random.Random,
+    index: int,
+) -> None:
+    """Add entities until ``area`` has at least ``minimum`` operation-capable devices."""
+    areas, floors = home_areas(home)
+    floor = floors.get(area, "Main Floor")
+    owners = tuple(home.get("owners") or ())
+    taken = {e["entity_id"].split(".", 1)[1] for e in home["entities"]}
+    while True:
+        in_area = [
+            entity
+            for entity in entities_of_capability(home, capability)
+            if entity["area"] == area
+        ]
+        supporting = entities_supporting(in_area, capability, operation)
+        if len(supporting) >= minimum:
+            return
+        name = _random_entity_name(
+            capability,
+            area,
+            len(in_area),
+            index,
+            rng,
+            taken=taken,
+            **({"owners": owners} if owners else {}),
+        )
+        taken.add(_slug(name))
+        needed = set(_ENTITY_TEMPLATES[capability][2]) | set(required_features(capability, operation))
+        home["entities"].append(
+            make_entity(
+                name=name,
+                capability=capability,
+                area=area,
+                floor=floor,
+                rng=rng,
+                features=tuple(sorted(needed)),
+            )
+        )
+
+
+def _slug(name: str) -> str:
+    return "".join(char.casefold() if char.isalnum() else "_" for char in name).strip("_")
+
+
+def configure_family_scenario(
+    home: dict[str, Any],
+    capability: str,
+    operation: str,
+    family: str,
+    rng: random.Random,
+    index: int,
+) -> tuple[str, str, dict[str, Any] | None, list[str]]:
+    """Shape the home graph before gold so the slot family can be labeled honestly."""
+    area = home["sayso_entity_area"]
+    removed_tools: list[str] = []
+    request_intent: dict[str, Any] | None = None
+
+    if family == "clarify":
+        _ensure_supporting_in_area(home, capability, operation, area, 2, rng, index)
+        return "area", "ambiguity", request_intent, removed_tools
+
+    if family == "absence":
+        home["entities"] = [
+            entity
+            for entity in home["entities"]
+            if not (entity["capability"] == capability and entity["area"] == area)
+        ]
+        return "area", "ambiguity", request_intent, removed_tools
+
+    if family == "unavailable":
+        op = operation_spec(capability, operation)
+        if op and op.support == SupportLevel.UNAVAILABLE:
+            return "individual", "unavailable", request_intent, removed_tools
+        if op and op.tool_name:
+            removed_tools = [op.tool_name]
+        return "individual", "unavailable", request_intent, removed_tools
+
+    if family in {"multi_action", "exclusion"}:
+        _ensure_supporting_in_area(home, capability, operation, area, 2, rng, index)
+        return "multiple", family, request_intent, removed_tools
+
+    if family == "unsupported":
+        areas, floors = home_areas(home)
+        floor = floors.get(area, "Main Floor")
+        home["entities"] = [
+            entity
+            for entity in home["entities"]
+            if not (entity["capability"] == capability and entity["area"] == area)
+        ]
+        _, _, default_features = _ENTITY_TEMPLATES[capability]
+        needed = set(required_features(capability, operation))
+        incapable_features = tuple(feature for feature in default_features if feature not in needed)
+        owners = tuple(home.get("owners") or ())
+        taken = {e["entity_id"].split(".", 1)[1] for e in home["entities"]}
+        name = _random_entity_name(
+            capability,
+            area,
+            0,
+            index,
+            rng,
+            taken=taken,
+            **({"owners": owners} if owners else {}),
+        )
+        home["entities"].append(
+            make_entity(
+                name=name,
+                capability=capability,
+                area=area,
+                floor=floor,
+                rng=rng,
+                features=incapable_features or default_features[:1],
+            )
+        )
+        return "area", "ambiguity", request_intent, removed_tools
+
+    if family == "aliases":
+        return "individual", "alias_distractor", request_intent, removed_tools
+
+    return "individual", "ordinary", request_intent, removed_tools
+
+
+_FAMILY_GRAPH_CONSTRAINTS = frozenset({
+    "clarify",
+    "absence",
+    "unavailable",
+    "unsupported",
+    "multi_action",
+    "exclusion",
+    "aliases",
+})
+
+
 def pick_target(
     cap_entities: list[dict[str, Any]], index: int, usage: Counter[str] | None
 ) -> dict[str, Any]:
@@ -109,6 +249,7 @@ def build_scenario(
     inject_missing: bool = True,
     target_usage: Counter[str] | None = None,
     request_intent: dict[str, Any] | None = None,
+    family: str | None = None,
 ) -> dict[str, Any]:
     """Build one scenario. `home` overrides synthetic generation and is mutated
     (missing capabilities get an injected entity), so callers pass a fresh copy.
@@ -128,6 +269,43 @@ def build_scenario(
     )
     if home is None:
         home = generate_home(index, home_size, rng)
+    if family == "datetime":
+        scenario: dict[str, Any] = {
+            "scenario_index": index,
+            "attempt": attempt,
+            "seed": seed,
+            "split": split,
+            "capability": "datetime",
+            "operation": "query_time",
+            "targeting": "context",
+            "robustness": "datetime",
+            "request_intent": None,
+            "family": "datetime",
+            "removed_tools": [],
+            "home": home,
+            "target_entity": None,
+            "target_index": 0,
+            "area": home["sayso_entity_area"],
+            "floor": None,
+            "excluded_names": [],
+            "provenance": {
+                "generator": "sayso_synthetic_v3",
+                "capability": "datetime",
+                "operation": "query_time",
+                "home_size": home_size,
+            },
+        }
+        scenario["expected"] = gold_from_scenario(scenario, rng)
+        scenario["semantic_id"] = semantic_id(scenario)
+        scenario["tier"] = 0
+        return scenario
+    removed_tools: list[str] = []
+    if family in _FAMILY_GRAPH_CONSTRAINTS:
+        targeting, robustness, request_intent, removed_tools = configure_family_scenario(
+            home, capability, operation, family, rng, index,
+        )
+        if family in {"absence", "unsupported"}:
+            inject_missing = False
     cap_entities = entities_of_capability(home, capability)
     if capability == "timers":
         cap_entities = []
@@ -169,6 +347,8 @@ def build_scenario(
         "targeting": targeting,
         "robustness": robustness,
         "request_intent": request_intent,
+        "family": family,
+        "removed_tools": removed_tools,
         "home": home,
         "target_entity": target_entity,
         "target_index": (
@@ -214,7 +394,7 @@ def build_scenario(
 def pick_targeting(cap: CapabilitySpec, rng: random.Random, robustness: str) -> str:
     if robustness in {"multi_action", "exclusion"}:
         return "multiple"
-    if robustness == "ambiguity":
+    if robustness in {"ambiguity", "unavailable"}:
         return "area"
     modes = list(cap.targeting_modes)
     if "individual" in modes:

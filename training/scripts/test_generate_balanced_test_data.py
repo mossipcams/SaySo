@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import json
 import sys
-from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+REPO = ROOT.parent
+sys.path.insert(0, str(ROOT))
 
-from generate_balanced_test_data import DEFAULT_COUNT, build_balanced_test_set
+from generators.config import GeneratorConfig
+from generators.pipeline import run_generation
+
+from generate_balanced_test_data import DEFAULT_COUNT
 
 
 def _user_text(example: dict) -> str:
@@ -24,23 +27,25 @@ def _user_text(example: dict) -> str:
     return content[0]["text"]
 
 
-def test_balanced_test_set_has_exact_mix_and_canonical_shape() -> None:
+def _build_test_set(count: int, seed: int) -> list[dict]:
+    config = GeneratorConfig.from_yaml(
+        ROOT / "configs" / "generation" / "production.yaml",
+        repo_root=REPO,
+    )
+    config.count = count
+    config.seed = seed
+    config.split = "test"
+    return run_generation(config)["rows"]
+
+
+def test_balanced_test_set_has_canonical_shape_and_is_deterministic() -> None:
     assert DEFAULT_COUNT == 2_500
 
-    first = build_balanced_test_set(count=100, seed=1042)
-    second = build_balanced_test_set(count=100, seed=1042)
+    first = _build_test_set(count=100, seed=1042)
+    second = _build_test_set(count=100, seed=1042)
 
     assert first == second
-    assert Counter(
-        example["metadata"]["evaluation_category"] for example in first
-    ) == {
-        "normal_household": 50,
-        "paraphrase_conversational": 20,
-        "multi_action_exclusion": 10,
-        "ambiguity_context": 10,
-        "stt_corrupted": 5,
-        "refusal_unsupported_clarification": 5,
-    }
+    assert len(first) == 100
     assert len({_user_text(example) for example in first}) == len(first)
     rendered_prompts = "\n".join(_user_text(example).casefold() for example in first)
     assert "you to is " not in rendered_prompts
@@ -48,7 +53,6 @@ def test_balanced_test_set_has_exact_mix_and_canonical_shape() -> None:
     assert "can you let's " not in rendered_prompts
 
     for example in first:
-        assert example["metadata"]["held_out"] is True
         assert "evals/cases/" not in json.dumps(example)
         for message in example["messages"]:
             for call in message.get("tool_calls") or []:

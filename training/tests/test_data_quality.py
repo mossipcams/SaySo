@@ -10,14 +10,14 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from generators.config import GeneratorConfig
-from generators.duplicates import DuplicateTracker
+from generators.deduplication import DuplicateTracker
 from generators.pipeline import generate_row
-from generators.pipeline import _unique_no_action_hint
+from generators.scenarios.unavailable import unique_no_action_hint
 from generators.scenarios import build_scenario
 from generators.labels import scenario_to_spec, render_example
 from generators.tools import namespaced_tool_name
 from generators.utterances import expand_utterance
-from generators.validate import validate_row, validate_spec
+from generators.validation import validate_row, validate_spec
 from generators.pipeline import run_generation
 
 
@@ -25,7 +25,7 @@ def test_request_case_does_not_reveal_call_decision():
     for difficulty in ("ordinary", "unsupported"):
         cases = set()
         for index in range(60):
-            with patch("generators.pipeline.pick_robustness", return_value=difficulty):
+            with patch("generators.row_generation.pick_robustness", return_value=difficulty):
                 row, _ = generate_row(
                     {"index": index, "capability": "lights", "operation": "turn_on", "home_size": 8},
                     GeneratorConfig(), random.Random(index), excluded=set(),
@@ -42,7 +42,7 @@ def test_unavailable_request_preserves_the_requested_device_type():
             "home": {"sayso_entity_area": "Workshop"},
             "expected": {"kind": "no_action", "response": "area_unavailable"}}
     for seed in range(20):
-        request = _unique_no_action_hint(spec, random.Random(seed))
+        request = unique_no_action_hint(spec, random.Random(seed))
         assert "Workshop" in request and "thermostat" in request.lower(), request
 
 
@@ -53,7 +53,7 @@ def test_unsupported_means_requested_tool_is_actually_unavailable():
     expected = scenario["expected"]
     assert expected.get("unavailable_tools") == ["HassClimateSetTemperature"]
     spec = scenario_to_spec(scenario)
-    spec["utterance"] = _unique_no_action_hint(spec, random.Random(7))
+    spec["utterance"] = unique_no_action_hint(spec, random.Random(7))
     row = render_example(spec)
     assert "HassClimateSetTemperature" not in {t["function"]["name"] for t in row["tools"]}
     assert not any(m.get("tool_calls") for m in row["messages"])
@@ -95,7 +95,7 @@ def test_training_requests_use_aliases_and_conversational_wording():
         scenario = build_scenario(index=index, seed=32, capability="lights", operation="turn_on",
                                   home_size=16, robustness="alias_distractor")
         aliases += bool(scenario.get("spoken_targets"))
-        with patch("generators.pipeline.pick_robustness", return_value="ordinary"):
+        with patch("generators.row_generation.pick_robustness", return_value="ordinary"):
             row, _ = generate_row(
                 {"index": index, "capability": "lights", "operation": "turn_on", "home_size": 8},
                 GeneratorConfig(), random.Random(index), excluded=set(), dup_tracker=DuplicateTracker(),
@@ -159,10 +159,10 @@ def test_polite_status_requests_are_grammatical():
 
 
 def test_polite_variants_do_not_bypass_eval_exclusion():
-    from generators.pipeline import _check_quality_eval_overlap, _quality_eval_prompts
-    for prompt in _quality_eval_prompts():
-        assert _check_quality_eval_overlap(f"Can you {prompt} for me?")
-        assert _check_quality_eval_overlap(f"Please tell me {prompt}")
+    from generators.validation import check_quality_eval_overlap, quality_eval_prompts
+    for prompt in quality_eval_prompts():
+        assert check_quality_eval_overlap(f"Can you {prompt} for me?")
+        assert check_quality_eval_overlap(f"Please tell me {prompt}")
 
 
 def test_generation_reports_independently_audited_behavior():
@@ -189,7 +189,7 @@ def test_multi_actions_do_not_label_state_queries_as_done():
 
 
 def test_exclusion_validation_rejects_a_missing_excluded_name():
-    from generators.validate import validate_utterance
+    from generators.validation import validate_utterance
     spec = {"expected": {"kind": "action", "calls": []},
             "excluded_names": ["Workshop Lamp"],
             "utterance": "turn on Kitchen Light but leave the other one alone"}
@@ -304,7 +304,7 @@ def test_generic_script_requests_clarify_without_hidden_area_assumptions():
         assert scenario["expected"]["kind"] == "no_action"
         assert scenario["expected"]["response"] == "clarify"
         spec = scenario_to_spec(scenario)
-        spec["utterance"] = _unique_no_action_hint(spec, random.Random(seed))
+        spec["utterance"] = unique_no_action_hint(spec, random.Random(seed))
         assert "routine" in spec["utterance"]
         assert render_example(spec)["messages"][-1]["content"] == "Which routine did you mean?"
 
@@ -325,7 +325,7 @@ def test_timer_semantics_do_not_depend_on_device_inventory(operation, tool):
             assert expected["kind"] == "action", expected
             assert expected["calls"][0]["name"] == tool
         spec = scenario_to_spec(scenario)
-        spec["utterance"] = (_unique_no_action_hint(spec, random.Random(0))
+        spec["utterance"] = (unique_no_action_hint(spec, random.Random(0))
                              if robustness == "unsupported" else expand_utterance(spec))
         assert validate_row(spec) is None
         row = render_example(spec)
@@ -363,13 +363,13 @@ def test_final_audit_rejects_timer_inventory_refusals(offered):
 
 def test_frozen_realistic_eval_prompts_stay_held_out():
     from evals.cases import excluded_train_utterances
-    from generators.pipeline import _check_quality_eval_overlap
+    from generators.validation import check_quality_eval_overlap
 
     prompts = excluded_train_utterances()
     assert len(prompts) >= 120
     for prompt in prompts:
         for variant in (prompt, prompt.upper(), f"Please {prompt}", f"Could you {prompt} for me?"):
-            assert _check_quality_eval_overlap(variant), variant
+            assert check_quality_eval_overlap(variant), variant
 
 
 def test_unambiguous_status_query_keeps_state_and_status_label():
@@ -410,7 +410,7 @@ def test_unique_room_device_requests_keep_generic_wording_and_operation(operatio
                                   home_size=8, targeting="area", robustness="ambiguity")
         if scenario["expected"]["kind"] not in {"action", "status"}:
             continue
-        with patch("generators.pipeline.build_scenario", return_value=scenario), patch("generators.pipeline.pick_robustness", return_value="ambiguity"):
+        with patch("generators.row_generation.build_scenario", return_value=scenario), patch("generators.row_generation.pick_robustness", return_value="ambiguity"):
             row, reason = generate_row(
                 {"index": index, "capability": "lights", "operation": operation, "home_size": 8},
                 GeneratorConfig(), random.Random(index), excluded=set(), dup_tracker=DuplicateTracker())

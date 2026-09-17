@@ -15,7 +15,8 @@ from generators.capability_registry import (
     trainable_operations,
 )
 from generators.homes import entities_in_area, entities_of_capability
-from generators.tools import build_call_for_operation
+from generators.coverage import bare_tool_name
+from generators.tools import build_call_for_operation, build_get_datetime
 
 
 def expected_action(
@@ -34,6 +35,10 @@ def expected_action(
         # the call for utterance generation and target checks.
         payload["script_targets"] = [entity["name"]]
     return payload
+
+
+def expected_datetime() -> dict[str, Any]:
+    return {"kind": "action", "calls": [build_get_datetime()]}
 
 
 def expected_status(entity: dict[str, Any]) -> dict[str, Any]:
@@ -76,14 +81,70 @@ def expected_device_unsupported(
     )
 
 
+def gold_matches_family(expected: dict[str, Any], family: str) -> bool:
+    """Whether ``expected`` honors the recipe slot family contract."""
+    kind = expected.get("kind")
+    response = expected.get("response")
+    if family == "clarify":
+        return kind == "no_action" and response == "clarify"
+    if family == "absence":
+        return kind == "no_action" and response in ("area_unavailable", "device_absent")
+    if family == "unavailable":
+        return (
+            kind == "no_action"
+            and response == "unsupported"
+            and bool(expected.get("unavailable_tools"))
+        )
+    if family == "unsupported":
+        return (
+            kind == "no_action"
+            and response in ("device_unsupported", "unsupported")
+            and not expected.get("unavailable_tools")
+        )
+    if family == "datetime":
+        calls = expected.get("calls") or []
+        return kind == "action" and any(
+            bare_tool_name(call.get("name")) == "GetDateTime" for call in calls
+        )
+    if family == "status":
+        return kind == "status"
+    if family == "settings":
+        return kind == "action"
+    if family in {"ordinary", "aliases"}:
+        return kind == "action"
+    if family in {"multi_action", "exclusion"}:
+        return kind == "action" and len(expected.get("calls") or []) >= 2
+    return True
+
+
 def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str, Any]:
     """Derive authoritative expected behavior from a structured scenario."""
+    if scenario.get("family") == "datetime" or scenario.get("capability") == "datetime":
+        return expected_datetime()
     home = scenario["home"]
     capability = scenario["capability"]
     operation = scenario["operation"]
     targeting = scenario.get("targeting", "individual")
     cap_spec = CAPABILITIES[capability]
     op_spec = next((op for op in cap_spec.operations if op.name == operation), None)
+
+    if scenario.get("robustness") == "unavailable":
+        if op_spec and op_spec.support == SupportLevel.UNAVAILABLE:
+            return expected_no_action(
+                "unsupported",
+                blocker=op_spec.blocker if op_spec else cap_spec.blocker,
+            )
+        if op_spec and op_spec.tool_name:
+            requested = gold_from_scenario(
+                {**scenario, "robustness": "ordinary", "targeting": "individual"}, rng
+            )
+            withheld = [op_spec.tool_name]
+            scenario["removed_tools"] = withheld
+            return expected_no_action(
+                "unsupported",
+                requested=requested,
+                unavailable_tools=withheld,
+            )
 
     if scenario.get("robustness") == "unsupported" and op_spec and op_spec.support != SupportLevel.UNAVAILABLE:
         requested = gold_from_scenario(

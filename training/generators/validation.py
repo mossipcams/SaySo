@@ -1,9 +1,13 @@
-"""Independent validation of generated training rows."""
+"""Semantic, serialized-format, and token-length validation."""
 
 from __future__ import annotations
 
+import json
 import re
+import sys
+from functools import lru_cache
 from typing import Any
+from pathlib import Path
 
 from adapters.schema import tool_schema_map, validate_tool_arguments, v2_openai_tools
 from generators.tools import script_tool_name
@@ -13,7 +17,40 @@ from generators.stt_noise import _int_to_words
 
 _BANNED = re.compile(r"<tool_call>|evals/cases/|tool_call_start", re.I)
 
-# Timer tools take the timer's own name, which is not a Home Assistant entity.
+
+def _normalize_prompt(text: str) -> str:
+    prompt = " ".join(re.findall(r"[a-z0-9]+", text.casefold()))
+    prompt = re.sub(r"^(?:(?:please|can you|could you|tell me) )+", "", prompt)
+    return re.sub(r"(?: for me)+$", "", prompt)
+
+
+@lru_cache(maxsize=1)
+def quality_eval_prompts() -> frozenset[str]:
+    repo = Path(__file__).resolve().parents[2]
+    if str(repo) not in sys.path:
+        sys.path.append(str(repo))
+    from evals.cases import excluded_train_utterances
+    return frozenset(_normalize_prompt(prompt) for prompt in excluded_train_utterances())
+
+
+def check_quality_eval_overlap(utterance: str) -> bool:
+    return _normalize_prompt(utterance) in quality_eval_prompts()
+
+
+def corrupt_spec(spec: dict[str, Any], field: str) -> dict[str, Any]:
+    corrupted = dict(spec)
+    expected = dict(corrupted.get("expected", {}))
+    calls = list(expected.get("calls") or [])
+    if calls and field in {"wrong_tool", "wrong_entity"}:
+        calls[0] = dict(calls[0])
+        if field == "wrong_tool":
+            calls[0]["name"] = "NonexistentTool"
+        else:
+            calls[0]["arguments"] = {**calls[0].get("arguments", {}), "name": "Invented Device"}
+        expected["calls"] = calls
+        corrupted["expected"] = expected
+    return corrupted
+
 _TIMER_NAME_TOOLS = frozenset({
     "HassStartTimer", "HassPauseTimer", "HassUnpauseTimer", "HassCancelTimer",
     "HassIncreaseTimer", "HassDecreaseTimer", "HassTimerStatus",
@@ -21,15 +58,12 @@ _TIMER_NAME_TOOLS = frozenset({
 
 
 def _entity_can_run(entity: dict[str, Any], tool: str) -> bool:
-    """True when some registry operation maps this tool onto this entity's features."""
     capability = entity.get("capability")
     cap = CAPABILITIES.get(capability)
     if cap is None:
         return True
     candidates = [op for op in cap.operations if op.tool_name == tool]
     if not candidates:
-        # Cross-domain tools (HassTurnOn on a scene, GetLiveContext anywhere) are
-        # governed by the pinned schema, not by the entity's feature list.
         return True
     return any(entity_supports(entity, capability, op.name) for op in candidates)
 
@@ -67,8 +101,11 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
         unavailable = expected.get("unavailable") or {}
         area = unavailable.get("area", "").casefold()
         domains = {cap.domain for cap in CAPABILITIES.values() if _type_label(cap.name) == unavailable.get("type")}
-        if any(e.get("area", "").casefold() == area and
-               (e.get("domain") in domains or unavailable.get("type") == "devices") for e in entities.values()):
+        if any(
+            e.get("area", "").casefold() == area
+            and (e.get("domain") in domains or unavailable.get("type") == "devices")
+            for e in entities.values()
+        ):
             return "contradictory_absence"
     if spec.get("category") in {"multi_action", "exclusion"} and len(calls) < 2:
         return "missing_multiple_actions"
@@ -76,7 +113,6 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
         return "missing_excluded_target"
     schemas = tool_schema_map(v2_openai_tools())
     excluded = set(spec.get("excluded_names") or [])
-    # Per-script tools are named after the script and are not in the pinned catalog.
     script_names = {
         script_tool_name(entity)
         for entity in spec.get("home", {}).get("entities", [])
@@ -88,11 +124,13 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
         if not isinstance(name, str) or not isinstance(arguments, dict):
             return "invalid_call_shape"
         if name in script_names:
-            # Home Assistant builds these from the script's fields; ours take none.
             if arguments:
                 return "script_tool_takes_no_arguments"
-            if any(script_tool_name(e) == name and e["name"] in excluded
-                   for e in entities.values() if e.get("domain") == "script"):
+            if any(
+                script_tool_name(e) == name and e["name"] in excluded
+                for e in entities.values()
+                if e.get("domain") == "script"
+            ):
                 return "excluded_entity_called"
             continue
         reason = validate_tool_arguments(name, arguments, schemas)
@@ -120,6 +158,11 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
         return "banned_marker"
     expected = spec.get("expected") or {}
     lowered = utterance.casefold()
+    if spec.get("area_scenario") or spec.get("category") == "area_grounding":
+        for name in spec.get("excluded_names") or []:
+            if "leave" not in lowered or name.casefold() not in lowered:
+                return "missing_exclusion"
+        return None
     if expected.get("kind") == "action":
         calls = expected.get("calls") or []
         for call in calls:
@@ -138,8 +181,10 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
                     words = _int_to_words(int(value))
                     if words:
                         spellings.append(words)
-                if not any(re.search(r"(?<![\w.])" + re.escape(word) + r"(?!\w|\.\d)", lowered)
-                           for word in spellings):
+                if not any(
+                    re.search(r"(?<![\w.])" + re.escape(word) + r"(?!\w|\.\d)", lowered)
+                    for word in spellings
+                ):
                     return "missing_expected_value"
         has_area_target = any(
             isinstance(c.get("arguments"), dict) and c["arguments"].get("area") and not c["arguments"].get("name")
@@ -148,7 +193,8 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
         if (
             calls
             and not has_area_target
-            and calls[0]["name"] not in {
+            and calls[0]["name"]
+            not in {
                 "HassCancelAllTimers",
                 "HassStartTimer",
                 "HassPauseTimer",
@@ -160,11 +206,6 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
                 if spoken not in lowered and name.casefold() not in lowered:
                     area = (calls[0].get("arguments") or {}).get("area")
                     if not area or str(area).casefold() not in lowered:
-                        # An entity-discrimination row refers to its target by a
-                        # description, not by name. The pipeline only sets this
-                        # flag after verifying the description is unique to the
-                        # target and contains no entity name or alias, so the
-                        # name-presence check does not apply.
                         if spec.get("discrimination"):
                             continue
                         return "missing_expected_target"
@@ -176,22 +217,100 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
     return None
 
 
-def validate_token_budget(spec: dict[str, Any], budget: int) -> str | None:
-    """Reject rows that exceed token budget (char proxy)."""
-    from generators.context import serialize_context
+@lru_cache(maxsize=2)
+def _tokenizer(model_name: str):
+    from transformers import AutoTokenizer
 
-    context_len = len(serialize_context(spec.get("home", {})))
-    utterance_len = len(spec.get("utterance") or "")
-    if context_len + utterance_len > budget * 8:
+    return AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+
+
+def count_row_tokens(row: dict[str, Any], *, model_name: str) -> int:
+    """Token count via pinned tokenizer and chat template (tools + supervision)."""
+    tokenizer = _tokenizer(model_name)
+    tools = []
+    for tool in row.get("tools") or []:
+        fn = tool.get("function", tool)
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": fn["name"],
+                    "description": fn.get("description", ""),
+                    "parameters": fn.get("parameters", {}),
+                },
+            }
+        )
+    messages = []
+    for message in row.get("messages") or []:
+        entry = {"role": message["role"], "content": message.get("content", "")}
+        if message.get("tool_calls"):
+            entry["tool_calls"] = message["tool_calls"]
+        if message.get("tool_call_id"):
+            entry["tool_call_id"] = message["tool_call_id"]
+        messages.append(entry)
+    encoded = tokenizer.apply_chat_template(
+        messages,
+        tools=tools or None,
+        tokenize=True,
+        add_generation_prompt=False,
+    )
+    return len(encoded)
+
+
+def validate_token_budget(
+    row: dict[str, Any],
+    budget: int,
+    *,
+    tokenizer_model: str,
+) -> str | None:
+    """Reject oversized rows; never truncate supervision."""
+    try:
+        tokens = count_row_tokens(row, model_name=tokenizer_model)
+    except Exception:  # noqa: BLE001 — offline fallback when HF hub unavailable
+        from generators.context import serialize_context
+
+        spec_len = len(serialize_context(row.get("metadata", {}))) + sum(
+            len(str(m.get("content", ""))) for m in row.get("messages", [])
+        )
+        tokens = spec_len // 4
+    row.setdefault("metadata", {})["_token_length"] = tokens
+    if tokens > budget:
         return "token_budget_exceeded"
     return None
 
 
-def validate_row(spec: dict[str, Any], *, token_budget: int = 4096) -> str | None:
+def validate_row(
+    spec: dict[str, Any],
+    *,
+    token_budget: int = 4096,
+    tokenizer_model: str = "LiquidAI/LFM2.5-230M-Base",
+    rendered: dict[str, Any] | None = None,
+) -> str | None:
     reason = validate_spec(spec)
     if reason:
         return reason
     reason = validate_utterance(spec)
     if reason:
         return reason
-    return validate_token_budget(spec, token_budget)
+    if rendered is not None:
+        return validate_token_budget(rendered, token_budget, tokenizer_model=tokenizer_model)
+    return None
+
+
+def validate_serialized_row(
+    row: dict[str, Any],
+    *,
+    token_budget: int,
+    tokenizer_model: str,
+) -> str | None:
+    """Validate the final JSONL row envelope."""
+    if not row.get("tools"):
+        return "missing_tools"
+    for message in row.get("messages", []):
+        if message.get("role") == "assistant" and message.get("train_on_turn"):
+            if message.get("tool_calls"):
+                for call in message["tool_calls"]:
+                    args = call.get("function", {}).get("arguments")
+                    if isinstance(args, str) and len(args) > 4096:
+                        return "truncated_supervision"
+    return validate_token_budget(row, token_budget, tokenizer_model=tokenizer_model)

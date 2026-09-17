@@ -6,8 +6,7 @@ import random
 
 from generators.labels import scenario_to_spec
 from generators.scenarios import build_scenario
-from generators.validate import validate_row, validate_spec
-from generators.validator import corrupt_spec
+from generators.validation import corrupt_spec, validate_row, validate_spec
 
 
 def test_valid_scenario_passes_validation() -> None:

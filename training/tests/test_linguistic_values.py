@@ -2,7 +2,7 @@
 
 import pytest
 
-from generators.validate import validate_utterance
+from generators.validation import validate_utterance
 
 
 @pytest.mark.parametrize("text", ["set Reading Lamp brightness", "set Reading Lamp to 350 percent"])

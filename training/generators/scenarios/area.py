@@ -22,9 +22,9 @@ from pathlib import Path
 from typing import Any
 
 from generators.grounding import entity
-from generators.labels import render_example
+from generators.rendering import render_example
 
-DEFAULT_DISTRIBUTION = Path(__file__).resolve().parents[1] / "configs" / "area_distribution_v1.json"
+DEFAULT_DISTRIBUTION = Path(__file__).resolve().parents[2] / "configs" / "area_distribution_v1.json"
 
 # Area, alias. Aliases are what an area registry would hold.
 _AREAS: tuple[tuple[str, str], ...] = (
@@ -59,6 +59,17 @@ def required_counts(plan: dict[str, Any], count: int) -> dict[str, int]:
         name: max(int(rule.get("min", 0)), round(count * float(rule["per_1000"]) / 1000))
         for name, rule in plan["scenarios"].items()
     }
+
+
+def assert_required_counts_feasible(plan: dict[str, Any], count: int) -> dict[str, int]:
+    """Fail closed when a listed scenario rounds to zero rows."""
+    counts = required_counts(plan, count)
+    zero = sorted(name for name, need in counts.items() if need <= 0)
+    if zero:
+        raise ValueError(
+            f"area distribution resolves to zero rows at count={count} for scenarios: {zero}"
+        )
+    return counts
 
 
 def _light(name: str, area: str, entity_id: str) -> dict[str, Any]:
@@ -235,18 +246,17 @@ SCENARIOS: dict[str, Callable[..., _Built]] = {
 }
 
 
-def build_row(scenario: str, index: int, seed: int) -> dict[str, Any]:
-    """One deterministic row for ``scenario``."""
+def build_area_spec(scenario: str, index: int, seed: int) -> dict[str, Any]:
+    """Structured spec for one area scenario, before pipeline validation."""
     rng = random.Random(zlib.crc32(f"{seed}:{scenario}:{index}".encode()))
     sat, other, extra = rng.sample(_AREAS, 3)
     utterance, satellite, lamp_areas, desk_area, expected, fields, question = SCENARIOS[scenario](
         rng, sat, other, extra
     )
-    utterance = utterance[:1].upper() + utterance[1:] if rng.random() < 0.5 else utterance
     home = _home(index, satellite, [sat, other, extra], lamp_areas, desk_area)
     candidate_id = f"area_{scenario}_{seed}_{index:05d}"
     names = [call["arguments"]["name"] for call in expected["calls"] if "name" in call["arguments"]]
-    spec = {
+    return {
         "candidate_id": candidate_id,
         "semantic_id": candidate_id,
         "seed": seed,
@@ -254,20 +264,30 @@ def build_row(scenario: str, index: int, seed: int) -> dict[str, Any]:
         "subcategory": scenario,
         "capability": "lights",
         "operation": "turn_off" if "off" in utterance.lower() else "turn_on",
+        "tier": 1,
+        "family": "area",
+        "area_scenario": scenario,
         "home": home,
         "expected": expected,
         "target_names": names,
         "spoken_targets": {},
-        "excluded_names": [],
+        "excluded_names": fields.get("excluded_names", []),
         "contrastive_group": None,
         "request_hint": "",
         "stt_corruption": None,
         "utterance": utterance,
-        **fields,
+        "clarify_question": question,
+        **{key: value for key, value in fields.items() if key not in {"excluded_names", "category"}},
+        "behavior_category": fields.get("category"),
     }
+
+
+def build_row(scenario: str, index: int, seed: int) -> dict[str, Any]:
+    """One deterministic row for ``scenario``."""
+    spec = build_area_spec(scenario, index, seed)
     row = render_example(spec)
-    if question:
-        row["messages"][-1]["content"] = question
+    if spec.get("clarify_question"):
+        row["messages"][-1]["content"] = spec["clarify_question"]
     row["metadata"]["area_scenario"] = scenario
     return row
 
