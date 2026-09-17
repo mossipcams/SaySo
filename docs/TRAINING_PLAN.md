@@ -57,7 +57,7 @@ Do not train on:
 - unsupported tools or arguments;
 - model-generated labels that have not passed SaySo schema validation.
 
-Synthetic generation in `training/scripts/build_synthetic_dataset.py` owns
+Synthetic generation in `training/generators/pipeline.py` owns
 utterance diversity; schema validation remains authoritative for every label.
 
 Quotas are accounted on the supervision a row carries, not on its metadata.
@@ -229,12 +229,67 @@ to:
 - a SaySo server, broker, custom action protocol, or direct satellite-to-model
   connection
 
+## Generator corrections vs locked eval categories
+
+The canonical generator (`training/generators/`, recipe YAML under
+`training/configs/generation/`) targets these promotion-suite failure classes.
+This is a label/coverage intent map only — not a model accuracy claim.
+
+| Generator correction | Intended eval categories |
+|---|---|
+| Status rows label `GetLiveContext`, not state-changing intents | `status` |
+| Genuine ambiguity → clarify; context-resolved names → action | `ambiguity`, `aliases` |
+| Exclusion rows call all non-forbidden targets | `exclusion` |
+| Withheld-capability rows omit the tool from the offered catalog | `unavailable` |
+| Distinct absence / unsupported / clarify families | `unavailable`, `ordinary` (refusal control) |
+| `production_catalog(home)` for every row (no answer-first subsets) | `ordinary`, `climate`, `routines_vacuum`, `light_fan_settings`, `multi_action` |
+| Area scenarios as a sibling family (subtracted from count, tagged `family="area"`) | area grounding in `ordinary`, `multi_action`, `exclusion` |
+| Honest `GetDateTime` in catalog when exposed | general time queries (no dedicated promotion tag) |
+| Contrast groups preserved in planning/split metadata | `status`, `ambiguity`, `unavailable`, `exclusion`, `multi_action` |
+
+Allocation shares for accepted rows live in
+`training/configs/generation/production.yaml` (see `docs/PLAN_GENERATOR_REFACTOR.md`).
+
+### Family allocations and area rows
+
+`GeneratorConfig.allocations` drives `FamilyTracker` in `planning.py`. Recipe-backed
+runs (`recipe_path` set from `from_yaml`) always use this planner and never enter
+`QuotaTracker`. Programmatic family runs pass `allocations=default_allocations()`
+or explicit shares. Bare `GeneratorConfig()` with empty allocations still uses the
+legacy tier/capability/operation `QuotaTracker` in `sampling.py` for colocated unit
+tests only — not a production path.
+
+Area scenarios are a **sibling family**, not a cross-cut inside primary families.
+When `cross_cutting.area` is enabled, area minimums are subtracted from
+`count`, the remaining slots are drawn from primary-family allocations, and each
+accepted area row is tagged `family="area"`. An area row is not also counted as
+`ordinary`, `status`, or `exclusion`. Production “ordinary 40%” is 40% of
+`(count − area_total)`, not 40% of the full corpus.
+
+### Cross-cutting rates (grounding and discrimination)
+
+`grounding.rate` and `discrimination.rate` in the recipe are shares of accepted
+rows. `enforce_rate_gate` in `rates.py` compares achieved share against the
+reachable ceiling (`grounding_available_share` /
+`discrimination_available_share`), not the raw recipe value when capacity is lower.
+
+Production v3 sets `grounding.rate: 0.0` deliberately: promotion failures were
+clarify/status/exclusion/unavailable, not grounding delivery. Re-enable only when
+the catalogue and gate can support a nonzero share.
+
+`discrimination.rate` is capped at the measured delivery ceiling
+(`DISCRIMINATION_DELIVERY_CEILING = 0.02` in `scenarios/discrimination.py`).
+The production recipe requests `0.02` so the gate does not silently accept a 4%
+request against a 2% ceiling.
+
 ## Implementation map
 
 | Concern | Location |
 |---|---|
-| Dataset generation | `training/generators/`, `training/scripts/build_synthetic_dataset.py`, `training/scripts/generate_training_supplement.py`, `training/scripts/generate_balanced_test_data.py` |
-| Coverage accounting and audit | `training/generators/coverage.py`, `training/generators/sampling.py`, `training/generators/audit.py` |
+| Canonical generator CLI and recipes | `python -m generators.cli --config training/configs/generation/{production,smoke}.yaml`, `training/generators/{cli,config,pipeline,planning,rendering,validation,manifest}.py`, `training/configs/generation/` |
+| Dataset build entry points | `training/generators/cli.py`, `training/scripts/generate_balanced_test_data.py` |
+| Scenario facts and area families | `training/generators/scenarios/`, `training/generators/grounding.py` |
+| Coverage accounting and audit | `training/generators/coverage.py`, `training/generators/planning.py`, `training/generators/audit.py` |
 | Entity-grounding families | `training/generators/grounding.py`, `evals/cases/regressions.jsonl` |
 | Real-home export and mixing | `training/scripts/fetch_ha_home.py`, `training/scripts/ha_websocket.py`, `training/generators/real_home.py` |
 | Recipe-lock / quality / grounding eval | `evals/cases/regressions.jsonl` |

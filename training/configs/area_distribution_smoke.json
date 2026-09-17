@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "description": "Smoke corpus area mix: one row per scenario so n=120 exercises every area label path. Production per_1000 rates are unchanged in area_distribution_v1.json.",
+  "min_satellite_area_share_of_actionable_rows": 0.6,
+  "scenarios": {
+    "implicit_satellite_area": {"per_1000": 8, "min": 1},
+    "explicit_area": {"per_1000": 6, "min": 1},
+    "exact_name_in_satellite_area": {"per_1000": 4, "min": 1},
+    "exact_name_outside_satellite_area": {"per_1000": 4, "min": 1},
+    "unique_entity_across_home": {"per_1000": 4, "min": 1},
+    "duplicate_name_clarification": {"per_1000": 4, "min": 1},
+    "area_wide_action": {"per_1000": 4, "min": 1},
+    "area_alias": {"per_1000": 4, "min": 1},
+    "missing_satellite_area": {"per_1000": 3, "min": 1},
+    "unresolved_target_area": {"per_1000": 3, "min": 1},
+    "explicit_area_conflicts_with_satellite": {"per_1000": 4, "min": 1},
+    "multi_action_across_areas": {"per_1000": 4, "min": 1},
+    "exclusion_within_area": {"per_1000": 4, "min": 1}
+  }
+}

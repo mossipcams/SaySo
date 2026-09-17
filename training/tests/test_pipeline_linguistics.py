@@ -5,7 +5,8 @@ import re
 
 from generators import pipeline
 from generators.config import GeneratorConfig
-from generators.duplicates import DuplicateTracker
+from generators.deduplication import DuplicateTracker
+from generators.row_generation import generate_row
 from generators.scenarios import build_scenario
 from generators.utterances import vary_training_utterance
 
@@ -47,10 +48,12 @@ def test_pipeline_preserves_alias_grammar_and_category(monkeypatch):
     def unexpected_fallback(spec):
         raise AssertionError("valid alias grammar was replaced by fallback")
 
-    monkeypatch.setattr(pipeline, "build_scenario", lambda **kwargs: scenario)
-    monkeypatch.setattr(pipeline, "expand_utterance", render)
-    monkeypatch.setattr(pipeline, "request_seed_from_spec", unexpected_fallback)
-    row, reason = pipeline.generate_row(
+    import generators.row_generation as row_generation
+
+    monkeypatch.setattr(row_generation, "build_scenario", lambda **kwargs: scenario)
+    monkeypatch.setattr(row_generation, "expand_utterance", render)
+    monkeypatch.setattr(row_generation, "request_seed_from_spec", unexpected_fallback)
+    row, reason = generate_row(
         {"index": 0, "capability": "lights", "operation": "turn_on", "home_size": 16},
         GeneratorConfig(), random.Random(19), excluded=set(), dup_tracker=DuplicateTracker(),
     )

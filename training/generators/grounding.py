@@ -551,7 +551,7 @@ def build_spec(variant: dict[str, Any], *, seed: int = 20260910, index: int = 0)
     import copy
 
     from generators.labels import scenario_to_spec
-    from generators.pipeline import _unique_no_action_hint
+    from generators.scenarios.unavailable import unique_no_action_hint
     from generators.scenarios import build_scenario
     from generators.utterances import apply_generic_wording, expand_utterance
 
@@ -576,7 +576,7 @@ def build_spec(variant: dict[str, Any], *, seed: int = 20260910, index: int = 0)
             spec["spoken_targets"] = apply_generic_wording(
                 {**spec, "target_names": requested}
             )["spoken_targets"]
-        spec["request_hint"] = _unique_no_action_hint(spec, random.Random(seed))
+        spec["request_hint"] = unique_no_action_hint(spec, random.Random(seed))
     elif variant["robustness"] == "ambiguity":
         apply_generic_wording(spec)
     spec["utterance"] = variant.get("utterance") or expand_utterance(spec)
@@ -611,3 +611,52 @@ def pick_variant(
     if not pool:
         return None
     return pool[index % len(pool)]
+
+
+# Requiring every grounding contrast family needs slack, not parity.
+GROUNDING_FAMILY_SLACK = 2
+
+
+def grounding_pairs() -> set[tuple[str, str]]:
+    return {
+        (variant["capability"], variant["operation"])
+        for variant in required_training_variants()
+    }
+
+
+def grounding_capacity(config: Any) -> int:
+    """Most grounding rows the catalogue can ever produce at any corpus size."""
+    return len(training_variants()) * config.near_duplicate_limit
+
+
+def slot_ceiling(config: Any, pairs: set[tuple[str, str]]) -> float:
+    """Share of the quota plan landing on ``pairs``, net of real-home mixing."""
+    from generators.sampling import build_quota_plan
+
+    plan = build_quota_plan(config.count, config.seed, config.tier_proportions)
+    matching = sum(
+        1 for slot in plan if (slot["capability"], slot["operation"]) in pairs
+    )
+    share = matching / max(len(plan), 1)
+    if config.real_home_path and config.real_home_rate:
+        share *= max(0.0, 1.0 - config.real_home_rate)
+    return min(1.0, share)
+
+
+def grounding_available_share(config: Any) -> float:
+    """Share of accepted rows that can realistically be grounding rows."""
+    catalogue_share = grounding_capacity(config) / max(config.count, 1)
+    return min(slot_ceiling(config, grounding_pairs()), catalogue_share)
+
+
+def grounding_capable_slot(quota: Any, rng: random.Random) -> dict[str, Any] | None:
+    """Take a quota slot whose (capability, operation) has a grounding variant."""
+    pairs = sorted(
+        {(variant["capability"], variant["operation"]) for variant in required_training_variants()}
+    )
+    rng.shuffle(pairs)
+    for capability, operation in pairs:
+        slot = quota.take_slot(capability, operation)
+        if slot is not None:
+            return slot
+    return None

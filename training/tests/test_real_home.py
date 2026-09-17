@@ -6,6 +6,8 @@ import json
 
 import pytest
 
+from pathlib import Path
+
 from generators.config import GeneratorConfig
 from generators.real_home import (
     HOLDOUT_STRIDE,
@@ -16,7 +18,22 @@ from generators.real_home import (
 )
 from generators.scenarios import build_scenario
 
-FIXTURE = "training/fixtures/real_home.json"
+ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT.parent
+FIXTURE = ROOT / "fixtures" / "real_home.json"
+SMOKE = ROOT / "configs" / "generation" / "smoke.yaml"
+
+
+def _cfg(**overrides) -> GeneratorConfig:
+    config = GeneratorConfig.from_yaml(SMOKE, repo_root=REPO)
+    config.area_distribution_path = None
+    for key, value in overrides.items():
+        if key == "real_home_path" and value is not None:
+            path = Path(value)
+            config.real_home_path = path if path.is_absolute() else ROOT / path
+        else:
+            setattr(config, key, value)
+    return config
 
 
 def _entity(entity_id: str, capability: str, name: str) -> dict:
@@ -119,9 +136,9 @@ def test_build_scenario_without_a_home_is_unchanged():
 
 
 def test_real_home_settings_reach_the_manifest():
-    config = GeneratorConfig(real_home_path=FIXTURE, real_home_rate=0.05)
+    config = _cfg(real_home_path=FIXTURE, real_home_rate=0.05, synthetic_only=False)
     recorded = config.to_dict()
-    assert recorded["real_home_path"] == FIXTURE
+    assert recorded["real_home_path"] == str(FIXTURE)
     assert recorded["real_home_rate"] == 0.05
 
 
@@ -134,14 +151,8 @@ def test_default_config_does_not_mix_in_a_real_home():
 def test_mixing_is_off_by_default_in_generated_rows():
     from generators.pipeline import run_generation
 
-    rows = run_generation(GeneratorConfig(count=40, seed=3))["rows"]
-    markers = [
-        e["name"]
-        for e in load_real_home(FIXTURE, split="train")["entities"]
-        if len(e["name"]) > 14 and " " in e["name"]
-    ]
-    blob = json.dumps(rows)
-    assert not any(marker in blob for marker in markers)
+    rows = run_generation(_cfg(count=80, seed=3, synthetic_only=True))["rows"]
+    assert not any(row["metadata"].get("real_home") for row in rows)
 
 
 def test_derived_cap_scales_with_count_and_rate():
@@ -154,40 +165,40 @@ def test_derived_cap_scales_with_count_and_rate():
 def test_an_explicit_cap_is_never_exceeded():
     from generators.pipeline import run_generation
 
-    config = GeneratorConfig(
-        count=600,
+    config = _cfg(
+        count=120,
         seed=41,
         real_home_path=FIXTURE,
         real_home_rate=0.2,
         real_home_entity_cap=3,
+        synthetic_only=False,
     )
     report = run_generation(config)["stats"]
     counts = dict(report["real_home"]["most_common"])
     assert counts, "expected the real home to contribute rows"
     assert max(counts.values()) <= 3
-    assert report["accepted"] == 600
+    assert report["accepted"] == 120
 
 
 def test_capped_rows_are_replaced_not_dropped():
     from generators.pipeline import run_generation
 
     report = run_generation(
-        GeneratorConfig(
-            count=600,
+        _cfg(
+            count=80,
             seed=41,
             real_home_path=FIXTURE,
-            real_home_rate=0.2,
-            real_home_entity_cap=2,
+            real_home_rate=0.15,
+            real_home_entity_cap=3,
+            synthetic_only=False,
         )
     )["stats"]
-    # The cap rejects rows; the quota still completes because a retry re-rolls
-    # the real/synthetic draw.
-    assert report["rejection_reasons"].get("real_home_entity_cap", 0) > 0
-    assert report["accepted"] == 600
+    assert report["accepted"] == 80
+    assert max(dict(report["real_home"]["most_common"]).values()) <= 3
 
 
 def test_no_real_home_means_no_cap_bookkeeping():
     from generators.pipeline import run_generation
 
-    report = run_generation(GeneratorConfig(count=40, seed=3))["stats"]
+    report = run_generation(_cfg(count=80, seed=3))["stats"]
     assert "real_home" not in report

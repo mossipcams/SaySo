@@ -13,7 +13,7 @@ from generators.hypothesis_strategies import (
     valid_brightness_strategy,
     valid_spec_strategy,
 )
-from generators.validate import validate_spec
+from generators.validation import validate_spec
 
 
 def test_strategy_home_produces_entities() -> None:

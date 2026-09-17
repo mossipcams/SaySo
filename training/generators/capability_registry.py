@@ -34,13 +34,10 @@ MIN_OPERATION_FRACTION: float = 0.08
 # allocated over the remaining rows, so a refusal can never fill one.
 DEFAULT_NEGATIVE_RATE: float = 0.12
 
-# Pinned-contract tools this corpus deliberately does not teach. GetDateTime
-# answers "what time is it" from no entity, no area and no home state, so an
-# entity-graph generator has no scenario that produces it. Home Assistant still
-# supplies it at runtime -- this set bounds only what the dataset claims to
-# cover, and generators.tools keeps these tools out of distractor sampling so a
-# row never trains "this tool is never the answer".
-TRAINING_COVERAGE_EXCLUDED: frozenset[str] = frozenset({"GetDateTime"})
+# Tools withheld from declared positive coverage. Empty: every production-catalog
+# tool the recipe advertises must appear in positive_by_tool when the YAML min
+# requires it (see coverage.get_datetime_positive_min).
+TRAINING_COVERAGE_EXCLUDED: frozenset[str] = frozenset()
 
 
 class SupportLevel(str, Enum):
@@ -282,6 +279,7 @@ def covered_tool_names() -> frozenset[str]:
         for op in cap.operations
         if op.tool_name and op.support is not SupportLevel.UNAVAILABLE
     }
+    names.add("GetDateTime")
     return frozenset(names - TRAINING_COVERAGE_EXCLUDED)
 
 

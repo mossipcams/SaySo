@@ -59,6 +59,12 @@ def vary_training_utterance(text: str, rng: random.Random) -> str:
     return template.format(action=text)
 
 
+def finalize_training_utterance(text: str, rng: random.Random) -> str:
+    """Single casing site: vary phrasing, then randomize request case before validation."""
+    utterance = vary_training_utterance(text, rng)
+    return utterance.lower() if rng.random() < 0.5 else utterance[:1].upper() + utterance[1:]
+
+
 def apply_generic_wording(spec: dict[str, Any]) -> dict[str, Any]:
     """Speak the target as "the <area> <noun>" instead of its canonical name.
 
@@ -146,6 +152,10 @@ def _plural(noun: str) -> str:
 def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenance=None) -> str:
     rendered = render_call(call, target, seed, provenance=provenance)
     if rendered is not None:
+        if rendered.lower().startswith("next track"):
+            return "skip to the " + rendered
+        if rendered.lower().startswith("previous track"):
+            return "go back to the " + rendered
         return rendered
     if provenance is not None:
         provenance.append({"source": "sayso_fallback", "intent": call["name"]})
@@ -302,7 +312,7 @@ def expand_utterance(spec: dict[str, Any]) -> str:
 # entity's own descriptive token ("Ceiling", "Pendant", "Wall", "Vanity"),
 # {brand} is a manufacturer token when the entity has one ("Nanoleaf",
 # "Lutron"). Every slot is filled from data that exists in the home fixture; see
-# ``pipeline._entity_descriptors``. Nothing here invents a position or location
+# ``scenarios.discrimination.entity_descriptors``. Nothing here invents a position or location
 # that the fixture does not model.
 _DESCRIPTIONS: tuple[str, ...] = (
     "the {mod} {domain} in the {place}",
@@ -340,7 +350,7 @@ def describe_target(
     """Render a description of a device that does not name it.
 
     Deterministic given ``rng``. ``modifier`` and ``brand`` must come from the
-    entity's own name (see ``pipeline._entity_descriptors``); passing None picks
+    entity's own name (see ``scenarios.discrimination.entity_descriptors``); passing None picks
     whichever slots the chosen template needs from what was supplied. Returns
     None-safe output only when the caller supplied a usable slot value. The
     caller is responsible for uniqueness against siblings.
@@ -363,5 +373,4 @@ def describe_target(
             brand=brand or "",
         )
     return ""
-
 

@@ -1,0 +1,63 @@
+# Production allocation recipe — enforceable accepted-row shares (see docs/TRAINING_PLAN.md).
+version: 1
+count: 40000
+seed: 20260913
+split: train
+output: training/datasets/sayso_train_production.jsonl
+manifest: training/datasets/sayso_train_production.manifest.json
+
+tokenizer:
+  model: LiquidAI/LFM2.5-230M-Base
+
+schema:
+  path: schemas/sayso-tool-schema-v2.json
+
+allocations:
+  ordinary: 0.40
+  status: 0.12
+  settings: 0.10
+  multi_action: 0.08
+  clarify: 0.08
+  exclusion: 0.06
+  unavailable: 0.05
+  absence: 0.04
+  unsupported: 0.03
+  aliases: 0.04
+
+cross_cutting:
+  area:
+    enabled: true
+    distribution: training/configs/area_distribution_v1.json
+
+generation:
+  stt_noise_rate: 0.15
+  paraphrase_enabled: false
+  token_budget: 5120
+  near_duplicate_limit: 8
+  max_attempts_multiplier: 20
+  synthetic_only: true
+
+real_home:
+  path: null
+  rate: 0.0
+  entity_cap: 0
+
+# Grounding families are off for v3 production: promotion failures were
+# clarify/status/exclusion/unavailable, not grounding delivery. Re-enable only
+# when the catalogue and rate gate can support a nonzero share.
+grounding:
+  rate: 0.0
+
+# Measured delivery ceiling is 2% (scenarios/discrimination.py); recipe matches
+# the reachable share so enforce_rate_gate does not silently accept a shortfall.
+discrimination:
+  rate: 0.02
+
+coverage:
+  min_positive_per_operation: 1
+  min_positive_per_tool: 1
+  max_absence_rate: 0.10
+  get_datetime_positive_min: 1
+
+recipe_exclusions:
+  withheld_from_catalog: []

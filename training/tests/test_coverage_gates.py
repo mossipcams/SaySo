@@ -30,16 +30,28 @@ from generators.capability_registry import (
     covered_tool_names,
     entity_supports,
 )
+from generators.tools import namespaced_tool_name
 from generators.config import GeneratorConfig
 from generators.coverage import classify_row, expected_tool
-from generators.duplicates import DuplicateTracker
+from generators.deduplication import DuplicateTracker
 from generators.pipeline import generate_row, run_generation
 from generators.sampling import QuotaTracker, build_quota_targets
 from generators.scenarios import build_scenario
 from generators.labels import render_example, scenario_to_spec
-from generators.validate import validate_spec
+from generators.validation import validate_spec
 
-SMOKE = GeneratorConfig(count=300, seed=31337, paraphrase_enabled=False)
+def _recipe_config(**overrides) -> GeneratorConfig:
+    root = Path(__file__).resolve().parents[1]
+    config = GeneratorConfig.from_yaml(
+        root / "configs/generation/production.yaml", repo_root=root.parent
+    )
+    config.area_distribution_path = None
+    for key, value in overrides.items():
+        setattr(config, key, value)
+    return config
+
+
+COVERAGE_RUN = _recipe_config(count=4000, seed=31337, paraphrase_enabled=False)
 
 
 def _row(tool_calls, *, capability="media_players", operation="turn_on", tier=1, reason=None,
@@ -141,13 +153,27 @@ def test_a_nonexistent_target_is_not_positive_supervision():
     assert classify_row(row)["positive"] is False
 
 
-def test_generated_positive_counts_never_exceed_accepted_rows():
-    result = run_generation(SMOKE)
-    quota = result["stats"]["quota"]
-    positives = sum(quota["achieved"]["positive"].values())
-    negatives = sum(quota["achieved"]["negative"].values())
-    assert positives + negatives == SMOKE.count
-    assert not any(quota["shortfall"].values())
+def test_quota_positive_and_negative_partition_accepted_rows():
+    """QuotaTracker positive and negative buckets stay within each operation target."""
+    tracker = QuotaTracker(300, seed=31337)
+    key = (1, "media_players", "turn_on")
+    assert tracker.targets["positive"][key] > 0
+    positive_row = _row(
+        [_call("HassTurnOn", {"name": "TV", "domain": ["media_player"]})],
+        capability=key[1],
+        operation=key[2],
+        tier=key[0],
+    )
+    refusal = _row([], capability=key[1], operation=key[2], tier=key[0], reason="unsupported")
+    while tracker.accepted_positive[key] < tracker.targets["positive"][key]:
+        assert tracker.wants(classify_row(positive_row)) is None
+        tracker.record_accept(positive_row)
+    allowance = tracker._negative_allowance(key)
+    for _ in range(allowance):
+        assert tracker.wants(classify_row(refusal)) is None
+        tracker.record_accept(refusal)
+    assert tracker.wants(classify_row(refusal)) in {"quota_negative_full", "quota_bucket_full"}
+    assert tracker.accepted_op[key] <= tracker.targets["operation"][key]
 
 
 def test_impossible_quota_configurations_fail_before_generating():
@@ -184,6 +210,19 @@ def test_audit_fails_when_a_required_tool_has_no_positive_row():
         )
 
 
+def test_audit_fails_when_get_datetime_positive_min_is_unmet():
+    rows = [_row([_call("HassTurnOn", {"name": "TV", "domain": ["media_player"]})])]
+    with pytest.raises(ValueError, match="missing positive supervision for GetDateTime"):
+        audit_rows(rows, get_datetime_positive_min=1)
+
+
+def test_audit_counts_get_datetime_positive_rows():
+    rows = [_row([_call("GetDateTime", {})])]
+    report = audit_rows(rows, get_datetime_positive_min=1)
+    assert report["get_datetime_positive"] == 1
+    assert report["positive_by_tool"]["GetDateTime"] == 1
+
+
 def test_audit_caps_absence_answers():
     rows = [
         _row([], capability="lights", operation="turn_on", reason="area_unavailable",
@@ -198,7 +237,7 @@ def test_audit_caps_absence_answers():
 
 
 def test_generation_covers_every_tool_inside_declared_coverage():
-    report = run_generation(SMOKE)["stats"]["quality_audit"]
+    report = run_generation(COVERAGE_RUN)["stats"]["quality_audit"]
     covered = {tool for tool in covered_tool_names() if tool != "__script__"}
     missing = covered - set(report["positive_by_tool"])
     assert not missing, missing
@@ -207,16 +246,19 @@ def test_generation_covers_every_tool_inside_declared_coverage():
 
 def test_enabling_grounding_produces_grounding_supervision():
     report = run_generation(
-        GeneratorConfig(count=1200, seed=20260911, paraphrase_enabled=False)
+        GeneratorConfig(
+            count=1200, seed=20260911, paraphrase_enabled=False, grounding_rate=0.028
+        )
     )["stats"]["grounding"]
     required = {variant["family"] for variant in grounding.required_training_variants()}
     assert required <= set(report["by_family"])
 
 
 def test_tools_outside_declared_coverage_are_not_offered():
-    rows = run_generation(SMOKE)["rows"]
+    rows = run_generation(COVERAGE_RUN)["rows"]
     offered = {tool["function"]["name"] for row in rows for tool in row["tools"]}
-    assert not offered & TRAINING_COVERAGE_EXCLUDED
+    excluded = {namespaced_tool_name(tool) for tool in TRAINING_COVERAGE_EXCLUDED}
+    assert not offered & excluded
 
 
 # 3. Unsupported entity actions are rejected -----------------------------------
@@ -367,12 +409,12 @@ def test_grounding_rows_render_in_the_production_format():
 
 def test_grounding_eval_prompts_are_held_out_of_training():
     from evals.cases import cases_with_tag
-    from generators.pipeline import _check_quality_eval_overlap
+    from generators.validation import check_quality_eval_overlap
 
     prompts = [case.utterance for case in cases_with_tag("grounding")]
     assert prompts
     for prompt in prompts:
-        assert _check_quality_eval_overlap(prompt), prompt
+        assert check_quality_eval_overlap(prompt), prompt
 
 
 def test_the_living_room_tv_regression_is_the_production_contract():

@@ -1,0 +1,61 @@
+# Generator smoke recipe — small, deterministic, self-sufficient (not evals/suites/smoke.yaml).
+version: 1
+count: 120
+seed: 20260917
+split: train
+output: training/datasets/sayso_generator_smoke.jsonl
+manifest: training/datasets/sayso_generator_smoke.manifest.json
+
+tokenizer:
+  model: LiquidAI/LFM2.5-230M-Base
+
+schema:
+  path: schemas/sayso-tool-schema-v2.json
+
+allocations:
+  ordinary: 0.35
+  status: 0.10
+  settings: 0.10
+  multi_action: 0.08
+  clarify: 0.08
+  exclusion: 0.07
+  unavailable: 0.07
+  absence: 0.05
+  unsupported: 0.05
+  aliases: 0.05
+
+cross_cutting:
+  area:
+    enabled: true
+    distribution: training/configs/area_distribution_smoke.json
+    # One row per scenario at n=120; production uses area_distribution_v1.json.
+
+generation:
+  stt_noise_rate: 0.15
+  paraphrase_enabled: false
+  token_budget: 5120
+  near_duplicate_limit: 4
+  max_attempts_multiplier: 30
+  synthetic_only: true
+
+real_home:
+  path: null
+  rate: 0.0
+  entity_cap: 0
+
+grounding:
+  rate: 0.0
+
+discrimination:
+  rate: 0.0
+
+coverage:
+  min_positive_per_operation: 1
+  min_positive_per_tool: 1
+  max_absence_rate: 0.15
+  get_datetime_positive_min: 1
+
+recipe_exclusions:
+  # Tools withheld from distractors only when explicitly excluded by scenario.
+  # GetDateTime is advertised in production; require honest positive rows.
+  withheld_from_catalog: []

@@ -6,6 +6,7 @@ from typing import Any
 
 from hypothesis import strategies as st
 from hypothesis.strategies import SearchStrategy
+from generators.validation import corrupt_spec
 
 from generators.capability_registry import CAPABILITIES, trainable_operations
 from generators.homes import generate_home
@@ -94,8 +95,6 @@ def valid_spec_strategy() -> SearchStrategy[dict[str, Any]]:
 
 
 def corrupted_spec_strategy(field: str) -> SearchStrategy[dict[str, Any]]:
-    from generators.validator import corrupt_spec
-
     return valid_spec_strategy().filter(
         lambda spec: bool((spec.get("expected") or {}).get("calls"))
     ).map(lambda spec: corrupt_spec(spec, field))

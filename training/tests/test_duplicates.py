@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from generators.duplicates import DuplicateTracker, utterance_hash
+from generators.deduplication import DuplicateTracker, utterance_hash
 
 
 def test_duplicate_tracker_rejects_repeated_utterance() -> None:

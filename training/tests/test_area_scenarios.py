@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import copy
 import json
+from pathlib import Path
 
 import pytest
 
-from generators import area_scenarios
+from generators.scenarios import area as area_scenarios
 from generators.config import GeneratorConfig
 from generators.pipeline import run_generation
 
@@ -113,13 +114,23 @@ def test_area_rows_are_deterministic_for_a_fixed_seed() -> None:
 def test_generation_is_deterministic_and_carries_area_rows(tmp_path) -> None:
     plan_path = tmp_path / "plan.json"
     plan_path.write_text(json.dumps(_plan(1)))
-    config = GeneratorConfig(count=120, seed=31, paraphrase_enabled=False, area_distribution_path=plan_path)
+    root = Path(__file__).resolve().parents[1]
+    config = GeneratorConfig.from_yaml(root / "configs/generation/smoke.yaml", repo_root=root.parent)
+    config.count = 120
+    config.seed = 31
+    config.area_distribution_path = plan_path
     first = run_generation(config)
     second = run_generation(copy.deepcopy(config))
     assert json.dumps(first["rows"], sort_keys=True) == json.dumps(second["rows"], sort_keys=True)
     assert len(first["rows"]) == 120
     achieved = first["stats"]["area_distribution"]["achieved"]
     assert achieved == {name: 1 for name in area_scenarios.SCENARIOS}
+
+
+def test_zero_row_scenario_fails_before_generation() -> None:
+    plan = area_scenarios.load_distribution()
+    with pytest.raises(ValueError, match="resolves to zero rows"):
+        area_scenarios.assert_required_counts_feasible(plan, 120)
 
 
 def test_a_short_area_scenario_fails_the_build() -> None:

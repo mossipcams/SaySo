@@ -1,4 +1,4 @@
-"""CLI entry for synthetic dataset generation."""
+"""CLI entry for canonical synthetic dataset generation."""
 
 from __future__ import annotations
 
@@ -8,125 +8,60 @@ import sys
 from pathlib import Path
 
 TRAINING_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = TRAINING_ROOT.parent
 sys.path.insert(0, str(TRAINING_ROOT))
 
-from generators.area_scenarios import DEFAULT_DISTRIBUTION
-from generators.config import DEFAULT_TRAIN_COUNT, GeneratorConfig
-from generators.pipeline import run_generation, write_jsonl, write_manifest
+from generators.config import GeneratorConfig
+from generators.pipeline import run_build, run_generation, write_jsonl
+from generators.manifest import write_manifest
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate SaySo synthetic v3 training dataset")
-    parser.add_argument("--count", type=int, default=DEFAULT_TRAIN_COUNT)
-    parser.add_argument("--seed", type=int, default=20260905)
-    parser.add_argument("--split", default="train")
-    parser.add_argument("--output", type=Path, default=TRAINING_ROOT / "datasets" / "synthetic_v3_train.jsonl")
-    parser.add_argument("--manifest", type=Path, default=None)
-    parser.add_argument("--stt-rate", type=float, default=0.15)
-    parser.add_argument("--paraphrase", action="store_true", default=False)
-    parser.add_argument("--token-budget", type=int, default=4096)
-    parser.add_argument("--exclude-prompts", type=Path, default=None)
+    parser = argparse.ArgumentParser(description="Generate SaySo synthetic training dataset")
     parser.add_argument(
-        "--real-home",
+        "--config",
         type=Path,
-        default=None,
-        help="Home JSON from scripts/fetch_ha_home.py to mix into generation",
+        required=True,
+        help="YAML recipe under training/configs/generation/",
     )
     parser.add_argument(
-        "--real-home-rate",
-        type=float,
-        default=0.0,
-        help="Fraction of rows generated over the real home (needs --real-home)",
-    )
-    parser.add_argument(
-        "--real-home-entity-cap",
-        type=int,
-        default=0,
-        help="Max rows one real entity may be the target of (0 derives it)",
-    )
-    parser.add_argument(
-        "--synthetic-only",
+        "--dry-run",
         action="store_true",
-        help="Explicitly disable real-home mixing, overriding --real-home",
-    )
-    parser.add_argument(
-        "--allow-stale-home",
-        action="store_true",
-        help="Mix a home snapshot that was not filtered by Home Assistant's Assist "
-             "exposure list (see scripts/fetch_ha_home.py --allow-unexposed)",
-    )
-    parser.add_argument("--negative-rate", type=float, default=None)
-    parser.add_argument("--grounding-rate", type=float, default=None)
-    parser.add_argument(
-        "--discrimination-rate",
-        type=float,
-        default=None,
-        help="Share of rows whose utterance describes the target instead of "
-             "naming it (entity resolution; default 0.0)",
-    )
-    parser.add_argument(
-        "--area-distribution",
-        default=str(DEFAULT_DISTRIBUTION),
-        help="Area-scenario distribution config, or 'none' to reserve no area rows "
-             "(default configs/area_distribution_v1.json)",
-    )
-    parser.add_argument(
-        "--full-catalog-rate",
-        type=float,
-        default=None,
-        help="Share of rows offered the whole tool catalogue instead of a subset "
-             "built around the expected answer",
-    )
-    parser.add_argument("--max-absence-rate", type=float, default=None)
-    parser.add_argument(
-        "--allow-rate-shortfall",
-        action="store_true",
-        help="Log a grounding/discrimination rate shortfall instead of failing "
-             "the build",
+        help="Generate in memory only; do not write output files",
     )
     args = parser.parse_args(argv)
 
-    if args.real_home and not args.synthetic_only:
+    config_path = args.config
+    if not config_path.is_absolute():
+        candidate = TRAINING_ROOT / config_path
+        if candidate.is_file():
+            config_path = candidate
+        elif (REPO_ROOT / config_path).is_file():
+            config_path = REPO_ROOT / config_path
+
+    config = GeneratorConfig.from_yaml(config_path, repo_root=REPO_ROOT)
+
+    if config.real_home_path and not config.synthetic_only:
         from generators.real_home import TESTABLE_EXPOSURE_SOURCES, require_exposure_source
 
-        if not args.allow_stale_home:
-            require_exposure_source(args.real_home, allowed=TESTABLE_EXPOSURE_SOURCES)
+        require_exposure_source(config.real_home_path, allowed=TESTABLE_EXPOSURE_SOURCES)
 
-    overrides = {
-        key: value
-        for key, value in (
-            ("negative_rate", args.negative_rate),
-            ("grounding_rate", args.grounding_rate),
-            ("discrimination_rate", args.discrimination_rate),
-            ("full_catalog_rate", args.full_catalog_rate),
-            ("max_absence_rate", args.max_absence_rate),
-            ("min_rate_achieved_fraction", 0.0 if args.allow_rate_shortfall else None),
+    if args.dry_run:
+        result = run_generation(config)
+        print(json.dumps({"accepted": len(result["rows"]), "manifest": result["manifest"]}, indent=2))
+        return 0
+
+    result = run_build(config)
+    print(
+        json.dumps(
+            {
+                "accepted": len(result["rows"]),
+                "output": result.get("output_path"),
+                "manifest": result.get("manifest_path"),
+            },
+            indent=2,
         )
-        if value is not None
-    }
-    if args.real_home_rate and not args.real_home and not args.synthetic_only:
-        parser.error("--real-home-rate needs --real-home")
-    config = GeneratorConfig(
-        synthetic_only=args.synthetic_only,
-        **overrides,
-        count=args.count,
-        seed=args.seed,
-        split=args.split,
-        output_path=args.output,
-        manifest_path=args.manifest or args.output.with_suffix(".manifest.json"),
-        stt_noise_rate=args.stt_rate,
-        paraphrase_enabled=args.paraphrase,
-        token_budget=args.token_budget,
-        exclude_prompts_path=args.exclude_prompts,
-        area_distribution_path=None if args.area_distribution == "none" else Path(args.area_distribution),
-        real_home_path=args.real_home,
-        real_home_rate=args.real_home_rate,
-        real_home_entity_cap=args.real_home_entity_cap,
     )
-    result = run_generation(config)
-    write_jsonl(config.output_path, result["rows"])
-    write_manifest(config.manifest_path, result["stats"])
-    print(json.dumps(result["stats"], indent=2, default=str))
     return 0
 
 

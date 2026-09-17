@@ -9,7 +9,7 @@ import re
 from adapters.schema import tool_schema_map, validate_tool_arguments
 from generators.capability_registry import SCRIPT_ACTION_TOOL
 from generators.coverage import ABSENCE, bare_tool_name, classify_row, expected_tool
-from generators.pipeline import _check_quality_eval_overlap
+from generators.validation import check_quality_eval_overlap
 
 
 def audit_rows(
@@ -20,6 +20,8 @@ def audit_rows(
     min_positive_per_operation=0,
     min_positive_per_tool=0,
     max_absence_rate=None,
+    get_datetime_positive_min=0,
+    allowed_operation_shortfall=0,
 ):
     """Audit accepted rows on what they actually label, not on their metadata.
 
@@ -43,6 +45,7 @@ def audit_rows(
     by_domain = Counter()
     negatives_by_reason = Counter()
     real_home_rows = 0
+    get_datetime_positive = 0
     for row in rows:
         facets = classify_row(row)
         by_outcome[facets["outcome"]] += 1
@@ -75,9 +78,12 @@ def audit_rows(
         for entry in grammar:
             grammar_sources[entry["source"]] += 1
             grammar_templates.add((entry["source"], entry["block"], entry["template"]))
-        if not user.strip() or _check_quality_eval_overlap(user):
+        if not user.strip() or check_quality_eval_overlap(user):
             raise ValueError(f"empty request or eval overlap: {row_id}")
         calls = [c["function"] for m in messages for c in m.get("tool_calls", [])]
+        if any(bare_tool_name(call["name"]) == "GetDateTime" for call in calls):
+            get_datetime_positive += 1
+            positive_by_tool["GetDateTime"] += 1
         schemas = tool_schema_map(row["tools"])
         # Rows carry production names; registry and metadata name tools bare.
         offered_bare = {bare_tool_name(name) for name in schemas}
@@ -147,7 +153,9 @@ def audit_rows(
             if got < min_positive_per_tool:
                 missing_tools[tool] = got
     if missing_operations:
-        raise ValueError(f"missing positive supervision for operations: {missing_operations}")
+        shortfall = len(missing_operations)
+        if shortfall > allowed_operation_shortfall:
+            raise ValueError(f"missing positive supervision for operations: {missing_operations}")
     if missing_tools:
         raise ValueError(f"missing positive supervision for tools: {missing_tools}")
     absence_rate = by_outcome.get(ABSENCE, 0) / max(counts["rows"], 1)
@@ -155,6 +163,11 @@ def audit_rows(
         raise ValueError(
             f"absence answers are {absence_rate:.1%} of the corpus, above the "
             f"{max_absence_rate:.1%} cap ({by_outcome.get(ABSENCE, 0)}/{counts['rows']})"
+        )
+    if get_datetime_positive_min and get_datetime_positive < get_datetime_positive_min:
+        raise ValueError(
+            f"missing positive supervision for GetDateTime: "
+            f"got {get_datetime_positive}, need {get_datetime_positive_min}"
         )
 
     return {**counts, "unique_requests": len(requests),
@@ -168,6 +181,7 @@ def audit_rows(
             "negatives_by_reason": dict(sorted(negatives_by_reason.items())),
             "absence_rate": round(absence_rate, 4),
             "positive_by_tool": dict(sorted(positive_by_tool.items())),
+            "get_datetime_positive": get_datetime_positive,
             "positive_by_operation": {str(k): v for k, v in sorted(positive_by_operation.items())},
             "positive_by_domain_targeting": {
                 f"{cap}/{op}/{mode}": n for (cap, op, mode), n in sorted(by_domain.items())
