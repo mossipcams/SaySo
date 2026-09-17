@@ -1,0 +1,45 @@
+version: 1
+note: Initial thresholds, not yet calibrated against a trained checkpoint.
+suites:
+  promotion:
+    min_overall_pass_rate: 0.7
+    category_min_pass_rate:
+      ordinary: 0.8
+      light_fan_settings: 0.7
+      climate: 0.7
+      media: 0.7
+      timers: 0.7
+      routines_vacuum: 0.7
+      status: 0.7
+      aliases: 0.7
+      multi_action: 0.6
+      exclusion: 0.6
+      ambiguity: 0.6
+      unavailable: 0.6
+    max_rates:
+      false_action_rate: 0.2
+      malformed_output_rate: 0.02
+      unknown_tool_rate: 0.02
+      invalid_argument_rate: 0.05
+    zero_tolerance_flags:
+      - action_on_ambiguity
+      - tool_call_on_unavailable
+      - malformed_treated_as_abstention
+      - status_state_change
+      - excluded_entity_affected
+      - transport_error
+  smoke:
+    min_overall_pass_rate: 0.7
+    category_min_pass_rate: {}
+    max_rates:
+      false_action_rate: 0.2
+      malformed_output_rate: 0.02
+      unknown_tool_rate: 0.02
+      invalid_argument_rate: 0.05
+    zero_tolerance_flags:
+      - action_on_ambiguity
+      - tool_call_on_unavailable
+      - malformed_treated_as_abstention
+      - status_state_change
+      - excluded_entity_affected
+      - transport_error

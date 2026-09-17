@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_bright_0075",
+  "satellite_area": "Attic",
+  "sayso_entity_area": "Attic",
+  "areas": {
+    "Attic": []
+  },
+  "area_aliases": {
+    "Attic": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.attic_reading_lamp",
+      "name": "Attic Reading Lamp",
+      "aliases": [
+        "light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Attic",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

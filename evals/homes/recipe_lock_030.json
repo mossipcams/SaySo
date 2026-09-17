@@ -1,0 +1,51 @@
+{
+  "home_id": "recipe_lock_030",
+  "satellite_area": "Living Room",
+  "sayso_entity_area": "Living Room",
+  "areas": {
+    "Living Room": [],
+    "Workshop": []
+  },
+  "area_aliases": {
+    "Living Room": [],
+    "Workshop": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.living_room_ceiling_fan",
+      "name": "Living Room Ceiling Fan",
+      "aliases": [
+        "fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    },
+    {
+      "entity_id": "fan.joe_s_workshop_fan",
+      "name": "Joe's Workshop Fan",
+      "aliases": [
+        "workshop fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Workshop",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

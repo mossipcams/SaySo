@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_vacuum_return_0047",
+  "satellite_area": "Annex",
+  "sayso_entity_area": "Annex",
+  "areas": {
+    "Annex": []
+  },
+  "area_aliases": {
+    "Annex": []
+  },
+  "entities": [
+    {
+      "entity_id": "vacuum.annex_robot_vacuum",
+      "name": "Annex Robot Vacuum",
+      "aliases": [
+        "Annex Robot Vacuum"
+      ],
+      "domain": "vacuum",
+      "kind": "vacuum",
+      "device_class": null,
+      "area": "Annex",
+      "floor": "Main Floor",
+      "state": "cleaning",
+      "capabilities": [
+        "start",
+        "stop"
+      ]
+    }
+  ]
+}

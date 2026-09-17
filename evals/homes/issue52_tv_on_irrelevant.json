@@ -1,0 +1,79 @@
+{
+  "home_id": "issue52_tv_on_irrelevant",
+  "satellite_area": "Living Room",
+  "sayso_entity_area": "Living Room",
+  "areas": {
+    "Living Room": [],
+    "Bedroom": []
+  },
+  "area_aliases": {
+    "Living Room": [],
+    "Bedroom": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.tv",
+      "name": "TV",
+      "aliases": [
+        "TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    },
+    {
+      "entity_id": "light.floor_lamp",
+      "name": "Floor Lamp",
+      "aliases": [
+        "Floor Lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    },
+    {
+      "entity_id": "switch.hall_switch",
+      "name": "Hall Switch",
+      "aliases": [
+        "Hall Switch"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

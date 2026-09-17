@@ -1,0 +1,49 @@
+{
+  "home_id": "v3_shadow_bright_0076",
+  "satellite_area": "Porch",
+  "sayso_entity_area": "Porch",
+  "areas": {
+    "Porch": []
+  },
+  "area_aliases": {
+    "Porch": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.porch_reading_lamp",
+      "name": "Porch Reading Lamp",
+      "aliases": [
+        "light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Porch",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    },
+    {
+      "entity_id": "fan.porch_column_fan",
+      "name": "Porch Column Fan",
+      "aliases": [
+        "Porch Column Fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Porch",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

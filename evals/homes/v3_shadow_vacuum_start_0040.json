@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_vacuum_start_0040",
+  "satellite_area": "Porch",
+  "sayso_entity_area": "Porch",
+  "areas": {
+    "Porch": []
+  },
+  "area_aliases": {
+    "Porch": []
+  },
+  "entities": [
+    {
+      "entity_id": "vacuum.porch_floor_vacuum",
+      "name": "Porch Floor Vacuum",
+      "aliases": [
+        "Porch Floor Vacuum"
+      ],
+      "domain": "vacuum",
+      "kind": "vacuum",
+      "device_class": null,
+      "area": "Porch",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "start",
+        "stop"
+      ]
+    }
+  ]
+}

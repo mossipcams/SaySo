@@ -1,364 +1,209 @@
-"""Score offline evaluation cases against recorded model outcomes."""
+"""One expected-behavior scorer for every SaySo model eval."""
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from enum import StrEnum
+import re
+from collections import Counter, defaultdict
 from typing import Any
 
-from custom_components.sayso.client import ToolCall
-from custom_components.sayso.diagnostics import BoundaryFailureCode
-from custom_components.sayso.schema import ToolArgumentValidationError
+from evals.outcomes import (
+    QUERY_TOOLS,
+    PASSING_OUTCOMES,
+    CaseResult,
+    Expectation,
+    Outcome,
+    ResponseType,
+    Turn,
+)
+
+# Deliberately narrow. A clarification is a question that asks the user to pick;
+# a refusal says the thing cannot be done. Both are covered by tests.
+_CLARIFICATION_CUES = re.compile(
+    r"\b(which|did you mean|do you mean|could you specify|can you specify|please specify|clarify)\b",
+    re.I,
+)
+_REFUSAL_CUES = re.compile(
+    r"\b(can't|cannot|can not|unable to|not able to|don't have|do not have|doesn't have|does not have"
+    r"|doesn't support|does not support|isn't available|is not available|not available|not supported"
+    r"|there is no|there's no|there are no|has no|no such)\b",
+    re.I,
+)
 
 
-class CheckName(StrEnum):
-    """Named scorer dimensions exercised by the fixed case set."""
-
-    TOOL_NAME = "tool_name"
-    TOOL_ARGS = "tool_args"
-    TOOL_ORDER = "tool_order"
-    WRONG_TOOL = "wrong_tool"
-    INVALID_CALL = "invalid_call"
-    CLARIFICATION = "clarification"
-    PARTIAL_FAILURE = "partial_failure"
-    SPOKEN_RESULT = "spoken_result"
+def _plain(text: str | None) -> str:
+    return (text or "").replace("’", "'").strip()
 
 
-@dataclass(frozen=True, slots=True)
-class EvalCase:
-    """One versioned offline evaluation case."""
-
-    id: str
-    category: str
-    scenario: str
-    description: str
-    expect: dict[str, Any]
-    checks: tuple[CheckName, ...]
+def is_clarification(text: str | None) -> bool:
+    plain = _plain(text)
+    return "?" in plain and bool(_CLARIFICATION_CUES.search(plain))
 
 
-@dataclass(frozen=True, slots=True)
-class CheckResult:
-    """Pass/fail outcome for one scorer dimension."""
-
-    name: CheckName
-    passed: bool
-    detail: str
+def is_refusal(text: str | None) -> bool:
+    plain = _plain(text)
+    return bool(plain) and not is_clarification(plain) and bool(_REFUSAL_CUES.search(plain))
 
 
-@dataclass(frozen=True, slots=True)
-class CaseScore:
-    """Aggregate score for one case."""
-
-    case_id: str
-    category: str
-    scenario: str
-    passed: bool
-    checks: dict[str, CheckResult]
-    detail: str = ""
+def _canonical(call: dict[str, Any]) -> str:
+    return json.dumps({"name": call["name"], "arguments": call["arguments"]}, sort_keys=True)
 
 
-@dataclass(frozen=True, slots=True)
-class EvalActual:
-    """Recorded outcome to score against one case."""
-
-    tool_calls: tuple[ToolCall, ...] = ()
-    spoken: str | None = None
-    validation_errors: tuple[ToolArgumentValidationError, ...] = ()
-    boundary_code: BoundaryFailureCode | None = None
-    execution_failures: tuple[str, ...] = ()
+def is_action_call(call: dict[str, Any]) -> bool:
+    return call.get("name") not in QUERY_TOOLS
 
 
-def _canonical_arguments(arguments: dict[str, Any]) -> str:
-    return json.dumps(arguments, sort_keys=True, separators=(",", ":"))
+def _affects(call: dict[str, Any], entity: dict[str, Any]) -> bool:
+    """Whether an action call could change ``entity``: by name, or by an area
+    (and optional domain) that covers it."""
+    if not is_action_call(call):
+        return False
+    arguments = call.get("arguments") if isinstance(call.get("arguments"), dict) else {}
+    name = arguments.get("name")
+    if isinstance(name, str):
+        return name.casefold() == str(entity["name"]).casefold()
+    area = arguments.get("area")
+    if not isinstance(area, str) or area.casefold() != str(entity.get("area", "")).casefold():
+        return False
+    domains = arguments.get("domain")
+    domains = domains if isinstance(domains, list) else [domains] if domains else []
+    return not domains or entity.get("domain") in domains
 
 
-def _normalize_spoken(text: str | None) -> str:
-    if text is None:
-        return ""
-    return " ".join(text.strip().casefold().split())
+def classify(expectation: Expectation, turn: Turn) -> Outcome:
+    if turn.parse_error is not None:
+        return Outcome.MALFORMED_OUTPUT
+    if any(violation["code"] == "unknown_tool" for violation in turn.violations):
+        return Outcome.UNKNOWN_TOOL
+    if turn.violations:
+        return Outcome.INVALID_ARGUMENTS
+    wants_calls = expectation.response_type in (ResponseType.ACTION, ResponseType.STATUS)
+    if turn.calls:
+        if not wants_calls:
+            return Outcome.UNEXPECTED_TOOL_CALL
+        actual = Counter(_canonical(call) for call in turn.calls)
+        expected = Counter(_canonical(call) for call in expectation.calls)
+        if actual == expected:
+            return Outcome.VALID_MULTI_TOOL_CALL if len(expectation.calls) > 1 else Outcome.VALID_TOOL_CALL
+        if not actual - expected:
+            return Outcome.MISSING_TOOL_CALL
+        return Outcome.UNEXPECTED_TOOL_CALL
+    if wants_calls:
+        return Outcome.MISSING_TOOL_CALL
+    if expectation.response_type == ResponseType.CLARIFICATION:
+        return Outcome.VALID_CLARIFICATION if is_clarification(turn.text) else Outcome.WRONG_RESPONSE_TYPE
+    return Outcome.VALID_REFUSAL if is_refusal(turn.text) else Outcome.WRONG_RESPONSE_TYPE
 
 
-def _expected_tool_calls(expect: dict[str, Any]) -> list[dict[str, Any]]:
-    tool_calls = expect.get("tool_calls")
-    if not isinstance(tool_calls, list):
-        return []
-    return [entry for entry in tool_calls if isinstance(entry, dict)]
-
-
-def _check_tool_name(
-    expect: dict[str, Any],
-    actual: EvalActual,
-) -> CheckResult:
-    expected = _expected_tool_calls(expect)
-    if not expected:
-        return CheckResult(
-            CheckName.TOOL_NAME,
-            passed=True,
-            detail="no tool expectations",
-        )
-    actual_names = [call.name for call in actual.tool_calls]
-    expected_names = [entry["name"] for entry in expected]
-    passed = actual_names == expected_names
-    return CheckResult(
-        CheckName.TOOL_NAME,
-        passed=passed,
-        detail=f"expected={expected_names} actual={actual_names}",
-    )
-
-
-def _check_tool_args(
-    expect: dict[str, Any],
-    actual: EvalActual,
-) -> CheckResult:
-    expected = _expected_tool_calls(expect)
-    if not expected:
-        return CheckResult(
-            CheckName.TOOL_ARGS,
-            passed=True,
-            detail="no argument expectations",
-        )
-    if len(actual.tool_calls) != len(expected):
-        return CheckResult(
-            CheckName.TOOL_ARGS,
-            passed=False,
-            detail="tool call count mismatch",
-        )
-    for index, expected_entry in enumerate(expected):
-        actual_call = actual.tool_calls[index]
-        expected_args = expected_entry.get("arguments", {})
-        if not isinstance(expected_args, dict):
-            expected_args = {}
-        passed = _canonical_arguments(actual_call.arguments) == _canonical_arguments(
-            expected_args
-        )
-        if not passed:
-            return CheckResult(
-                CheckName.TOOL_ARGS,
-                passed=False,
-                detail=(
-                    f"{actual_call.name}: expected={expected_args} "
-                    f"actual={actual_call.arguments}"
-                ),
-            )
-    return CheckResult(CheckName.TOOL_ARGS, passed=True, detail="arguments match")
-
-
-def _check_tool_order(
-    expect: dict[str, Any],
-    actual: EvalActual,
-) -> CheckResult:
-    expected = _expected_tool_calls(expect)
-    if len(expected) < 2:
-        return CheckResult(
-            CheckName.TOOL_ORDER,
-            passed=True,
-            detail="single-call case",
-        )
-    actual_names = [call.name for call in actual.tool_calls]
-    expected_names = [entry["name"] for entry in expected]
-    passed = actual_names == expected_names
-    return CheckResult(
-        CheckName.TOOL_ORDER,
-        passed=passed,
-        detail=f"expected={expected_names} actual={actual_names}",
-    )
-
-
-def _check_wrong_tool(
-    expect: dict[str, Any],
-    actual: EvalActual,
-) -> CheckResult:
-    forbidden = expect.get("forbidden_tools", [])
-    expected_tool = expect.get("expected_tool")
-    if not isinstance(forbidden, list):
-        forbidden = []
-    actual_names = {call.name for call in actual.tool_calls}
-    forbidden_hits = sorted(name for name in actual_names if name in forbidden)
-    if forbidden_hits:
-        return CheckResult(
-            CheckName.WRONG_TOOL,
-            passed=False,
-            detail=f"forbidden tools used: {forbidden_hits}",
-        )
-    if isinstance(expected_tool, str) and expected_tool not in actual_names:
-        return CheckResult(
-            CheckName.WRONG_TOOL,
-            passed=False,
-            detail=f"expected tool {expected_tool} not used",
-        )
-    return CheckResult(CheckName.WRONG_TOOL, passed=True, detail="tool selection ok")
-
-
-def _check_invalid_call(
-    expect: dict[str, Any],
-    actual: EvalActual,
-) -> CheckResult:
-    expected_code = expect.get("boundary_code")
-    if expected_code is None:
-        return CheckResult(
-            CheckName.INVALID_CALL,
-            passed=not actual.validation_errors,
-            detail="unexpected validation errors"
-            if actual.validation_errors
-            else "no validation errors",
-        )
-    if actual.boundary_code is None:
-        return CheckResult(
-            CheckName.INVALID_CALL,
-            passed=False,
-            detail="missing boundary code",
-        )
-    passed = actual.boundary_code.value == str(expected_code)
-    return CheckResult(
-        CheckName.INVALID_CALL,
-        passed=passed,
-        detail=f"expected={expected_code} actual={actual.boundary_code.value}",
-    )
-
-
-def _check_clarification(
-    expect: dict[str, Any],
-    actual: EvalActual,
-) -> CheckResult:
-    if actual.tool_calls:
-        return CheckResult(
-            CheckName.CLARIFICATION,
-            passed=False,
-            detail="tool calls present",
-        )
-    spoken = actual.spoken
-    if not spoken or not spoken.strip():
-        return CheckResult(
-            CheckName.CLARIFICATION,
-            passed=False,
-            detail="missing spoken clarification",
-        )
-    contains = expect.get("spoken_contains")
-    if isinstance(contains, list):
-        normalized = _normalize_spoken(spoken)
-        missing = [
-            phrase
-            for phrase in contains
-            if _normalize_spoken(str(phrase)) not in normalized
-        ]
-        if missing:
-            return CheckResult(
-                CheckName.CLARIFICATION,
-                passed=False,
-                detail=f"missing phrases: {missing}",
-            )
-    return CheckResult(CheckName.CLARIFICATION, passed=True, detail="clarification ok")
-
-
-def _check_partial_failure(
-    expect: dict[str, Any],
-    actual: EvalActual,
-) -> CheckResult:
-    expected_failures = expect.get("execution_failures", [])
-    if not isinstance(expected_failures, list):
-        expected_failures = []
-    actual_failures = sorted(actual.execution_failures)
-    expected_sorted = sorted(str(item) for item in expected_failures)
-    if actual_failures != expected_sorted:
-        return CheckResult(
-            CheckName.PARTIAL_FAILURE,
-            passed=False,
-            detail=(
-                f"expected failures={expected_sorted} "
-                f"actual={actual_failures}"
-            ),
-        )
-    expected_boundary = expect.get("boundary_code")
-    if (
-        expected_boundary is not None
-        and actual.boundary_code is not None
-        and actual.boundary_code.value != str(expected_boundary)
+def score(case_id: str, expectation: Expectation, turn: Turn) -> CaseResult:
+    outcome = classify(expectation, turn)
+    flags = []
+    category = expectation.category
+    expected = expectation.response_type
+    if expected == ResponseType.CLARIFICATION and any(is_action_call(call) for call in turn.calls):
+        flags.append("action_on_ambiguity")
+    if expected == ResponseType.REFUSAL and turn.calls:
+        flags.append("tool_call_on_unavailable")
+    if expected == ResponseType.STATUS and any(is_action_call(call) for call in turn.calls):
+        flags.append("status_state_change")
+    if any(_affects(call, entity) for call in turn.calls for entity in expectation.forbidden_entities):
+        flags.append("excluded_entity_affected")
+    if expectation.target_area and any(
+        isinstance(call["arguments"].get("area"), str)
+        and call["arguments"]["area"] != expectation.target_area
+        for call in turn.calls
+        if is_action_call(call) and isinstance(call.get("arguments"), dict)
     ):
-        return CheckResult(
-            CheckName.PARTIAL_FAILURE,
-            passed=False,
-            detail="boundary code mismatch",
-        )
-    return CheckResult(
-        CheckName.PARTIAL_FAILURE,
-        passed=True,
-        detail="partial failure matched",
-    )
-
-
-def _check_spoken_result(
-    expect: dict[str, Any],
-    actual: EvalActual,
-) -> CheckResult:
-    expected_spoken = expect.get("spoken")
-    if not isinstance(expected_spoken, str):
-        contains = expect.get("spoken_contains")
-        if isinstance(contains, list) and contains:
-            normalized = _normalize_spoken(actual.spoken)
-            missing = [
-                phrase
-                for phrase in contains
-                if _normalize_spoken(str(phrase)) not in normalized
-            ]
-            passed = not missing
-            return CheckResult(
-                CheckName.SPOKEN_RESULT,
-                passed=passed,
-                detail=f"missing phrases: {missing}" if missing else "spoken ok",
-            )
-        return CheckResult(
-            CheckName.SPOKEN_RESULT,
-            passed=True,
-            detail="no spoken expectation",
-        )
-    passed = _normalize_spoken(actual.spoken) == _normalize_spoken(expected_spoken)
-    return CheckResult(
-        CheckName.SPOKEN_RESULT,
+        flags.append("wrong_target_area")
+    passed = outcome in PASSING_OUTCOMES and not flags
+    return CaseResult(
+        case_id=case_id,
+        category=category,
+        outcome=outcome,
         passed=passed,
-        detail=f"expected={expected_spoken!r} actual={actual.spoken!r}",
-    )
-
-
-_CHECKERS = {
-    CheckName.TOOL_NAME: _check_tool_name,
-    CheckName.TOOL_ARGS: _check_tool_args,
-    CheckName.TOOL_ORDER: _check_tool_order,
-    CheckName.WRONG_TOOL: _check_wrong_tool,
-    CheckName.INVALID_CALL: _check_invalid_call,
-    CheckName.CLARIFICATION: _check_clarification,
-    CheckName.PARTIAL_FAILURE: _check_partial_failure,
-    CheckName.SPOKEN_RESULT: _check_spoken_result,
-}
-
-
-def score_case(case: EvalCase, actual: EvalActual) -> CaseScore:
-    """Score one case against a recorded actual outcome."""
-    checks: dict[str, CheckResult] = {}
-    passed = True
-    for check_name in case.checks:
-        checker = _CHECKERS[check_name]
-        result = checker(case.expect, actual)
-        checks[result.name.value] = result
-        passed = passed and result.passed
-    return CaseScore(
-        case_id=case.id,
-        category=case.category,
-        scenario=case.scenario,
-        passed=passed,
-        checks=checks,
-    )
-
-
-def case_score_to_dict(score: CaseScore) -> dict[str, Any]:
-    """Convert one case score to a JSON-serializable mapping."""
-    return {
-        "case_id": score.case_id,
-        "category": score.category,
-        "scenario": score.scenario,
-        "passed": score.passed,
-        "checks": {
-            name: {"passed": result.passed, "detail": result.detail}
-            for name, result in sorted(score.checks.items())
+        flags=flags,
+        turn=turn,
+        expected={
+            "response_type": expectation.response_type.value,
+            "calls": list(expectation.calls),
+            "forbidden_entities": list(expectation.forbidden_entities),
+            "target_area": expectation.target_area,
         },
+    )
+
+
+def _rate(numerator: int, denominator: int) -> float:
+    return round(numerator / denominator, 4) if denominator else 0.0
+
+
+def summarize(results: list[CaseResult]) -> dict[str, Any]:
+    by_category: dict[str, list[CaseResult]] = defaultdict(list)
+    for result in results:
+        by_category[result.category].append(result)
+    expected_type = {r.case_id: r.expected["response_type"] for r in results}
+    action = [r for r in results if expected_type[r.case_id] in ("action", "status")]
+    no_call = [r for r in results if expected_type[r.case_id] in ("clarification", "refusal")]
+    clarify = [r for r in results if expected_type[r.case_id] == "clarification"]
+    refuse = [r for r in results if expected_type[r.case_id] == "refusal"]
+    outcomes = Counter(r.outcome.value for r in results)
+    flags = Counter(flag for r in results for flag in r.flags)
+    # A gate, not a formality: an unparseable completion must never score as a
+    # successful abstention, whatever changes in classify().
+    flags["malformed_treated_as_abstention"] = sum(
+        r.passed and r.outcome == Outcome.MALFORMED_OUTPUT for r in results
+    )
+    total = len(results)
+    return {
+        "total": total,
+        "passed": sum(r.passed for r in results),
+        "overall_pass_rate": _rate(sum(r.passed for r in results), total),
+        "category_pass_rate": {
+            category: _rate(sum(r.passed for r in rows), len(rows))
+            for category, rows in sorted(by_category.items())
+        },
+        "action_execution_accuracy": _rate(sum(r.passed for r in action), len(action)),
+        "false_action_rate": _rate(sum(bool(r.turn.calls) for r in no_call), len(no_call)),
+        "clarification_accuracy": _rate(sum(r.passed for r in clarify), len(clarify)),
+        "refusal_accuracy": _rate(sum(r.passed for r in refuse), len(refuse)),
+        "malformed_output_rate": _rate(outcomes[Outcome.MALFORMED_OUTPUT], total),
+        "unknown_tool_rate": _rate(outcomes[Outcome.UNKNOWN_TOOL], total),
+        "invalid_argument_rate": _rate(outcomes[Outcome.INVALID_ARGUMENTS], total),
+        "outcomes": dict(sorted(outcomes.items())),
+        "flags": dict(sorted(flags.items())),
     }
+
+
+def check_gates(
+    summary: dict[str, Any],
+    gates: dict[str, Any],
+    *,
+    expected_count: int | None = None,
+) -> list[str]:
+    """Every promotion gate the summary fails. Empty means promotable.
+
+    Incomplete runs — missing cases or infrastructure errors — cannot pass.
+    """
+    failures = []
+    if expected_count is not None and summary["total"] != expected_count:
+        failures.append(f"incomplete run: scored {summary['total']} of {expected_count} cases")
+    if summary["flags"].get("transport_error"):
+        failures.append(
+            f"incomplete run: {summary['flags']['transport_error']} infrastructure error(s)"
+        )
+    if summary["overall_pass_rate"] < gates["min_overall_pass_rate"]:
+        failures.append(
+            f"overall pass rate {summary['overall_pass_rate']} < {gates['min_overall_pass_rate']}"
+        )
+    for category, minimum in gates.get("category_min_pass_rate", {}).items():
+        rate = summary["category_pass_rate"].get(category)
+        if rate is None:
+            failures.append(f"required category {category} has no cases")
+        elif rate < minimum:
+            failures.append(f"category {category} pass rate {rate} < {minimum}")
+    for metric, maximum in gates.get("max_rates", {}).items():
+        if summary[metric] > maximum:
+            failures.append(f"{metric} {summary[metric]} > {maximum}")
+    for flag in gates.get("zero_tolerance_flags", []):
+        if summary["flags"].get(flag):
+            failures.append(f"{flag} occurred {summary['flags'][flag]} time(s)")
+    return failures

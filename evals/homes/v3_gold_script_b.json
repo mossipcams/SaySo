@@ -1,0 +1,29 @@
+{
+  "home_id": "v3_gold_script_b",
+  "satellite_area": "Foyer",
+  "sayso_entity_area": "Foyer",
+  "areas": {
+    "Foyer": []
+  },
+  "area_aliases": {
+    "Foyer": []
+  },
+  "entities": [
+    {
+      "entity_id": "script.leave_home_script",
+      "name": "Leave Home Script",
+      "aliases": [
+        "Leave Home Script"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "device_class": null,
+      "area": "Foyer",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    }
+  ]
+}

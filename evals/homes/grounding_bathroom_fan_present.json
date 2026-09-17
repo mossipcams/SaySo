@@ -1,0 +1,53 @@
+{
+  "home_id": "grounding_bathroom_fan_present",
+  "satellite_area": "Bathroom",
+  "sayso_entity_area": "Bathroom",
+  "areas": {
+    "Bathroom": []
+  },
+  "area_aliases": {
+    "Bathroom": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.bathroom_extractor",
+      "name": "Bathroom Extractor",
+      "aliases": [
+        "Bathroom Extractor"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "capability": "fans",
+      "device_class": null,
+      "area": "Bathroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    },
+    {
+      "entity_id": "light.mirror_light",
+      "name": "Mirror Light",
+      "aliases": [
+        "Mirror Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Bathroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    }
+  ]
+}

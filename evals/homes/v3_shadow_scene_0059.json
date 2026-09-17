@@ -1,0 +1,29 @@
+{
+  "home_id": "v3_shadow_scene_0059",
+  "satellite_area": "Studio",
+  "sayso_entity_area": "Studio",
+  "areas": {
+    "Studio": []
+  },
+  "area_aliases": {
+    "Studio": []
+  },
+  "entities": [
+    {
+      "entity_id": "scene.studio_relax_scene",
+      "name": "Studio Relax Scene",
+      "aliases": [
+        "Studio Relax Scene"
+      ],
+      "domain": "scene",
+      "kind": "scene",
+      "device_class": null,
+      "area": "Studio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "activate"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "home_id": "grounding_livingroom_tv_moved",
+  "satellite_area": "Living Room",
+  "sayso_entity_area": "Living Room",
+  "areas": {
+    "Bedroom": [],
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Bedroom": [],
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.living_room_tv",
+      "name": "TV",
+      "aliases": [
+        "TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Bedroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    },
+    {
+      "entity_id": "light.reading_lamp",
+      "name": "Reading Lamp",
+      "aliases": [
+        "Reading Lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_mute_0021",
+  "satellite_area": "Veranda",
+  "sayso_entity_area": "Veranda",
+  "areas": {
+    "Veranda": []
+  },
+  "area_aliases": {
+    "Veranda": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.veranda_bedroom_tv",
+      "name": "Veranda Bedroom TV",
+      "aliases": [
+        "Veranda Bedroom TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Veranda",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

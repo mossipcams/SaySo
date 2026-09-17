@@ -1,0 +1,157 @@
+{
+  "home_id": "realistic_eval_household_2",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Bathroom": [],
+    "Bedroom": [],
+    "Entryway": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Bathroom": [],
+    "Bedroom": [],
+    "Entryway": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "name": "Bathroom Vanity Lights",
+      "aliases": [],
+      "domain": "light",
+      "area": "Bathroom"
+    },
+    {
+      "name": "Bedroom Desk Fan",
+      "aliases": [
+        "bedroom fan"
+      ],
+      "domain": "fan",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Bedroom Window Shade",
+      "aliases": [],
+      "domain": "cover",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Breakfast Bar Pendants",
+      "aliases": [
+        "prep lights"
+      ],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Downstairs Thermostat",
+      "aliases": [],
+      "domain": "climate",
+      "area": "Hallway"
+    },
+    {
+      "name": "Front Door Deadbolt",
+      "aliases": [],
+      "domain": "lock",
+      "area": "Entryway"
+    },
+    {
+      "name": "Jamie's Bedside Lamp",
+      "aliases": [
+        "bedside lamp",
+        "my bedside light"
+      ],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Kitchen Kettle Plug",
+      "aliases": [
+        "coffee plug"
+      ],
+      "domain": "switch",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Pantry Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Robot Vacuum",
+      "aliases": [],
+      "domain": "vacuum",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Worktop Lights",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Living Room Ceiling Light",
+      "aliases": [
+        "reading light",
+        "sofa lamp"
+      ],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "name": "Lounge Television",
+      "aliases": [
+        "big screen"
+      ],
+      "domain": "media_player",
+      "area": "Living Room"
+    },
+    {
+      "name": "Movie Lighting",
+      "aliases": [],
+      "domain": "scene",
+      "area": "Living Room"
+    },
+    {
+      "name": "Robin's Bedside Lamp",
+      "aliases": [
+        "bedside lamp"
+      ],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Shopping List",
+      "aliases": [],
+      "domain": "todo",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Sofa Reading Lamp",
+      "aliases": [
+        "reading light"
+      ],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "entity_id": "script.good_night",
+      "name": "Good Night",
+      "aliases": [],
+      "domain": "script",
+      "area": null
+    },
+    {
+      "entity_id": "script.wake_up",
+      "name": "Wake Up",
+      "aliases": [],
+      "domain": "script",
+      "area": null
+    }
+  ]
+}

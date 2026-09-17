@@ -32,5 +32,5 @@ include = ["custom_components*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-testpaths = ["tests", "satellite/sayso"]
+testpaths = ["tests", "evals/tests", "satellite/sayso"]
 pythonpath = ["."]

@@ -1,0 +1,31 @@
+{
+  "home_id": "recipe_lock_023",
+  "satellite_area": "Workshop",
+  "sayso_entity_area": "Workshop",
+  "areas": {
+    "Workshop": []
+  },
+  "area_aliases": {
+    "Workshop": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.workshop_west_fan",
+      "name": "Workshop West Fan",
+      "aliases": [
+        "Workshop West Fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Workshop",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

@@ -516,19 +516,19 @@ def test_build_tool_map_indexes_tools_by_name() -> None:
     assert tool_map["BetaTool"] is beta
 
 
-def test_build_tool_map_indexes_namespaced_tools_by_suffix_alias() -> None:
-    """build_tool_map also indexes HA 2026.9 namespaced tools by their suffix."""
+def test_build_tool_map_never_resolves_bare_names_to_namespaced_tools() -> None:
+    """HA 2026.9 offers intent__HassTurnOn; a bare HassTurnOn must not resolve."""
     inner = _FakeTool(name="HassTurnOn")
     namespaced = llm.NamespacedTool("intent", inner)
 
     tool_map = build_tool_map([namespaced])
 
     assert tool_map["intent__HassTurnOn"] is namespaced
-    assert tool_map["HassTurnOn"] is namespaced
+    assert "HassTurnOn" not in tool_map
 
 
-def test_build_tool_map_exact_name_wins_over_suffix_alias_collision() -> None:
-    """Exact tool names are never replaced by a suffix alias from another tool."""
+def test_build_tool_map_keeps_each_exact_name() -> None:
+    """Two tools whose names share a suffix stay two distinct exact entries."""
     alias_source = _FakeTool(name="custom__HassTurnOn")
     exact = _FakeTool(name="HassTurnOn")
 

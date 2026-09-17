@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_gold_climate_b",
+  "satellite_area": "Family Room",
+  "sayso_entity_area": "Family Room",
+  "areas": {
+    "Family Room": []
+  },
+  "area_aliases": {
+    "Family Room": []
+  },
+  "entities": [
+    {
+      "entity_id": "climate.family_room_thermostat",
+      "name": "Family Room Thermostat",
+      "aliases": [
+        "Family Room Thermostat"
+      ],
+      "domain": "climate",
+      "kind": "climate",
+      "device_class": null,
+      "area": "Family Room",
+      "floor": "Main Floor",
+      "state": "cool",
+      "capabilities": [
+        "heat",
+        "cool",
+        "off"
+      ]
+    }
+  ]
+}

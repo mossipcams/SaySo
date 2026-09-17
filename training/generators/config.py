@@ -60,17 +60,6 @@ class GeneratorConfig:
     # against a 2.8% ceiling (a spread of roughly 15%), hence 0.75 rather than a
     # tight fraction.
     min_rate_achieved_fraction: float = 0.75
-    # Share of accepted rows rendered in the Home Assistant 2026.9 tool contract
-    # (`intent__HassTurnOn`) instead of the pinned bare names. Measured at the
-    # llama.cpp boundary for issue #52: with the namespaced list the deployed
-    # model picks the wrong tool on 2 of 3 TV utterances, with bare names and the
-    # same schema it picks the right one. Bare names stay the majority because the
-    # pinned contract and the recipe-lock gold still use them.
-    #
-    # Opt-in (see --namespaced-tool-rate), for the same reason as
-    # full_catalog_rate: switching contracts changes what every existing recipe
-    # generates. The issue #52 recipe passes 0.35.
-    namespaced_tool_rate: float = 0.0
     # Share of accepted rows offered the whole catalogue rather than a sampled
     # subset. A subset is built by keeping the expected answer first, so a corpus
     # made only of subsets never shows a tool list that was not pre-filtered to
@@ -80,6 +69,11 @@ class GeneratorConfig:
     # and changes what every existing recipe generates, so an old recipe keeps
     # producing the corpus it always did. The issue #52 recipe passes 0.35.
     full_catalog_rate: float = 0.0
+    # Versioned area-scenario mix (generators.area_scenarios). Those rows are
+    # reserved out of ``count`` and generation fails when one falls short. None
+    # keeps the production area-format gate but reserves no scenario rows; the
+    # CLI, which builds real corpora, defaults to configs/area_distribution_v1.json.
+    area_distribution_path: Path | None = None
     # Dataset-level audit gates (generators.audit).
     min_positive_per_operation: int = 1
     min_positive_per_tool: int = 1
@@ -103,7 +97,7 @@ class GeneratorConfig:
         if self.real_home_rate and not self.real_home_path:
             raise ValueError("real_home_rate needs real_home_path")
         for name in ("grounding_rate", "discrimination_rate", "ordinary_rate",
-                     "namespaced_tool_rate", "full_catalog_rate"):
+                     "full_catalog_rate"):
             value = getattr(self, name)
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name} must be within [0, 1], got {value}")
@@ -138,8 +132,8 @@ class GeneratorConfig:
             "negative_rate": self.negative_rate,
             "grounding_rate": self.grounding_rate,
             "discrimination_rate": self.discrimination_rate,
-            "namespaced_tool_rate": self.namespaced_tool_rate,
             "full_catalog_rate": self.full_catalog_rate,
+            "area_distribution_path": str(self.area_distribution_path) if self.area_distribution_path else None,
             "min_rate_achieved_fraction": self.min_rate_achieved_fraction,
             "min_positive_per_operation": self.min_positive_per_operation,
             "min_positive_per_tool": self.min_positive_per_tool,

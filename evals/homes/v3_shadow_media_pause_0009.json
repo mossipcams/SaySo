@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_pause_0009",
+  "satellite_area": "Terrace",
+  "sayso_entity_area": "Terrace",
+  "areas": {
+    "Terrace": []
+  },
+  "area_aliases": {
+    "Terrace": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.terrace_corner_tv",
+      "name": "Terrace Corner TV",
+      "aliases": [
+        "Terrace Corner TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Terrace",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from typing import Any
 
 import aiohttp
@@ -19,6 +18,14 @@ from .const import (
     DEFAULT_TIMEOUT,
     MODELS_PATH,
 )
+# Re-exported: the parsing half of this module lives in .completion.
+from .completion import (  # noqa: F401
+    ChatCompletionResult,
+    ToolCall,
+    parse_choice_message,
+    parse_tool_calls,
+    prompt_tokens_of,
+)
 from .exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
@@ -27,26 +34,6 @@ from .exceptions import (
     SaySoModelNotFoundError,
     SaySoTimeoutError,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class ToolCall:
-    """An OpenAI-style tool call from llama.cpp."""
-
-    id: str
-    name: str
-    arguments: dict[str, Any]
-
-
-@dataclass(frozen=True, slots=True)
-class ChatCompletionResult:
-    """Parsed assistant output from a chat completion."""
-
-    content: str | None
-    tool_calls: list[ToolCall]
-    request_payload: dict[str, Any] | None = None
-    request_bytes: int | None = None
-    prompt_tokens: int | None = None
 
 
 def normalize_base_url(base_url: str) -> str:
@@ -82,92 +69,6 @@ def build_chat_completions_payload(
     if tools is not None:
         payload["tools"] = tools
     return payload
-
-
-def parse_tool_calls(
-    raw: Any,
-    *,
-    subject: str,
-    mint_id: Callable[[], str] | None = None,
-) -> list[ToolCall]:
-    """Parse OpenAI-shaped ``tool_calls`` from any SaySo inference backend.
-
-    ``mint_id`` supplies an id when the backend omits one. The HTTP client
-    passes none, which also makes parsing strict: a server that sends a
-    non-list ``tool_calls`` or an unlabelled call is not speaking the protocol,
-    and that must fail closed rather than be read as "no tool calls" and let
-    the accompanying text be spoken as if an action ran. The embedded backend
-    stays lenient and falls back to parsing LFM2's native text format.
-    """
-    invalid = SaySoInvalidResponseError(f"{subject} returned invalid tool calls")
-    if raw is None:
-        return []
-    if not isinstance(raw, list):
-        if mint_id is None:
-            raise invalid
-        return []
-    if not raw:
-        return []
-
-    calls: list[ToolCall] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            raise invalid
-        function = item.get("function")
-        if not isinstance(function, dict):
-            raise invalid
-        name = function.get("name")
-        if not isinstance(name, str) or not name:
-            raise invalid
-
-        call_id = item.get("id")
-        if not (isinstance(call_id, str) and call_id):
-            if mint_id is None:
-                raise invalid
-            call_id = mint_id()
-
-        calls.append(
-            ToolCall(
-                id=call_id,
-                name=name,
-                arguments=_decode_arguments(function.get("arguments"), subject),
-            )
-        )
-    return calls
-
-
-def _decode_arguments(raw: Any, subject: str) -> dict[str, Any]:
-    """Accept an argument object, or the JSON string llama.cpp sends instead."""
-    invalid = SaySoInvalidResponseError(f"{subject} returned invalid tool call arguments")
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except json.JSONDecodeError as err:
-            raise invalid from err
-    if not isinstance(raw, dict):
-        raise invalid
-    return raw
-
-
-def parse_choice_message(raw: Any, subject: str) -> tuple[str | None, dict[str, Any]]:
-    """Return the first choice's content and message from a completion body."""
-    choices = raw.get("choices") if isinstance(raw, dict) else None
-    if not isinstance(choices, list) or not choices:
-        raise SaySoInvalidResponseError(f"{subject} returned no choices")
-    message = choices[0].get("message") if isinstance(choices[0], dict) else None
-    if not isinstance(message, dict):
-        raise SaySoInvalidResponseError(f"{subject} returned no choices")
-    content = message.get("content")
-    if content is not None and not isinstance(content, str):
-        raise SaySoInvalidResponseError(f"{subject} returned invalid content")
-    return content, message
-
-
-def prompt_tokens_of(raw: Any) -> int | None:
-    """Return ``usage.prompt_tokens`` when the backend reported it."""
-    usage = raw.get("usage") if isinstance(raw, dict) else None
-    tokens = usage.get("prompt_tokens") if isinstance(usage, dict) else None
-    return tokens if isinstance(tokens, int) else None
 
 
 def _format_llama_error(error: Any) -> str:

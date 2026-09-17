@@ -1,0 +1,49 @@
+{
+  "home_id": "v3_gold_ambiguity_resolve",
+  "satellite_area": "Library",
+  "sayso_entity_area": "Library",
+  "areas": {
+    "Library": []
+  },
+  "area_aliases": {
+    "Library": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.library_reading_lamp",
+      "name": "Library Reading Lamp",
+      "aliases": [
+        "light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Library",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    },
+    {
+      "entity_id": "light.library_desk_lamp",
+      "name": "Library Desk Lamp",
+      "aliases": [
+        "Library Desk Lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Library",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

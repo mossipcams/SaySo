@@ -1,0 +1,84 @@
+{
+  "home_id": "issue52_tv_on_absent",
+  "satellite_area": "Living Room",
+  "sayso_entity_area": "Living Room",
+  "areas": {
+    "Living Room": [],
+    "Bedroom": []
+  },
+  "area_aliases": {
+    "Living Room": [],
+    "Bedroom": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.living_room_media_player",
+      "name": "Living Room Media Player",
+      "aliases": [
+        "Living Room Media Player"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute"
+      ]
+    },
+    {
+      "entity_id": "media_player.tv",
+      "name": "TV",
+      "aliases": [
+        "TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Bedroom",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    },
+    {
+      "entity_id": "light.reading_lamp",
+      "name": "Reading Lamp",
+      "aliases": [
+        "Reading Lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    }
+  ]
+}

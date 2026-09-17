@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import random
+import sys
 import zlib
 import re
 from collections import Counter, defaultdict
@@ -286,7 +288,7 @@ def _load_excluded_prompts(path: Path | None) -> set[str]:
 
 
 def _normalize_prompt(text: str) -> str:
-    """Match excluded_train_prompts(): punctuation-insensitive, so "joe's" == "joe s"."""
+    """Match excluded_train_utterances(): punctuation-insensitive, so "joe's" == "joe s"."""
     prompt = " ".join(re.findall(r"[a-z0-9]+", text.casefold()))
     prompt = re.sub(r"^(?:(?:please|can you|could you|tell me) )+", "", prompt)
     return re.sub(r"(?: for me)+$", "", prompt)
@@ -294,24 +296,13 @@ def _normalize_prompt(text: str) -> str:
 
 @lru_cache(maxsize=1)
 def _quality_eval_prompts() -> frozenset[str]:
-    """Normalized gold, shadow, and recipe-lock prompts, none of which may be trained on."""
-    try:
-        from evals.v3_quality import excluded_train_prompts
+    """Normalized active eval utterances, none of which may be trained on."""
+    repo = Path(__file__).resolve().parents[2]
+    if str(repo) not in sys.path:
+        sys.path.append(str(repo))
+    from evals.cases import excluded_train_utterances
 
-        prompts = {_normalize_prompt(prompt) for prompt in excluded_train_prompts()}
-    except ImportError:
-        try:
-            from evals.recipe_lock import locked_specs
-
-            prompts = {_normalize_prompt(spec["utterance"]) for spec in locked_specs()}
-        except ImportError:
-            prompts = set()
-
-    fixture = Path(__file__).resolve().parents[1] / "fixtures" / "realistic_eval_20260908_v2.json"
-    for case in json.loads(fixture.read_text(encoding="utf-8"))["cases"]:
-        prompts.update(_normalize_prompt(message["content"]) for message in case["messages"]
-                       if message["role"] == "user")
-    return frozenset(prompts)
+    return frozenset(_normalize_prompt(prompt) for prompt in excluded_train_utterances())
 
 
 def _check_quality_eval_overlap(utterance: str) -> bool:
@@ -564,7 +555,6 @@ def generate_row(
             f":{slot['index']}:{attempt}:contract".encode()
         )
     )
-    spec["namespaced_tools"] = contract_rng.random() < config.namespaced_tool_rate
     spec["full_tool_catalog"] = contract_rng.random() < config.full_catalog_rate
     expected = spec.get("expected") or {}
     if expected.get("kind") == "no_action":
@@ -688,7 +678,39 @@ def generate_row(
 
 
 def run_generation(config: GeneratorConfig) -> dict[str, Any]:
-    """Generate accepted training rows up to config.count."""
+    """Generate accepted training rows up to config.count.
+
+    Area-scenario rows are reserved first from the versioned distribution; the
+    quota pipeline fills the rest. The combined corpus must pass the area
+    distribution gates or the build fails.
+    """
+    from generators import area_scenarios
+
+    plan = (
+        area_scenarios.load_distribution(config.area_distribution_path)
+        if config.area_distribution_path
+        else None
+    )
+    excluded = _load_excluded_prompts(config.exclude_prompts_path)
+    area_rows = (
+        area_scenarios.build_rows(
+            area_scenarios.required_counts(plan, config.count),
+            seed=config.seed,
+            reject=lambda user: user.casefold() in excluded or _check_quality_eval_overlap(user),
+        )
+        if plan
+        else []
+    )
+    result = _run_quota_generation(dataclasses.replace(config, count=config.count - len(area_rows)))
+    result["rows"] = result["rows"] + area_rows
+    result["stats"]["area_distribution"] = area_scenarios.validate_distribution(
+        result["rows"], plan, config.count
+    )
+    return result
+
+
+def _run_quota_generation(config: GeneratorConfig) -> dict[str, Any]:
+    """Generate accepted quota-planned rows up to config.count."""
     rng = random.Random(config.seed)
     grounding_target = int(round(config.count * config.grounding_rate))
     capacity = _grounding_capacity(config)
@@ -883,11 +905,8 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
         available_share=_discrimination_available_share(config),
     )
     # Counted on accepted rows after validation, deduplication and the quota, not
-    # assumed from the requested rate. The first build of this pair delivered 11.5%
-    # against a 35% request because coverage compared raw tool names and rejected
-    # every namespaced row; nothing failed, it just shipped short.
+    # assumed from the requested rate: a share that silently ships short must fail.
     for key, requested in (
-        ("namespaced_tools", config.namespaced_tool_rate),
         ("full_tool_catalog", config.full_catalog_rate),
     ):
         rows = sum(1 for row in accepted if row["metadata"].get(key))

@@ -1,4 +1,4 @@
-# First supervised train set: 10k deterministic rows from generate_recipe_lock_eval.py
+# First supervised train set: 10k deterministic rows
 # (sayso_train_first_10000.jsonl). Render to sayso_train_first_10000_render.jsonl before training.
 model_name_or_path: /srv/models/LFM2.5-230M-Base
 trust_remote_code: true

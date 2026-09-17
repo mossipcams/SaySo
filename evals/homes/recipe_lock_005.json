@@ -1,0 +1,30 @@
+{
+  "home_id": "recipe_lock_005",
+  "satellite_area": "Patio",
+  "sayso_entity_area": "Patio",
+  "areas": {
+    "Patio": []
+  },
+  "area_aliases": {
+    "Patio": []
+  },
+  "entities": [
+    {
+      "entity_id": "lock.patio_side_door_lock",
+      "name": "Patio Side Door Lock",
+      "aliases": [
+        "patio door"
+      ],
+      "domain": "lock",
+      "kind": "lock",
+      "device_class": "door",
+      "area": "Patio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "lock",
+        "unlock"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_gold_ambiguity_area",
+  "satellite_area": "Study",
+  "sayso_entity_area": "Study",
+  "areas": {
+    "Study": []
+  },
+  "area_aliases": {
+    "Study": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.study_desk_fan",
+      "name": "Study Desk Fan",
+      "aliases": [
+        "fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Study",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

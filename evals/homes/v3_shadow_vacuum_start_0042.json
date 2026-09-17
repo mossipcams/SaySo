@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_vacuum_start_0042",
+  "satellite_area": "Courtyard",
+  "sayso_entity_area": "Courtyard",
+  "areas": {
+    "Courtyard": []
+  },
+  "area_aliases": {
+    "Courtyard": []
+  },
+  "entities": [
+    {
+      "entity_id": "vacuum.courtyard_floor_vacuum",
+      "name": "Courtyard Floor Vacuum",
+      "aliases": [
+        "Courtyard Floor Vacuum"
+      ],
+      "domain": "vacuum",
+      "kind": "vacuum",
+      "device_class": null,
+      "area": "Courtyard",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "start",
+        "stop"
+      ]
+    }
+  ]
+}

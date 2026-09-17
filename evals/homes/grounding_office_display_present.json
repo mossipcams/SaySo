@@ -1,0 +1,39 @@
+{
+  "home_id": "grounding_office_display_present",
+  "satellite_area": "Office",
+  "sayso_entity_area": "Office",
+  "areas": {
+    "Office": []
+  },
+  "area_aliases": {
+    "Office": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.office_display_2",
+      "name": "Office Display",
+      "aliases": [
+        "Office Display",
+        "the monitor"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Office",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    }
+  ]
+}

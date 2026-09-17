@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_off_0071",
+  "satellite_area": "Cellar",
+  "sayso_entity_area": "Cellar",
+  "areas": {
+    "Cellar": []
+  },
+  "area_aliases": {
+    "Cellar": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.cellar_ceiling_fan",
+      "name": "Cellar Ceiling Fan",
+      "aliases": [
+        "fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Cellar",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

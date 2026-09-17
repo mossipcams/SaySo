@@ -1,0 +1,29 @@
+{
+  "home_id": "v3_shadow_scene_0056",
+  "satellite_area": "Atrium",
+  "sayso_entity_area": "Atrium",
+  "areas": {
+    "Atrium": []
+  },
+  "area_aliases": {
+    "Atrium": []
+  },
+  "entities": [
+    {
+      "entity_id": "scene.atrium_relax_scene",
+      "name": "Atrium Relax Scene",
+      "aliases": [
+        "Atrium Relax Scene"
+      ],
+      "domain": "scene",
+      "kind": "scene",
+      "device_class": null,
+      "area": "Atrium",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "activate"
+      ]
+    }
+  ]
+}

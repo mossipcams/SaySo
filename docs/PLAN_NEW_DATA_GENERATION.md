@@ -266,7 +266,7 @@ fixtures relative to the repo root and fail if pytest runs inside `training/`).
   `real_home.py`, `config.py`, `cli.py`, and `pipeline.py`
 - `training/scripts/fetch_ha_home.py` and
   `training/scripts/build_synthetic_dataset.py`
-- `training/evals/grounding_eval.py` and `training/evals/v3_quality.py`
+- `evals/cases/regressions.jsonl` (grounding, quality gold/shadow)
 - `training/fixtures/synthetic_reference_home.json` and a live refresh of
   `training/fixtures/real_home.json` only when configured HA access is available
 - `training/generators/test_coverage_gates.py`,

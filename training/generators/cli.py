@@ -10,6 +10,7 @@ from pathlib import Path
 TRAINING_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TRAINING_ROOT))
 
+from generators.area_scenarios import DEFAULT_DISTRIBUTION
 from generators.config import DEFAULT_TRAIN_COUNT, GeneratorConfig
 from generators.pipeline import run_generation, write_jsonl, write_manifest
 
@@ -64,11 +65,10 @@ def main(argv: list[str] | None = None) -> int:
              "naming it (entity resolution; default 0.0)",
     )
     parser.add_argument(
-        "--namespaced-tool-rate",
-        type=float,
-        default=None,
-        help="Share of rows using the Home Assistant 2026.9 tool contract "
-             "(intent__HassTurnOn) instead of the pinned bare names",
+        "--area-distribution",
+        default=str(DEFAULT_DISTRIBUTION),
+        help="Area-scenario distribution config, or 'none' to reserve no area rows "
+             "(default configs/area_distribution_v1.json)",
     )
     parser.add_argument(
         "--full-catalog-rate",
@@ -98,7 +98,6 @@ def main(argv: list[str] | None = None) -> int:
             ("negative_rate", args.negative_rate),
             ("grounding_rate", args.grounding_rate),
             ("discrimination_rate", args.discrimination_rate),
-            ("namespaced_tool_rate", args.namespaced_tool_rate),
             ("full_catalog_rate", args.full_catalog_rate),
             ("max_absence_rate", args.max_absence_rate),
             ("min_rate_achieved_fraction", 0.0 if args.allow_rate_shortfall else None),
@@ -119,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         paraphrase_enabled=args.paraphrase,
         token_budget=args.token_budget,
         exclude_prompts_path=args.exclude_prompts,
+        area_distribution_path=None if args.area_distribution == "none" else Path(args.area_distribution),
         real_home_path=args.real_home,
         real_home_rate=args.real_home_rate,
         real_home_entity_cap=args.real_home_entity_cap,

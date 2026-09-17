@@ -41,3 +41,7 @@ training/hf_cache/
 *.bin
 *.pt
 *.ckpt
+
+# Eval run outputs (metadata is regenerated per run)
+evals/results/*
+!evals/results/.gitkeep

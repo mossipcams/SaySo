@@ -1,0 +1,30 @@
+{
+  "home_id": "recipe_lock_009",
+  "satellite_area": "Office",
+  "sayso_entity_area": "Office",
+  "areas": {
+    "Office": []
+  },
+  "area_aliases": {
+    "Office": []
+  },
+  "entities": [
+    {
+      "entity_id": "cover.o_malley_s_study_blinds",
+      "name": "O'Malley's Study Blinds",
+      "aliases": [
+        "study blinds"
+      ],
+      "domain": "cover",
+      "kind": "blinds",
+      "device_class": "blind",
+      "area": "Office",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "open",
+        "close"
+      ]
+    }
+  ]
+}

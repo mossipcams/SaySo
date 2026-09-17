@@ -1,0 +1,51 @@
+{
+  "home_id": "recipe_lock_029",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Kitchen": []
+  },
+  "area_aliases": {
+    "Kitchen": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.kitchen_sink_cool_light",
+      "name": "Kitchen Sink Cool Light",
+      "aliases": [
+        "light",
+        "kitchen light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    },
+    {
+      "entity_id": "light.kitchen_ceiling_cool_light",
+      "name": "Kitchen Ceiling Cool Light",
+      "aliases": [
+        "light",
+        "kitchen light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

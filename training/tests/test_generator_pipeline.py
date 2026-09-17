@@ -136,10 +136,9 @@ def test_generated_script_rows_call_the_script_tool_not_hass_turn_on() -> None:
 
 def test_every_quality_eval_prompt_is_rejected_verbatim() -> None:
     """Punctuation must not defeat the guard: "joe's" and "joe s" both contaminate."""
-    from evals.recipe_lock import quality_eval_user_prompts
-    from evals.v3_quality import gold_user_prompts, shadow_user_prompts
+    from evals.cases import excluded_train_utterances
     from generators.pipeline import _check_quality_eval_overlap
 
-    for prompt in (*quality_eval_user_prompts(), *gold_user_prompts(), *shadow_user_prompts()):
+    for prompt in excluded_train_utterances():
         assert _check_quality_eval_overlap(prompt), prompt
         assert _check_quality_eval_overlap(prompt.upper()), prompt

@@ -15,20 +15,18 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Protocol
 
 from homeassistant.const import CONF_URL
 
-from .client import (
-    ChatCompletionResult,
-    LlamaCppClient,
-    ToolCall,
-    parse_choice_message,
-    parse_tool_calls,
-    prompt_tokens_of,
+from .client import ChatCompletionResult, LlamaCppClient
+# Re-exported: parsing lives in .completion so the eval can share it.
+from .completion import (  # noqa: F401
+    extract_tool_calls,
+    parse_completion_result,
+    parse_completion_result as _parse_embedded_result,
 )
 from .const import (
     BACKEND_EMBEDDED,
@@ -45,23 +43,8 @@ from .exceptions import (
     SaySoModelLoadError,
     SaySoTimeoutError,
 )
-from .lfm_parse import LfmPythonParseError, parse_lfm_python_tool_calls
 
 _LOGGER = logging.getLogger(__name__)
-
-# LFM2 wraps tool calls in these markers. llama-cpp-python ships libllama only,
-# not llama.cpp's common/chat.cpp, so the server-side parser that llama-server
-# applies with --jinja is not available and SaySo strips them itself.
-_TOOL_CALL_START = "<|tool_call_start|>"
-_TOOL_CALL_END = "<|tool_call_end|>"
-
-# Prefix for the errors this backend raises, so a trace says which one failed.
-_SUBJECT = "Local inference"
-
-
-def _call_id() -> str:
-    """Mint a tool-call id for a backend that does not supply one."""
-    return f"call_{uuid.uuid4().hex[:8]}"
 
 
 def default_thread_count() -> int:
@@ -80,46 +63,6 @@ def entry_backend(entry: Any) -> str:
     if backend in (BACKEND_EMBEDDED, BACKEND_EXTERNAL):
         return backend
     return BACKEND_EXTERNAL if entry.data.get(CONF_URL) else BACKEND_EMBEDDED
-
-
-def extract_tool_calls(content: str) -> tuple[str | None, list[ToolCall]]:
-    """Split assistant text into leftover prose and structured tool calls.
-
-    Returns ``(text, [])`` when the model answered in prose. Malformed tool-call
-    syntax raises, because a half-understood action must fail closed rather than
-    execute something approximate.
-    """
-    if not content:
-        return None, []
-
-    body = content
-    if _TOOL_CALL_START in body:
-        prefix, _, rest = body.partition(_TOOL_CALL_START)
-        body, _, suffix = rest.partition(_TOOL_CALL_END)
-        leftover = f"{prefix}{suffix}".strip()
-    else:
-        stripped = body.strip()
-        # A bare bracketed call list is the same payload without the markers.
-        if not (stripped.startswith("[") and stripped.endswith("]")):
-            return content, []
-        body, leftover = stripped, ""
-
-    try:
-        parsed = parse_lfm_python_tool_calls(body)
-    except LfmPythonParseError as err:
-        raise SaySoInvalidResponseError(
-            f"Could not parse model tool call {body!r}: {err}"
-        ) from err
-
-    calls = [
-        ToolCall(
-            id=_call_id(),
-            name=call["name"],
-            arguments=call["arguments"],
-        )
-        for call in parsed
-    ]
-    return (leftover or None), calls
 
 
 class SaySoInferenceEngine(Protocol):
@@ -316,34 +259,7 @@ class EmbeddedEngine:
         except Exception as err:
             raise SaySoInvalidResponseError(f"Local inference failed: {err}") from err
 
-        return _parse_embedded_result(raw)
+        return parse_completion_result(raw)
 
 
-def _parse_embedded_result(raw: Any) -> ChatCompletionResult:
-    """Convert llama-cpp-python output into SaySo's transport-neutral result."""
-    if not isinstance(raw, dict):
-        raise SaySoInvalidResponseError("Local inference returned no result")
 
-    content, message = parse_choice_message(raw, _SUBJECT)
-
-    # Honour structured tool_calls when a handler produced them, and fall back
-    # to parsing LFM2's native text format otherwise. llama-cpp-python omits
-    # call ids, so one is minted here rather than failing the turn.
-    tool_calls = parse_tool_calls(
-        message.get("tool_calls"), subject=_SUBJECT, mint_id=_call_id
-    )
-    if tool_calls:
-        text: str | None = content
-    else:
-        text, tool_calls = extract_tool_calls(content or "")
-
-    if text is None and not tool_calls:
-        raise SaySoInvalidResponseError(
-            "Local inference returned neither content nor tool calls"
-        )
-
-    return ChatCompletionResult(
-        content=text,
-        tool_calls=tool_calls,
-        prompt_tokens=prompt_tokens_of(raw),
-    )

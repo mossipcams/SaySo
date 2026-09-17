@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_off_0074",
+  "satellite_area": "Veranda",
+  "sayso_entity_area": "Veranda",
+  "areas": {
+    "Veranda": []
+  },
+  "area_aliases": {
+    "Veranda": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.veranda_ceiling_fan",
+      "name": "Veranda Ceiling Fan",
+      "aliases": [
+        "fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Veranda",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

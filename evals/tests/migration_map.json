@@ -1,0 +1,2030 @@
+[
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ordinary_01",
+    "canonical_id": "realistic_eval_20260908_ordinary_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_light_fan_settings_01",
+    "canonical_id": "realistic_eval_20260908_light_fan_settings_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_climate_01",
+    "canonical_id": "realistic_eval_20260908_climate_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_media_01",
+    "canonical_id": "realistic_eval_20260908_media_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_timers_01",
+    "canonical_id": "realistic_eval_20260908_timers_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_routines_vacuum_01",
+    "canonical_id": "realistic_eval_20260908_routines_vacuum_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_status_01",
+    "canonical_id": "realistic_eval_20260908_status_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_aliases_01",
+    "canonical_id": "realistic_eval_20260908_aliases_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_multi_action_01",
+    "canonical_id": "realistic_eval_20260908_multi_action_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_exclusion_01",
+    "canonical_id": "realistic_eval_20260908_exclusion_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ambiguity_01",
+    "canonical_id": "realistic_eval_20260908_ambiguity_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_unavailable_01",
+    "canonical_id": "realistic_eval_20260908_unavailable_01",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ordinary_02",
+    "canonical_id": "realistic_eval_20260908_ordinary_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_light_fan_settings_02",
+    "canonical_id": "realistic_eval_20260908_light_fan_settings_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_climate_02",
+    "canonical_id": "realistic_eval_20260908_climate_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_media_02",
+    "canonical_id": "realistic_eval_20260908_media_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_timers_02",
+    "canonical_id": "realistic_eval_20260908_timers_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_routines_vacuum_02",
+    "canonical_id": "realistic_eval_20260908_routines_vacuum_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_status_02",
+    "canonical_id": "realistic_eval_20260908_status_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_aliases_02",
+    "canonical_id": "realistic_eval_20260908_aliases_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_multi_action_02",
+    "canonical_id": "realistic_eval_20260908_multi_action_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_exclusion_02",
+    "canonical_id": "realistic_eval_20260908_exclusion_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ambiguity_02",
+    "canonical_id": "realistic_eval_20260908_ambiguity_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_unavailable_02",
+    "canonical_id": "realistic_eval_20260908_unavailable_02",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ordinary_03",
+    "canonical_id": "realistic_eval_20260908_ordinary_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_light_fan_settings_03",
+    "canonical_id": "realistic_eval_20260908_light_fan_settings_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_climate_03",
+    "canonical_id": "realistic_eval_20260908_climate_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_media_03",
+    "canonical_id": "realistic_eval_20260908_media_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_timers_03",
+    "canonical_id": "realistic_eval_20260908_timers_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_routines_vacuum_03",
+    "canonical_id": "realistic_eval_20260908_routines_vacuum_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_status_03",
+    "canonical_id": "realistic_eval_20260908_status_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_aliases_03",
+    "canonical_id": "realistic_eval_20260908_aliases_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_multi_action_03",
+    "canonical_id": "realistic_eval_20260908_multi_action_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_exclusion_03",
+    "canonical_id": "realistic_eval_20260908_exclusion_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ambiguity_03",
+    "canonical_id": "realistic_eval_20260908_ambiguity_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_unavailable_03",
+    "canonical_id": "realistic_eval_20260908_unavailable_03",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ordinary_04",
+    "canonical_id": "realistic_eval_20260908_ordinary_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_light_fan_settings_04",
+    "canonical_id": "realistic_eval_20260908_light_fan_settings_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_climate_04",
+    "canonical_id": "realistic_eval_20260908_climate_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_media_04",
+    "canonical_id": "realistic_eval_20260908_media_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_timers_04",
+    "canonical_id": "realistic_eval_20260908_timers_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_routines_vacuum_04",
+    "canonical_id": "realistic_eval_20260908_routines_vacuum_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_status_04",
+    "canonical_id": "realistic_eval_20260908_status_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_aliases_04",
+    "canonical_id": "realistic_eval_20260908_aliases_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_multi_action_04",
+    "canonical_id": "realistic_eval_20260908_multi_action_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_exclusion_04",
+    "canonical_id": "realistic_eval_20260908_exclusion_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ambiguity_04",
+    "canonical_id": "realistic_eval_20260908_ambiguity_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_unavailable_04",
+    "canonical_id": "realistic_eval_20260908_unavailable_04",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ordinary_05",
+    "canonical_id": "realistic_eval_20260908_ordinary_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_light_fan_settings_05",
+    "canonical_id": "realistic_eval_20260908_light_fan_settings_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_climate_05",
+    "canonical_id": "realistic_eval_20260908_climate_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_media_05",
+    "canonical_id": "realistic_eval_20260908_media_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_timers_05",
+    "canonical_id": "realistic_eval_20260908_timers_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_routines_vacuum_05",
+    "canonical_id": "realistic_eval_20260908_routines_vacuum_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_status_05",
+    "canonical_id": "realistic_eval_20260908_status_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_aliases_05",
+    "canonical_id": "realistic_eval_20260908_aliases_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_multi_action_05",
+    "canonical_id": "realistic_eval_20260908_multi_action_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_exclusion_05",
+    "canonical_id": "realistic_eval_20260908_exclusion_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ambiguity_05",
+    "canonical_id": "realistic_eval_20260908_ambiguity_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_unavailable_05",
+    "canonical_id": "realistic_eval_20260908_unavailable_05",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ordinary_06",
+    "canonical_id": "realistic_eval_20260908_ordinary_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_light_fan_settings_06",
+    "canonical_id": "realistic_eval_20260908_light_fan_settings_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_climate_06",
+    "canonical_id": "realistic_eval_20260908_climate_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_media_06",
+    "canonical_id": "realistic_eval_20260908_media_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_timers_06",
+    "canonical_id": "realistic_eval_20260908_timers_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_routines_vacuum_06",
+    "canonical_id": "realistic_eval_20260908_routines_vacuum_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_status_06",
+    "canonical_id": "realistic_eval_20260908_status_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_aliases_06",
+    "canonical_id": "realistic_eval_20260908_aliases_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_multi_action_06",
+    "canonical_id": "realistic_eval_20260908_multi_action_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_exclusion_06",
+    "canonical_id": "realistic_eval_20260908_exclusion_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ambiguity_06",
+    "canonical_id": "realistic_eval_20260908_ambiguity_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_unavailable_06",
+    "canonical_id": "realistic_eval_20260908_unavailable_06",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ordinary_07",
+    "canonical_id": "realistic_eval_20260908_ordinary_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_light_fan_settings_07",
+    "canonical_id": "realistic_eval_20260908_light_fan_settings_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_climate_07",
+    "canonical_id": "realistic_eval_20260908_climate_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_media_07",
+    "canonical_id": "realistic_eval_20260908_media_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_timers_07",
+    "canonical_id": "realistic_eval_20260908_timers_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_routines_vacuum_07",
+    "canonical_id": "realistic_eval_20260908_routines_vacuum_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_status_07",
+    "canonical_id": "realistic_eval_20260908_status_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_aliases_07",
+    "canonical_id": "realistic_eval_20260908_aliases_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_multi_action_07",
+    "canonical_id": "realistic_eval_20260908_multi_action_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_exclusion_07",
+    "canonical_id": "realistic_eval_20260908_exclusion_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ambiguity_07",
+    "canonical_id": "realistic_eval_20260908_ambiguity_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_unavailable_07",
+    "canonical_id": "realistic_eval_20260908_unavailable_07",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ordinary_08",
+    "canonical_id": "realistic_eval_20260908_ordinary_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_light_fan_settings_08",
+    "canonical_id": "realistic_eval_20260908_light_fan_settings_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_climate_08",
+    "canonical_id": "realistic_eval_20260908_climate_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_media_08",
+    "canonical_id": "realistic_eval_20260908_media_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_timers_08",
+    "canonical_id": "realistic_eval_20260908_timers_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_routines_vacuum_08",
+    "canonical_id": "realistic_eval_20260908_routines_vacuum_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_status_08",
+    "canonical_id": "realistic_eval_20260908_status_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_aliases_08",
+    "canonical_id": "realistic_eval_20260908_aliases_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_multi_action_08",
+    "canonical_id": "realistic_eval_20260908_multi_action_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_exclusion_08",
+    "canonical_id": "realistic_eval_20260908_exclusion_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ambiguity_08",
+    "canonical_id": "realistic_eval_20260908_ambiguity_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_unavailable_08",
+    "canonical_id": "realistic_eval_20260908_unavailable_08",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ordinary_09",
+    "canonical_id": "realistic_eval_20260908_ordinary_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_light_fan_settings_09",
+    "canonical_id": "realistic_eval_20260908_light_fan_settings_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_climate_09",
+    "canonical_id": "realistic_eval_20260908_climate_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_media_09",
+    "canonical_id": "realistic_eval_20260908_media_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_timers_09",
+    "canonical_id": "realistic_eval_20260908_timers_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_routines_vacuum_09",
+    "canonical_id": "realistic_eval_20260908_routines_vacuum_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_status_09",
+    "canonical_id": "realistic_eval_20260908_status_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_aliases_09",
+    "canonical_id": "realistic_eval_20260908_aliases_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_multi_action_09",
+    "canonical_id": "realistic_eval_20260908_multi_action_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_exclusion_09",
+    "canonical_id": "realistic_eval_20260908_exclusion_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ambiguity_09",
+    "canonical_id": "realistic_eval_20260908_ambiguity_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_unavailable_09",
+    "canonical_id": "realistic_eval_20260908_unavailable_09",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ordinary_10",
+    "canonical_id": "realistic_eval_20260908_ordinary_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_light_fan_settings_10",
+    "canonical_id": "realistic_eval_20260908_light_fan_settings_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_climate_10",
+    "canonical_id": "realistic_eval_20260908_climate_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_media_10",
+    "canonical_id": "realistic_eval_20260908_media_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_timers_10",
+    "canonical_id": "realistic_eval_20260908_timers_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_routines_vacuum_10",
+    "canonical_id": "realistic_eval_20260908_routines_vacuum_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_status_10",
+    "canonical_id": "realistic_eval_20260908_status_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_aliases_10",
+    "canonical_id": "realistic_eval_20260908_aliases_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_multi_action_10",
+    "canonical_id": "realistic_eval_20260908_multi_action_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_exclusion_10",
+    "canonical_id": "realistic_eval_20260908_exclusion_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_ambiguity_10",
+    "canonical_id": "realistic_eval_20260908_ambiguity_10",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/realistic_v3.json",
+    "source_id": "realistic_eval_20260908_unavailable_10",
+    "canonical_id": "realistic_eval_20260908_unavailable_10",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_01_a",
+    "canonical_id": "recipe_lock_01_a",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_01_b",
+    "canonical_id": "recipe_lock_01_b",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_02_a",
+    "canonical_id": "recipe_lock_02_a",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_02_b",
+    "canonical_id": "recipe_lock_02_b",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_03_a",
+    "canonical_id": "recipe_lock_03_a",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_03_b",
+    "canonical_id": "recipe_lock_03_b",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_03_c",
+    "canonical_id": "recipe_lock_03_c",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_03_d",
+    "canonical_id": "recipe_lock_03_d",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_03_e",
+    "canonical_id": "recipe_lock_03_e",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_03_f",
+    "canonical_id": "recipe_lock_03_f",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_03_g",
+    "canonical_id": "recipe_lock_03_g",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_03_h",
+    "canonical_id": "recipe_lock_03_h",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_04_a",
+    "canonical_id": "recipe_lock_04_a",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_04_b",
+    "canonical_id": "recipe_lock_04_b",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_04_c",
+    "canonical_id": "recipe_lock_04_c",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_04_d",
+    "canonical_id": "recipe_lock_04_d",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_05_garage_van",
+    "canonical_id": "recipe_lock_05_garage_van",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_05_a",
+    "canonical_id": "recipe_lock_05_a",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_05_b",
+    "canonical_id": "recipe_lock_05_b",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_05_c",
+    "canonical_id": "recipe_lock_05_c",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_05_d",
+    "canonical_id": "recipe_lock_05_d",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_05_e",
+    "canonical_id": "recipe_lock_05_e",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_06_a",
+    "canonical_id": "recipe_lock_06_a",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_06_b",
+    "canonical_id": "recipe_lock_06_b",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_06_c",
+    "canonical_id": "recipe_lock_06_c",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_06_d",
+    "canonical_id": "recipe_lock_06_d",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_07_a",
+    "canonical_id": "recipe_lock_07_a",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_07_b",
+    "canonical_id": "recipe_lock_07_b",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_07_c",
+    "canonical_id": "recipe_lock_07_c",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_07_d",
+    "canonical_id": "recipe_lock_07_d",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_07_e",
+    "canonical_id": "recipe_lock_07_e",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_07_f",
+    "canonical_id": "recipe_lock_07_f",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_07_g",
+    "canonical_id": "recipe_lock_07_g",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_07_h",
+    "canonical_id": "recipe_lock_07_h",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_07_i",
+    "canonical_id": "recipe_lock_07_i",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_08_refuse",
+    "canonical_id": "recipe_lock_08_refuse",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_08_clarify",
+    "canonical_id": "recipe_lock_08_clarify",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/recipe_lock.py",
+    "source_id": "recipe_lock_08_unsupported",
+    "canonical_id": "recipe_lock_08_unsupported",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_climate_a",
+    "canonical_id": "v3_quality_gold_climate_a",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_climate_b",
+    "canonical_id": "v3_quality_gold_climate_b",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_media_play",
+    "canonical_id": "v3_quality_gold_media_play",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_media_pause",
+    "canonical_id": "v3_quality_gold_media_pause",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_media_volume",
+    "canonical_id": "v3_quality_gold_media_volume",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_media_volume_rel",
+    "canonical_id": "v3_quality_gold_media_volume_rel",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_media_mute",
+    "canonical_id": "v3_quality_gold_media_mute",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_timer_start",
+    "canonical_id": "v3_quality_gold_timer_start",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_timer_start_named",
+    "canonical_id": "v3_quality_gold_timer_start_named",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_timer_pause",
+    "canonical_id": "v3_quality_gold_timer_pause",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_timer_status",
+    "canonical_id": "v3_quality_gold_timer_status",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_timer_cancel_all",
+    "canonical_id": "v3_quality_gold_timer_cancel_all",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_timer_cancel_named",
+    "canonical_id": "v3_quality_gold_timer_cancel_named",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_vacuum_start",
+    "canonical_id": "v3_quality_gold_vacuum_start",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_vacuum_return",
+    "canonical_id": "v3_quality_gold_vacuum_return",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_vacuum_clean_area",
+    "canonical_id": "v3_quality_gold_vacuum_clean_area",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_scene_a",
+    "canonical_id": "v3_quality_gold_scene_a",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_scene_b",
+    "canonical_id": "v3_quality_gold_scene_b",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_script_a",
+    "canonical_id": "v3_quality_gold_script_a",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_script_b",
+    "canonical_id": "v3_quality_gold_script_b",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_ordinary_on",
+    "canonical_id": "v3_quality_gold_ordinary_on",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_ordinary_off",
+    "canonical_id": "v3_quality_gold_ordinary_off",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_light_brightness",
+    "canonical_id": "v3_quality_gold_light_brightness",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_light_brightness_conversational",
+    "canonical_id": "v3_quality_gold_light_brightness_conversational",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_fan_speed",
+    "canonical_id": "v3_quality_gold_fan_speed",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_fan_speed_contrastive",
+    "canonical_id": "v3_quality_gold_fan_speed_contrastive",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_light_brightness_contrastive",
+    "canonical_id": "v3_quality_gold_light_brightness_contrastive",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_status_media",
+    "canonical_id": "v3_quality_gold_status_media",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_status_climate",
+    "canonical_id": "v3_quality_gold_status_climate",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_ambiguity_resolve",
+    "canonical_id": "v3_quality_gold_ambiguity_resolve",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_ambiguity_clarify",
+    "canonical_id": "v3_quality_gold_ambiguity_clarify",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_ambiguity_area_unavailable",
+    "canonical_id": "v3_quality_gold_ambiguity_area_unavailable",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_unsupported_lawn",
+    "canonical_id": "v3_quality_gold_unsupported_lawn",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_unsupported_todo",
+    "canonical_id": "v3_quality_gold_unsupported_todo",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:gold_specs",
+    "source_id": "v3_quality_gold_no_call_clarify",
+    "canonical_id": "v3_quality_gold_no_call_clarify",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_climate_0000",
+    "canonical_id": "v3_shadow_climate_0000",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_climate_0001",
+    "canonical_id": "v3_shadow_climate_0001",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_climate_0002",
+    "canonical_id": "v3_shadow_climate_0002",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_climate_0003",
+    "canonical_id": "v3_shadow_climate_0003",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_play_0004",
+    "canonical_id": "v3_shadow_media_play_0004",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_play_0005",
+    "canonical_id": "v3_shadow_media_play_0005",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_play_0006",
+    "canonical_id": "v3_shadow_media_play_0006",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_play_0007",
+    "canonical_id": "v3_shadow_media_play_0007",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_pause_0008",
+    "canonical_id": "v3_shadow_media_pause_0008",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_pause_0009",
+    "canonical_id": "v3_shadow_media_pause_0009",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_pause_0010",
+    "canonical_id": "v3_shadow_media_pause_0010",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_pause_0011",
+    "canonical_id": "v3_shadow_media_pause_0011",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_volume_0012",
+    "canonical_id": "v3_shadow_media_volume_0012",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_volume_0013",
+    "canonical_id": "v3_shadow_media_volume_0013",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_volume_0014",
+    "canonical_id": "v3_shadow_media_volume_0014",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_volume_0015",
+    "canonical_id": "v3_shadow_media_volume_0015",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_volume_0016",
+    "canonical_id": "v3_shadow_media_volume_0016",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_mute_0017",
+    "canonical_id": "v3_shadow_media_mute_0017",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_mute_0018",
+    "canonical_id": "v3_shadow_media_mute_0018",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_mute_0019",
+    "canonical_id": "v3_shadow_media_mute_0019",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_mute_0020",
+    "canonical_id": "v3_shadow_media_mute_0020",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_media_mute_0021",
+    "canonical_id": "v3_shadow_media_mute_0021",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_start_0022",
+    "canonical_id": "v3_shadow_timer_start_0022",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_start_0023",
+    "canonical_id": "v3_shadow_timer_start_0023",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_start_0024",
+    "canonical_id": "v3_shadow_timer_start_0024",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_start_0025",
+    "canonical_id": "v3_shadow_timer_start_0025",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_start_0026",
+    "canonical_id": "v3_shadow_timer_start_0026",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_pause_0027",
+    "canonical_id": "v3_shadow_timer_pause_0027",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_pause_0028",
+    "canonical_id": "v3_shadow_timer_pause_0028",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_pause_0029",
+    "canonical_id": "v3_shadow_timer_pause_0029",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_pause_0030",
+    "canonical_id": "v3_shadow_timer_pause_0030",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_status_0031",
+    "canonical_id": "v3_shadow_timer_status_0031",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_status_0032",
+    "canonical_id": "v3_shadow_timer_status_0032",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_status_0033",
+    "canonical_id": "v3_shadow_timer_status_0033",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_status_0034",
+    "canonical_id": "v3_shadow_timer_status_0034",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_cancel_0035",
+    "canonical_id": "v3_shadow_timer_cancel_0035",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_cancel_0036",
+    "canonical_id": "v3_shadow_timer_cancel_0036",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_cancel_0037",
+    "canonical_id": "v3_shadow_timer_cancel_0037",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_cancel_0038",
+    "canonical_id": "v3_shadow_timer_cancel_0038",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_timer_cancel_0039",
+    "canonical_id": "v3_shadow_timer_cancel_0039",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_start_0040",
+    "canonical_id": "v3_shadow_vacuum_start_0040",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_start_0041",
+    "canonical_id": "v3_shadow_vacuum_start_0041",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_start_0042",
+    "canonical_id": "v3_shadow_vacuum_start_0042",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_start_0043",
+    "canonical_id": "v3_shadow_vacuum_start_0043",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_start_0044",
+    "canonical_id": "v3_shadow_vacuum_start_0044",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_return_0045",
+    "canonical_id": "v3_shadow_vacuum_return_0045",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_return_0046",
+    "canonical_id": "v3_shadow_vacuum_return_0046",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_return_0047",
+    "canonical_id": "v3_shadow_vacuum_return_0047",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_return_0048",
+    "canonical_id": "v3_shadow_vacuum_return_0048",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_return_0049",
+    "canonical_id": "v3_shadow_vacuum_return_0049",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_area_0050",
+    "canonical_id": "v3_shadow_vacuum_area_0050",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_area_0051",
+    "canonical_id": "v3_shadow_vacuum_area_0051",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_area_0052",
+    "canonical_id": "v3_shadow_vacuum_area_0052",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_area_0053",
+    "canonical_id": "v3_shadow_vacuum_area_0053",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_vacuum_area_0054",
+    "canonical_id": "v3_shadow_vacuum_area_0054",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_scene_0055",
+    "canonical_id": "v3_shadow_scene_0055",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_scene_0056",
+    "canonical_id": "v3_shadow_scene_0056",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_scene_0057",
+    "canonical_id": "v3_shadow_scene_0057",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_scene_0058",
+    "canonical_id": "v3_shadow_scene_0058",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_scene_0059",
+    "canonical_id": "v3_shadow_scene_0059",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_script_0060",
+    "canonical_id": "v3_shadow_script_0060",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_script_0061",
+    "canonical_id": "v3_shadow_script_0061",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_script_0062",
+    "canonical_id": "v3_shadow_script_0062",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_script_0063",
+    "canonical_id": "v3_shadow_script_0063",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_script_0064",
+    "canonical_id": "v3_shadow_script_0064",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_on_0065",
+    "canonical_id": "v3_shadow_on_0065",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_on_0066",
+    "canonical_id": "v3_shadow_on_0066",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_on_0067",
+    "canonical_id": "v3_shadow_on_0067",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_on_0068",
+    "canonical_id": "v3_shadow_on_0068",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_on_0069",
+    "canonical_id": "v3_shadow_on_0069",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_off_0070",
+    "canonical_id": "v3_shadow_off_0070",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_off_0071",
+    "canonical_id": "v3_shadow_off_0071",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_off_0072",
+    "canonical_id": "v3_shadow_off_0072",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_off_0073",
+    "canonical_id": "v3_shadow_off_0073",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_off_0074",
+    "canonical_id": "v3_shadow_off_0074",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_bright_0075",
+    "canonical_id": "v3_shadow_bright_0075",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_bright_0076",
+    "canonical_id": "v3_shadow_bright_0076",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_bright_0077",
+    "canonical_id": "v3_shadow_bright_0077",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_bright_0078",
+    "canonical_id": "v3_shadow_bright_0078",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_bright_0079",
+    "canonical_id": "v3_shadow_bright_0079",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_speed_0080",
+    "canonical_id": "v3_shadow_speed_0080",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_speed_0081",
+    "canonical_id": "v3_shadow_speed_0081",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_speed_0082",
+    "canonical_id": "v3_shadow_speed_0082",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_speed_0083",
+    "canonical_id": "v3_shadow_speed_0083",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_speed_0084",
+    "canonical_id": "v3_shadow_speed_0084",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_status_0085",
+    "canonical_id": "v3_shadow_status_0085",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_status_0086",
+    "canonical_id": "v3_shadow_status_0086",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_status_0087",
+    "canonical_id": "v3_shadow_status_0087",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_status_0088",
+    "canonical_id": "v3_shadow_status_0088",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_status_0089",
+    "canonical_id": "v3_shadow_status_0089",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_ambiguity_0090",
+    "canonical_id": "v3_shadow_ambiguity_0090",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_ambiguity_0091",
+    "canonical_id": "v3_shadow_ambiguity_0091",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_ambiguity_0092",
+    "canonical_id": "v3_shadow_ambiguity_0092",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_ambiguity_0093",
+    "canonical_id": "v3_shadow_ambiguity_0093",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_ambiguity_0094",
+    "canonical_id": "v3_shadow_ambiguity_0094",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_unsupported_0095",
+    "canonical_id": "v3_shadow_unsupported_0095",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_unsupported_0096",
+    "canonical_id": "v3_shadow_unsupported_0096",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_unsupported_0097",
+    "canonical_id": "v3_shadow_unsupported_0097",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_unsupported_0098",
+    "canonical_id": "v3_shadow_unsupported_0098",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/v3_quality.py:build_shadow_specs",
+    "source_id": "v3_shadow_unsupported_0099",
+    "canonical_id": "v3_shadow_unsupported_0099",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_7c19fbe07526c7d6",
+    "canonical_id": "sem_7c19fbe07526c7d6",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_84281b4e405359f9",
+    "canonical_id": "sem_84281b4e405359f9",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_4f2ddd1dbb8fd215",
+    "canonical_id": "sem_4f2ddd1dbb8fd215",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_68b58b43140dccbc",
+    "canonical_id": "sem_68b58b43140dccbc",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_0cd13bcdd666a286",
+    "canonical_id": "sem_0cd13bcdd666a286",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_20628912f71211a1",
+    "canonical_id": "sem_20628912f71211a1",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_63dae89bbb4d4e60",
+    "canonical_id": "sem_63dae89bbb4d4e60",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_5793cf970f1b12a0",
+    "canonical_id": "sem_5793cf970f1b12a0",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_681432e5293fbf31",
+    "canonical_id": "sem_681432e5293fbf31",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_ca180e0d65283383",
+    "canonical_id": "sem_ca180e0d65283383",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_020ab5fe5256ba62",
+    "canonical_id": "sem_020ab5fe5256ba62",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_55f85a683b36dcc3",
+    "canonical_id": "sem_55f85a683b36dcc3",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_3440c2f1bcfeed0c",
+    "canonical_id": "sem_3440c2f1bcfeed0c",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_e235e718c5040837",
+    "canonical_id": "sem_e235e718c5040837",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_3f71a9ac9d8e13fa",
+    "canonical_id": "sem_3f71a9ac9d8e13fa",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_16cbdd2ead8313bc",
+    "canonical_id": "sem_16cbdd2ead8313bc",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_baec71b29af802de",
+    "canonical_id": "sem_baec71b29af802de",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_2155042da85de8a1",
+    "canonical_id": "sem_2155042da85de8a1",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_e647cae40a0514fe",
+    "canonical_id": "sem_e647cae40a0514fe",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_c2e9c7c65f302b28",
+    "canonical_id": "sem_c2e9c7c65f302b28",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_16d94b0a20083dd9",
+    "canonical_id": "sem_16d94b0a20083dd9",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_5114ca8abd47d2e1",
+    "canonical_id": "sem_5114ca8abd47d2e1",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_ba918d72e8c703e8",
+    "canonical_id": "sem_ba918d72e8c703e8",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_5d15f7ff9ad960a3",
+    "canonical_id": "sem_5d15f7ff9ad960a3",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_ce4c62f5840dd713",
+    "canonical_id": "sem_ce4c62f5840dd713",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_3f72f41f4380db3f",
+    "canonical_id": "sem_3f72f41f4380db3f",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_b811502f5206d788",
+    "canonical_id": "sem_b811502f5206d788",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_09c15253b53c101c",
+    "canonical_id": "sem_09c15253b53c101c",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_0e286fe957f24b2d",
+    "canonical_id": "sem_0e286fe957f24b2d",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_9d2924dc2e417e60",
+    "canonical_id": "sem_9d2924dc2e417e60",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_71755be4f369fa98",
+    "canonical_id": "sem_71755be4f369fa98",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_49fc9571da60a392",
+    "canonical_id": "sem_49fc9571da60a392",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_d8310d56e70f9a98",
+    "canonical_id": "sem_d8310d56e70f9a98",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_cbb85a396361684e",
+    "canonical_id": "sem_cbb85a396361684e",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_e997d4555dc4c991",
+    "canonical_id": "sem_e997d4555dc4c991",
+    "status": "retained"
+  },
+  {
+    "source": "training/evals/grounding_eval.py",
+    "source_id": "sem_251ce6211cf2462a",
+    "canonical_id": "sem_251ce6211cf2462a",
+    "status": "retained"
+  },
+  {
+    "source": "evals/cases/v1.json",
+    "source_id": "sayso-eval-v1-core-turn-on-light",
+    "canonical_id": "realistic_eval_20260908_ordinary_01",
+    "status": "equivalent"
+  },
+  {
+    "source": "evals/cases/v1.json",
+    "source_id": "sayso-eval-v1-failure-wrong-tool",
+    "canonical_id": "realistic_eval_20260908_ordinary_01",
+    "status": "scorer_unknown_tool"
+  },
+  {
+    "source": "evals/cases/v1.json",
+    "source_id": "sayso-eval-v1-failure-invalid-args",
+    "canonical_id": "realistic_eval_20260908_ordinary_01",
+    "status": "scorer_invalid_arguments"
+  },
+  {
+    "source": "evals/cases/v1.json",
+    "source_id": "sayso-eval-v1-safety-ambiguous-light",
+    "canonical_id": "realistic_eval_20260908_ambiguity_01",
+    "status": "equivalent"
+  },
+  {
+    "source": "evals/cases/v1.json",
+    "source_id": "sayso-eval-v1-query-live-context",
+    "canonical_id": "realistic_eval_20260908_status_01",
+    "status": "equivalent"
+  },
+  {
+    "source": "evals/cases/v1.json",
+    "source_id": "sayso-eval-v1-multi-scene-sequence",
+    "canonical_id": "realistic_eval_20260908_multi_action_01",
+    "status": "equivalent"
+  },
+  {
+    "source": "evals/cases/v1.json",
+    "source_id": "sayso-eval-v1-failure-partial-execution",
+    "canonical_id": "tests/test_conversation.py",
+    "status": "conversation_agent"
+  },
+  {
+    "source": "evals/cases/v1.json",
+    "source_id": "sayso-eval-v1-followup-spoken-confirmation",
+    "canonical_id": "tests/test_conversation.py",
+    "status": "conversation_agent"
+  },
+  {
+    "source": "training/evals/adversarial.jsonl",
+    "source_id": "adversarial.jsonl",
+    "canonical_id": "realistic_eval_20260908_unavailable_01",
+    "status": "equivalent_toy_prompts"
+  }
+]

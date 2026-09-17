@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_ambiguity_0092",
+  "satellite_area": "Terrace",
+  "sayso_entity_area": "Terrace",
+  "areas": {
+    "Terrace": []
+  },
+  "area_aliases": {
+    "Terrace": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.terrace_desk_fan",
+      "name": "Terrace Desk Fan",
+      "aliases": [
+        "Terrace Desk Fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Terrace",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

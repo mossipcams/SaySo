@@ -366,29 +366,27 @@ def test_grounding_rows_render_in_the_production_format():
 
 
 def test_grounding_eval_prompts_are_held_out_of_training():
-    from evals.grounding_eval import grounding_user_prompts
+    from evals.cases import cases_with_tag
     from generators.pipeline import _check_quality_eval_overlap
 
-    prompts = grounding_user_prompts()
+    prompts = [case.utterance for case in cases_with_tag("grounding")]
     assert prompts
     for prompt in prompts:
         assert _check_quality_eval_overlap(prompt), prompt
 
 
 def test_the_living_room_tv_regression_is_the_production_contract():
-    from evals.grounding_eval import build_grounding_examples
+    from evals.cases import cases_with_tag
 
-    row = next(
-        example for example in build_grounding_examples()
-        if example["metadata"]["grounding_family"] == "grounding_livingroom_tv_present"
+    case = next(
+        item
+        for item in cases_with_tag("grounding")
+        if item.provenance.get("family") == "grounding_livingroom_tv_present"
+        or (item.id.endswith("present") and "livingroom_tv" in item.id)
     )
-    calls = [c for m in row["messages"] for c in m.get("tool_calls") or []]
-    assert len(calls) == 1
-    assert calls[0]["function"]["name"] == "HassTurnOn"
-    assert json.loads(calls[0]["function"]["arguments"]) == {
-        "domain": ["media_player"], "name": "TV"
+    assert case.expected["calls"][0]["name"] == "intent__HassTurnOn"
+    assert case.expected["calls"][0]["arguments"] == {
+        "domain": ["media_player"],
+        "name": "TV",
     }
-    assert next(message["content"] for message in row["messages"] if message["role"] == "user") == (
-        "Turn on the living room media player"
-    )
-    assert "HassTurnOn" in {tool["function"]["name"] for tool in row["tools"]}
+    assert case.utterance == "Turn on the living room media player"

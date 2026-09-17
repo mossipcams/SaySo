@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_off_0072",
+  "satellite_area": "Attic",
+  "sayso_entity_area": "Attic",
+  "areas": {
+    "Attic": []
+  },
+  "area_aliases": {
+    "Attic": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.attic_ceiling_fan",
+      "name": "Attic Ceiling Fan",
+      "aliases": [
+        "fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Attic",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

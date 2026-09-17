@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_climate_0003",
+  "satellite_area": "Solarium",
+  "sayso_entity_area": "Solarium",
+  "areas": {
+    "Solarium": []
+  },
+  "area_aliases": {
+    "Solarium": []
+  },
+  "entities": [
+    {
+      "entity_id": "climate.solarium_comfort_thermostat",
+      "name": "Solarium Comfort Thermostat",
+      "aliases": [
+        "Solarium Comfort Thermostat"
+      ],
+      "domain": "climate",
+      "kind": "climate",
+      "device_class": null,
+      "area": "Solarium",
+      "floor": "Main Floor",
+      "state": "heat",
+      "capabilities": [
+        "heat",
+        "cool",
+        "off"
+      ]
+    }
+  ]
+}

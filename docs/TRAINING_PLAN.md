@@ -135,24 +135,15 @@ allocator warning and still complete.
 
 ## 4. Data and eval
 
-Locked gold eval is the 38 recipe-lock cases in `training/evals/recipe_lock.py`
-(recipes 1–8, thermostat omitted). Generic nouns resolve in the SaySo entity
-area. Do not train on those utterances.
-
-The expanded v3 quality gate adds locked gold plus shadow rows from
-`training/evals/v3_quality.py` and
-`training/scripts/generate_v3_quality_eval.py`. Gold covers climate setpoint,
-media play/pause/volume/mute, timer start/pause/status/cancel, vacuum
-start/return/clean area, scene activate, script run, plus ordinary on/off,
-status, ambiguity, and unsupported/no-call. Labels validate against
-`sayso-tool-schema-v2` only. Shadow uses different homes, entities, and
-phrasing. Gold, shadow, and recipe-lock prompts come from
-`excluded_train_prompts()`; the v3 generator rejects any train utterance in that
-set (`quality_eval_overlap`), including normalized prompts from the frozen
-`training/fixtures/realistic_eval_20260908_v2.json` fixture, instead of filtering contaminated rows out
-afterwards. Generation is reproducible — the same seed yields a byte-identical
-dataset across processes — so never seed generator randomness with builtin
-`hash()` on a string.
+Locked gold, shadow, grounding, and the original 120 realistic cases live in
+`evals/cases/`. Smoke (~24 promotion cases) is checkpoint selection;
+promotion is the locked 120. Do not train on those utterances.
+`evals.cases.excluded_train_utterances()` is the holdout set; the v3 generator
+rejects any train utterance in that set (`quality_eval_overlap`), including
+normalized prompts, instead of filtering contaminated rows out afterwards.
+Generation is reproducible — the same seed yields a byte-identical dataset
+across processes — so never seed generator randomness with builtin `hash()` on
+a string.
 
 Train each run from Base, not by continuing a previously merged checkpoint.
 Evaluate the first 250-step checkpoint on the frozen suites while training
@@ -170,8 +161,8 @@ Shadow eval is 100–150 cases covering the same concepts as its gold set, with
 different entities and phrasing. Promote only when gold and shadow both move the
 right way. If only gold improves, the run is overfitting the benchmark.
 
-Score generations with the apostrophe-safe parser in
-`training/evals/lfm_python_parse.py` (raw `/completion` text). llama.cpp
+Score generations with the apostrophe-safe production parser in
+`custom_components/sayso/lfm_parse.py` (raw `/completion` text). llama.cpp
 structured `tool_calls` truncates names such as `O'Malley's` and `Kids'`; that is
 a serving bug, not a training label. Do not retrain to paper over it, and never
 compare a score from one scorer against a score from another — record which
@@ -180,13 +171,13 @@ scorer produced each result.
 `training/scripts/generate_balanced_test_data.py` builds the 2,500-example
 held-out set. Do not train on those prompts.
 
-`training/evals/grounding_eval.py` holds the entity-grounding regressions,
-including Living Room + `media_player.living_room_tv` named "TV" →
-`HassTurnOn(name="TV", domain=["media_player"])` in the production prompt,
+`evals/cases/regressions.jsonl` (tag `grounding`) holds the entity-grounding
+regressions, including Living Room + `media_player.living_room_tv` named "TV" →
+`intent__HassTurnOn(name="TV", domain=["media_player"])` in the production prompt,
 context and tool-schema format, plus held-out variations with different names,
 ids, areas, distractors and presence/absence conditions. Check targets and
 arguments, not tool selection alone. Its prompts belong to
-`excluded_train_prompts()`; neither they nor near-duplicate scenario variants may
+`excluded_train_utterances()`; neither they nor near-duplicate scenario variants may
 be trained on.
 
 Home Assistant is authoritative for which entities exist, which are exposed to
@@ -244,15 +235,15 @@ to:
 |---|---|
 | Dataset generation | `training/generators/`, `training/scripts/build_synthetic_dataset.py`, `training/scripts/generate_training_supplement.py`, `training/scripts/generate_balanced_test_data.py` |
 | Coverage accounting and audit | `training/generators/coverage.py`, `training/generators/sampling.py`, `training/generators/audit.py` |
-| Entity-grounding families | `training/generators/grounding.py`, `training/evals/grounding_eval.py` |
+| Entity-grounding families | `training/generators/grounding.py`, `evals/cases/regressions.jsonl` |
 | Real-home export and mixing | `training/scripts/fetch_ha_home.py`, `training/scripts/ha_websocket.py`, `training/generators/real_home.py` |
-| Recipe-lock gold | `training/evals/recipe_lock.py`, `training/scripts/generate_recipe_lock_eval.py` |
-| V3 quality gold + shadow | `training/evals/v3_quality.py`, `training/scripts/generate_v3_quality_eval.py` |
-| Raw tool-call parse | `training/evals/lfm_python_parse.py` |
+| Recipe-lock / quality / grounding eval | `evals/cases/regressions.jsonl` |
+| Promotion and smoke | `evals/cases/realistic_v3.jsonl`, `evals/suites/` |
+| LFM Python parse | `custom_components/sayso/lfm_parse.py` |
 | LFM adapter | `training/adapters/lfm.py` |
 | Schema validation | `training/adapters/schema.py` |
 | TRL recipe (checked-in) | `training/configs/lfm25-230m-synthetic-v3-40k-trl.yml` |
-| Evaluation | `evals/`, `training/evals/` |
+| Evaluation | `evals/` |
 | Pinned contract | `schemas/sayso-tool-schema-v2.json` (§1; v1 is a historical artifact) |
 | Run history and scores | `training/TRAINING_LOG.md` |
 

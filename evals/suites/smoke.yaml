@@ -1,0 +1,27 @@
+name: smoke
+description: "Checkpoint-selection smoke: 24 promotion cases covering ordinary actions, area, aliases, multi-action, status, ambiguity, unavailable, and exclusions."
+cases:
+  - realistic_eval_20260908_ordinary_01
+  - realistic_eval_20260908_light_fan_settings_01
+  - realistic_eval_20260908_climate_01
+  - realistic_eval_20260908_media_01
+  - realistic_eval_20260908_timers_01
+  - realistic_eval_20260908_routines_vacuum_01
+  - realistic_eval_20260908_status_01
+  - realistic_eval_20260908_aliases_01
+  - realistic_eval_20260908_multi_action_01
+  - realistic_eval_20260908_exclusion_01
+  - realistic_eval_20260908_ambiguity_01
+  - realistic_eval_20260908_unavailable_01
+  - realistic_eval_20260908_ordinary_02
+  - realistic_eval_20260908_light_fan_settings_02
+  - realistic_eval_20260908_climate_02
+  - realistic_eval_20260908_media_02
+  - realistic_eval_20260908_status_02
+  - realistic_eval_20260908_aliases_02
+  - realistic_eval_20260908_multi_action_02
+  - realistic_eval_20260908_exclusion_02
+  - realistic_eval_20260908_ambiguity_02
+  - realistic_eval_20260908_unavailable_02
+  - realistic_eval_20260908_routines_vacuum_08
+  - realistic_eval_20260908_ambiguity_10

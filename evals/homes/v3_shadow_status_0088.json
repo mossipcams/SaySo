@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_status_0088",
+  "satellite_area": "Studio",
+  "sayso_entity_area": "Studio",
+  "areas": {
+    "Studio": []
+  },
+  "area_aliases": {
+    "Studio": []
+  },
+  "entities": [
+    {
+      "entity_id": "climate.studio_thermostat",
+      "name": "Studio Thermostat",
+      "aliases": [
+        "Studio Thermostat"
+      ],
+      "domain": "climate",
+      "kind": "climate",
+      "device_class": null,
+      "area": "Studio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "heat",
+        "cool",
+        "off"
+      ]
+    }
+  ]
+}

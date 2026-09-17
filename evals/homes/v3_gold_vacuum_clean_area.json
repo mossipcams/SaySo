@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_gold_vacuum_clean_area",
+  "satellite_area": "Sunroom",
+  "sayso_entity_area": "Sunroom",
+  "areas": {
+    "Sunroom": []
+  },
+  "area_aliases": {
+    "Sunroom": []
+  },
+  "entities": [
+    {
+      "entity_id": "vacuum.upstairs_robot_vacuum",
+      "name": "Upstairs Robot Vacuum",
+      "aliases": [
+        "Upstairs Robot Vacuum"
+      ],
+      "domain": "vacuum",
+      "kind": "vacuum",
+      "device_class": null,
+      "area": "Sunroom",
+      "floor": "Main Floor",
+      "state": "docked",
+      "capabilities": [
+        "start",
+        "stop"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "home_id": "v3_shadow_script_0060",
+  "satellite_area": "Conservatory",
+  "sayso_entity_area": "Conservatory",
+  "areas": {
+    "Conservatory": []
+  },
+  "area_aliases": {
+    "Conservatory": []
+  },
+  "entities": [
+    {
+      "entity_id": "script.conservatory_away_script",
+      "name": "Conservatory Away Script",
+      "aliases": [
+        "Conservatory Away Script"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "device_class": null,
+      "area": "Conservatory",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    }
+  ]
+}

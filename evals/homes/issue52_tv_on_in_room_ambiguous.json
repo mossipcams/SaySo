@@ -1,0 +1,65 @@
+{
+  "home_id": "issue52_tv_on_in_room_ambiguous",
+  "satellite_area": "Bedroom",
+  "sayso_entity_area": "Bedroom",
+  "areas": {
+    "Living Room": [],
+    "Bedroom": []
+  },
+  "area_aliases": {
+    "Living Room": [],
+    "Bedroom": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.living_room_tv",
+      "name": "Living Room TV",
+      "aliases": [
+        "Living Room TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    },
+    {
+      "entity_id": "media_player.second_tv",
+      "name": "Second TV",
+      "aliases": [
+        "Second TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    }
+  ]
+}

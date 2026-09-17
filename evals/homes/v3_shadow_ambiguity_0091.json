@@ -1,0 +1,49 @@
+{
+  "home_id": "v3_shadow_ambiguity_0091",
+  "satellite_area": "Studio",
+  "sayso_entity_area": "Studio",
+  "areas": {
+    "Studio": []
+  },
+  "area_aliases": {
+    "Studio": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.studio_lamp_a",
+      "name": "Studio Lamp A",
+      "aliases": [
+        "accent light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Studio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    },
+    {
+      "entity_id": "light.studio_lamp_b",
+      "name": "Studio Lamp B",
+      "aliases": [
+        "accent light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Studio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

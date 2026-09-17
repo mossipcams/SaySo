@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_volume_0013",
+  "satellite_area": "Conservatory",
+  "sayso_entity_area": "Conservatory",
+  "areas": {
+    "Conservatory": []
+  },
+  "area_aliases": {
+    "Conservatory": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.conservatory_soundbar_tv",
+      "name": "Conservatory Soundbar TV",
+      "aliases": [
+        "Conservatory Soundbar TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Conservatory",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

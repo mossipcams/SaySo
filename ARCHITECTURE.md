@@ -265,7 +265,7 @@ processing remains on the local network; SaySo does not require a cloud service.
 | `satellite/patches/` | Minimal upstream compatibility patches |
 | `satellite/systemd/` | Satellite process lifecycle (system unit running as `User=sayso`) |
 | `schemas/` | Reference schema artifacts |
-| `evals/` | Offline and live behavioral evaluation |
+| `evals/` | Offline model evaluation: canonical cases, one runner, one scorer |
 | `training/` | Dataset preparation, training, export, and training evaluation |
 | `tests/` | Integration-level regression tests |
 

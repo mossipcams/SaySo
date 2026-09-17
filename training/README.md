@@ -15,7 +15,7 @@ python -m venv training/.venv
 source training/.venv/bin/activate
 pip install -r training/requirements.txt
 pip install pyyaml   # config validation tests
-python -m pytest training/tests training/evals training/scripts training/generators -q
+python -m pytest training/tests training/scripts training/generators -q
 ```
 
 ## Active config
@@ -35,8 +35,6 @@ step, then `nohup`s the real run. Update the row count when the dataset changes.
 | Step | Command |
 |------|---------|
 | Build synthetic v3 train (40k, deterministic) | `python training/scripts/build_synthetic_dataset.py --pipeline v3 --count 40000 --out-dir training/datasets/synthetic_v3_train.jsonl --render-out training/datasets/sayso_train_v3_40k_render.jsonl` |
-| Generate v3 quality eval (gold + shadow) | `python training/scripts/generate_v3_quality_eval.py` |
-| Generate recipe-lock eval + deterministic 10k train | `python training/scripts/generate_recipe_lock_eval.py` |
 | Generate corrective SFT + shadow eval | `python training/scripts/generate_training_supplement.py` |
 | Generate balanced held-out test set | `python training/scripts/generate_balanced_test_data.py` |
 | Build synthetic train (legacy 10k) | `python training/scripts/build_synthetic_dataset.py --generator-model ... --judge-model ...` |
@@ -174,78 +172,48 @@ Families also vary aliases, domains and supported actions, and cover individual
 and area targeting, genuine ambiguity, and presence/absence pairs.
 
 `--grounding-rate` (default 0.03) sets the share; a run large enough to fit every
-required family fails closed if one is missing. `training/evals/grounding_eval.py`
-owns the held-out side — the exact Living Room + `media_player.living_room_tv` →
-`HassTurnOn(name="TV", domain=["media_player"])` regression plus variations with
-different names, ids, areas and distractors. Its prompts join
-`excluded_train_prompts()`, so neither the eval rows nor near-duplicate variants
-can be trained on.
+required family fails closed if one is missing. Held-out grounding cases live
+in `evals/cases/regressions.jsonl` (tag `grounding`) — the exact Living Room +
+`media_player.living_room_tv` → `intent__HassTurnOn(name="TV", domain=["media_player"])`
+regression plus variations with different names, ids, areas and distractors.
+Their prompts join `evals.cases.excluded_train_utterances()`, so neither the
+eval rows nor near-duplicate variants can be trained on.
 
 ## Eval sets and what each is for
 
+Canonical cases live in `evals/cases/`. Suites are ID lists in `evals/suites/`.
+See `evals/README.md`.
+
 | Set | Rows | Role |
 |---|---|---|
-| `sayso_quality_eval_recipe_lock.jsonl` | 38 | Locked release gate. Recipes 1–8, thermostat omitted. Never trained on. |
-| `sayso_shadow_eval.jsonl` | 125 | Overfitting check for the recipe-lock gate: same concepts, different homes and phrasing. |
-| `sayso_quality_eval_v3_gold.jsonl` | 30 | Expanded gate for v3 domains — climate setpoint, media, timers, vacuum, scene, script, plus ambiguity and no-call. Not yet scored against any checkpoint. |
-| `sayso_quality_eval_v3_shadow.jsonl` | 100 | Overfitting check for the v3 gold set. |
-| `sayso_test_balanced.jsonl` | 2,500 | Broad held-out regression sample (exact / name_ok / args_ok / schema_ok rates). Not the promotion gate. |
-| `training/evals/adversarial.jsonl` | 3 | Held out from training and checkpoint selection. |
-| `evals/cases/` | 1 file | Integration-level offline eval for the Home Assistant runtime path, not model selection. |
+| `evals/suites/smoke.yaml` | 24 | Checkpoint selection. Subset of the locked 120. Never includes held-out grounding/gold/shadow/recipe-lock rows. |
+| `evals/suites/promotion.yaml` | 120 | Locked realistic promotion gate, 10 per category. Supplemental regressions do not change this denominator. |
+| `evals/cases/regressions.jsonl` | unique recipe-lock, quality gold/shadow, and grounding cases | Diagnostic regressions via `--tag`. Held out of training and of smoke. |
+| `sayso_test_balanced.jsonl` | 2,500 | Broad held-out regression sample for dataset generation. Not the promotion gate. |
 
 Promotion needs gold and shadow to move the right way together. Gold alone
 improving means the benchmark is being overfit.
 
 ## Scoring
 
-Real scoring runs on the training host against a llama.cpp server:
+All model eval goes through `python -m evals.cli run` and the in-memory adapter
+for training checkpoints. Serve the checkpoint with `llama-server --jinja`.
 
 ```bash
-# structured tool_calls, drives the merge + serve + score sequence
-/srv/training-runs/run_quality_eval_three.sh
-
-# one eval against an already-running server
-/srv/training-runs/.venv/bin/python /srv/training-runs/sayso-eval-quality-llamacpp.py \
-  --eval-set /srv/datasets/sayso_v2/sayso_quality_eval_recipe_lock.jsonl \
-  --out /srv/training-runs/eval_quality_recipe_lock_<checkpoint>.json
-
-# apostrophe-safe raw /completion parse (authoritative)
-EVAL_JSONL=/srv/datasets/sayso_v2/sayso_quality_eval_recipe_lock.jsonl \
-EVAL_TOK=/srv/models/<merged-checkpoint> \
-EVAL_OUT=/srv/training-runs/eval_gold_<checkpoint>_rawparse.json \
-  /srv/training-runs/.venv/bin/python /srv/training-runs/eval_gold_raw.py
+python -m evals.cli run --suite smoke --adapter endpoint --server http://127.0.0.1:8080
+python -m evals.cli run --suite promotion --adapter endpoint --server http://127.0.0.1:8080
+python -m evals.cli run --tag grounding --adapter endpoint --server http://127.0.0.1:8080
 ```
 
-The two scorers disagree on the same checkpoint — the Run 006 champion scores
-34/38 structured and 37/38 rawparse — because llama.cpp truncates apostrophe
-names in structured `tool_calls`. Record which scorer produced a result and never
-compare across them. Neither scorer is version-controlled; see the log's
-"Scorers" table for file hashes.
+Training-time:
 
-### Baselining a checkpoint on the v3 suites
+```python
+from evals.adapters import InMemoryAdapter
+from evals.cases import select_cases
+from evals.runner import evaluate, write_run
 
-`training/scripts/eval_v3_rawparse.py` is a third scorer (`repoparse`) that does
-what `rawparse` does — raw `/completion` text through the apostrophe-safe Python
-parser — but lives in this repository, so a change to it is attributable to a
-commit. Run it against a llama.cpp server hosting the checkpoint:
-
-```bash
-# 1. calibrate: reproduce a recorded rawparse number before trusting a new one
-python3 training/scripts/eval_v3_rawparse.py \
-  --eval-set training/datasets/sayso_quality_eval_v3_gold.jsonl \
-  --tokenizer /srv/models/<run-008-ep1-merged> \
-  --out /srv/training-runs/eval_v3_gold_ep1_repoparse.json      # expect 16/30
-
-# 2. the missing baseline
-python3 training/scripts/eval_v3_rawparse.py \
-  --eval-set training/datasets/sayso_quality_eval_v3_gold.jsonl \
-  --tokenizer /srv/models/LFM2.5-230M-Base \
-  --out /srv/training-runs/eval_v3_gold_base.json
+results = evaluate(select_cases(suite="smoke"), InMemoryAdapter(predict))
 ```
-
-If step 1 does not return 16/30, `repoparse` is not equivalent to `rawparse` and
-its numbers belong in their own column — do not compare them to the recorded
-rawparse results.
 
 ## Dataset views
 
@@ -260,7 +228,6 @@ training/
   artifacts/         Checkpoints, eval outputs (gitignored)
   configs/           Trainer YAML (TRL recipe is the live path)
   datasets/          Generated JSONL (gitignored)
-  evals/             Metrics, harness, recipe lock, v3 quality, adversarial set
   fixtures/          Test fixtures
   generators/        v3 synthetic generation
   scripts/           Pipeline operations

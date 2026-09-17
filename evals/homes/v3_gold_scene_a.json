@@ -1,0 +1,29 @@
+{
+  "home_id": "v3_gold_scene_a",
+  "satellite_area": "Home Theater",
+  "sayso_entity_area": "Home Theater",
+  "areas": {
+    "Home Theater": []
+  },
+  "area_aliases": {
+    "Home Theater": []
+  },
+  "entities": [
+    {
+      "entity_id": "scene.movie_night_scene",
+      "name": "Movie Night Scene",
+      "aliases": [
+        "Movie Night Scene"
+      ],
+      "domain": "scene",
+      "kind": "scene",
+      "device_class": null,
+      "area": "Home Theater",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "activate"
+      ]
+    }
+  ]
+}

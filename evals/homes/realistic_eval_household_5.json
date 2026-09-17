@@ -1,0 +1,157 @@
+{
+  "home_id": "realistic_eval_household_5",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Bathroom": [],
+    "Bedroom": [],
+    "Entryway": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Bathroom": [],
+    "Bedroom": [],
+    "Entryway": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "name": "Bathroom Shower Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Bathroom"
+    },
+    {
+      "name": "Bedroom Standing Fan",
+      "aliases": [
+        "bedroom fan"
+      ],
+      "domain": "fan",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Bedroom Window Blinds",
+      "aliases": [],
+      "domain": "cover",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Central Heating",
+      "aliases": [],
+      "domain": "climate",
+      "area": "Hallway"
+    },
+    {
+      "name": "Coffee Machine Outlet",
+      "aliases": [
+        "coffee plug"
+      ],
+      "domain": "switch",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Downstairs Vacuum",
+      "aliases": [],
+      "domain": "vacuum",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Drew's Bedside Lamp",
+      "aliases": [
+        "bedside lamp"
+      ],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Family TV",
+      "aliases": [
+        "big screen"
+      ],
+      "domain": "media_player",
+      "area": "Living Room"
+    },
+    {
+      "name": "Front Entrance Lock",
+      "aliases": [],
+      "domain": "lock",
+      "area": "Entryway"
+    },
+    {
+      "name": "Groceries",
+      "aliases": [],
+      "domain": "todo",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Ceiling Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Pendant Lights",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Sink Light",
+      "aliases": [
+        "prep lights"
+      ],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Living Room Corner Lamp",
+      "aliases": [
+        "reading light"
+      ],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "name": "Living Room TV Backlight",
+      "aliases": [
+        "reading light",
+        "sofa lamp"
+      ],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "name": "TV Time",
+      "aliases": [],
+      "domain": "scene",
+      "area": "Living Room"
+    },
+    {
+      "name": "Taylor's Bedside Lamp",
+      "aliases": [
+        "bedside lamp",
+        "my bedside light"
+      ],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "entity_id": "script.evening_cleanup",
+      "name": "Evening Cleanup",
+      "aliases": [],
+      "domain": "script",
+      "area": null
+    },
+    {
+      "entity_id": "script.welcome_home",
+      "name": "Welcome Home",
+      "aliases": [],
+      "domain": "script",
+      "area": null
+    }
+  ]
+}

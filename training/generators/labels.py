@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any
 
-from generators.context import system_prompt
+from generators.context import area_context_for, system_prompt
 from generators.tools import namespaced_tool_name, offered_tools, script_tools
 from generators.gold import target_names_from_expected
 from generators.validate import validate_spec
@@ -70,7 +70,6 @@ def scenario_to_spec(scenario: dict[str, Any]) -> dict[str, Any]:
         "operation": scenario.get("operation"),
         "tier": scenario.get("tier"),
         "semantic_id": scenario.get("semantic_id"),
-        "namespaced_tools": scenario.get("namespaced_tools", False),
         "full_tool_catalog": scenario.get("full_tool_catalog", False),
     }
 
@@ -84,14 +83,13 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(utterance, str) or not utterance.strip():
         raise ValueError("missing_utterance")
     calls = spec["expected"].get("calls") or []
-    # The label, the offered schema and the prompt must all name a tool the same
-    # way, so one flag drives all three.
-    namespaced = bool(spec.get("namespaced_tools"))
-    tool_name = namespaced_tool_name if namespaced else (lambda name: name)
+    # The label, the offered schema and the prompt all use the production
+    # (Home Assistant 2026.9) tool names; there is no bare-name variant.
+    tool_name = namespaced_tool_name
     messages: list[dict[str, Any]] = [
         {
             "role": "system",
-            "content": system_prompt(spec["home"], namespaced=namespaced),
+            "content": system_prompt(spec["home"], utterance.strip()),
             "train_on_turn": False,
         },
         {"role": "user", "content": utterance.strip(), "train_on_turn": False},
@@ -162,8 +160,9 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         "unavailable": spec["expected"].get("unavailable"),
         "unavailable_tools": spec["expected"].get("unavailable_tools", []),
         "linguistics": spec.get("linguistics", []),
+        "contract": "production_v3",
+        "area_context": area_context_for(spec["home"], utterance.strip()).as_dict(),
         # Recorded so coverage is countable on accepted rows, not on config.
-        "namespaced_tools": namespaced,
         "full_tool_catalog": bool(spec.get("full_tool_catalog")),
         "offered_tool_count": 0,
     }
@@ -173,7 +172,6 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         extra_tools=script_tools(spec["home"]),
         excluded_names=spec["expected"].get("unavailable_tools", []),
         full_catalog=bool(spec.get("full_tool_catalog")),
-        namespaced=namespaced,
     )
     metadata["offered_tool_count"] = len(offered)
     return {"messages": messages, "tools": offered, "metadata": metadata}

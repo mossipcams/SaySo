@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_gold_media_volume_rel",
+  "satellite_area": "Guest Suite",
+  "sayso_entity_area": "Guest Suite",
+  "areas": {
+    "Guest Suite": []
+  },
+  "area_aliases": {
+    "Guest Suite": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.guest_suite_tv",
+      "name": "Guest Suite TV",
+      "aliases": [
+        "Guest Suite TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Guest Suite",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

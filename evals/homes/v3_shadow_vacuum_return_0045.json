@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_vacuum_return_0045",
+  "satellite_area": "Veranda",
+  "sayso_entity_area": "Veranda",
+  "areas": {
+    "Veranda": []
+  },
+  "area_aliases": {
+    "Veranda": []
+  },
+  "entities": [
+    {
+      "entity_id": "vacuum.veranda_robot_vacuum",
+      "name": "Veranda Robot Vacuum",
+      "aliases": [
+        "Veranda Robot Vacuum"
+      ],
+      "domain": "vacuum",
+      "kind": "vacuum",
+      "device_class": null,
+      "area": "Veranda",
+      "floor": "Main Floor",
+      "state": "cleaning",
+      "capabilities": [
+        "start",
+        "stop"
+      ]
+    }
+  ]
+}

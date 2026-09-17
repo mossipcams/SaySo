@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_gold_media_play",
+  "satellite_area": "Home Theater",
+  "sayso_entity_area": "Home Theater",
+  "areas": {
+    "Home Theater": []
+  },
+  "area_aliases": {
+    "Home Theater": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.home_theater_tv",
+      "name": "Home Theater TV",
+      "aliases": [
+        "tv"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Home Theater",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

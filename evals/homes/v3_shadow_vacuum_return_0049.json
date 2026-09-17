@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_vacuum_return_0049",
+  "satellite_area": "Conservatory",
+  "sayso_entity_area": "Conservatory",
+  "areas": {
+    "Conservatory": []
+  },
+  "area_aliases": {
+    "Conservatory": []
+  },
+  "entities": [
+    {
+      "entity_id": "vacuum.conservatory_robot_vacuum",
+      "name": "Conservatory Robot Vacuum",
+      "aliases": [
+        "Conservatory Robot Vacuum"
+      ],
+      "domain": "vacuum",
+      "kind": "vacuum",
+      "device_class": null,
+      "area": "Conservatory",
+      "floor": "Main Floor",
+      "state": "cleaning",
+      "capabilities": [
+        "start",
+        "stop"
+      ]
+    }
+  ]
+}

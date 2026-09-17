@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_mute_0019",
+  "satellite_area": "Attic",
+  "sayso_entity_area": "Attic",
+  "areas": {
+    "Attic": []
+  },
+  "area_aliases": {
+    "Attic": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.attic_bedroom_tv",
+      "name": "Attic Bedroom TV",
+      "aliases": [
+        "Attic Bedroom TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Attic",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

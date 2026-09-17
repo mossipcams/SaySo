@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_play_0006",
+  "satellite_area": "Studio",
+  "sayso_entity_area": "Studio",
+  "areas": {
+    "Studio": []
+  },
+  "area_aliases": {
+    "Studio": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.studio_wall_tv",
+      "name": "Studio Wall TV",
+      "aliases": [
+        "tv"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Studio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "home_id": "grounding_office_display_moved",
+  "satellite_area": "Office",
+  "sayso_entity_area": "Office",
+  "areas": {
+    "Basement": [],
+    "Office": []
+  },
+  "area_aliases": {
+    "Basement": [],
+    "Office": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.office_display_2",
+      "name": "Office Display",
+      "aliases": [
+        "Office Display",
+        "the monitor"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Basement",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "play",
+        "pause",
+        "volume",
+        "volume_step",
+        "mute",
+        "next",
+        "previous"
+      ]
+    },
+    {
+      "entity_id": "light.reading_lamp",
+      "name": "Reading Lamp",
+      "aliases": [
+        "Reading Lamp"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Office",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness",
+        "color",
+        "color_temp"
+      ]
+    }
+  ]
+}

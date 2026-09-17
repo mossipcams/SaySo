@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_off_0073",
+  "satellite_area": "Porch",
+  "sayso_entity_area": "Porch",
+  "areas": {
+    "Porch": []
+  },
+  "area_aliases": {
+    "Porch": []
+  },
+  "entities": [
+    {
+      "entity_id": "fan.porch_ceiling_fan",
+      "name": "Porch Ceiling Fan",
+      "aliases": [
+        "fan"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "device_class": null,
+      "area": "Porch",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "percentage"
+      ]
+    }
+  ]
+}

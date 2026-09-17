@@ -18,9 +18,13 @@ from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
 
 from custom_components.sayso.client import ChatCompletionResult, LlamaCppClient, ToolCall
+from custom_components.sayso.area_context import (
+    apply_area_context,
+    build_area_context,
+)
 from custom_components.sayso.conversation import (
     _chat_log_to_messages,
-    _system_prompt_with_area,
+    _satellite_area_name,
 )
 from custom_components.sayso.schema import (
     ToolArgumentFailureCode,
@@ -369,9 +373,72 @@ def test_satellite_area_context_uses_entity_registry(hass: HomeAssistant) -> Non
         device_registry_get.return_value.async_get.return_value = device
         area_registry_get.return_value.async_get_area.return_value = area
 
-        enriched = _system_prompt_with_area("base", hass, user_input)
+        satellite_area = _satellite_area_name(hass, user_input)
 
-    assert enriched == "base\narea=Office"
+    assert satellite_area == "Office"
+    messages = apply_area_context(
+        [{"role": "system", "content": "base"}],
+        build_area_context("turn on the lights", {"Office": []}, satellite_area),
+    )
+    assert messages[0]["content"] == (
+        "base\nArea context:\nsatellite_area: Office\ntarget_area: Office"
+        "\ntarget_area_source: satellite"
+    )
+
+
+async def test_model_prompt_replaces_ha_area_sentence_with_shared_area_block(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+    assist_light: None,
+) -> None:
+    """The bytes sent to llama.cpp are the shared renderer applied to HA's prompt.
+
+    Home Assistant adds "You are in area ..." for a device with an area. SaySo
+    must send exactly ``render_system_prompt`` of that prompt: the eval and the
+    training generator call the same function, so identical inputs give
+    identical bytes everywhere.
+    """
+    from homeassistant.helpers import area_registry as ar, device_registry as dr
+
+    from custom_components.sayso import conversation as sayso_conversation
+    from custom_components.sayso.area_context import render_system_prompt
+
+    entry = await _create_entry(hass)
+    office = ar.async_get(hass).async_create("Office", aliases={"study"})
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("test", "satellite")}
+    )
+    dr.async_get(hass).async_update_device(device.id, area_id=office.id)
+    seen: list[tuple[list[dict[str, Any]], Any]] = []
+
+    def spy(messages: list[dict[str, Any]], context: Any) -> list[dict[str, Any]]:
+        seen.append((messages, context))
+        return apply_area_context(messages, context)
+
+    with patch.object(sayso_conversation, "apply_area_context", side_effect=spy), patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(return_value=ChatCompletionResult(content="Which light?", tool_calls=[])),
+    ) as mock_chat:
+        await conversation.async_converse(
+            hass,
+            "turn on the light in the study",
+            None,
+            Context(),
+            agent_id=entry.entry_id,
+            device_id=device.id,
+        )
+
+    ha_prompt = seen[0][0][0]["content"]
+    assert "You are in area Office" in ha_prompt
+    context = build_area_context("turn on the light in the study", {"Office": ["study"]}, "Office")
+    assert seen[0][1] == context
+    sent = mock_chat.await_args.args[0][0]["content"]
+    assert sent == render_system_prompt(ha_prompt, context)
+    assert "You are in area" not in sent
+    assert sent.endswith(
+        "Area context:\nsatellite_area: Office\ntarget_area: Office\ntarget_area_source: explicit"
+    )
 
 
 async def test_conversation_id_preservation(
@@ -832,7 +899,7 @@ async def test_successful_light_tool_call_with_namespaced_ha_tools(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Model may return unprefixed HassTurnOn while HA exposes intent__HassTurnOn."""
+    """The exact namespaced name Home Assistant offers executes."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -849,7 +916,7 @@ async def test_successful_light_tool_call_with_namespaced_ha_tools(
                     tool_calls=[
                         ToolCall(
                             id="call_1",
-                            name="HassTurnOn",
+                            name="intent__HassTurnOn",
                             arguments={"name": "Living Room"},
                         )
                     ],
@@ -868,6 +935,40 @@ async def test_successful_light_tool_call_with_namespaced_ha_tools(
     assert hass.states.get("light.living_room").state == "on"
     assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
     assert _speech(result) == "Done."
+
+
+async def test_bare_legacy_tool_name_is_rejected_when_ha_namespaces_tools(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+    assist_light: None,
+) -> None:
+    """A bare HassTurnOn is not the intent__HassTurnOn Home Assistant offered."""
+    entry = await _create_entry(hass)
+
+    with patch.object(
+        conversation.ChatLog,
+        "async_provide_llm_data",
+        new=_wrap_assist_tools_with_intent_namespace,
+    ), patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(
+            return_value=ChatCompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="call_1",
+                        name="HassTurnOn",
+                        arguments={"name": "Living Room"},
+                    )
+                ],
+            )
+        ),
+    ):
+        result = await _converse(hass, entry, "Turn on the living room light")
+
+    assert hass.states.get("light.living_room").state == "off"
+    assert result.response.response_type == intent.IntentResponseType.ERROR
 
 
 async def test_successful_light_tool_call(

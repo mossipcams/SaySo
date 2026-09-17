@@ -1,0 +1,29 @@
+{
+  "home_id": "v3_shadow_script_0063",
+  "satellite_area": "Terrace",
+  "sayso_entity_area": "Terrace",
+  "areas": {
+    "Terrace": []
+  },
+  "area_aliases": {
+    "Terrace": []
+  },
+  "entities": [
+    {
+      "entity_id": "script.terrace_away_script",
+      "name": "Terrace Away Script",
+      "aliases": [
+        "Terrace Away Script"
+      ],
+      "domain": "script",
+      "kind": "script",
+      "device_class": null,
+      "area": "Terrace",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "run"
+      ]
+    }
+  ]
+}

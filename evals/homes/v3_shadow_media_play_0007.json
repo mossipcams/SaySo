@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_media_play_0007",
+  "satellite_area": "Terrace",
+  "sayso_entity_area": "Terrace",
+  "areas": {
+    "Terrace": []
+  },
+  "area_aliases": {
+    "Terrace": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.terrace_wall_tv",
+      "name": "Terrace Wall TV",
+      "aliases": [
+        "tv"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "tv",
+      "area": "Terrace",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    }
+  ]
+}

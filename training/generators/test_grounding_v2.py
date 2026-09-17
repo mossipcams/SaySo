@@ -382,14 +382,16 @@ def test_no_training_wording_reproduces_a_held_out_eval_prompt():
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
+    repo = root.parent
+    if str(repo) not in sys.path:
+        sys.path.insert(0, str(repo))
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    from evals.grounding_eval import build_grounding_examples
+    from evals.cases import cases_with_tag
 
     held_out = {
-        next(m for m in row["messages"] if m["role"] == "user")["content"]
-        .strip().casefold().rstrip(".")
-        for row in build_grounding_examples()
+        case.utterance.strip().casefold().rstrip(".")
+        for case in cases_with_tag("grounding")
     }
     spoken = {
         item["utterance"].strip().casefold().rstrip(".")

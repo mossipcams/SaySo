@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_on_0068",
+  "satellite_area": "Cellar",
+  "sayso_entity_area": "Cellar",
+  "areas": {
+    "Cellar": []
+  },
+  "area_aliases": {
+    "Cellar": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.cellar_task_light",
+      "name": "Cellar Task Light",
+      "aliases": [
+        "light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Cellar",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

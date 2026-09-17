@@ -1,0 +1,30 @@
+{
+  "home_id": "v3_shadow_vacuum_area_0052",
+  "satellite_area": "Atrium",
+  "sayso_entity_area": "Atrium",
+  "areas": {
+    "Atrium": []
+  },
+  "area_aliases": {
+    "Atrium": []
+  },
+  "entities": [
+    {
+      "entity_id": "vacuum.atrium_robot_vacuum",
+      "name": "Atrium Robot Vacuum",
+      "aliases": [
+        "Atrium Robot Vacuum"
+      ],
+      "domain": "vacuum",
+      "kind": "vacuum",
+      "device_class": null,
+      "area": "Atrium",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "start",
+        "stop"
+      ]
+    }
+  ]
+}

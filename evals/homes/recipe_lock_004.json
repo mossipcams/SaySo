@@ -1,0 +1,30 @@
+{
+  "home_id": "recipe_lock_004",
+  "satellite_area": "Patio",
+  "sayso_entity_area": "Patio",
+  "areas": {
+    "Patio": []
+  },
+  "area_aliases": {
+    "Patio": []
+  },
+  "entities": [
+    {
+      "entity_id": "cover.patio_south_blinds",
+      "name": "Patio South Blinds",
+      "aliases": [
+        "blinds"
+      ],
+      "domain": "cover",
+      "kind": "blinds",
+      "device_class": "blind",
+      "area": "Patio",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "open",
+        "close"
+      ]
+    }
+  ]
+}

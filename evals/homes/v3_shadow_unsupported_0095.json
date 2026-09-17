@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_unsupported_0095",
+  "satellite_area": "Terrace",
+  "sayso_entity_area": "Terrace",
+  "areas": {
+    "Terrace": []
+  },
+  "area_aliases": {
+    "Terrace": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.terrace_hall_light",
+      "name": "Terrace Hall Light",
+      "aliases": [
+        "Terrace Hall Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Terrace",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

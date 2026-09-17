@@ -1,0 +1,31 @@
+{
+  "home_id": "v3_shadow_unsupported_0096",
+  "satellite_area": "Balcony",
+  "sayso_entity_area": "Balcony",
+  "areas": {
+    "Balcony": []
+  },
+  "area_aliases": {
+    "Balcony": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.balcony_hall_light",
+      "name": "Balcony Hall Light",
+      "aliases": [
+        "Balcony Hall Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Balcony",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}

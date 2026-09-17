@@ -1,0 +1,157 @@
+{
+  "home_id": "realistic_eval_household_4",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Bathroom": [],
+    "Bedroom": [],
+    "Entryway": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Bathroom": [],
+    "Bedroom": [],
+    "Entryway": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "name": "Bathroom Mirror Lights",
+      "aliases": [],
+      "domain": "light",
+      "area": "Bathroom"
+    },
+    {
+      "name": "Bedroom Curtains",
+      "aliases": [],
+      "domain": "cover",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Bedroom Fan",
+      "aliases": [
+        "bedroom fan"
+      ],
+      "domain": "fan",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Casey's Bedside Lamp",
+      "aliases": [
+        "bedside lamp"
+      ],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Espresso Machine Plug",
+      "aliases": [
+        "coffee plug"
+      ],
+      "domain": "switch",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Hallway Heating",
+      "aliases": [],
+      "domain": "climate",
+      "area": "Hallway"
+    },
+    {
+      "name": "Household Shopping",
+      "aliases": [],
+      "domain": "todo",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Breakfast Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Cabinet Strip",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Island Lights",
+      "aliases": [
+        "prep lights"
+      ],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Living Room Reading Lamp",
+      "aliases": [
+        "reading light",
+        "sofa lamp"
+      ],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "name": "Living Room Window Lamp",
+      "aliases": [
+        "reading light"
+      ],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "name": "Main Door Lock",
+      "aliases": [],
+      "domain": "lock",
+      "area": "Entryway"
+    },
+    {
+      "name": "Relax Lighting",
+      "aliases": [],
+      "domain": "scene",
+      "area": "Living Room"
+    },
+    {
+      "name": "Robot Vacuum",
+      "aliases": [],
+      "domain": "vacuum",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Sam's Bedside Lamp",
+      "aliases": [
+        "bedside lamp",
+        "my bedside light"
+      ],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Sofa TV",
+      "aliases": [
+        "big screen"
+      ],
+      "domain": "media_player",
+      "area": "Living Room"
+    },
+    {
+      "entity_id": "script.bedtime",
+      "name": "Bedtime",
+      "aliases": [],
+      "domain": "script",
+      "area": null
+    },
+    {
+      "entity_id": "script.good_morning",
+      "name": "Good Morning",
+      "aliases": [],
+      "domain": "script",
+      "area": null
+    }
+  ]
+}

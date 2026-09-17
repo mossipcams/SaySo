@@ -394,7 +394,7 @@ _RESERVED_AREAS: frozenset[str] = frozenset({
     # canonical (above)
     "Den", "Attic", "Sunroom", "Workshop", "Craft Room", "Pantry", "Landing", "Music Room",
     "Loft", "Cellar",
-    # evals/grounding_eval.eval_variants
+    # evals/cases/regressions.jsonl grounding variants
     "Living Room", "Bedroom", "Office", "Basement", "Kitchen", "Bathroom", "Porch",
 })
 

@@ -1,0 +1,30 @@
+{
+  "home_id": "recipe_lock_017",
+  "satellite_area": "Basement",
+  "sayso_entity_area": "Basement",
+  "areas": {
+    "Basement": []
+  },
+  "area_aliases": {
+    "Basement": []
+  },
+  "entities": [
+    {
+      "entity_id": "lock.basement_south_door_lock",
+      "name": "Basement South Door Lock",
+      "aliases": [
+        "basement door"
+      ],
+      "domain": "lock",
+      "kind": "lock",
+      "device_class": "door",
+      "area": "Basement",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "lock",
+        "unlock"
+      ]
+    }
+  ]
+}
