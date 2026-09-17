@@ -122,15 +122,20 @@ def exposed_entities(home: dict[str, Any]) -> list[dict[str, Any]]:
     return entities
 
 
-def _area_prompt(home: dict[str, Any], utterance: str | None = None) -> str:
+def _area_prompt(
+    home: dict[str, Any],
+    utterance: str | None = None,
+    area_context: AreaContext | None = None,
+) -> str:
     """Render the same request-area contract that production sends."""
-    context = resolve_area_context(
-        utterance or "",
-        satellite_area=home.get("satellite_area"),
-        areas=home.get("areas", ()),
-        entities=home.get("entities", ()),
-    )
-    return render_area_context(context)
+    if area_context is None:
+        area_context = resolve_area_context(
+            utterance or "",
+            satellite_area=home.get("satellite_area"),
+            areas=home.get("areas", ()),
+            entities=home.get("entities", ()),
+        )
+    return render_area_context(area_context)
 
 
 def _namespaced(text: str) -> str:
@@ -148,7 +153,8 @@ def _namespaced(text: str) -> str:
 
 
 def serialize_context(
-    home: dict[str, Any], *, utterance: str | None = None, namespaced: bool = False
+    home: dict[str, Any], *, utterance: str | None = None,
+    namespaced: bool = False, area_context: AreaContext | None = None,
 ) -> str:
     """Serialize exposed entity context as Home Assistant's Assist API sends it."""
     dynamic_prompt = DYNAMIC_CONTEXT_PROMPT
@@ -166,13 +172,16 @@ def serialize_context(
     # Domain order: the "homeassistant" platform sorts before "intent". The
     # request context precedes HA's appended API context, matching production.
     api_prompt = "\n".join([api_prompt, control_prompt])
-    area_prompt = _area_prompt(home, utterance)
+    area_prompt = _area_prompt(home, utterance, area_context)
     # DATE_TIME_PROMPT is omitted: chat_log only appends it when no GetDateTime tool
     # is offered, and every row offers GetDateTime.
     return "\n".join([SAYSO_SYSTEM_PROMPT, area_prompt, api_prompt])
 
 
 def system_prompt(
-    home: dict[str, Any], *, utterance: str | None = None, namespaced: bool = False
+    home: dict[str, Any], *, utterance: str | None = None,
+    namespaced: bool = False, area_context: AreaContext | None = None,
 ) -> str:
-    return serialize_context(home, utterance=utterance, namespaced=namespaced)
+    return serialize_context(
+        home, utterance=utterance, namespaced=namespaced, area_context=area_context
+    )

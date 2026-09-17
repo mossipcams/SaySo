@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import random
 
 from generators.context import render_area_context, resolve_area_context
@@ -58,15 +59,48 @@ def test_named_target_survives_area_words_and_ambiguity_fails_closed() -> None:
         entities=[{"name": "Kitchen Light", "aliases": [], "area": "Kitchen"}],
     )
     ambiguous = resolve_area_context(
-        "turn on the TV", satellite_area="Kitchen", areas=("Kitchen",),
+        "turn on the screen", satellite_area="Kitchen", areas=("Kitchen",),
         entities=[
-            {"name": "TV", "aliases": [], "area": "Bedroom"},
-            {"name": "Kitchen TV", "aliases": ["TV"], "area": "Kitchen"},
+            {"name": "Bedroom Screen", "aliases": ["screen"], "area": "Bedroom"},
+            {"name": "Kitchen Screen", "aliases": ["screen"], "area": "Kitchen"},
         ],
     )
     assert named.target_area_source == "named_target"
     assert ambiguous.target_area_source == "ambiguous"
     assert ambiguous.target_area is None
+
+    generic = resolve_area_context(
+        "turn on the TV", satellite_area="Kitchen", areas=("Kitchen",),
+        entities=[{"name": "TV", "aliases": [], "area": "Bedroom"}],
+    )
+    assert generic.target_area_source == "satellite_fallback"
+
+
+def test_generic_device_words_use_area_context() -> None:
+    context = resolve_area_context(
+        "set light brightness to 28 percent",
+        satellite_area="Living Room",
+        areas=("Living Room", "Playroom"),
+        entities=[{"name": "Light", "aliases": ["light"], "area": "Playroom"}],
+    )
+    assert (context.target_area, context.target_area_source) == (
+        "Living Room", "satellite_fallback"
+    )
+
+
+def test_area_name_in_device_phrase_is_explicit() -> None:
+    context = resolve_area_context(
+        "set kitchen light brightness to 28 percent",
+        satellite_area="Living Room",
+        areas=("Kitchen", "Living Room"),
+        entities=[
+            {"name": "Kitchen Ceiling Light", "aliases": ["Kitchen light"], "area": "Kitchen"},
+            {"name": "Kitchen Lamp", "aliases": ["Kitchen light"], "area": "Kitchen"},
+        ],
+    )
+    assert (context.target_area, context.target_area_source) == (
+        "Kitchen", "explicit_area"
+    )
 
 
 def test_area_families_render_the_contract_and_expected_targeting() -> None:
@@ -93,6 +127,10 @@ def test_area_families_render_the_contract_and_expected_targeting() -> None:
     assert "satellite_area=Kitchen" in rows["area_named_other_room_tv"]["messages"][0][
         "content"
     ]
+    ambiguous = rows["area_ambiguous_target_clarify"]
+    assert ambiguous["metadata"]["target_area_source"] == "ambiguous"
+    assert not any(message.get("tool_calls") for message in ambiguous["messages"])
+    assert "target_area_source=ambiguous" in ambiguous["messages"][0]["content"]
     context = resolve_area_context(
         "turn on the lights", satellite_area="Kitchen",
         areas=("Kitchen",), entities=()
@@ -113,6 +151,15 @@ def test_production_generation_delivers_area_families_and_zero_rate_is_valid() -
     assert set(result["stats"]["area_context"]["by_family"]) == {
         variant["family"] for variant in area_context_variants()
     }
+    for row in result["rows"]:
+        metadata = row["metadata"]
+        system = row["messages"][0]["content"]
+        assert f"target_area_source={metadata['target_area_source']}" in system
+        for message in row["messages"]:
+            for tool_call in message.get("tool_calls") or ():
+                arguments = json.loads(tool_call["function"]["arguments"])
+                if arguments.get("area"):
+                    assert arguments["area"].casefold() == metadata["target_area"].casefold()
     zero_rate = run_generation(
         GeneratorConfig(
             count=1000, seed=7, area_context_rate=0, grounding_rate=0,

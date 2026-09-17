@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any
 
-from generators.context import AreaContext, resolve_area_context, system_prompt
+from generators.context import resolve_area_context, system_prompt
 from generators.tools import namespaced_tool_name, offered_tools, script_tools
 from generators.gold import target_names_from_expected
 from generators.validate import validate_spec
@@ -80,6 +80,23 @@ def scenario_to_spec(scenario: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _area_context_matches_expected(spec: dict[str, Any], area_context: Any) -> bool:
+    if spec["expected"].get("kind") not in {"action", "status"}:
+        return True
+    calls = spec["expected"].get("calls") or ()
+    expected_areas = {
+        str((call.get("arguments") or {})["area"]).casefold()
+        for call in calls
+        if (call.get("arguments") or {}).get("area")
+    }
+    if len(expected_areas) != 1:
+        return True
+    return (
+        area_context.target_area is not None
+        and str(area_context.target_area).casefold() == next(iter(expected_areas))
+    )
+
+
 def render_example(spec: dict[str, Any]) -> dict[str, Any]:
     """Render a validated spec as canonical SaySo JSONL."""
     reason = validate_spec(spec)
@@ -94,14 +111,8 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         areas=spec["home"].get("areas", ()),
         entities=spec["home"].get("entities", ()),
     )
-    if (
-        spec["expected"].get("response") == "clarify"
-        and spec.get("category") == "ambiguity"
-        and area_context.target_area_source != "missing_area"
-    ):
-        area_context = AreaContext(
-            area_context.satellite_area, area_context.target_area, "ambiguous"
-        )
+    if not _area_context_matches_expected(spec, area_context):
+        raise ValueError("area_context_mismatch")
     spec["satellite_area"] = area_context.satellite_area
     spec["target_area"] = area_context.target_area
     spec["target_area_source"] = area_context.target_area_source
@@ -114,7 +125,8 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         {
             "role": "system",
             "content": system_prompt(
-                spec["home"], utterance=utterance.strip(), namespaced=namespaced
+                spec["home"], utterance=utterance.strip(), namespaced=namespaced,
+                area_context=area_context,
             ),
             "train_on_turn": False,
         },

@@ -153,8 +153,11 @@ def area_context_variants() -> list[dict[str, Any]]:
         variant(
             prefix="area_ambiguous_target", label="clarify", capability="lights",
             operation="turn_on", targeting="area", robustness="ambiguity",
-            entities=[kitchen_light, entity("Kitchen Lamp", "lights", "Kitchen")],
-            area="Kitchen", utterance="Turn on the lights", area_context=True,
+            entities=[
+                entity("Kitchen Light", "lights", "Kitchen", aliases=["ceiling light"]),
+                entity("Kitchen Lamp", "lights", "Kitchen", aliases=["ceiling light"]),
+            ],
+            area="Kitchen", utterance="Switch on the ceiling light", area_context=True,
         ),
     ]
 

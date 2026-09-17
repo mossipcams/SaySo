@@ -141,10 +141,8 @@ def test_held_out_entities_never_become_training_targets():
 
 
 def test_an_explicit_cap_binds():
-    result = _mixed_run(real_home_entity_cap=3)
-    counts = result["stats"]["real_home"]["target_counts"]
-    assert counts and max(counts.values()) <= 3
-    assert result["stats"]["accepted"] == 1500  # capping redistributes, never shrinks
+    with pytest.raises(RuntimeError, match="real_home rate shortfall"):
+        _mixed_run(real_home_entity_cap=3)
 
 
 def test_synthetic_only_is_an_explicit_override():

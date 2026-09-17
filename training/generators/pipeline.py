@@ -1031,6 +1031,7 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
             "target_counts": dict(sorted(real_home_targets.items())),
             "most_common": real_home_targets.most_common(5),
         }
+        _enforce_rate_gate(report["real_home"], "real_home", config, len(accepted))
     report["registry"] = registry_summary()
     from generators.audit import audit_rows
 
