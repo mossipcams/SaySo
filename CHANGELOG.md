@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/mossipcams/SaySo/compare/1.4.0...1.5.0) (2026-09-17)
+
+
+### Features
+
+* **evals:** consolidate evaluation onto one production-contract pipeline ([98ae012](https://github.com/mossipcams/SaySo/commit/98ae012cb2bcb0d280d123969166742413e8830e))
+
+
+### Bug Fixes
+
+* **evals:** stop runner from importing training jsonschema chain ([d606b71](https://github.com/mossipcams/SaySo/commit/d606b71c4780f30e0bde259c8524352090b2ffe4))
+
 ## [1.4.0](https://github.com/mossipcams/SaySo/compare/1.3.1...1.4.0) (2026-09-16)
 
 
