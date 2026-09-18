@@ -205,15 +205,39 @@ def cmd_test_speaker(_: argparse.Namespace) -> int:
 def cmd_test_wake(_: argparse.Namespace) -> int:
     cfg = load_config()
     path = cfg.wake_word.model
-    print(f"model={path}")
+    provider_name = cfg.wake_word.provider
+    print(f"provider={provider_name} model={path}")
     if not path.is_file():
-        print(
-            "FAIL: model missing. Copy a LiveKit-exported SaySo ONNX classifier to:\n"
-            f"  {path}\n"
-            "Then run: sayso-satellite test-wake-word\n"
-            "Do not substitute hey_livekit, hey_jarvis, or another phrase."
-        )
+        if provider_name == "nanowakeword":
+            print(
+                "FAIL: NanoWakeWord model missing. Train a prototype model:\n"
+                "  pip install \"nanowakeword[train]\"\n"
+                "  nanowakeword -c satellite/models/sayso-nanowakeword.yaml -G -t -T\n"
+                f"Then copy the exported ONNX to:\n  {path}"
+            )
+        else:
+            print(
+                "FAIL: model missing. Copy a LiveKit-exported SaySo ONNX classifier to:\n"
+                f"  {path}\n"
+                "Then run: sayso-satellite test-wake-word\n"
+                "Do not substitute hey_livekit, hey_jarvis, or another phrase."
+            )
         return 2
+
+    if provider_name == "nanowakeword":
+        from .wake.nanowakeword import NanoWakeWordProvider
+
+        provider = NanoWakeWordProvider(
+            model_path=path,
+            phrase=cfg.wake_word.phrase,
+            threshold=cfg.wake_word.threshold,
+            refractory_seconds=0.0,
+        )
+        if not provider.available:
+            print("FAIL: NanoWakeWord model failed to load (see logs above)")
+            return 2
+        print("OK: NanoWakeWord model loaded. Recorded eval is LiveKit-only; use live audio to tune.")
+        return 0
 
     from .wake.eval import run_wake_eval, satellite_eval_root
 

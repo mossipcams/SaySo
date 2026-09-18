@@ -1,0 +1,112 @@
+# Prototype NanoWakeWord training config for the SaySo satellite.
+#
+# NOT a production operating point. Small clip counts and short training are
+# for host-side smoke runs only. Do not run on the Pi. The shipped satellite
+# defaults to the LiveKit sayso.onnx model unless wake_word.provider is set to
+# nanowakeword in config.
+#
+# Host smoke train:
+#   pip install "nanowakeword[train]"
+#   nanowakeword -c satellite/models/sayso-nanowakeword.yaml -G -t -T
+
+output_dir: "./output"
+model_name: "sayso"
+
+mode: "embedding"
+model_type: "dnn"
+layer_size: 64
+n_blocks: 1
+embedding_dim: 32
+dropout_prob: 0.4
+
+generate_clips: true
+target_phrase: "SaySo"
+
+tts_settings:
+  models: "en_US-lessac-medium"
+  length_scales: [0.9, 1.0, 1.1]
+  noise_scales: [0.667, 0.8]
+
+data_generation_tasks:
+  - name: "Positive SaySo"
+    enabled: true
+    output_dir: "data/positive"
+    num_samples: 80
+    text_source:
+      type: "fixed_phrase"
+      phrase: "SaySo"
+
+  # Hard negatives: the /seI soU/ confusable set from sayso-training.yaml.
+  - name: "Confusable negatives"
+    enabled: true
+    output_dir: "data/negative"
+    num_samples: 200
+    file_prefix: "neg_confusable"
+    text_source:
+      type: "from_list"
+      phrases:
+        - "say so"
+        - "says so"
+        - "said so"
+        - "saying so"
+        - "if you say so"
+        - "just say so"
+        - "you don't say so"
+        - "so so"
+        - "stay so"
+        - "same so"
+        - "safe so"
+        - "say slow"
+        - "say show"
+        - "say sorry"
+        - "say something"
+        - "essay so"
+        - "hey so"
+        - "they say so"
+        - "lasso"
+      repeat_each: 2
+
+transform_clips: true
+convert_audio: true
+sample_rate: 16000
+
+data_generation_manifest:
+  positive_features:
+    input_audio_dirs: ["data/positive"]
+    output_filename: "positive_features.npy"
+    augmentation_rounds: 2
+    augmentation_settings:
+      min_snr_in_db: 8.0
+      max_snr_in_db: 30.0
+      pitch_prob: 0.2
+
+  negative_features:
+    input_audio_dirs: ["data/negative"]
+    output_filename: "negative_features.npy"
+    augmentation_rounds: 2
+
+  noise_features:
+    input_audio_dirs: ["data/positive"]
+    output_filename: "noise_features.npy"
+    use_background_noise: true
+    augmentation_rounds: 1
+
+feature_manifest:
+  targets:
+    p: "./output/sayso/features/positive_features.npy"
+  negatives:
+    n: "./output/sayso/features/negative_features.npy"
+    b: "./output/sayso/features/noise_features.npy"
+
+train_model: true
+batch_composition:
+  targets: 16
+  negatives: 48
+steps: 2000
+val_interval: 200
+checkpointing:
+  enabled: true
+  interval_steps: 500
+  limit: 2
+
+onnx_opset_version: 17

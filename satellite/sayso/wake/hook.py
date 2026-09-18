@@ -8,7 +8,8 @@ from typing import Any, Callable, Optional
 from .buffer import PrerollFlush, WakeAudioBuffer
 from .capture import WakeCaptureRing
 from .detection import Detection
-from .livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES, LiveKitWakeWordProvider
+from .livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
+from .provider import WakeWordProvider
 from .worker import WakeInferenceWorker
 
 _LOGGER = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ class SaySoExternalWakeHook:
 
     def __init__(
         self,
-        provider: LiveKitWakeWordProvider,
+        provider: WakeWordProvider,
         *,
         preroll_ms: int = 0,
         wake_skip_ms: int = DEFAULT_WAKE_SKIP_MS,

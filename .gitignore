@@ -45,3 +45,12 @@ training/hf_cache/
 # Eval run outputs (metadata is regenerated per run)
 evals/results/*
 !evals/results/.gitkeep
+
+# NanoWakeWord prototype train artifacts (satellite/models/)
+satellite/models/data/
+satellite/models/output/
+satellite/models/NwwResourcesModel/
+satellite/models/dataset/
+satellite/models/tts_models/
+satellite/models/**/*.wav
+satellite/models/**/*.npy

@@ -1,0 +1,8 @@
+# NanoWakeWord prototype train artifacts (host-side only)
+models/data/
+models/output/
+models/NwwResourcesModel/
+models/dataset/
+models/tts_models/
+models/**/*.wav
+models/**/*.npy
