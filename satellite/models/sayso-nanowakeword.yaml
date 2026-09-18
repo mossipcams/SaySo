@@ -101,6 +101,9 @@ feature_manifest:
     n: "./output/sayso/features/negative_features.npy"
 
 train_model: true
+# Feature gen defaults to a multiprocessing Pool that deadlocks on this host.
+num_workers: 0
+feature_gen_num_workers: 0
 batch_composition:
   targets: 16
   negatives: 48
