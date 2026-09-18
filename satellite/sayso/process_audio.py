@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import os
+from dataclasses import dataclass
 from typing import Any
 
 from .wake.capture import CaptureResampler, gain_scalar_from_db
@@ -30,6 +31,13 @@ from .wake.hook import SaySoExternalWakeHook, install_external_wake_hook
 _LOGGER = logging.getLogger(__name__)
 
 TARGET_RATE = 16000
+
+
+@dataclass
+class NativeClipTally:
+    """Cumulative native-rate gain-clip events across capture blocks."""
+
+    count: int = 0
 
 
 class _ResamplingRecorder:
@@ -50,11 +58,20 @@ class _ResamplingRecorder:
     back as a short block.
     """
 
-    def __init__(self, recorder: Any, *, native_rate: int, channels: int, gain: float) -> None:
+    def __init__(
+        self,
+        recorder: Any,
+        *,
+        native_rate: int,
+        channels: int,
+        gain: float,
+        native_clip_tally: NativeClipTally | None = None,
+    ) -> None:
         self._recorder = recorder
         self._native_rate = native_rate
         self._channels = channels
         self._gain = gain
+        self._native_clip_tally = native_clip_tally
         # One resampler per channel: each channel is an independent stream, and
         # sharing one filter state across channels would corrupt both.
         self._resamplers = (
@@ -116,6 +133,8 @@ class _ResamplingRecorder:
         data = data * self._gain
         if float(np.max(np.abs(data))) > 1.0:
             self._clip_events += 1
+            if self._native_clip_tally is not None:
+                self._native_clip_tally.count += 1
         return np.clip(data, -1.0, 1.0)
 
     def _resample(self, data: Any) -> Any:
@@ -180,6 +199,7 @@ def install_native_rate_capture(
     channels: int,
     auto_gain: int = 0,
     noise_suppression: int = 0,
+    native_clip_tally: NativeClipTally | None = None,
 ) -> Any:
     """Wrap ``lva_main.process_audio`` to capture natively and resample once."""
     original_process_audio = lva_main.process_audio
@@ -205,6 +225,7 @@ def install_native_rate_capture(
                 native_rate=capture_rate,
                 channels=channels_arg,
                 gain=gain,
+                native_clip_tally=native_clip_tally,
             )
 
         mic.recorder = recorder

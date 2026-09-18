@@ -243,18 +243,17 @@ def install_voice_handlers(
             _start_capture(self, wake_word_phrase)
             self._start_audio_streaming(wake_word_phrase)
             if wake_hook is not None:
-                # Retained pre-open audio is handed over only now, at the true
-                # detection boundary, so nothing captured during playback is
-                # misattributed as command speech.
+                # Hand over retained pre-open audio now that capture is live.
+                # flush_preroll emits [trim, now], including audio captured
+                # while mic-open was deferred (playback handoff and gate delay).
                 result = wake_hook.flush_preroll(self)
                 if result.underflow:
                     self._sayso_capture_underflow = True
 
         def _after_settle() -> None:
-            # Hold a short settle delay so the speaker tail does not bleed into
-            # the first command samples. There is no AEC on this path
-            # (webrtc-noise-gain exposes AGC/NS only), so the delay is the
-            # fail-safe against capturing our own output.
+            # Optional extra delay before opening the microphone. This does not
+            # strip speaker tail from the STT payload: flush_preroll still emits
+            # [trim, now] and the gate window is included in that handoff.
             if aec_gate_ms > 0:
                 threading.Timer(aec_gate_ms / 1000.0, _open_microphone).start()
             else:

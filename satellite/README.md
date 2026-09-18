@@ -26,7 +26,9 @@ The overlay owns one deliberate resample and the capture timeline:
   sample index, and the wake→STT handoff drains
   `[detection_index - wake_skip_ms, end)` atomically. Each sample reaches Home
   Assistant exactly once, in order, regardless of when the detection thread
-  runs. See `satellite/sayso/wake/hook.py`.
+  runs. See `satellite/sayso/wake/hook.py`. With `--disable-built-in-wake-word`,
+  live STT is produced only by the overlay ring (`flush_preroll` and
+  `_forward_live`); LVA does not send a second copy via `handle_audio`.
 - `wake_word.wake_skip_ms` is a **lookback**, not a skip: it starts the handoff
   that far *before* the detection boundary so a command spoken straight through
   the wake word ("SaySo turn on the TV") keeps its onset. It is bounded on both
@@ -38,9 +40,10 @@ The overlay owns one deliberate resample and the capture timeline:
   recoverable failure (a clipped onset) over the total one (a dropped command).
   Trimming to the real phrase end is the actual fix — see issue #49.
 - The microphone does not open until any in-flight playback has genuinely
-  finished, plus `audio.aec_gate_ms`. There is no AEC on this path
-  (`webrtc-noise-gain` exposes AGC/NS only), so the gate is the fail-safe
-  against capturing the speaker.
+  finished, plus an optional `audio.aec_gate_ms` delay. That delay only
+  postpones when the mic opens; it does not remove samples from the STT
+  payload (`flush_preroll` still emits `[trim, now]`). Default is 0. There is
+  no AEC on this path (`webrtc-noise-gain` exposes AGC/NS only).
 - Gain is a single fixed `audio.mic_gain_db` multiply applied once, not a
   runtime lookup. AGC and NS are pinned from config; the default is NS off.
 - The exact PCM sent to Home Assistant is retained. See
@@ -51,6 +54,8 @@ code is only under `sayso/` plus patches:
 
 - `patches/0001-sayso-stable-device-name.patch` (`--device-name` for stable HA device id)
 - `patches/0002-lva-external-wake-provider.patch` (processed PCM external wake hook + `--disable-built-in-wake-word`)
+
+CI on this repo applies the patches to the pinned LVA tree; a running satellite still needs its `/opt/sayso-satellite` venv rebuilt from that patched tree.
 
 `satellite.name` in `config.yaml` is the friendly display name passed to LVA `--name`.
 `satellite.device_name` is the stable Home Assistant device id passed to LVA `--device-name`

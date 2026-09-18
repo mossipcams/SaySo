@@ -9,7 +9,7 @@ import sys
 from .config import load_config
 from .events import install_voice_handlers
 from .playback import configure_pulse_mpv, install_playback_recovery
-from .process_audio import install_native_rate_capture, install_wake_audio_path
+from .process_audio import NativeClipTally, install_native_rate_capture, install_wake_audio_path
 from .wake.hook import SaySoExternalWakeHook
 from .wake.livekit import LiveKitWakeWordProvider
 from .wake.mining import HardNegativeMiner
@@ -101,6 +101,7 @@ def main() -> None:
         wake_skip_ms=cfg.wake_word.wake_skip_ms,
     )
 
+    native_clip_tally = NativeClipTally()
     capture = None
     if getattr(cfg.audio, "stt_capture_enabled", False):
         capture_dir = getattr(cfg.audio, "stt_capture_dir", None)
@@ -112,6 +113,7 @@ def main() -> None:
             mic_gain_db=getattr(cfg.audio, "mic_gain_db", 0.0),
             noise_suppression=cfg.audio.noise_suppression,
             auto_gain=cfg.audio.auto_gain,
+            native_clip_tally=native_clip_tally,
         )
         capture.start()
 
@@ -122,6 +124,7 @@ def main() -> None:
         channels=cfg.audio.channels,
         auto_gain=cfg.audio.auto_gain,
         noise_suppression=cfg.audio.noise_suppression,
+        native_clip_tally=native_clip_tally,
     )
     install_wake_audio_path(lva_main, wake_hook)
     install_voice_handlers(

@@ -21,7 +21,7 @@ import time
 import wave
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -40,6 +40,7 @@ class _Command:
     underflow: bool = False
     failed: bool = False
     reason: str = ""
+    native_clip_count: int = 0
 
 
 class SttAudioRecorder:
@@ -68,6 +69,7 @@ class SttAudioRecorder:
         max_pending: int = 8,
         max_commands: int = DEFAULT_MAX_COMMANDS,
         max_age_days: float = DEFAULT_MAX_AGE_DAYS,
+        native_clip_tally: Any = None,
     ) -> None:
         self._dir = Path(directory) if directory is not None else DEFAULT_CAPTURE_DIR
         self._commands_dir = self._dir / "commands"
@@ -81,6 +83,7 @@ class SttAudioRecorder:
         self._max_pending = max(1, int(max_pending))
         self._max_commands = int(max_commands)
         self._max_age_days = float(max_age_days)
+        self._native_clip_tally = native_clip_tally
 
         self._queue: queue.Queue[_Command] = queue.Queue(maxsize=self._max_pending)
         self._lock = threading.Lock()
@@ -132,7 +135,12 @@ class SttAudioRecorder:
         if not self._enabled:
             return
         with self._lock:
-            self._active = _Command(run_id=str(run_id))
+            baseline = (
+                int(self._native_clip_tally.count)
+                if self._native_clip_tally is not None
+                else 0
+            )
+            self._active = _Command(run_id=str(run_id), native_clip_count=baseline)
 
     def tap(self, pcm_s16le: bytes) -> None:
         """Record bytes on their way to Home Assistant. Never blocks on IO."""
@@ -171,6 +179,10 @@ class SttAudioRecorder:
             self._active = None
         if active is None:
             return None
+        if self._native_clip_tally is not None:
+            active.native_clip_count = (
+                int(self._native_clip_tally.count) - active.native_clip_count
+            )
         active.transcript = transcript or ""
         active.underflow = bool(underflow)
         if failed_reason or not active.transcript.strip():
@@ -246,6 +258,7 @@ class SttAudioRecorder:
             "rms": rms,
             "rms_dbfs": db,
             "clip_count": clip_count,
+            "native_clip_count": int(command.native_clip_count),
             "transcript": command.transcript,
             "underflow": command.underflow,
             "failed": command.failed,

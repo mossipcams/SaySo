@@ -41,7 +41,39 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install pytest numpy PyYAML
 
+      - name: Parse linux-voice-assistant pin
+        id: lva_pin
+        run: |
+          LVA_SHA=$(python3 -c "
+          import re
+          from pathlib import Path
+          text = Path('satellite/pyproject.toml').read_text(encoding='utf-8')
+          m = re.search(
+              r'linux-voice-assistant @ git\+https://github.com/OHF-Voice/linux-voice-assistant\.git@([0-9a-f]+)',
+              text,
+          )
+          if not m:
+              raise SystemExit('linux-voice-assistant pin not found in satellite/pyproject.toml')
+          print(m.group(1))
+          ")
+          echo "sha=${LVA_SHA}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check out pinned linux-voice-assistant
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: OHF-Voice/linux-voice-assistant
+          ref: ${{ steps.lva_pin.outputs.sha }}
+          path: .lva
+          fetch-depth: 1
+
+      - name: Apply SaySo LVA patches
+        run: |
+          git -C .lva apply --verbose "$GITHUB_WORKSPACE/satellite/patches/0001-sayso-stable-device-name.patch"
+          git -C .lva apply --verbose "$GITHUB_WORKSPACE/satellite/patches/0002-lva-external-wake-provider.patch"
+
       - name: Run satellite tests
+        env:
+          SAYSO_LVA_SRC: ${{ github.workspace }}/.lva
         run: pytest -q satellite/sayso
 
   compat:

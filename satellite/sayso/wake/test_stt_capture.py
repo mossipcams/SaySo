@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
+from satellite.sayso.process_audio import NativeClipTally
 from satellite.sayso.wake.stt_capture import SttAudioRecorder
 
 
@@ -147,6 +148,31 @@ def test_disabled_recorder_is_a_noop(tmp_path: Path) -> None:
         recorder.stop()
     assert path is None
     assert not (tmp_path / "commands").exists() or not list((tmp_path / "commands").glob("*.wav"))
+
+
+def test_sidecar_native_clip_count_is_clipped_blocks_not_samples(tmp_path: Path) -> None:
+    """native_clip_count tallies clipped capture blocks (bursts), not PCM samples."""
+    tally = NativeClipTally(count=3)
+    recorder = SttAudioRecorder(
+        tmp_path,
+        sample_rate=16000,
+        capture_rate=44100,
+        native_clip_tally=tally,
+    )
+    recorder.start()
+    try:
+        recorder.begin_command("run-native-clip")
+        # Each increment is one clipped block event, independent of block byte length.
+        tally.count += 2
+        recorder.tap(np.zeros(1600, dtype="<i2").tobytes())
+        path = recorder.end_command("run-native-clip", transcript="hello")
+        recorder.flush(timeout=2.0)
+    finally:
+        recorder.stop()
+
+    meta = json.loads(path.with_suffix(".json").read_text())
+    assert meta["native_clip_count"] == 2
+    assert meta["clip_count"] == 0
 
 
 def test_tap_outside_a_command_is_ignored(tmp_path: Path) -> None:
