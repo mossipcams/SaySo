@@ -23,7 +23,11 @@ generate_clips: true
 target_phrase: "SaySo"
 
 tts_settings:
-  models: "en_US-lessac-medium"
+  # Piper downloads these on first run (nanowakeword 2.x does not fetch a
+  # named voice string like "en_US-lessac-medium").
+  models:
+    onnx: "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx"
+    json: "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json"
   length_scales: [0.9, 1.0, 1.1]
   noise_scales: [0.667, 0.8]
 
@@ -70,7 +74,7 @@ transform_clips: true
 convert_audio: true
 sample_rate: 16000
 
-data_generation_manifest:
+feature_generation_manifest:
   positive_features:
     input_audio_dirs: ["data/positive"]
     output_filename: "positive_features.npy"
@@ -85,18 +89,11 @@ data_generation_manifest:
     output_filename: "negative_features.npy"
     augmentation_rounds: 2
 
-  noise_features:
-    input_audio_dirs: ["data/positive"]
-    output_filename: "noise_features.npy"
-    use_background_noise: true
-    augmentation_rounds: 1
-
 feature_manifest:
   targets:
     p: "./output/sayso/features/positive_features.npy"
   negatives:
     n: "./output/sayso/features/negative_features.npy"
-    b: "./output/sayso/features/noise_features.npy"
 
 train_model: true
 batch_composition:
