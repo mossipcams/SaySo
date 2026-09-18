@@ -160,6 +160,7 @@ def test_cmd_test_wake_runs_recorded_eval(
 
     cfg = _config(tmp_path)
     cfg.wake_word = SimpleNamespace(
+        provider="livekit",
         model=model_path,
         phrase="SaySo",
         threshold=0.65,
@@ -200,6 +201,7 @@ def test_cmd_test_wake_importable_with_satellite_on_pythonpath(
 
     cfg = _config(tmp_path)
     cfg.wake_word = SimpleNamespace(
+        provider="livekit",
         model=model_path,
         phrase="SaySo",
         threshold=0.65,
