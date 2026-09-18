@@ -11,6 +11,8 @@
 
 output_dir: "./output"
 model_name: "sayso"
+positive_data_path: "./data/positive"
+negative_data_path: "./data/negative"
 
 mode: "embedding"
 model_type: "dnn"
@@ -23,11 +25,14 @@ generate_clips: true
 target_phrase: "SaySo"
 
 tts_settings:
-  # Piper downloads these on first run (nanowakeword 2.x does not fetch a
-  # named voice string like "en_US-lessac-medium").
-  models:
-    onnx: "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx"
-    json: "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json"
+  # nanowakeword 2.x loads this name from NwwResourcesModel/tts_models/.
+  # Download once:
+  #   mkdir -p NwwResourcesModel/tts_models
+  #   curl -L -o NwwResourcesModel/tts_models/en_US-lessac-medium.onnx \
+  #     https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx
+  #   curl -L -o NwwResourcesModel/tts_models/en_US-lessac-medium.onnx.json \
+  #     https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json
+  models: "en_US-lessac-medium"
   length_scales: [0.9, 1.0, 1.1]
   noise_scales: [0.667, 0.8]
 
