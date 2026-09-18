@@ -68,8 +68,8 @@ jobs:
 
       - name: Apply SaySo LVA patches
         run: |
-          git -C .lva apply --verbose satellite/patches/0001-*.patch
-          git -C .lva apply --verbose satellite/patches/0002-*.patch
+          git -C .lva apply --verbose "$GITHUB_WORKSPACE/satellite/patches/0001-sayso-stable-device-name.patch"
+          git -C .lva apply --verbose "$GITHUB_WORKSPACE/satellite/patches/0002-lva-external-wake-provider.patch"
 
       - name: Run satellite tests
         env:
