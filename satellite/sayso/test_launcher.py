@@ -179,16 +179,30 @@ def _run_patched_wake_stop_control_flow(
 def test_installed_lva_process_audio_guards_handle_audio_when_builtin_wake_disabled() -> None:
     """Fail when an importable LVA still sends STT from process_audio with builtin wake off."""
 
+    guard = re.compile(
+        r"if not state\.disable_builtin_wake_word:\s*\n\s+state\.satellite\.handle_audio\("
+    )
+    guard_msg = (
+        "linux_voice_assistant.process_audio must guard handle_audio "
+        "when builtin wake is disabled"
+    )
+
+    lva_src = os.environ.get("SAYSO_LVA_SRC")
+    if lva_src:
+        main_path = Path(lva_src) / "linux_voice_assistant" / "__main__.py"
+        if not main_path.is_file():
+            pytest.fail(f"SAYSO_LVA_SRC missing linux_voice_assistant/__main__.py: {main_path}")
+        source = main_path.read_text(encoding="utf-8")
+        assert guard.search(source), guard_msg
+        return
+
     try:
         lva_main = importlib.import_module("linux_voice_assistant.__main__")
     except ImportError:
         pytest.skip("linux_voice_assistant is not installed")
 
     source = inspect.getsource(lva_main.process_audio)
-    assert re.search(
-        r"if not state\.disable_builtin_wake_word:\s*\n\s+state\.satellite\.handle_audio\(",
-        source,
-    ), "installed linux_voice_assistant.process_audio must guard handle_audio when builtin wake is disabled"
+    assert guard.search(source), guard_msg
 
 
 def test_patch_0002_stop_word_still_stops_when_builtin_wake_disabled() -> None:

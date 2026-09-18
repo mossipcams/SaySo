@@ -55,6 +55,8 @@ code is only under `sayso/` plus patches:
 - `patches/0001-sayso-stable-device-name.patch` (`--device-name` for stable HA device id)
 - `patches/0002-lva-external-wake-provider.patch` (processed PCM external wake hook + `--disable-built-in-wake-word`)
 
+CI on this repo applies the patches to the pinned LVA tree; a running satellite still needs its `/opt/sayso-satellite` venv rebuilt from that patched tree.
+
 `satellite.name` in `config.yaml` is the friendly display name passed to LVA `--name`.
 `satellite.device_name` is the stable Home Assistant device id passed to LVA `--device-name`
 (for example `sayso-living-room`).
