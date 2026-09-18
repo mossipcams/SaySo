@@ -34,6 +34,7 @@ def test_stable_device_name_patch_uses_cli_option_not_env() -> None:
 
 def test_patch_0002_disables_builtin_wake_only_not_stop_word() -> None:
     content = _PATCH_0002_PATH.read_text(encoding="utf-8")
+    assert 'dest="disable_builtin_wake_word"' in content
     assert "if state.disable_builtin_wake_word:\n                    continue" not in content
     assert "if not state.disable_builtin_wake_word:" in content
     assert (

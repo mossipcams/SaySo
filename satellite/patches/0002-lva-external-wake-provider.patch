@@ -10,12 +10,13 @@ index 9e263af..8c54754 100644
  
  _LOGGER = logging.getLogger(__name__)
  _MODULE_DIR = Path(__file__).parent
-@@ -218,6 +219,11 @@ async def main() -> None:
+@@ -218,6 +219,12 @@ async def main() -> None:
          action="store_true",
          help="Disable the peripheral WebSocket API entirely",
      )
 +    parser.add_argument(
 +        "--disable-built-in-wake-word",
++        dest="disable_builtin_wake_word",
 +        action="store_true",
 +        help="Disable MicroWakeWord/OpenWakeWord detection; use external_wake provider instead",
 +    )
