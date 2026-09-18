@@ -13,6 +13,8 @@ from .process_audio import NativeClipTally, install_native_rate_capture, install
 from .wake.hook import SaySoExternalWakeHook
 from .wake.livekit import LiveKitWakeWordProvider
 from .wake.mining import HardNegativeMiner
+from .wake.nanowakeword import NanoWakeWordProvider
+from .wake.provider import WakeWordProvider
 from .wake.stt_capture import SttAudioRecorder
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,10 +26,26 @@ def _configure_mpv() -> None:
     install_playback_recovery()
 
 
+def _build_wake_provider(
+    cfg,
+    miner: HardNegativeMiner | None,
+) -> WakeWordProvider:
+    common = {
+        "model_path": cfg.wake_word.model,
+        "phrase": cfg.wake_word.phrase,
+        "threshold": cfg.wake_word.threshold,
+        "refractory_seconds": cfg.wake_word.refractory_seconds,
+        "miner": miner,
+    }
+    if cfg.wake_word.provider == "livekit":
+        return LiveKitWakeWordProvider(**common)
+    if cfg.wake_word.provider == "nanowakeword":
+        return NanoWakeWordProvider(**common)
+    raise SystemExit(f"Unsupported wake_word.provider: {cfg.wake_word.provider}")
+
+
 def main() -> None:
     cfg = load_config()
-    if cfg.wake_word.provider != "livekit":
-        raise SystemExit("SaySo satellite is configured to use only the livekit wake provider")
 
     argv = [
         "linux-voice-assistant",
@@ -78,13 +96,7 @@ def main() -> None:
             "Wake hard-negative mining enabled: %s (score >= %.2f)", mine_dir, mine_threshold
         )
 
-    provider = LiveKitWakeWordProvider(
-        model_path=cfg.wake_word.model,
-        phrase=cfg.wake_word.phrase,
-        threshold=cfg.wake_word.threshold,
-        refractory_seconds=cfg.wake_word.refractory_seconds,
-        miner=miner,
-    )
+    provider = _build_wake_provider(cfg, miner)
     if not provider.available:
         raise SystemExit(
             "Wake detection is not operational. "

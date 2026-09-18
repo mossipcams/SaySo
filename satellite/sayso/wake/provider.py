@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Optional, Protocol
 
+import numpy as np
+
 from .detection import Detection
 
 
@@ -29,6 +31,13 @@ class WakeWordProvider(Protocol):
 
     def process_pcm(self, pcm_s16le: bytes, sample_rate: int = 16000) -> Optional[Detection]:
         """Feed 16-bit little-endian mono PCM. Return a detection or None."""
+
+    def predict_window(
+        self,
+        window: np.ndarray,
+        sample_index: int | None = None,
+    ) -> Optional[Detection]:
+        """Score one fixed hop/window buffer from the external wake hook."""
 
     def shutdown(self) -> None:
         ...

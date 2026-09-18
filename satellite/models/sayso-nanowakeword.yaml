@@ -1,0 +1,118 @@
+# Prototype NanoWakeWord training config for the SaySo satellite.
+#
+# NOT a production operating point. Small clip counts and short training are
+# for host-side smoke runs only. Do not run on the Pi. The shipped satellite
+# defaults to the LiveKit sayso.onnx model unless wake_word.provider is set to
+# nanowakeword in config.
+#
+# Host smoke train:
+#   pip install "nanowakeword[train]"
+#   nanowakeword -c satellite/models/sayso-nanowakeword.yaml -G -t -T
+
+output_dir: "./output"
+model_name: "sayso"
+positive_data_path: "./data/positive"
+negative_data_path: "./data/negative"
+
+mode: "embedding"
+model_type: "dnn"
+layer_size: 64
+n_blocks: 1
+embedding_dim: 32
+dropout_prob: 0.4
+
+generate_clips: true
+target_phrase: "SaySo"
+
+tts_settings:
+  # nanowakeword 2.x loads this name from NwwResourcesModel/tts_models/.
+  # Download once:
+  #   mkdir -p NwwResourcesModel/tts_models
+  #   curl -L -o NwwResourcesModel/tts_models/en_US-lessac-medium.onnx \
+  #     https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx
+  #   curl -L -o NwwResourcesModel/tts_models/en_US-lessac-medium.onnx.json \
+  #     https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json
+  models: "en_US-lessac-medium"
+  length_scales: [0.9, 1.0, 1.1]
+  noise_scales: [0.667, 0.8]
+
+data_generation_tasks:
+  - name: "Positive SaySo"
+    enabled: true
+    output_dir: "data/positive"
+    num_samples: 80
+    text_source:
+      type: "fixed_phrase"
+      phrase: "SaySo"
+
+  # Hard negatives: the /seI soU/ confusable set from sayso-training.yaml.
+  - name: "Confusable negatives"
+    enabled: true
+    output_dir: "data/negative"
+    num_samples: 200
+    file_prefix: "neg_confusable"
+    text_source:
+      type: "from_list"
+      phrases:
+        - "say so"
+        - "says so"
+        - "said so"
+        - "saying so"
+        - "if you say so"
+        - "just say so"
+        - "you don't say so"
+        - "so so"
+        - "stay so"
+        - "same so"
+        - "safe so"
+        - "say slow"
+        - "say show"
+        - "say sorry"
+        - "say something"
+        - "essay so"
+        - "hey so"
+        - "they say so"
+        - "lasso"
+      repeat_each: 2
+
+transform_clips: true
+convert_audio: true
+sample_rate: 16000
+
+feature_generation_manifest:
+  positive_features:
+    input_audio_dirs: ["data/positive"]
+    output_filename: "positive_features.npy"
+    augmentation_rounds: 2
+    augmentation_settings:
+      min_snr_in_db: 8.0
+      max_snr_in_db: 30.0
+      pitch_prob: 0.2
+
+  negative_features:
+    input_audio_dirs: ["data/negative"]
+    output_filename: "negative_features.npy"
+    augmentation_rounds: 2
+
+feature_manifest:
+  targets:
+    p: "./output/sayso/features/positive_features.npy"
+  negatives:
+    n: "./output/sayso/features/negative_features.npy"
+
+train_model: true
+distill: false
+# Feature gen defaults to a multiprocessing Pool that deadlocks on this host.
+num_workers: 0
+feature_gen_num_workers: 0
+batch_composition:
+  targets: 16
+  negatives: 48
+steps: 2000
+val_interval: 200
+checkpointing:
+  enabled: true
+  interval_steps: 500
+  limit: 2
+
+onnx_opset_version: 17

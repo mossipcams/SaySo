@@ -39,6 +39,27 @@ new operating point. Read the threshold off the metrics rather than reusing 0.5;
 0.5 is calibrated to the *current* model's score distribution and means nothing
 for a retrained one.
 
+## NanoWakeWord prototype (opt-in)
+
+The satellite can load a NanoWakeWord ONNX model instead of the LiveKit
+classifier when `wake_word.provider` is set to `nanowakeword`. LiveKit remains
+the default production path. NanoWakeWord uses a different feature frontend and
+score distribution — treat a first trained model as a prototype only.
+
+`sayso-nanowakeword.yaml` is a small host-side smoke config with the same
+`/seI soU/` confusable negatives as `sayso-training.yaml`. Do not run training
+on the Pi.
+
+```
+pip install "nanowakeword[train]"
+nanowakeword -c satellite/models/sayso-nanowakeword.yaml -G -t -T
+```
+
+Copy the exported ONNX to the path in `wake_word.model` and set
+`wake_word.provider: nanowakeword`. Generated `data/`, `output/`, Piper
+artifacts, and `.wav`/`.npy` features are gitignored — do not commit them. The
+LiveKit `sayso.onnx` is not a NanoWakeWord model.
+
 Two gaps worth closing before trusting a retrain:
 
 - `../eval/audio/` is empty (`.gitkeep` only), so `cases.json` — including its
