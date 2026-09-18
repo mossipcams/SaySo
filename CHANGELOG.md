@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/mossipcams/SaySo/compare/1.5.0...1.5.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **satellite:** regenerate LVA patches so CI can apply them ([b7d19cb](https://github.com/mossipcams/SaySo/commit/b7d19cb218ec9fdc5afcaf6e58d9a6ebf44d2d31))
+* **satellite:** send each STT command block once ([72b9b22](https://github.com/mossipcams/SaySo/commit/72b9b223f44d77fb219bee5e0490f8a15673cdae))
+
 ## [1.5.0](https://github.com/mossipcams/SaySo/compare/1.4.0...1.5.0) (2026-09-17)
 
 
