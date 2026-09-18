@@ -14,7 +14,7 @@ import pytest
 
 _PATCH_PATH = Path(__file__).resolve().parents[1] / "patches" / "0001-sayso-stable-device-name.patch"
 _PATCH_0002_PATH = Path(__file__).resolve().parents[1] / "patches" / "0002-lva-external-wake-provider.patch"
-_PATCH_0002_WAKE_HUNK = "@@ -760,44 +769,47 @@"
+_PATCH_0002_WAKE_HUNK = "@@ -771,55 +780,57 @@"
 
 
 def _satellite_cfg(
@@ -37,8 +37,8 @@ def test_patch_0002_disables_builtin_wake_only_not_stop_word() -> None:
     assert "if state.disable_builtin_wake_word:\n                    continue" not in content
     assert "if not state.disable_builtin_wake_word:" in content
     assert (
-        "+                if not state.disable_builtin_wake_word:\n"
-        "+                    state.satellite.handle_audio(audio_chunk, audio_chunk_2)"
+        "+                    if not state.disable_builtin_wake_word:\n"
+        "+                        state.satellite.handle_audio(audio_chunk, audio_chunk_2)"
     ) in content
     assert "state.satellite.stop()" not in content
     assert "# Always process to keep state correct" in content

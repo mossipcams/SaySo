@@ -1,6 +1,8 @@
+diff --git a/linux_voice_assistant/__main__.py b/linux_voice_assistant/__main__.py
+index 1a9b069..9e263af 100644
 --- a/linux_voice_assistant/__main__.py
 +++ b/linux_voice_assistant/__main__.py
-@@ -46,6 +46,10 @@ async def main() -> None:
+@@ -48,6 +48,10 @@ async def main() -> None:
          "--name",
          help="Real name for the device",
      )
@@ -19,3 +21,4 @@
 +        device_name = args.device_name
  
      print(f"Device name: {device_name}")
+ 
