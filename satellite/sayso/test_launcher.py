@@ -1,17 +1,20 @@
 import importlib
+import inspect
 import os
+import re
 import sys
 import textwrap
 import time
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
 _PATCH_PATH = Path(__file__).resolve().parents[1] / "patches" / "0001-sayso-stable-device-name.patch"
 _PATCH_0002_PATH = Path(__file__).resolve().parents[1] / "patches" / "0002-lva-external-wake-provider.patch"
-_PATCH_0002_WAKE_HUNK = "@@ -760,44 +769,46 @@"
+_PATCH_0002_WAKE_HUNK = "@@ -760,44 +769,47 @@"
 
 
 def _satellite_cfg(
@@ -33,6 +36,10 @@ def test_patch_0002_disables_builtin_wake_only_not_stop_word() -> None:
     content = _PATCH_0002_PATH.read_text(encoding="utf-8")
     assert "if state.disable_builtin_wake_word:\n                    continue" not in content
     assert "if not state.disable_builtin_wake_word:" in content
+    assert (
+        "+                if not state.disable_builtin_wake_word:\n"
+        "+                    state.satellite.handle_audio(audio_chunk, audio_chunk_2)"
+    ) in content
     assert "state.satellite.stop()" not in content
     assert "# Always process to keep state correct" in content
 
@@ -104,7 +111,9 @@ def _run_patched_wake_stop_control_flow(
     wake_activated: bool,
     stop_detected: bool,
     muted: bool = False,
-) -> tuple[Mock, Mock]:
+    satellite: Any | None = None,
+    audio_chunk: bytes | None = None,
+) -> tuple[Mock, Mock, Mock]:
     """Execute patch-0002 process_audio hunk + unchanged LVA stop-word tail once."""
 
     hunk_body = _process_audio_hunk_body_before_stop_tail(
@@ -117,7 +126,8 @@ def _run_patched_wake_stop_control_flow(
         + textwrap.indent(_LVA_STOP_WORD_TAIL, "    ")
     )
 
-    satellite = Mock()
+    if satellite is None:
+        satellite = Mock()
     stop_word = Mock()
     stop_word.id = "stop"
     stop_word.process_streaming.side_effect = [stop_detected]
@@ -146,7 +156,7 @@ def _run_patched_wake_stop_control_flow(
         "state": state,
         "channel_chunks": [b"", b""],
         "n_channels": 1,
-        "audio_chunk": b"chunk",
+        "audio_chunk": audio_chunk if audio_chunk is not None else b"chunk",
         "micro_features": micro_features,
         "micro_inputs": micro_inputs,
         "has_oww": False,
@@ -162,11 +172,27 @@ def _run_patched_wake_stop_control_flow(
     }
     exec(compile(loop_source, "<patch-0002-process_audio-hunk>", "exec"), namespace)
 
-    return satellite.wakeup, satellite.stop
+    stop = satellite.stop if hasattr(satellite, "stop") else Mock()
+    return satellite.wakeup, stop, satellite.handle_audio
+
+
+def test_installed_lva_process_audio_guards_handle_audio_when_builtin_wake_disabled() -> None:
+    """Fail when an importable LVA still sends STT from process_audio with builtin wake off."""
+
+    try:
+        lva_main = importlib.import_module("linux_voice_assistant.__main__")
+    except ImportError:
+        pytest.skip("linux_voice_assistant is not installed")
+
+    source = inspect.getsource(lva_main.process_audio)
+    assert re.search(
+        r"if not state\.disable_builtin_wake_word:\s*\n\s+state\.satellite\.handle_audio\(",
+        source,
+    ), "installed linux_voice_assistant.process_audio must guard handle_audio when builtin wake is disabled"
 
 
 def test_patch_0002_stop_word_still_stops_when_builtin_wake_disabled() -> None:
-    wakeup, stop = _run_patched_wake_stop_control_flow(
+    wakeup, stop, handle_audio = _run_patched_wake_stop_control_flow(
         disable_builtin_wake_word=True,
         wake_activated=True,
         stop_detected=True,
@@ -174,6 +200,18 @@ def test_patch_0002_stop_word_still_stops_when_builtin_wake_disabled() -> None:
 
     wakeup.assert_not_called()
     stop.assert_called_once_with()
+    handle_audio.assert_not_called()
+
+
+def test_patch_0002_handle_audio_still_runs_when_builtin_wake_enabled() -> None:
+    _, stop, handle_audio = _run_patched_wake_stop_control_flow(
+        disable_builtin_wake_word=False,
+        wake_activated=False,
+        stop_detected=False,
+    )
+
+    stop.assert_not_called()
+    handle_audio.assert_called_once_with(b"chunk", None)
 
 
 def test_launcher_passes_device_name_separate_from_friendly_name(

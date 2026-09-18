@@ -61,12 +61,14 @@
              if state.satellite is None or not hasattr(state.satellite, "_is_streaming_audio"):
                  continue
  
-@@ -760,44 +769,46 @@ def process_audio(state: ServerState, mic, block_size: int):
+@@ -760,44 +769,47 @@ def process_audio(state: ServerState, mic, block_size: int):
              try:
                  # Both channels travel in one message: data=ch0 (enhanced), data2=ch1 (raw reference)
                  audio_chunk_2 = channel_chunks[1] if n_channels >= 2 else None
-                 state.satellite.handle_audio(audio_chunk, audio_chunk_2)
- 
+-                state.satellite.handle_audio(audio_chunk, audio_chunk_2)
++                if not state.disable_builtin_wake_word:
++                    state.satellite.handle_audio(audio_chunk, audio_chunk_2)
+
                  assert micro_features is not None
                  micro_inputs.clear()
                  micro_inputs.extend(micro_features.process_streaming(audio_chunk))

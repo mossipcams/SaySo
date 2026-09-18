@@ -37,7 +37,9 @@ Failure reasons: `empty_transcript`, `pipeline_error`.
 The sidecar records the processing chain so a listening session can be tied
 back to the exact settings that produced it: `capture_rate`, `sample_rate`,
 `mic_gain_db`, `noise_suppression`, `auto_gain`, sample count, duration, peak,
-RMS (linear and dBFS), clip count, transcript, and the preroll `underflow` flag.
+RMS (linear and dBFS), post-resample `clip_count`, native-rate `native_clip_count`
+(clips since `begin_command`, counted before resample), transcript, and the
+preroll `underflow` flag.
 
 ## Configuration
 
@@ -48,7 +50,7 @@ audio:
   mic_gain_db: 6.0          # fixed gain, applied once
   noise_suppression: 0      # stay off until a test proves it helps
   auto_gain: 0              # no AGC
-  aec_gate_ms: 150          # settle delay before the mic opens
+  aec_gate_ms: 0            # optional extra delay before the mic opens (does not strip STT audio)
   stt_capture_enabled: true
   stt_capture_dir: /var/lib/sayso-satellite/stt_capture
 ```

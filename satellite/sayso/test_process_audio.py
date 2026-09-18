@@ -19,6 +19,7 @@ import pytest
 import sayso.process_audio as process_audio_module
 from sayso.process_audio import (
     TARGET_RATE,
+    NativeClipTally,
     _ResamplingRecorder,
     install_native_rate_capture,
     install_wake_audio_path,
@@ -151,6 +152,24 @@ def test_recorder_passthrough_when_already_16k() -> None:
     rec = _ResamplingRecorder(inner, native_rate=16000, channels=1, gain=1.0)
     out = rec.record(320)
     assert out.shape == (320, 1)
+
+
+def test_shared_native_clip_tally_counts_gain_clips() -> None:
+    class _LoudRecorder(_FakeRecorder):
+        def record(self, numframes: int) -> Any:
+            return np.full((numframes, 1), 0.9, dtype=np.float32)
+
+    tally = NativeClipTally()
+    rec = _ResamplingRecorder(
+        _LoudRecorder(16000, 1, 320),
+        native_rate=16000,
+        channels=1,
+        gain=4.0,
+        native_clip_tally=tally,
+    )
+    rec.record(320)
+    assert rec.clip_events == 1
+    assert tally.count == 1
 
 
 def test_fixed_gain_is_applied_and_clipping_counted() -> None:
