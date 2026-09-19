@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1](https://github.com/mossipcams/SaySo/compare/1.6.0...1.6.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* **deps:** update dependency nanowakeword to v3 ([fd8f69c](https://github.com/mossipcams/SaySo/commit/fd8f69c65affe7b193733eba196d7cdf7f48340e))
+* **inference:** parse embedded tool-call arguments for GGUF templates ([98fc6d0](https://github.com/mossipcams/SaySo/commit/98fc6d07763c28da0fc810b798231b16b51d0250))
+
 ## [1.6.0](https://github.com/mossipcams/SaySo/compare/1.5.1...1.6.0) (2026-09-18)
 
 
