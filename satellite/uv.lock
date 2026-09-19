@@ -305,6 +305,19 @@ wheels = [
 ]
 
 [[package]]
+name = "nanowakeword"
+version = "3.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "onnxruntime" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/27/95/e9879d1b5c45f753cc7ef97bdb151f5a8975648b70703d2f2a4406d936fb/nanowakeword-3.0.0.tar.gz", hash = "sha256:08e32aeee7298f47887647ae3d6037e8fa98811f5190fd379a2bdfd25bd7062a", size = 161378, upload-time = "2026-08-19T13:41:10.168Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4f/80/07eed7ef3bf9d5ae3bb7e7342f1909b0e8c278bf9568548b9ee237c2726c/nanowakeword-3.0.0-py3-none-any.whl", hash = "sha256:10248993a8969021f47036161b6694363d734a80cc39382715388144384370b7", size = 158064, upload-time = "2026-08-19T13:41:08.664Z" },
+]
+
+[[package]]
 name = "netifaces2"
 version = "0.0.22"
 source = { registry = "https://pypi.org/simple" }
@@ -581,6 +594,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "linux-voice-assistant" },
     { name = "livekit-wakeword" },
+    { name = "nanowakeword" },
     { name = "numpy" },
     { name = "onnxruntime" },
     { name = "python-mpv" },
@@ -593,6 +607,7 @@ dependencies = [
 requires-dist = [
     { name = "linux-voice-assistant", git = "https://github.com/OHF-Voice/linux-voice-assistant.git?rev=99ee08f7b136f5a57a3da59d5f7c73e7ed62ed68" },
     { name = "livekit-wakeword", specifier = "==0.2.1" },
+    { name = "nanowakeword", specifier = ">=3,<4" },
     { name = "numpy", specifier = ">=2,<3" },
     { name = "onnxruntime", specifier = "==1.30.0" },
     { name = "python-mpv", specifier = ">=1,<2" },

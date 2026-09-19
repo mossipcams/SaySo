@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 dependencies = [
     "linux-voice-assistant @ git+https://github.com/OHF-Voice/linux-voice-assistant.git@99ee08f7b136f5a57a3da59d5f7c73e7ed62ed68",
     "livekit-wakeword==0.2.1",
-    "nanowakeword>=2.0,<3",
+    "nanowakeword>=3,<4",
     "numpy>=2,<3",
     "onnxruntime==1.30.0",
     "python-mpv>=1,<2",
