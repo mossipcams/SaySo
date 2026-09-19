@@ -20,6 +20,7 @@ from custom_components.sayso.exceptions import (
 from custom_components.sayso.inference import (
     EmbeddedEngine,
     ExternalEngine,
+    _messages_for_embedded_template,
     _parse_embedded_result,
     default_thread_count,
     entry_backend,
@@ -293,6 +294,152 @@ class TestEmbeddedEngine:
     def test_default_threads_leave_headroom(self) -> None:
         assert 1 <= default_thread_count() <= 4
 
+    async def test_tool_call_json_strings_converted_for_template(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Correction turns replay assistant tool_calls with JSON-string arguments."""
+        engine = EmbeddedEngine(Path("/model.gguf"))
+        llm = MagicMock()
+        llm.create_chat_completion.return_value = _completion({"content": "ok"})
+        monkeypatch.setattr(engine, "_load", MagicMock(return_value=llm))
+        await engine.async_start()
+        messages = [
+            {"role": "user", "content": "turn on the lamp"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "HassTurnOn",
+                            "arguments": '{"name": "lamp"}',
+                        },
+                    }
+                ],
+            },
+        ]
+        try:
+            await engine.async_chat_completion(messages)
+        finally:
+            await engine.async_shutdown()
+
+        sent = llm.create_chat_completion.call_args.kwargs["messages"]
+        assert sent[1]["tool_calls"][0]["function"]["arguments"] == {"name": "lamp"}
+
+    async def test_tool_call_dict_arguments_pass_through(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        engine = EmbeddedEngine(Path("/model.gguf"))
+        llm = MagicMock()
+        llm.create_chat_completion.return_value = _completion({"content": "ok"})
+        monkeypatch.setattr(engine, "_load", MagicMock(return_value=llm))
+        await engine.async_start()
+        messages = [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "HassTurnOn",
+                            "arguments": {"name": "lamp"},
+                        },
+                    }
+                ],
+            }
+        ]
+        try:
+            await engine.async_chat_completion(messages)
+        finally:
+            await engine.async_shutdown()
+
+        sent = llm.create_chat_completion.call_args.kwargs["messages"]
+        assert sent[0]["tool_calls"][0]["function"]["arguments"] == {"name": "lamp"}
+
+    async def test_invalid_tool_call_json_strings_are_not_guessed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        engine = EmbeddedEngine(Path("/model.gguf"))
+        llm = MagicMock()
+        llm.create_chat_completion.return_value = _completion({"content": "ok"})
+        monkeypatch.setattr(engine, "_load", MagicMock(return_value=llm))
+        await engine.async_start()
+        bad_args = "not json"
+        messages = [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "HassTurnOn", "arguments": bad_args},
+                    }
+                ],
+            }
+        ]
+        try:
+            await engine.async_chat_completion(messages)
+        finally:
+            await engine.async_shutdown()
+
+        sent = llm.create_chat_completion.call_args.kwargs["messages"]
+        assert sent[0]["tool_calls"][0]["function"]["arguments"] == bad_args
+
+
+class TestMessagesForEmbeddedTemplate:
+    """Unit coverage for the embedded-only message normalization helper."""
+
+    def test_json_string_arguments_become_dicts(self) -> None:
+        messages = [
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "HassTurnOn",
+                            "arguments": '{"name": "lamp"}',
+                        }
+                    }
+                ],
+            }
+        ]
+        normalized = _messages_for_embedded_template(messages)
+        assert normalized[0]["tool_calls"][0]["function"]["arguments"] == {
+            "name": "lamp"
+        }
+        # Input transcript envelope stays JSON-string.
+        assert messages[0]["tool_calls"][0]["function"]["arguments"] == (
+            '{"name": "lamp"}'
+        )
+
+    def test_dict_arguments_unchanged(self) -> None:
+        args = {"name": "lamp"}
+        messages = [
+            {
+                "role": "assistant",
+                "tool_calls": [{"function": {"name": "HassTurnOn", "arguments": args}}],
+            }
+        ]
+        normalized = _messages_for_embedded_template(messages)
+        assert normalized[0]["tool_calls"][0]["function"]["arguments"] is args
+
+    def test_invalid_json_left_as_string(self) -> None:
+        messages = [
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {"function": {"name": "HassTurnOn", "arguments": "not json"}}
+                ],
+            }
+        ]
+        normalized = _messages_for_embedded_template(messages)
+        assert normalized[0]["tool_calls"][0]["function"]["arguments"] == "not json"
+
 
 class TestExternalEngine:
     """The fallback backend still delegates to the HTTP client."""
@@ -314,6 +461,35 @@ class TestExternalEngine:
 
     def test_model_name(self) -> None:
         assert ExternalEngine(MagicMock(), "abc").model_name == "abc"
+
+    async def test_messages_keep_json_string_tool_arguments(self) -> None:
+        """HTTP transcript envelope must not be rewritten on the external path."""
+        client = MagicMock()
+        client.chat_completion = AsyncMock(
+            return_value=ChatCompletionResult(content="ok", tool_calls=[])
+        )
+        engine = ExternalEngine(client, "test-model")
+        messages = [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "HassTurnOn",
+                            "arguments": '{"name": "lamp"}',
+                        },
+                    }
+                ],
+            }
+        ]
+
+        await engine.async_chat_completion(messages)
+
+        sent = client.chat_completion.call_args.args[0]
+        assert sent[0]["tool_calls"][0]["function"]["arguments"] == '{"name": "lamp"}'
 
 
 class TestModelStore:
