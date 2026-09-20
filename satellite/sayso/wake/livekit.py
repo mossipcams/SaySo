@@ -18,6 +18,7 @@ from .buffer import WakeAudioBuffer
 from .detection import Detection
 from .mining import HardNegativeMiner
 from .streaming import CachedEmbeddingScorer, single_threaded_ort
+from .verifier import MelVerifier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,12 +35,16 @@ class LiveKitWakeWordProvider:
         threshold: float = 0.65,
         refractory_seconds: float = 2.0,
         miner: Optional[HardNegativeMiner] = None,
+        verifier_path: Optional[Path] = None,
+        verifier_threshold: Optional[float] = None,
     ) -> None:
         self._model_path = Path(model_path)
         self._phrase = phrase
         self._threshold = float(threshold)
         self._refractory = float(refractory_seconds)
         self._miner = miner
+        self._verifier_path = Path(verifier_path) if verifier_path is not None else None
+        self._verifier: Optional[MelVerifier] = None
         self._enabled = False
         self._suspended = False
         self._available = False
@@ -51,6 +56,8 @@ class LiveKitWakeWordProvider:
         self._last_score_log = 0.0
         self._max_score_window = 0.0
         self._load()
+        if self._verifier_path is not None:
+            self._load_verifier(verifier_threshold)
 
     def _load(self) -> None:
         if not self._model_path.is_file():
@@ -77,6 +84,31 @@ class LiveKitWakeWordProvider:
         except Exception:
             _LOGGER.exception("Failed to load LiveKit wake model %s (fail closed)", self._model_path)
             self._model = None
+            self._available = False
+
+    def _load_verifier(self, verifier_threshold: Optional[float]) -> None:
+        if not self._available:
+            return
+        if not self._verifier_path.is_file():
+            _LOGGER.error(
+                "Wake verifier missing: %s. Wake detection is disabled (fail closed).",
+                self._verifier_path,
+            )
+            self._available = False
+            return
+        try:
+            self._verifier = MelVerifier(self._verifier_path, threshold=verifier_threshold)
+            _LOGGER.info(
+                "Loaded mel wake verifier %s (threshold=%.3f)",
+                self._verifier_path,
+                self._verifier.threshold,
+            )
+        except Exception:
+            _LOGGER.exception(
+                "Failed to load wake verifier %s (fail closed)",
+                self._verifier_path,
+            )
+            self._verifier = None
             self._available = False
 
     @property
@@ -162,6 +194,18 @@ class LiveKitWakeWordProvider:
             return None
         if self._last_fire and (now - self._last_fire) < self._refractory:
             return None
+
+        if self._verifier is not None:
+            verifier_score = self._verifier.score(window, self._model)
+            if verifier_score is None or verifier_score < self._verifier.threshold:
+                _LOGGER.info(
+                    "Wake verifier veto phrase=%r livekit=%.3f verifier=%s thresh=%.3f",
+                    self._phrase,
+                    score,
+                    f"{verifier_score:.3f}" if verifier_score is not None else "n/a",
+                    self._verifier.threshold,
+                )
+                return None
 
         self._last_fire = now
         _LOGGER.info("Wake phrase detected phrase=%r confidence=%.3f (no audio retained)", self._phrase, score)

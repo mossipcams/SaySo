@@ -1,7 +1,10 @@
 # Plan: NanoWakeWord prototype for the SaySo satellite
 
-Status: implemented (prototype). Do not replace the production LiveKit
-operating point or the existing LVA external-wake path.
+Status: implemented (optional prototype). **Live-blocked in this room** —
+scale Nano false-woke on overlapping speech. Production is LiveKit living2
+plus the mel verifier (`satellite/models/living2.yaml`,
+`docs/PLAN_LIVEKIT_VERIFIER.md`). Do not replace that operating point or
+the existing LVA external-wake path.
 
 ## Outcome
 

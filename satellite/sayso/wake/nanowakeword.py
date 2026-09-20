@@ -172,14 +172,12 @@ class NanoWakeWordProvider:
                 if self._miner is not None:
                     self._miner.offer(score, window)
                 self._last_fire = now
-                self._stream_primed = False
-                self._interpreter.reset()
-                self._warmup_stream()
                 _LOGGER.info(
                     "Wake phrase detected phrase=%r confidence=%.3f (no audio retained)",
                     self._phrase,
                     score,
                 )
+                self._stream_primed = True
                 return Detection(
                     phrase=self._phrase,
                     confidence=score,

@@ -93,7 +93,7 @@ def test_predict_window_fires_above_threshold(
     assert detection.phrase == "SaySo"
     assert detection.confidence == 0.9
     assert detection.sample_index == 42
-    mock_interpreter.reset.assert_called_once()
+    mock_interpreter.reset.assert_not_called()
 
 
 def test_predict_window_no_fire_below_threshold(
@@ -150,6 +150,61 @@ def test_predict_window_feeds_hop_chunks_then_tail_only(
     assert sizes[:-1] == [HOP_SAMPLES] * (len(sizes) - 1)
 
     mock_interpreter.predict.reset_mock()
+    provider.predict_window(window)
+    mock_interpreter.predict.assert_called_once()
+    assert mock_interpreter.predict.call_args.args[0].size == HOP_SAMPLES
+
+
+def test_first_predict_window_fire_stays_primed_tail_hop_only(
+    mock_interpreter: MagicMock,
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    mock_interpreter.predict.return_value = SimpleNamespace(score=0.9)
+
+    provider = NanoWakeWordProvider(model_path=model_path, phrase="SaySo", threshold=0.5)
+    provider.start()
+    mock_interpreter.predict.reset_mock()
+
+    window = np.arange(WINDOW_SAMPLES, dtype=np.int16)
+    detection = provider.predict_window(window)
+    assert detection is not None
+    assert provider._stream_primed
+    mock_interpreter.reset.assert_not_called()
+
+    mock_interpreter.predict.reset_mock()
+    mock_interpreter.predict.return_value = SimpleNamespace(score=0.0)
+    provider.predict_window(window)
+    mock_interpreter.predict.assert_called_once()
+    assert mock_interpreter.predict.call_args.args[0].size == HOP_SAMPLES
+
+
+def test_predict_window_fire_keeps_stream_primed_tail_hop_only(
+    mock_interpreter: MagicMock,
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    mock_interpreter.predict.return_value = SimpleNamespace(score=0.0)
+
+    provider = NanoWakeWordProvider(model_path=model_path, phrase="SaySo", threshold=0.5)
+    provider.start()
+    mock_interpreter.predict.reset_mock()
+
+    window = np.arange(WINDOW_SAMPLES, dtype=np.int16)
+    provider.predict_window(window)
+    assert provider._stream_primed
+
+    mock_interpreter.predict.reset_mock()
+    mock_interpreter.predict.return_value = SimpleNamespace(score=0.9)
+    detection = provider.predict_window(window)
+    assert detection is not None
+    assert provider._stream_primed
+    mock_interpreter.reset.assert_not_called()
+
+    mock_interpreter.predict.reset_mock()
+    mock_interpreter.predict.return_value = SimpleNamespace(score=0.0)
     provider.predict_window(window)
     mock_interpreter.predict.assert_called_once()
     assert mock_interpreter.predict.call_args.args[0].size == HOP_SAMPLES

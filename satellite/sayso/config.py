@@ -65,6 +65,9 @@ class WakeWordCfg:
     # well below threshold so near-misses are captured, not just fires.
     mine_dir: Path | None = None
     mine_threshold: float = 0.1
+    # Optional second-stage mel verifier (LiveKit only). None keeps single-stage fire.
+    verifier: Path | None = None
+    verifier_threshold: float | None = None
 
 
 @dataclass
@@ -139,6 +142,16 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
             else None
         ),
         mine_threshold=float(raw.get("wake_word", {}).get("mine_threshold", 0.1)),
+        verifier=(
+            Path(raw["wake_word"]["verifier"])
+            if raw.get("wake_word", {}).get("verifier")
+            else None
+        ),
+        verifier_threshold=(
+            float(raw["wake_word"]["verifier_threshold"])
+            if raw.get("wake_word", {}).get("verifier_threshold") is not None
+            else None
+        ),
     )
     sounds = SoundsCfg(
         wake=Path(_req(raw, "sounds", "wake")),
@@ -203,6 +216,10 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append("wake_word.wake_skip_ms must be >= 0")
     if not (0.0 < cfg.wake_word.mine_threshold < 1.0):
         errors.append("wake_word.mine_threshold must be between 0 and 1 exclusive")
+    if cfg.wake_word.verifier_threshold is not None and not (
+        0.0 < cfg.wake_word.verifier_threshold < 1.0
+    ):
+        errors.append("wake_word.verifier_threshold must be between 0 and 1 exclusive")
     if cfg.wake_word.mine_dir is not None and cfg.wake_word.mine_threshold >= cfg.wake_word.threshold:
         errors.append(
             "wake_word.mine_threshold must be below wake_word.threshold; mining at or above "

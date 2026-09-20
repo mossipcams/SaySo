@@ -38,7 +38,11 @@ def _build_wake_provider(
         "miner": miner,
     }
     if cfg.wake_word.provider == "livekit":
-        return LiveKitWakeWordProvider(**common)
+        return LiveKitWakeWordProvider(
+            **common,
+            verifier_path=getattr(cfg.wake_word, "verifier", None),
+            verifier_threshold=getattr(cfg.wake_word, "verifier_threshold", None),
+        )
     if cfg.wake_word.provider == "nanowakeword":
         return NanoWakeWordProvider(**common)
     raise SystemExit(f"Unsupported wake_word.provider: {cfg.wake_word.provider}")

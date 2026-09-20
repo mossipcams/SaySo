@@ -311,6 +311,57 @@ def test_load_config_accepts_nanowakeword_provider(tmp_path: Path) -> None:
     assert cfg.wake_word.provider == "nanowakeword"
 
 
+def test_load_config_reads_optional_verifier(tmp_path: Path) -> None:
+    sound = Path(__file__).parents[1] / "sounds" / "wake.wav"
+    model = tmp_path / "wake.onnx"
+    model.write_bytes(b"onnx")
+    verifier = tmp_path / "verifier.npz"
+    verifier.write_bytes(b"npz")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "satellite": {
+                    "name": "Living Room",
+                    "device_name": "sayso-living-room",
+                    "area": "Living Room",
+                },
+                "home_assistant": {"port": 6053},
+                "audio": {
+                    "input_device": "mic",
+                    "output_device": "pulse/speaker",
+                    "sample_rate": 16000,
+                    "channels": 1,
+                    "noise_suppression": 0,
+                    "auto_gain": 0,
+                },
+                "wake_word": {
+                    "provider": "livekit",
+                    "phrase": "SaySo",
+                    "model": str(model),
+                    "threshold": 0.5,
+                    "refractory_seconds": 2.0,
+                    "preroll_ms": 500,
+                    "post_tts_cooldown_ms": 500,
+                    "verifier": str(verifier),
+                    "verifier_threshold": 0.44,
+                },
+                "sounds": {
+                    "wake": str(sound),
+                    "failure": str(sound),
+                    "unavailable": str(sound),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cfg = load_config(config_path)
+
+    assert cfg.wake_word.verifier == verifier
+    assert cfg.wake_word.verifier_threshold == 0.44
+
+
 def test_validate_config_rejects_unknown_wake_provider(tmp_path: Path) -> None:
     sound = Path(__file__).parents[1] / "sounds" / "wake.wav"
     model = tmp_path / "wake.onnx"

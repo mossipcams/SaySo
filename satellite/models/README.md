@@ -2,78 +2,90 @@ Place this LiveKit-exported Sayso classifier on the satellite:
 
   /opt/sayso-satellite/models/sayso.onnx
 
-It detects the spoken phrase "Sayso" only. Operating point is in `sayso_eval.json`.
-Use threshold **0.5** (`fpph` 0.0, recall 0.60). Do not use the file's
-`optimal_threshold` of 0.19 in a room with background speech: it carries a
-documented `optimal_fpph` of 0.25 false wakes/hour (~6/day), and measured
-living-room scores put real wakes at 0.57-0.72 with every false positive
-below 0.42. Do not substitute hey_livekit, hey_jarvis, or another model.
+It detects the spoken phrase "Sayso" only. Operating point is in
+`sayso_eval.json` and `living2.yaml`. Use threshold **0.5** and the mel
+verifier at **0.445**. Do not use the trainer `optimal_threshold` (~0.05).
+Do not substitute hey_livekit, hey_jarvis, or another model.
 
-## Retraining
+Shipped primary: living2 (`b840f51f312abcd5b205e1fc1e32b2ed`) plus
+`sayso-verifier.npz` (`0c632e778ca263e51c92d9ca95f451af`).
 
-`sayso-training.yaml` in this directory is the aggressive retrain config. It
-exists because the shipped model was trained on `livekit-wakeword` defaults,
-including `target_fp_per_hour: 0.2`. The model could not meet even that target,
-so `find_best_threshold()` fell through to its max-balanced-accuracy fallback
-and emitted `optimal_threshold` 0.19 — which is why the deployed satellite was
-firing on ambient conversation. The config drops that target to 0.02, adds the
-"say so" confusable set as hard negatives, and moves small → medium.
+## Retraining (living2)
 
-Do not run this on the Pi. `setup` downloads ~16 GB of ACAV100M features plus
-MUSAN (~1.1 GB) and RIRs, and 120k steps on the satellite's 4-core ARM is days.
-Use a CUDA host.
+`living2.yaml` is the production recipe. Skip `livekit.wakeword generate`.
+The mix is 50 this-room Snowball positives, 90 this-room train negatives,
+and 89 overlapping-talk clips as **val only**. Holdout, miner party, and
+`nano_live_fp` stay out of the classifier.
+
+living1 used the same wavs with `positive: 16` / `ACAV100M_sample: 256` /
+`max_negative_weight: 3000` and never fired at 0.50. living2 only changes
+the class prior (`positive: 96`, `ACAV100M_sample: 64`,
+`max_negative_weight: 200`) so 0.50 can fire. Mixing extra TTS positives
+(blend) or more ACAV (living3) failed the this-room gates — do not repeat
+those.
+
+Do not run this on the Pi. Use a CUDA host. Do not set
+`CUDA_VISIBLE_DEVICES` to empty.
 
 ```
 pip install "livekit-wakeword[training]"
-python -m livekit.wakeword setup    --config sayso-training.yaml
-python -m livekit.wakeword generate sayso-training.yaml
-python -m livekit.wakeword augment  sayso-training.yaml
-python -m livekit.wakeword train    sayso-training.yaml
-python -m livekit.wakeword export   sayso-training.yaml
-python -m livekit.wakeword eval     sayso-training.yaml
+python -m livekit.wakeword augment living2.yaml
+python -m livekit.wakeword train    living2.yaml
+python -m livekit.wakeword export   living2.yaml
 ```
 
-Ship `output/sayso/sayso.onnx` and its metrics JSON back into this directory,
-then set `wake_word.threshold` in `/etc/sayso-satellite/config.yaml` from the
-new operating point. Read the threshold off the metrics rather than reusing 0.5;
-0.5 is calibrated to the *current* model's score distribution and means nothing
-for a retrained one.
+Ship `output-living2/sayso/sayso.onnx` back into this directory. Score at
+**0.50**, then AND with the verifier below. `sayso-training.yaml` is the
+older voxcpm/hard-negative recipe; it is not this operating point.
 
-## NanoWakeWord (opt-in)
+## Mel verifier (second stage)
 
-The satellite can load a NanoWakeWord ONNX model instead of the LiveKit
-classifier when `wake_word.provider` is set to `nanowakeword`. LiveKit remains
-the default production path; do not flip a live satellite to Nano without an
-explicit operator decision.
+Frozen Google speech embeddings separate this-mic SaySo from overlapping
+talk (AUROC 0.97) but not from the 19 live false wakes (a probe fit on the
+89 still calls 13/19 SaySo; **mel AUROC 1.0**). Do not dump those FPs into
+the classifier.
 
-Shipped model: `sayso-nanowakeword.onnx` (md5 `0a3c0d645c82adbb8c1d33f39cf81017`).
-Operating point: threshold **0.50**. Living-room hop-feed promotion scores
-(1 s silence pad each side, fire if max ≥ 0.50):
+`sayso-verifier.npz` is a logistic on frozen-mel mean+std of the last-16
+embedding mel union, fit on the 50 recorded SaySo vs the 19 `nano_live_fp`
+windows only. Miner 74 and the 89 stay out of that fit.
 
-| Set | Scale `0a3c0d64` | ACAV `83d9a507` | official `32eaa92e` | 80-pos `2fe297e0` |
-| --- | ---: | ---: | ---: | ---: |
-| SaySo (`live_sayso_*`) | **8/8** | 8/8 | 8/8 | 6/8 |
-| SaySo+command | **3/4** | 1/4 | — | — |
-| Isolated talk | **0/8** | 0/8 | 0/8 | 0/8 |
-| Overlapping talk (89) | **0/89** | 0/89 | 2/89 | 50/89 |
-| Miner party (74) | **0/74** | 0/74 | 1/74 | 42/74 |
+When `wake_word.verifier` is set, LiveKit remains the primary scorer and
+the verifier must also pass before the satellite fires. Mine on the LiveKit
+score as today — the veto runs after mining, not before.
 
-`sayso-nanowakeword.yaml` is the scale-up recipe: `-G` TTS (10k+ SaySo positives
-from lessac / amy / ryan / libritts_r), `layer_size: 128`, AE29H + RACON +
-OpenWakeWord ACAV100M bulk negatives (`oww` batch **1000**), no `from_list`
-“say so” clone negatives. Do not run training on the Pi.
+Fire iff `living2 ≥ 0.50` **and** `verifier ≥ 0.445`. Omit `verifier` for
+single-stage LiveKit. If `verifier` is set but the file is missing, wake
+detection fails closed.
+
+Host AND-gate (hop-scan at 0.50 / 0.445):
+
+| Set | Result |
+| --- | ---: |
+| living-room SaySo | **6/8** |
+| isolated talk | **0/8** |
+| overlapping talk (89) | **0/89** |
+| miner party (74) | **0/74** |
+| nano_live_fp (19) | **0/19** |
+
+The 19 are verifier-train, not an unbiased FP set. Best unbiased-FP backup
+on the Pi is `sayso.onnx.bak-03e612d8`.
+
+## NanoWakeWord (opt-in, live-blocked)
+
+The satellite can load a NanoWakeWord ONNX model instead of LiveKit when
+`wake_word.provider` is set to `nanowakeword`. LiveKit living2 + verifier
+is production. Scale Nano (`0a3c0d64`) false-woke live in this room; do
+not flip a live satellite to Nano without an explicit operator decision.
+
+Shipped optional model: `sayso-nanowakeword.onnx` (md5
+`0a3c0d645c82adbb8c1d33f39cf81017`). Recipe: `sayso-nanowakeword.yaml`.
+Generated `data/`, `output/`, Piper artifacts, and `.wav`/`.npy` features
+are gitignored — do not commit them.
 
 ```
 pip install "nanowakeword[train]"
 nanowakeword -c satellite/models/sayso-nanowakeword.yaml -G -t -T --overwrite
 ```
-
-Copy the exported ONNX to `/opt/sayso-satellite/models/sayso-nanowakeword.onnx`
-and set `wake_word.provider: nanowakeword` only when switching off LiveKit.
-Do not flip a live satellite to Nano without an explicit operator decision.
-Generated `data/`, `output/`, Piper artifacts, and `.wav`/`.npy` features are
-gitignored — do not commit them. The LiveKit `sayso.onnx` is not a NanoWakeWord
-model.
 
 Compare LiveKit vs Nano on recorded clips:
 

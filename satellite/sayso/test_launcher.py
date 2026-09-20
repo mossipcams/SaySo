@@ -287,6 +287,58 @@ def test_launcher_passes_device_name_separate_from_friendly_name(
     upstream.run.assert_called_once_with()  # type: ignore[attr-defined]
 
 
+def test_launcher_passes_verifier_to_livekit(monkeypatch: pytest.MonkeyPatch) -> None:
+    package = ModuleType("linux_voice_assistant")
+    package.__path__ = []  # type: ignore[attr-defined]
+    upstream = ModuleType("linux_voice_assistant.__main__")
+    upstream.run = Mock()  # type: ignore[attr-defined]
+    upstream.process_audio = Mock()  # type: ignore[attr-defined]
+    satellite_module = ModuleType("linux_voice_assistant.satellite")
+    satellite_module.VoiceSatelliteProtocol = object  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant.__main__", upstream)
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant.satellite", satellite_module)
+
+    launcher = importlib.import_module("satellite.sayso.launcher")
+    cfg = SimpleNamespace(
+        satellite=_satellite_cfg(),
+        home_assistant=SimpleNamespace(port=6053),
+        audio=SimpleNamespace(
+            input_device="mic",
+            output_device="pulse/speaker",
+            channels=1,
+            noise_suppression=0,
+            auto_gain=0,
+        ),
+        wake_word=SimpleNamespace(
+            provider="livekit",
+            model="wake.onnx",
+            phrase="SaySo",
+            threshold=0.5,
+            refractory_seconds=2.0,
+            post_tts_cooldown_ms=500,
+            preroll_ms=500,
+            wake_skip_ms=500,
+            verifier="verifier.npz",
+            verifier_threshold=0.44,
+        ),
+        sounds=SimpleNamespace(wake="ack.wav", failure="failure.wav", unavailable="unavailable.wav"),
+    )
+    monkeypatch.setattr(launcher, "load_config", lambda: cfg)
+    livekit_ctor = Mock(return_value=SimpleNamespace(available=True, predict_window=Mock()))
+    monkeypatch.setattr(launcher, "LiveKitWakeWordProvider", livekit_ctor)
+    monkeypatch.setattr(launcher, "install_wake_audio_path", Mock())
+    monkeypatch.setattr(launcher, "install_voice_handlers", Mock())
+    monkeypatch.setattr(launcher, "_configure_mpv", Mock())
+
+    launcher.main()
+
+    livekit_ctor.assert_called_once()
+    kwargs = livekit_ctor.call_args.kwargs
+    assert kwargs["verifier_path"] == "verifier.npz"
+    assert kwargs["verifier_threshold"] == 0.44
+
+
 def test_launcher_uses_nanowakeword_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     package = ModuleType("linux_voice_assistant")
     package.__path__ = []  # type: ignore[attr-defined]
