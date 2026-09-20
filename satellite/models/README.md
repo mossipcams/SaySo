@@ -27,7 +27,11 @@ those.
 Do not run this on the Pi. Use a CUDA host. Do not set
 `CUDA_VISIBLE_DEVICES` to empty.
 
-```
+Install host-only deps from `requirements-wake-train.txt` (not the satellite
+runtime requirements):
+
+```bash
+pip install -r satellite/models/requirements-wake-train.txt
 pip install "livekit-wakeword[training]"
 python -m livekit.wakeword augment living2.yaml
 python -m livekit.wakeword train    living2.yaml
@@ -37,6 +41,21 @@ python -m livekit.wakeword export   living2.yaml
 Ship `output-living2/sayso/sayso.onnx` back into this directory. Score at
 **0.50**, then AND with the verifier below. `sayso-training.yaml` is the
 older voxcpm/hard-negative recipe; it is not this operating point.
+
+Prefer the batch wrapper (snapshots, run-key idempotency, candidate bundles)
+when retraining from the mining spool:
+
+```bash
+python3 scripts/wake_train.py \
+  --spool /var/lib/sayso-satellite/wake-mining \
+  --seed-dir satellite/models/data/seed \
+  --work-dir satellite/models/output/wake_runs
+```
+
+Source splits and holdout rules live in `satellite/eval/splits.json`. Holdouts
+must not leak into training, calibration, background mixing, or derived features.
+Freeze both the deployed threshold and the calibration-selected threshold in
+`satellite/eval/baseline.json` before a later retrain.
 
 ## Mel verifier (second stage)
 
@@ -69,3 +88,14 @@ Host AND-gate (hop-scan at 0.50 / 0.445):
 
 The 19 are verifier-train, not an unbiased FP set. Best unbiased-FP backup
 on the Pi is `sayso.onnx.bak-03e612d8`.
+
+## Bootstrap blockers
+
+- `../eval/audio/` has no trusted fixtures. `cases.json` skips every case in
+  default mode and fails in `--strict`. Populate with real Blue Snowball
+  recordings from the living room before baseline freeze, qualification, or
+  enabling `--schedule` on `scripts/wake_train.py`.
+- Hard negatives in `sayso-training.yaml` remain phonetic inference until the
+  mining spool supplies labelled real confusions. Run
+  `python scripts/wake_mine_report.py <mine_dir> --inventory` to audit wake
+  assets before cleanup.

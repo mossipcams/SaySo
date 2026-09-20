@@ -112,6 +112,7 @@ def install_voice_handlers(
     tracer: SatelliteTracer | None = None,
     aec_gate_ms: float = 0.0,
     stt_capture: Any = None,
+    wake_miner: Any = None,
 ) -> None:
     """Patch LVA satellite hooks for silent wake, post-STT sounds and tracing."""
     from aioesphomeapi.model import VoiceAssistantEventType
@@ -144,11 +145,19 @@ def install_voice_handlers(
         return f"cmd-{int(time.monotonic() * 1000)}-{next(_capture_counter)}"
 
     def _start_capture(self: Any, phrase: str) -> None:
+        wake_capture_id = getattr(self, "_sayso_wake_capture_id", None)
+        if wake_miner is not None and wake_capture_id:
+            wake_miner.publish_wake_outcome(
+                wake_capture_id,
+                accepted=True,
+                suppressed=False,
+                reason="microphone_opened",
+            )
         if stt_capture is None:
             return
         run_id = _run_id()
         self._sayso_capture_id = run_id
-        stt_capture.begin_command(run_id)
+        stt_capture.begin_command(run_id, wake_capture_id=wake_capture_id)
 
     def _finish_capture(
         self: Any, *, transcript: str, failed_reason: str | None = None
@@ -158,13 +167,24 @@ def install_voice_handlers(
         run_id = getattr(self, "_sayso_capture_id", None)
         if run_id is None:
             return
+        wake_capture_id = getattr(self, "_sayso_wake_capture_id", None)
         self._sayso_capture_id = None
+        self._sayso_wake_capture_id = None
         stt_capture.end_command(
             run_id,
             transcript=transcript,
             underflow=bool(getattr(self, "_sayso_capture_underflow", False)),
             failed_reason=failed_reason,
+            wake_capture_id=wake_capture_id,
         )
+        if wake_miner is not None and wake_capture_id:
+            wake_miner.publish_stt_outcome(
+                wake_capture_id,
+                stt_run_id=run_id,
+                transcript=transcript,
+                underflow=bool(getattr(self, "_sayso_capture_underflow", False)),
+                failed_reason=failed_reason,
+            )
 
     def wakeup(self, wake_word) -> None:
         if self.state.muted:
@@ -209,6 +229,15 @@ def install_voice_handlers(
             """Release the wake without opening the microphone."""
             if not _claim():
                 return
+            wake_capture_id = getattr(self, "_sayso_wake_capture_id", None)
+            if wake_miner is not None and wake_capture_id:
+                wake_miner.publish_wake_outcome(
+                    wake_capture_id,
+                    accepted=False,
+                    suppressed=True,
+                    reason=reason,
+                )
+                self._sayso_wake_capture_id = None
             _LOGGER.warning("Abandoning wake before microphone open: %s", reason)
             # Clear the pipeline flag, or every later wake is rejected as
             # "pipeline already active" and the satellite goes deaf for good.

@@ -13,6 +13,7 @@ advanced fallback.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -45,6 +46,50 @@ from .exceptions import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _messages_for_embedded_template(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert OpenAI JSON-string tool arguments for GGUF chat templates.
+
+    LFM2.5-Base's embedded chat template calls ``function.arguments.items()``,
+    so dicts are required at template time. SaySo's transcript envelope keeps
+    arguments as JSON strings for HTTP compatibility; only the embedded path
+    needs this adaptation immediately before ``create_chat_completion``.
+    """
+    normalized: list[dict[str, Any]] = []
+    for message in messages:
+        tool_calls = message.get("tool_calls")
+        if not tool_calls:
+            normalized.append(message)
+            continue
+
+        new_message = dict(message)
+        new_tool_calls: list[dict[str, Any]] = []
+        for call in tool_calls:
+            if not isinstance(call, dict):
+                new_tool_calls.append(call)
+                continue
+            function = call.get("function")
+            if not isinstance(function, dict):
+                new_tool_calls.append(call)
+                continue
+            arguments = function.get("arguments")
+            if isinstance(arguments, str):
+                try:
+                    parsed = json.loads(arguments)
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, dict):
+                    new_call = dict(call)
+                    new_call["function"] = {**function, "arguments": parsed}
+                    new_tool_calls.append(new_call)
+                    continue
+            new_tool_calls.append(call)
+        new_message["tool_calls"] = new_tool_calls
+        normalized.append(new_message)
+    return normalized
 
 
 def default_thread_count() -> int:
@@ -215,7 +260,7 @@ class EmbeddedEngine:
         """Run one completion. Runs in the inference worker."""
         assert self._llm is not None
         kwargs: dict[str, Any] = {
-            "messages": messages,
+            "messages": _messages_for_embedded_template(messages),
             "temperature": temperature,
             "max_tokens": max_tokens,
         }

@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "description": "Source-group split contract. Groups are frozen before augmentation.",
+  "rules": [
+    "Overlapping recordings, synthetic variants, and known session/speaker lineage stay in one split.",
+    "Holdouts are excluded from training, calibration, background mixing, and derived features.",
+    "Unknown lineage does not establish independence."
+  ],
+  "holdout_exclusions": [
+    "training",
+    "calibration",
+    "background_mixing",
+    "derived_features"
+  ],
+  "label_audit": {
+    "classifier_window_seconds": 2.0,
+    "ambiguities": [
+      {
+        "id": "sayso_vs_say_so",
+        "description": "Acoustically identical /seI soU/ in the 2 s classifier window. Spelling or intent inferred from longer context cannot make separable classes.",
+        "eval_categories": [
+          "negative_natural_say_so"
+        ],
+        "status": "unresolved",
+        "note": "Retain as a contextual evaluation challenge; report ambiguity, not separability."
+      }
+    ]
+  },
+  "groups": [
+    {
+      "id": "eval_holdout_cases",
+      "split": "eval",
+      "holdout": true,
+      "members": [
+        "pos_sayso_near",
+        "pos_continuous_kitchen",
+        "neg_natural_say_so",
+        "neg_tv_conversation",
+        "neg_distance_noise"
+      ],
+      "sources": [
+        "satellite/eval/audio/*.wav"
+      ],
+      "lineage": "independent_eval_recordings",
+      "status": "blocked",
+      "blocker": "satellite/eval/audio fixtures absent"
+    },
+    {
+      "id": "calibration_seed",
+      "split": "calibration",
+      "holdout": true,
+      "members": [],
+      "sources": [
+        "satellite/eval/audio/calibration/"
+      ],
+      "lineage": "trusted_calibration_recordings",
+      "status": "blocked",
+      "blocker": "calibration recordings not collected"
+    },
+    {
+      "id": "training_seed",
+      "split": "train",
+      "holdout": false,
+      "members": [],
+      "sources": [
+        "satellite/models/data/seed/",
+        "wake-mining spool labelled positives/negatives"
+      ],
+      "lineage": "trusted_seed_and_mined_windows",
+      "status": "blocked",
+      "blocker": "trusted seed recordings not collected"
+    },
+    {
+      "id": "background_holdout",
+      "split": "eval",
+      "holdout": true,
+      "members": [],
+      "sources": [
+        "satellite/eval/audio/background/"
+      ],
+      "lineage": "representative_background_hours",
+      "status": "blocked",
+      "blocker": "background duration not recorded on target hardware"
+    }
+  ]
+}

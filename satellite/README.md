@@ -68,6 +68,24 @@ Copy `models/sayso.onnx` and `models/sayso-verifier.npz` to
 plus the mel verifier. See `models/README.md` and `models/sayso_eval.json`
 (threshold 0.5 and verifier 0.445).
 
+### Wake mining (opt-in)
+
+Set `wake_word.mine_dir` to retain bounded scored 2 s windows for offline
+labelling. Mining is off by default and must not affect wake detection or the
+Home Assistant voice path. Each published record is an atomically renamed
+directory under `records/<capture_id>/` containing `window.wav`, optional
+`pre.wav` / `post.wav` ring context, and `record.json` with hashes, absolute
+sample range, session id, provider, model SHA-256, score/thresholds, processing
+settings, sampling reason, and quality flags. Labels stay null at capture;
+`fired` records threshold crossing only, not accepted wake or user intent.
+
+Wake acceptance/suppression and later HA/STT outcomes are separate files under
+`outcomes/`, linked by `capture_id` (distinct from Home Assistant's pipeline
+trace id and from STT `run_id`). Transfer is offline: run
+`python scripts/wake_mine_report.py <mine_dir> --ingest` on the host to verify
+hashes and write `acks/`; the satellite deletes only acknowledged records via
+`drain_acks()` and resumes collection after drain without restart.
+
 ## Service
 
 The satellite runs as a **system** service under a dedicated `sayso` account,

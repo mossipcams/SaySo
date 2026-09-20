@@ -91,8 +91,27 @@ def main() -> None:
             mine_threshold=mine_threshold,
             detect_threshold=cfg.wake_word.threshold,
             sample_rate=cfg.audio.sample_rate,
+            provider=cfg.wake_word.provider,
             model_path=cfg.wake_word.model,
+            processing_settings={
+                "capture_rate": cfg.audio.capture_rate,
+                "mic_gain_db": cfg.audio.mic_gain_db,
+                "noise_suppression": cfg.audio.noise_suppression,
+                "auto_gain": cfg.audio.auto_gain,
+            },
+            pre_context_ms=getattr(cfg.wake_word, "mine_pre_context_ms", 500),
+            post_context_ms=getattr(cfg.wake_word, "mine_post_context_ms", 500),
+            post_deadline_ms=getattr(cfg.wake_word, "mine_post_deadline_ms", 1000),
+            queue_size=getattr(cfg.wake_word, "mine_queue_size", 32),
+            max_records=getattr(cfg.wake_word, "mine_max_records", 2000),
+            max_bytes=getattr(cfg.wake_word, "mine_max_bytes", 256 * 1024 * 1024),
+            detection_cap=getattr(cfg.wake_word, "mine_detection_cap", 800),
+            near_cap=getattr(cfg.wake_word, "mine_near_cap", 1000),
+            below_cap=getattr(cfg.wake_word, "mine_below_cap", 200),
+            below_sample_rate=getattr(cfg.wake_word, "mine_below_sample_rate", 0.002),
         )
+        miner.start()
+        miner.drain_acks()
         _LOGGER.info(
             "Wake hard-negative mining enabled: %s (score >= %.2f)", mine_dir, mine_threshold
         )
@@ -112,6 +131,7 @@ def main() -> None:
         provider,
         preroll_ms=cfg.wake_word.preroll_ms,
         wake_skip_ms=cfg.wake_word.wake_skip_ms,
+        miner=miner,
     )
 
     native_clip_tally = NativeClipTally()
@@ -146,11 +166,14 @@ def main() -> None:
         wake_hook,
         aec_gate_ms=float(getattr(cfg.audio, "aec_gate_ms", 0)),
         stt_capture=capture,
+        wake_miner=miner,
     )
     _configure_mpv()
     try:
         lva_main.run()
     finally:
+        if miner is not None:
+            miner.stop()
         if capture is not None:
             capture.stop()
 
