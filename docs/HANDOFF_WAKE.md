@@ -14,16 +14,17 @@ Satellite is a thin LVA overlay. It does not do STT, NLU, or actions.
 | Train host `192.168.1.140` (`ubuntu`) | `/home/ubuntu/sayso-nanowakeword/` data + GTX 1070 |
 | Worktree | `ajax-nanowakeword` (branch `ajax/nanowakeword`) |
 
-**Last live configuration** (Pi is down, confirmed by the user during this
-continuation; staging and live-microphone checks must wait until it is back):
+**Last live configuration** (Pi is up; ACAV Nano staged on disk, LiveKit still
+the loaded provider):
 
 - `provider: livekit` (unchanged)
 - LiveKit model: `/opt/sayso-satellite/models/sayso.onnx` (`03e612d8671df941bd63c5a982d37ad4`)
 - threshold `0.50`, refractory `2.0 s`, `mine_threshold: 0.45`
 - miner: `/var/lib/sayso-satellite/wake-mining`
-- Nano ACAV promoted on disk, **not loaded**:
+- Nano ACAV staged, **not loaded**:
   `/opt/sayso-satellite/models/sayso-nanowakeword.onnx` (`83d9a507e35530adffaf55465a3b1478`)
 - Nano 80-pos backup: `sayso-nanowakeword.onnx.bak-80pos` (`2fe297e0b06e4660115d929cbca790a7`)
+- Hash-named ACAV backup: `sayso-nanowakeword.onnx.bak-acav-83d9a507`
 - Nano-era config backup: `/etc/sayso-satellite/config.yaml.bak-nano-80pos`
 
 ACAV `83d9a507` beats 80-pos and official `32eaa92e` on overlapping talk and
