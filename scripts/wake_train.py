@@ -686,11 +686,26 @@ def _write_run_state(run_dir: Path, payload: dict[str, Any]) -> None:
     (run_dir / "run.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def production_refractory_seconds() -> float:
+    try:
+        from satellite.sayso.config import load_config
+
+        return float(load_config().wake_word.refractory_seconds)
+    except Exception:
+        return 2.0
+
+
 def acquire_lock(work_dir: Path) -> Path:
     lock = work_dir / ".wake_train.lock"
-    if lock.exists():
-        raise RuntimeError("another wake_train run holds the lock")
-    lock.write_text(str(os.getpid()), encoding="utf-8")
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    try:
+        fd = os.open(str(lock), flags)
+        try:
+            os.write(fd, str(os.getpid()).encode("utf-8"))
+        finally:
+            os.close(fd)
+    except FileExistsError:
+        raise RuntimeError("another wake_train run holds the lock") from None
     return lock
 
 
@@ -1225,7 +1240,8 @@ def run_pipeline(
                 model_path=train_output.model_path,
                 eval_root=eval_target,
                 threshold=train_output.threshold,
-                strict=False,
+                refractory_seconds=production_refractory_seconds(),
+                strict=True,
             )
         empty_eval = int(eval_report.get("summary", {}).get("total", 0)) == 0
         comparison = compare_with_baseline(eval_report, baseline, train_metrics=train_output.metrics)

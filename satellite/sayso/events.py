@@ -145,10 +145,6 @@ def install_voice_handlers(
         return f"cmd-{int(time.monotonic() * 1000)}-{next(_capture_counter)}"
 
     def _start_capture(self: Any, phrase: str) -> None:
-        if stt_capture is None:
-            return
-        run_id = _run_id()
-        self._sayso_capture_id = run_id
         wake_capture_id = getattr(self, "_sayso_wake_capture_id", None)
         if wake_miner is not None and wake_capture_id:
             wake_miner.publish_wake_outcome(
@@ -157,6 +153,10 @@ def install_voice_handlers(
                 suppressed=False,
                 reason="microphone_opened",
             )
+        if stt_capture is None:
+            return
+        run_id = _run_id()
+        self._sayso_capture_id = run_id
         stt_capture.begin_command(run_id, wake_capture_id=wake_capture_id)
 
     def _finish_capture(

@@ -11,9 +11,15 @@ from pathlib import Path
 from satellite.sayso.wake.eval import run_wake_eval, satellite_eval_root
 
 
+DEPLOYED_WAKE_THRESHOLD = 0.5
+DEFAULT_REFRACTORY_SECONDS = 2.0
+
+
 def _detect_hardware() -> str:
     machine = platform.machine().lower()
-    if machine.startswith("arm") or machine.startswith("aarch"):
+    if sys.platform.startswith("linux") and (
+        machine.startswith("arm") or machine.startswith("aarch")
+    ):
         return "pi"
     return platform.platform()
 
@@ -26,7 +32,7 @@ def _load_wake_defaults() -> tuple[float, float]:
         cfg = load_config().wake_word
         return float(cfg.threshold), float(cfg.refractory_seconds)
     except Exception:
-        return 0.65, 2.0
+        return DEPLOYED_WAKE_THRESHOLD, DEFAULT_REFRACTORY_SECONDS
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -51,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--threshold",
         type=float,
         default=None,
-        help="Wake detection threshold (default: config or 0.65)",
+        help=f"Wake detection threshold (default: config or {DEPLOYED_WAKE_THRESHOLD})",
     )
     parser.add_argument(
         "--refractory-seconds",

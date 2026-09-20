@@ -47,6 +47,26 @@ MANIFEST_NAME = "wake_cleanup_manifest.json"
 LFM_ROOT = "training"
 
 
+def pinned_wake_roots() -> list[Path]:
+    return [
+        _REPO_ROOT / "satellite" / "eval" / "audio",
+        _REPO_ROOT / "satellite" / "models" / "data",
+    ]
+
+
+def _is_pinned_path(path: Path) -> bool:
+    resolved = path.resolve()
+    for root in pinned_wake_roots():
+        if not root.is_dir():
+            continue
+        try:
+            if resolved.is_relative_to(root.resolve()):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def _record_dirs(spool: Path) -> list[Path]:
     records = spool / "records"
     if records.is_dir():
@@ -283,6 +303,11 @@ def _audit_labels(entries: list[dict]) -> list[dict]:
     return findings
 
 
+def _duplicate_keep_priority(entry: dict) -> tuple[int, str]:
+    pinned = 0 if _is_pinned_path(Path(entry["path"])) else 1
+    return (pinned, entry["path"])
+
+
 def _mark_duplicates(entries: list[dict]) -> list[dict]:
     by_hash: dict[str, list[dict]] = defaultdict(list)
     for entry in entries:
@@ -293,8 +318,10 @@ def _mark_duplicates(entries: list[dict]) -> list[dict]:
     for digest, group in by_hash.items():
         if len(group) < 2:
             continue
-        keep = sorted(group, key=lambda item: item["path"])[0]
-        for entry in sorted(group, key=lambda item: item["path"])[1:]:
+        keep = sorted(group, key=_duplicate_keep_priority)[0]
+        for entry in sorted(group, key=_duplicate_keep_priority)[1:]:
+            if _is_pinned_path(Path(entry["path"])):
+                continue
             updated.append(
                 {
                     "path": entry["path"],
@@ -322,6 +349,8 @@ def _apply_cleanup(roots: list[Path], manifest: list[dict]) -> int:
                 continue
             asset = Path(entry["path"])
             if not asset.exists():
+                continue
+            if _is_pinned_path(asset):
                 continue
             if not any(asset.is_relative_to(r) for r in roots if r.is_dir()):
                 continue

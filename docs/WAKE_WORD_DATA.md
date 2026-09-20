@@ -148,7 +148,7 @@ Conservative auto-labels admit negatives from the exact 2 s window only; empty
 ASR, clipping, homophones, and disagreement stay unknown; trusted seed stays
 fixed; no automatic positives. Completed identical inputs are a run-key no-op.
 Candidate bundles land under `--work-dir/runs/<run_key>/candidate/` with status
-`trained`, `evaluated`, `rejected`, `insufficient_evidence`, or `qualified`.
+`evaluated`, `rejected`, `insufficient_evidence`, or `qualified`.
 Scheduling (`--schedule`) refuses while `baseline.json` is blocked or trusted
 seed/eval audio is missing.
 

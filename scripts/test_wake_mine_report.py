@@ -66,6 +66,32 @@ def test_duplicate_cleanup_keeps_retained_copy(tmp_path: Path) -> None:
     assert all("retained_copy=" in str(entry.get("detail", "")) for entry in removed)
 
 
+def test_duplicate_cleanup_keeps_eval_fixture_over_spool_copy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    eval_audio = tmp_path / "eval" / "audio"
+    eval_audio.mkdir(parents=True)
+    eval_fixture = eval_audio / "positive_sayso_near.wav"
+    _write_window_wav(eval_fixture, seed=42)
+
+    spool = tmp_path / "spool"
+    spool_copy = _write_record(spool, "capture-dup", seed=42)
+    assert wake_mine_report._sha256_file(eval_fixture) == wake_mine_report._sha256_file(spool_copy)
+
+    monkeypatch.setattr(
+        wake_mine_report,
+        "pinned_wake_roots",
+        lambda: [eval_audio],
+    )
+    entries = wake_mine_report.inventory_wake_assets([spool, eval_audio], cleanup=True)
+    assert eval_fixture.is_file()
+    assert not spool_copy.is_file()
+    removed = [entry for entry in entries if entry.get("action") == "remove"]
+    assert removed
+    assert all(Path(entry["path"]) != eval_fixture for entry in removed)
+
+
 def test_rglob_does_not_double_index_records_window(tmp_path: Path) -> None:
     spool = tmp_path / "spool"
     window = _write_record(spool, "capture-a", seed=3)

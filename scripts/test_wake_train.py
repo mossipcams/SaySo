@@ -482,6 +482,34 @@ def test_false_activations_per_hour_counts_activation_samples() -> None:
     assert wake_train._false_activations_per_hour(report) == pytest.approx(2.0)
 
 
+def test_acquire_lock_second_call_fails(tmp_path: Path) -> None:
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+    lock = wake_train.acquire_lock(work_dir)
+    assert lock.is_file()
+    with pytest.raises(RuntimeError, match="another wake_train run holds the lock"):
+        wake_train.acquire_lock(work_dir)
+    wake_train.release_lock(lock)
+
+
+def test_pipeline_eval_uses_strict_and_production_refractory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(wake_train, "production_refractory_seconds", lambda: 2.0)
+
+    def _run_wake_eval(**kwargs):
+        captured.update(kwargs)
+        return _good_eval_report()
+
+    monkeypatch.setattr(wake_train, "run_wake_eval", _run_wake_eval)
+    _run_fixture(tmp_path, monkeypatch, eval_runner=None)
+    assert captured.get("strict") is True
+    assert captured.get("refractory_seconds") == 2.0
+
+
 def test_source_feature_count_assert(tmp_path: Path) -> None:
     paths = _fixture_paths(tmp_path)
     examples = [
