@@ -20,6 +20,9 @@ from .mining import HardNegativeMiner
 
 _LOGGER = logging.getLogger(__name__)
 
+# NanoInterpreter zeros scores until prediction_buffer has 5 entries.
+_WARMUP_HOPS = 5
+
 
 class NanoWakeWordProvider:
     def __init__(
@@ -43,6 +46,7 @@ class NanoWakeWordProvider:
         self._logged_keys = False
         self._last_score_log = 0.0
         self._max_score_window = 0.0
+        self._stream_primed = False
         self._load()
 
     def _load(self) -> None:
@@ -59,6 +63,7 @@ class NanoWakeWordProvider:
 
             self._interpreter = NanoInterpreter.load_model(str(self._model_path))
             self._available = True
+            self._warmup_stream()
             _LOGGER.info("Loaded NanoWakeWord model %s", self._model_path)
         except Exception:
             _LOGGER.exception(
@@ -86,12 +91,51 @@ class NanoWakeWordProvider:
 
     def reset(self) -> None:
         self._last_fire = 0.0
+        self._stream_primed = False
         if self._interpreter is not None:
             self._interpreter.reset()
+            self._warmup_stream()
+
+    def _warmup_stream(self) -> None:
+        if self._interpreter is None:
+            return
+        silence = np.zeros(HOP_SAMPLES, dtype=np.int16)
+        for _ in range(_WARMUP_HOPS):
+            self._interpreter.predict(silence)
 
     def shutdown(self) -> None:
         self.stop()
         self._interpreter = None
+
+    def _window_hop_chunks(self, window: np.ndarray) -> list[np.ndarray]:
+        pcm = window.astype(np.int16, copy=False)
+        if self._stream_primed:
+            return [pcm[-HOP_SAMPLES:]]
+        # NanoInterpreter treats each predict() as new audio and ignores
+        # chunks shorter than 1280 samples. Keep remainders that meet that floor.
+        chunks: list[np.ndarray] = []
+        for offset in range(0, pcm.size, HOP_SAMPLES):
+            piece = pcm[offset : offset + HOP_SAMPLES]
+            if piece.size < 1280:
+                break
+            chunks.append(piece)
+        return chunks
+
+    def feed_window_score(self, window: np.ndarray) -> float:
+        """Hop-feed one window and return max chunk score (eval path; no fire/reset)."""
+        if not self._available or self._interpreter is None:
+            return 0.0
+        if window.size < WINDOW_SAMPLES:
+            return 0.0
+
+        max_score = 0.0
+        priming = not self._stream_primed
+        for chunk in self._window_hop_chunks(window):
+            result = self._interpreter.predict(chunk)
+            max_score = max(max_score, float(getattr(result, "score", 0.0)))
+        if priming:
+            self._stream_primed = True
+        return max_score
 
     def predict_window(
         self,
@@ -105,23 +149,52 @@ class NanoWakeWordProvider:
         if window.size < WINDOW_SAMPLES:
             return None
 
-        result = self._interpreter.predict(window.astype(np.int16, copy=False))
-        score = float(getattr(result, "score", 0.0))
-        if not self._logged_keys:
-            _LOGGER.info(
-                "NanoWakeWord predict score=%.4f thresh=%.3f model=%s",
-                score,
-                self._threshold,
-                self._model_path.stem,
-            )
-            self._logged_keys = True
-
         now = time.monotonic()
-        self._max_score_window = max(self._max_score_window, score)
+        priming = not self._stream_primed
+        max_score = 0.0
+        for chunk in self._window_hop_chunks(window):
+            result = self._interpreter.predict(chunk)
+            score = float(getattr(result, "score", 0.0))
+            max_score = max(max_score, score)
+
+            if not self._logged_keys:
+                _LOGGER.info(
+                    "NanoWakeWord predict score=%.4f thresh=%.3f model=%s",
+                    score,
+                    self._threshold,
+                    self._model_path.stem,
+                )
+                self._logged_keys = True
+
+            if score >= self._threshold and (
+                not self._last_fire or (now - self._last_fire) >= self._refractory
+            ):
+                if self._miner is not None:
+                    self._miner.offer(score, window)
+                self._last_fire = now
+                self._stream_primed = False
+                self._interpreter.reset()
+                self._warmup_stream()
+                _LOGGER.info(
+                    "Wake phrase detected phrase=%r confidence=%.3f (no audio retained)",
+                    self._phrase,
+                    score,
+                )
+                return Detection(
+                    phrase=self._phrase,
+                    confidence=score,
+                    timestamp=now,
+                    sample_index=sample_index,
+                )
+
+        if priming:
+            self._stream_primed = True
+
+        self._max_score_window = max(self._max_score_window, max_score)
         if now - self._last_score_log >= 1.0:
             _LOGGER.info(
                 "NanoWakeWord score=%.4f max=%.4f thresh=%.3f",
-                score,
+                max_score,
                 self._max_score_window,
                 self._threshold,
             )
@@ -129,26 +202,9 @@ class NanoWakeWordProvider:
             self._max_score_window = 0.0
 
         if self._miner is not None:
-            self._miner.offer(score, window)
+            self._miner.offer(max_score, window)
 
-        if score < self._threshold:
-            return None
-        if self._last_fire and (now - self._last_fire) < self._refractory:
-            return None
-
-        self._last_fire = now
-        self._interpreter.reset()
-        _LOGGER.info(
-            "Wake phrase detected phrase=%r confidence=%.3f (no audio retained)",
-            self._phrase,
-            score,
-        )
-        return Detection(
-            phrase=self._phrase,
-            confidence=score,
-            timestamp=now,
-            sample_index=sample_index,
-        )
+        return None
 
     def process_pcm(self, pcm_s16le: bytes, sample_rate: int = 16000) -> Optional[Detection]:
         """Synchronous helper retained for tests and diagnostics."""

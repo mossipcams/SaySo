@@ -120,9 +120,57 @@ def test_reset_clears_interpreter_state(
     model_path.write_bytes(b"fake-onnx")
 
     provider = NanoWakeWordProvider(model_path=model_path, phrase="SaySo", threshold=0.5)
+    mock_interpreter.predict.reset_mock()
     provider.reset()
 
     mock_interpreter.reset.assert_called_once()
+    assert mock_interpreter.predict.call_count == 5
+    assert all(call.args[0].size == HOP_SAMPLES for call in mock_interpreter.predict.call_args_list)
+
+
+def test_predict_window_feeds_hop_chunks_then_tail_only(
+    mock_interpreter: MagicMock,
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    mock_interpreter.predict.return_value = SimpleNamespace(score=0.0)
+
+    provider = NanoWakeWordProvider(model_path=model_path, phrase="SaySo", threshold=0.99)
+    provider.start()
+    mock_interpreter.predict.reset_mock()
+
+    window = np.arange(WINDOW_SAMPLES, dtype=np.int16)
+    provider.predict_window(window)
+    first_calls = mock_interpreter.predict.call_args_list
+    sizes = [int(call.args[0].size) for call in first_calls]
+    assert sizes
+    assert all(size >= 1280 for size in sizes)
+    assert sum(sizes) == WINDOW_SAMPLES
+    assert sizes[:-1] == [HOP_SAMPLES] * (len(sizes) - 1)
+
+    mock_interpreter.predict.reset_mock()
+    provider.predict_window(window)
+    mock_interpreter.predict.assert_called_once()
+    assert mock_interpreter.predict.call_args.args[0].size == HOP_SAMPLES
+
+
+def test_reset_clears_stream_primed_flag(
+    mock_interpreter: MagicMock,
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    mock_interpreter.predict.return_value = SimpleNamespace(score=0.0)
+
+    provider = NanoWakeWordProvider(model_path=model_path, phrase="SaySo", threshold=0.99)
+    provider.start()
+    provider.predict_window(np.zeros(WINDOW_SAMPLES, dtype=np.int16))
+    assert provider._stream_primed
+
+    provider.reset()
+    assert not provider._stream_primed
+    assert mock_interpreter.predict.call_count >= 5
 
 
 def test_process_pcm_does_not_open_microphone(

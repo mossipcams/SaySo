@@ -39,37 +39,42 @@ new operating point. Read the threshold off the metrics rather than reusing 0.5;
 0.5 is calibrated to the *current* model's score distribution and means nothing
 for a retrained one.
 
-## NanoWakeWord prototype (opt-in)
+## NanoWakeWord (opt-in)
 
 The satellite can load a NanoWakeWord ONNX model instead of the LiveKit
 classifier when `wake_word.provider` is set to `nanowakeword`. LiveKit remains
-the default production path. NanoWakeWord uses a different feature frontend and
-score distribution — treat a first trained model as a prototype only.
+the default production path; do not flip a live satellite to Nano without an
+explicit operator decision.
 
-`sayso-nanowakeword.yaml` is a small host-side smoke config with the same
-`/seI soU/` confusable negatives as `sayso-training.yaml`. Do not run training
-on the Pi.
+Shipped model: `sayso-nanowakeword.onnx` (md5 `83d9a507e35530adffaf55465a3b1478`).
+Operating point: threshold **0.50**. Living-room hop-feed promotion scores
+(1 s silence pad each side, fire if max ≥ 0.50):
+
+| Set | ACAV `83d9a507` | official `32eaa92e` | 80-pos `2fe297e0` |
+| --- | ---: | ---: | ---: |
+| SaySo (`live_sayso_*`) | **8/8** | 8/8 | 6/8 |
+| Isolated talk | **0/8** | 0/8 | 0/8 |
+| Overlapping talk (89) | **0/89** | 2/89 | 50/89 |
+| Miner party (74) | **0/74** | 1/74 | 42/74 |
+
+`sayso-nanowakeword.yaml` is the promoted ACAV recipe: AE29H + RACON + OpenWakeWord
+ACAV100M bulk negatives (`oww` batch **1000**), no `-G`, no `from_list` “say so”
+clone negatives, `generate_clips: false`. Do not run training on the Pi.
 
 ```
 pip install "nanowakeword[train]"
-nanowakeword -c satellite/models/sayso-nanowakeword.yaml -G -t -T
+nanowakeword -c satellite/models/sayso-nanowakeword.yaml -t -T --overwrite
 ```
 
-Copy the exported ONNX to the path in `wake_word.model` and set
-`wake_word.provider: nanowakeword`. Generated `data/`, `output/`, Piper
-artifacts, and `.wav`/`.npy` features are gitignored — do not commit them. The
-LiveKit `sayso.onnx` is not a NanoWakeWord model.
+Copy the exported ONNX to `/opt/sayso-satellite/models/sayso-nanowakeword.onnx`
+and set `wake_word.provider: nanowakeword` only when switching off LiveKit.
+Generated `data/`, `output/`, Piper artifacts, and `.wav`/`.npy` features are
+gitignored — do not commit them. The LiveKit `sayso.onnx` is not a NanoWakeWord
+model.
 
-Two gaps worth closing before trusting a retrain:
+Compare LiveKit vs Nano on recorded clips:
 
-- `../eval/audio/` is empty (`.gitkeep` only), so `cases.json` — including its
-  `negative_natural_say_so` and `negative_tv_conversation` cases — skips every
-  case. There is no recorded-audio regression test for this model. Populate it
-  with real Blue Snowball recordings from the living room.
-- `flush_preroll` hands STT `[detection_index - wake_skip_ms, end)` with
-  `wake_skip_ms` only a 120 ms margin, so a false-positive transcript shows
-  what was said *after* the trigger, not the trigger itself. Set
-  `wake_word.mine_dir`
-  to have `HardNegativeMiner` write the exact 2 s window the classifier scored;
-  the hard negatives in the training config predate it and are still phonetic
-  inference, not measured.
+```
+python3 -m satellite.eval.compare_providers \
+  --audio-dir DIR --livekit models/sayso.onnx --nano models/sayso-nanowakeword.onnx
+```

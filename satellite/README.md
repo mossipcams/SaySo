@@ -68,9 +68,10 @@ That LiveKit classifier detects the spoken phrase **Sayso** only. See
 `models/README.md` and `models/sayso_eval.json` for the operating point
 (threshold 0.5).
 
-Opt-in: set `wake_word.provider: nanowakeword` and point `wake_word.model` at a
-NanoWakeWord ONNX trained from `models/sayso-nanowakeword.yaml`. LiveKit stays
-the default; a first NanoWakeWord model is prototype-only.
+Opt-in: set `wake_word.provider: nanowakeword` and point `wake_word.model` at
+`/opt/sayso-satellite/models/sayso-nanowakeword.onnx` (ACAV recipe, md5
+`83d9a507…`; see `models/README.md`). LiveKit stays the default; staging the
+Nano ONNX does not change the active provider.
 
 ## Service
 

@@ -1,38 +1,107 @@
-# Prototype NanoWakeWord training config for the SaySo satellite.
+# NanoWakeWord ACAV-scale retrain for the SaySo satellite.
 #
-# NOT a production operating point. Small clip counts and short training are
-# for host-side smoke runs only. Do not run on the Pi. The shipped satellite
-# defaults to the LiveKit sayso.onnx model unless wake_word.provider is set to
-# nanowakeword in config.
+# Upstream recipe (AE29H + RACON + OpenWakeWord ACAV100M bulk negatives).
+# Phrase exactly SaySo. Recorded living-room positives (50) and isolated
+# talk negatives (23) are small supplements only — no overlapping talk in
+# train negatives, miner windows, or holdout paths. Overlapping talk is val-only.
 #
-# Host smoke train:
-#   pip install "nanowakeword[train]"
-#   nanowakeword -c satellite/models/sayso-nanowakeword.yaml -G -t -T
+# Host-side GPU. Do not pass -d or -G. Do not empty CUDA_VISIBLE_DEVICES.
+#
+#   nanowakeword -c satellite/models/sayso-nanowakeword.yaml -t -T --overwrite
 
 output_dir: "./output"
 model_name: "sayso"
 positive_data_path: "./data/positive"
 negative_data_path: "./data/negative"
 
+background_paths:
+  - "/home/ubuntu/sayso-wakeword/data/backgrounds/noise/free-sound"
+  - "/home/ubuntu/sayso-wakeword/data/backgrounds/noise/sound-bible"
+
+# ============================================================
+# Model Architecture
+# ============================================================
 mode: "embedding"
 model_type: "dnn"
-layer_size: 64
-n_blocks: 1
-embedding_dim: 32
-dropout_prob: 0.4
+layer_size: 32
+n_blocks: 3
+embedding_dim: 128
+dropout_prob: 0.3
+activation_function: "relu"
 
-generate_clips: true
+# ============================================================
+# Loss Function
+# ============================================================
+margin_pos: 2.0
+margin_neg: -2.0
+LOSS_BIAS: 0.65
+logit_reg_weight: 0.0005
+logit_reg_margin: 4.0
+logit_min_margin: 1.5
+
+# ============================================================
+# Training Settings
+# ============================================================
+steps: 50000
+stabilization_steps: 20000
+optimizer_type: "adamw"
+learning_rate_max: 0.0008
+lr_scheduler_type: "onecycle"
+weight_decay: 0.01
+momentum: 0.9
+num_workers: 0
+feature_gen_num_workers: 0
+
+distill: false
+distillation:
+  enabled: false
+
+# ============================================================
+# Batch Composition
+# ============================================================
+# Every feature_manifest dataset key (except _val) must appear here.
+batch_composition:
+  t: 50
+  rec: 5
+  AE29H: 100
+  b: 90
+  n: 100
+  hn: 20
+  hn_iso: 10
+  oww: 1000
+
+# ============================================================
+# Feature Manifest
+# ============================================================
+feature_manifest:
+  targets:
+    t: "./output/sayso/features/positive_features.npy"
+    rec: "./output/sayso/features/recorded_positive_features.npy"
+  negatives:
+    AE29H: "./corpora/AE29H_float32.npy"
+    b: "./corpora/RACON_11h_v1.npy"
+    n: "./output/sayso/features/negative_features.npy"
+    hn: "./output/sayso/features/hard_negative_features.npy"
+    hn_iso: "./output/sayso/features/iso_features.npy"
+    oww: "./corpora/openwakeword_features_ACAV100M_2000_hrs_16bit.npy"
+  targets_val:
+    t_v: "./output/sayso/features/positive_features_val.npy"
+  negatives_val:
+    bv: "./corpora/RACON_11h_v1.npy"
+    talk: "./output/sayso/features/val_talk_features.npy"
+
+# ============================================================
+# Synthetic Data Generation
+# ============================================================
+generate_clips: false
 target_phrase: "SaySo"
+overwrite: true
 
 tts_settings:
-  # nanowakeword 2.x loads this name from NwwResourcesModel/tts_models/.
-  # Download once:
-  #   mkdir -p NwwResourcesModel/tts_models
-  #   curl -L -o NwwResourcesModel/tts_models/en_US-lessac-medium.onnx \
-  #     https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx
-  #   curl -L -o NwwResourcesModel/tts_models/en_US-lessac-medium.onnx.json \
-  #     https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json
-  models: "en_US-lessac-medium"
+  models:
+    - "en_US-lessac-medium"
+    - "en_US-amy-medium"
+    - "en_US-ryan-medium"
   length_scales: [0.9, 1.0, 1.1]
   noise_scales: [0.667, 0.8]
 
@@ -40,17 +109,49 @@ data_generation_tasks:
   - name: "Positive SaySo"
     enabled: true
     output_dir: "data/positive"
-    num_samples: 80
+    num_samples: 2500
+    file_prefix: "pos"
     text_source:
       type: "fixed_phrase"
       phrase: "SaySo"
 
-  # Hard negatives: the /seI soU/ confusable set from sayso-training.yaml.
-  - name: "Confusable negatives"
+  - name: "Positive SaySo val"
+    enabled: true
+    output_dir: "data/positive_val"
+    num_samples: 2000
+    file_prefix: "pos"
+    text_source:
+      type: "fixed_phrase"
+      phrase: "SaySo"
+
+  - name: "Adversarial Negatives"
     enabled: true
     output_dir: "data/negative"
-    num_samples: 200
-    file_prefix: "neg_confusable"
+    num_samples: 5000
+    file_prefix: "neg_auto"
+    text_source:
+      type: "auto_adversarial"
+      base_phrase: "SaySo"
+      include_input_words: true
+      include_partial_phrase: true
+      multi_word_prob: 0.5
+      max_multi_word_len: 3
+
+  - name: "Phoneme Hard Negatives"
+    enabled: true
+    output_dir: "data/negative_phoneme"
+    num_samples: 3000
+    file_prefix: "neg_ph"
+    text_source:
+      type: "phoneme_adversarial"
+      base_phrase: "SaySo"
+      min_distance: 0.3
+
+  - name: "Confusable negatives"
+    enabled: false
+    output_dir: "data/negative"
+    num_samples: 50
+    file_prefix: "neg_custom"
     text_source:
       type: "from_list"
       phrases:
@@ -73,46 +174,112 @@ data_generation_tasks:
         - "hey so"
         - "they say so"
         - "lasso"
-      repeat_each: 2
+      repeat_each: 10
 
+# ============================================================
+# Augmentation
+# ============================================================
 transform_clips: true
 convert_audio: true
 sample_rate: 16000
+augmentation_batch_size: 16
+feature_gen_cpu_ratio: 1.0
+
+augmentation_settings:
+  max_gain_in_db: 2.0
+  min_gain_in_db: -2.0
+  max_snr_in_db: 35.0
+  min_snr_in_db: 15.0
+  max_pitch_semitones: 1.0
+  min_pitch_semitones: -1.0
+  pitch_prob: 0.3
+  gain_prob: 1.0
+  rir_prob: 0.0
 
 feature_generation_manifest:
-  positive_features:
+  t_features:
     input_audio_dirs: ["data/positive"]
     output_filename: "positive_features.npy"
-    augmentation_rounds: 2
-    augmentation_settings:
-      min_snr_in_db: 8.0
-      max_snr_in_db: 30.0
-      pitch_prob: 0.2
+    use_background_noise: true
+    use_rir: false
+    augmentation_rounds: 10
 
-  negative_features:
+  t_v_features:
+    input_audio_dirs: ["data/positive_val"]
+    output_filename: "positive_features_val.npy"
+    use_background_noise: true
+    use_rir: false
+    augmentation_rounds: 10
+
+  rec_features:
+    input_audio_dirs: ["data/positive_recorded"]
+    output_filename: "recorded_positive_features.npy"
+    use_background_noise: true
+    use_rir: false
+    augmentation_rounds: 10
+
+  n_features:
     input_audio_dirs: ["data/negative"]
     output_filename: "negative_features.npy"
-    augmentation_rounds: 2
+    use_background_noise: true
+    use_rir: false
+    augmentation_rounds: 10
 
-feature_manifest:
-  targets:
-    p: "./output/sayso/features/positive_features.npy"
-  negatives:
-    n: "./output/sayso/features/negative_features.npy"
+  hn_features:
+    input_audio_dirs: ["data/negative_phoneme"]
+    output_filename: "hard_negative_features.npy"
+    use_background_noise: true
+    use_rir: false
+    augmentation_rounds: 1
 
+  hn_iso_features:
+    input_audio_dirs: ["data/negative_living_iso"]
+    output_filename: "iso_features.npy"
+    use_background_noise: true
+    use_rir: false
+    augmentation_rounds: 10
+
+  val_talk_features:
+    input_audio_dirs: ["data/negative_living_talk"]
+    output_filename: "val_talk_features.npy"
+    use_background_noise: true
+    use_rir: false
+    augmentation_rounds: 10
+
+background_paths_duplication_rate:
+  - 1
+
+# ============================================================
+# Validation Settings
+# ============================================================
+val_miss_weight: 2.0
+val_fp_weight: 4.0
+validation_batch_size: 256
+validation_smoothing_window: 3
+val_early_stopping_patience: 5000
+
+# ============================================================
+# Curriculum Learning
+# ============================================================
+hardness_ema_alpha: 0.05
+hardness_floor: 0.05
+hardness_reset_interval: 5000
+hardness_reset_decay: 0.5
+checkpoint_averaging_top_k: 5
+
+# ============================================================
+# Checkpointing & Debug
+# ============================================================
 train_model: true
-distill: false
-# Feature gen defaults to a multiprocessing Pool that deadlocks on this host.
-num_workers: 0
-feature_gen_num_workers: 0
-batch_composition:
-  targets: 16
-  negatives: 48
-steps: 2000
-val_interval: 200
 checkpointing:
   enabled: true
-  interval_steps: 500
+  interval_steps: 1000
   limit: 2
 
+early_stopping_patience: 0
+min_delta: 0.0001
+ema_alpha: 0.01
+
 onnx_opset_version: 17
+show_training_summary: true
+debug_mode: true
