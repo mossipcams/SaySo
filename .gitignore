@@ -54,3 +54,8 @@ satellite/models/dataset/
 satellite/models/tts_models/
 satellite/models/**/*.wav
 satellite/models/**/*.npy
+
+# Wake cleanup/inventory manifests (live with recordings outside Git)
+**/wake_cleanup_manifest.json
+**/wake_inventory_manifest.json
+**/quarantine/

@@ -1,9 +1,9 @@
-# Prototype NanoWakeWord training config for the SaySo satellite.
+# ARCHIVED / prototype NanoWakeWord training config for the SaySo satellite.
 #
-# NOT a production operating point. Small clip counts and short training are
-# for host-side smoke runs only. Do not run on the Pi. The shipped satellite
-# defaults to the LiveKit sayso.onnx model unless wake_word.provider is set to
-# nanowakeword in config.
+# NOT the active training path — use sayso-training.yaml (LiveKit) instead.
+# Small clip counts and short training are for host-side smoke runs only.
+# Do not run on the Pi. The shipped satellite defaults to LiveKit sayso.onnx
+# unless wake_word.provider is set to nanowakeword in config.
 #
 # Host smoke train:
 #   pip install "nanowakeword[train]"

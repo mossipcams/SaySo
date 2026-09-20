@@ -94,6 +94,76 @@ class _FakeMpvMediaPlayer:
         self._player.eof()
 
 
+def _install_test_handlers_with_miner(
+    monkeypatch: pytest.MonkeyPatch,
+    sounds: SoundsCfg,
+    wake_miner,
+    *,
+    stt_capture=None,
+):
+    model = ModuleType("aioesphomeapi.model")
+    model.VoiceAssistantEventType = _EventType  # type: ignore[attr-defined]
+    events = ModuleType("linux_voice_assistant.events")
+    events.LVAEvent = _LVAEvent  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "aioesphomeapi.model", model)
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant.events", events)
+
+    from satellite.sayso.events import install_voice_handlers
+
+    protocol = type(
+        "VoiceSatelliteProtocol",
+        (),
+        {
+            "wakeup": Mock(),
+            "handle_voice_event": Mock(),
+            "_tts_finished": Mock(),
+            "stop": Mock(),
+        },
+    )
+    install_voice_handlers(
+        protocol,
+        sounds,
+        stt_capture=stt_capture,
+        wake_miner=wake_miner,
+    )
+    return protocol
+
+
+def test_accepted_wake_outcome_published_without_stt_capture(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    sounds = _sounds(tmp_path)
+    wake_miner = MagicMock()
+    protocol = _install_test_handlers_with_miner(
+        monkeypatch,
+        sounds,
+        wake_miner,
+        stt_capture=None,
+    )
+
+    satellite = SimpleNamespace(
+        state=SimpleNamespace(muted=False),
+        _pipeline_active=False,
+        _timer_finished=False,
+        _timer_ring_start=None,
+        _sayso_wake_capture_id="capture-123",
+        duck=Mock(),
+        _emit=Mock(),
+        _start_audio_streaming=Mock(),
+    )
+    wake_word = SimpleNamespace(wake_word="SaySo")
+
+    protocol.wakeup(satellite, wake_word)  # type: ignore[attr-defined]
+
+    wake_miner.publish_wake_outcome.assert_called_once_with(
+        "capture-123",
+        accepted=True,
+        suppressed=False,
+        reason="microphone_opened",
+    )
+
+
 def test_wakeup_suspends_external_wake_hook(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
