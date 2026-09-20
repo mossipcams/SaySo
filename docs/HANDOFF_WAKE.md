@@ -14,23 +14,29 @@ Satellite is a thin LVA overlay. It does not do STT, NLU, or actions.
 | Train host `192.168.1.140` (`ubuntu`) | `/home/ubuntu/sayso-nanowakeword/` data + GTX 1070 |
 | Worktree | `ajax-nanowakeword` (branch `ajax/nanowakeword`) |
 
-**Last live configuration** (Pi is up; ACAV Nano staged on disk, LiveKit still
-the loaded provider):
+**Last live configuration** (Pi is up; scale Nano loaded; Home Assistant
+connected):
 
-- `provider: livekit` (unchanged)
-- LiveKit model: `/opt/sayso-satellite/models/sayso.onnx` (`03e612d8671df941bd63c5a982d37ad4`)
+- `provider: nanowakeword` (loaded)
+- Nano model: `/opt/sayso-satellite/models/sayso-nanowakeword.onnx`
+  (`0a3c0d645c82adbb8c1d33f39cf81017`)
 - threshold `0.50`, refractory `2.0 s`, `mine_threshold: 0.45`
 - miner: `/var/lib/sayso-satellite/wake-mining`
-- Nano ACAV staged, **not loaded**:
-  `/opt/sayso-satellite/models/sayso-nanowakeword.onnx` (`83d9a507e35530adffaf55465a3b1478`)
+- LiveKit model on disk, **not loaded**:
+  `/opt/sayso-satellite/models/sayso.onnx` (`03e612d8671df941bd63c5a982d37ad4`)
+- LiveKit config backup (rollback):
+  `/etc/sayso-satellite/config.yaml.bak-livekit-0a3c0d64`
 - Nano 80-pos backup: `sayso-nanowakeword.onnx.bak-80pos` (`2fe297e0b06e4660115d929cbca790a7`)
 - Hash-named ACAV backup: `sayso-nanowakeword.onnx.bak-acav-83d9a507`
+- Hash-named scale backup: `sayso-nanowakeword.onnx.bak-scale-0a3c0d64`
 - Nano-era config backup: `/etc/sayso-satellite/config.yaml.bak-nano-80pos`
+- Service restarted 2026-09-20; journal shows `Loaded NanoWakeWord model`
 
-ACAV `83d9a507` beats 80-pos and official `32eaa92e` on overlapping talk and
-miner at 0.50 (SaySo 8/8, talk 0/8, overlapping 0/89, miner 0/74). Copying an
-ONNX is not the same as flipping `provider` — leave LiveKit live until someone
-explicitly switches.
+Scale `0a3c0d64` beats ACAV on command (3/4 vs 1/4) and frozen-21 SaySo
+(10/12 vs 6/12) while keeping overlapping 0/89 and miner 0/74 at 0.50.
+
+**Rollback to LiveKit:** restore `config.yaml.bak-livekit-0a3c0d64` to
+`/etc/sayso-satellite/config.yaml` and restart `sayso-satellite`.
 
 ## 2. What we learned
 
@@ -64,14 +70,14 @@ All under `/home/ubuntu/sayso-nanowakeword/output/sayso/model/`.
 
 | File | md5 prefix | Notes |
 | --- | --- | --- |
-| `sayso-official-32eaa92e.onnx` | `32eaa92e` | **Best Nano so far.** Official recipe (AE29H+RACON+Piper). Keep. |
-| `sayso-official-hn-0554f165.onnx` | `0554f165` | Official + 2 FP windows (`neg_talk_007/035`). **Worse. Do not ship.** Also currently copied to `sayso.onnx`. |
+| `sayso-official-scale-0a3c0d64.onnx` | `0a3c0d64` | **Best Nano so far.** Scale recipe (`-G`, layer 128). Staged on Pi and copied to `sayso.onnx`. |
+| `sayso-official-32eaa92e.onnx` | `32eaa92e` | Official recipe (AE29H+RACON+Piper). Keep. |
+| `sayso-official-hn-0554f165.onnx` | `0554f165` | Official + 2 FP windows (`neg_talk_007/035`). **Worse. Do not ship.** |
 | `sayso-like80.onnx` | `df0dfdd3` | Last 80-pos-style mix on this host. Ignore. |
 | Pi 80-pos | `2fe297e0` | On the satellite only. |
 
-`sayso.onnx` on the host **is 0554f165** right now. Do not deploy it. The
-ACAV waiter will overwrite `sayso.onnx` again when train starts; `32eaa92e`
-backup must stay.
+`sayso.onnx` on the host **is 0a3c0d64** right now (scale export). Keep
+`32eaa92e` and `83d9a507` backups on the host.
 
 ### Official `32eaa92e` vs hn `0554f165` vs 80-pos
 
@@ -122,7 +128,35 @@ Staged on Pi at `/opt/sayso-satellite/models/sayso-nanowakeword.onnx`.
 80-pos backed up as `*.bak-80pos`. Shipped in repo on branch
 `ajax/nanowakeword`. **`provider: livekit` unchanged.**
 
-## 5. Eval how-to
+## 5. Scale retrain (done)
+
+Plan: `docs/PLAN_NANOWAKEWORD_SCALE.md`. Promotion plan:
+`docs/PLAN_NANOWAKEWORD_SCALE_PROMOTE.md`.
+
+Recipe: `satellite/models/sayso-nanowakeword.yaml` — `-G` TTS (10k+ positives,
+libritts_r), `layer_size: 128`, ACAV100M `oww` batch **1000**, no `from_list`
+"say so" clones.
+
+**Result:** `sayso-official-scale-0a3c0d64.onnx` (md5 `0a3c0d64…`).
+
+Hop-feed + 1 s pad at 0.50 vs ACAV `83d9a507`:
+
+| Set | Scale `0a3c0d64` | ACAV `83d9a507` |
+| --- | ---: | ---: |
+| SaySo | **8/8** | 8/8 |
+| SaySo+command | **3/4** | 1/4 |
+| Isolated talk | **0/8** | 0/8 |
+| Overlapping 89 | **0/89** (max 0.006) | 0/89 |
+| Miner 74 | **0/74** (max 0.007) | 0/74 |
+| Frozen-21 SaySo | **10/12** | 6/12 |
+
+Staged on Pi at `/opt/sayso-satellite/models/sayso-nanowakeword.onnx` (ACAV
+backed up as `*.bak-acav-83d9a507`, scale hash backup
+`*.bak-scale-0a3c0d64`). Shipped in repo on branch `ajax/nanowakeword`.
+**`provider: livekit` unchanged.** LiveKit `sayso.onnx` on Pi still
+`03e612d8…`.
+
+## 6. Eval how-to
 
 Host (Nano only):
 
@@ -148,7 +182,7 @@ PYTHONPATH=/tmp/evalwrap \
 `satellite/eval/compare_providers.py`: LiveKit 2 s windows; Nano hop-feed + 1 s pad.
 Tests: `satellite/eval/test_compare_providers.py`.
 
-## 6. Data (host `/home/ubuntu/sayso-nanowakeword/data/`)
+## 7. Data (host `/home/ubuntu/sayso-nanowakeword/data/`)
 
 **Never train on**
 
@@ -183,7 +217,7 @@ Corpora: `AE29H_float32.npy`, `RACON_11h_v1.npy`, ACAV download in progress.
 
 NWW venv: `2.1.3`, torch `2.4.1+cu118` (needed `add_safe_globals` for generate). GTX 1070.
 
-## 7. Do not
+## 8. Do not
 
 - Record more (user said no).
 - Train on holdout / miner / unsure miner.
@@ -192,15 +226,15 @@ NWW venv: `2.1.3`, torch `2.4.1+cu118` (needed `add_safe_globals` for generate).
 - Restore `from_list` “say so” clones.
 - Stop LFM2. Empty `CUDA_VISIBLE_DEVICES`. Pass `-d` (we ship the teacher).
 - Commit wavs or `context.json`.
-- Flip the satellite off LiveKit until eval says so.
+- Flip back to LiveKit without restoring the config backup first.
 - Treat prompted talk 0/8 as “FPs are fixed.”
 
-## 8. Next session checklist
+## 9. Next session checklist
 
-1. Pi back up? Confirm `sayso-nanowakeword.onnx` md5 `83d9a507…` and LiveKit
-   `sayso.onnx` still `03e612d8…`; `provider: livekit`.
+1. Pi back up? Confirm `sayso-nanowakeword.onnx` md5 `0a3c0d64…`, LiveKit
+   `sayso.onnx` still `03e612d8…`, and `provider: nanowakeword` (done
+   2026-09-20).
 2. Optional: `compare_providers` on holdout / 89 / miner 74 with both ONNX paths.
-3. Live recall on LiveKit still untested — say **SaySo** at the Snowball and
+3. Live recall on Nano still untested — say **SaySo** at the Snowball and
    read the journal.
-4. To try Nano live: flip `wake_word.provider: nanowakeword` explicitly; do
-   not assume staging the ONNX switched the provider.
+4. ~~Flip `wake_word.provider: nanowakeword`~~ **done** (see section 1).

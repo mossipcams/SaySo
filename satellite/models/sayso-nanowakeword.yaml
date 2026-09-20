@@ -5,9 +5,13 @@
 # talk negatives (23) are small supplements only — no overlapping talk in
 # train negatives, miner windows, or holdout paths. Overlapping talk is val-only.
 #
-# Host-side GPU. Do not pass -d or -G. Do not empty CUDA_VISIBLE_DEVICES.
+# Host-side GPU. Do not pass -d. Do not empty CUDA_VISIBLE_DEVICES.
 #
-#   nanowakeword -c satellite/models/sayso-nanowakeword.yaml -t -T --overwrite
+# Run with -G -t -T --overwrite (--overwrite regenerates features, not wavs;
+# NWW names clips with timestamp + random so existing pos/neg stay and new
+# clips are added).
+#
+#   nanowakeword -c satellite/models/sayso-nanowakeword.yaml -G -t -T --overwrite
 
 output_dir: "./output"
 model_name: "sayso"
@@ -23,7 +27,7 @@ background_paths:
 # ============================================================
 mode: "embedding"
 model_type: "dnn"
-layer_size: 32
+layer_size: 128
 n_blocks: 3
 embedding_dim: 128
 dropout_prob: 0.3
@@ -93,7 +97,7 @@ feature_manifest:
 # ============================================================
 # Synthetic Data Generation
 # ============================================================
-generate_clips: false
+generate_clips: true
 target_phrase: "SaySo"
 overwrite: true
 
@@ -102,6 +106,7 @@ tts_settings:
     - "en_US-lessac-medium"
     - "en_US-amy-medium"
     - "en_US-ryan-medium"
+    - "en_US-libritts_r-medium"
   length_scales: [0.9, 1.0, 1.1]
   noise_scales: [0.667, 0.8]
 
@@ -109,7 +114,7 @@ data_generation_tasks:
   - name: "Positive SaySo"
     enabled: true
     output_dir: "data/positive"
-    num_samples: 2500
+    num_samples: 10000
     file_prefix: "pos"
     text_source:
       type: "fixed_phrase"
@@ -118,7 +123,7 @@ data_generation_tasks:
   - name: "Positive SaySo val"
     enabled: true
     output_dir: "data/positive_val"
-    num_samples: 2000
+    num_samples: 4000
     file_prefix: "pos"
     text_source:
       type: "fixed_phrase"
@@ -127,7 +132,7 @@ data_generation_tasks:
   - name: "Adversarial Negatives"
     enabled: true
     output_dir: "data/negative"
-    num_samples: 5000
+    num_samples: 15000
     file_prefix: "neg_auto"
     text_source:
       type: "auto_adversarial"
@@ -140,7 +145,7 @@ data_generation_tasks:
   - name: "Phoneme Hard Negatives"
     enabled: true
     output_dir: "data/negative_phoneme"
-    num_samples: 3000
+    num_samples: 5000
     file_prefix: "neg_ph"
     text_source:
       type: "phoneme_adversarial"
