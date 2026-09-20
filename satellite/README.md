@@ -63,14 +63,10 @@ CI on this repo applies the patches to the pinned LVA tree; a running satellite 
 
 ## Wake model
 
-Copy `models/sayso.onnx` to `/opt/sayso-satellite/models/sayso.onnx` before start.
-That LiveKit classifier detects the spoken phrase **Sayso** only. See
-`models/README.md` and `models/sayso_eval.json` for the operating point
-(threshold 0.5).
-
-Opt-in: set `wake_word.provider: nanowakeword` and point `wake_word.model` at a
-NanoWakeWord ONNX trained from `models/sayso-nanowakeword.yaml`. LiveKit stays
-the default; a first NanoWakeWord model is prototype-only.
+Copy `models/sayso.onnx` and `models/sayso-verifier.npz` to
+`/opt/sayso-satellite/models/` before start. Production is living2 LiveKit
+plus the mel verifier. See `models/README.md` and `models/sayso_eval.json`
+(threshold 0.5 and verifier 0.445).
 
 ### Wake mining (opt-in)
 

@@ -2,33 +2,48 @@ Place this LiveKit-exported Sayso classifier on the satellite:
 
   /opt/sayso-satellite/models/sayso.onnx
 
-It detects the spoken phrase "Sayso" only. Operating point is in `sayso_eval.json`.
-Use threshold **0.5** (`fpph` 0.0, recall 0.60). Do not use the file's
-`optimal_threshold` of 0.19 in a room with background speech: it carries a
-documented `optimal_fpph` of 0.25 false wakes/hour (~6/day), and measured
-living-room scores put real wakes at 0.57-0.72 with every false positive
-below 0.42. Do not substitute hey_livekit, hey_jarvis, or another model.
+It detects the spoken phrase "Sayso" only. Operating point is in
+`sayso_eval.json` and `living2.yaml`. Use threshold **0.5** and the mel
+verifier at **0.445**. Do not use the trainer `optimal_threshold` (~0.05).
+Do not substitute hey_livekit, hey_jarvis, or another model.
 
-## Active training recipe (LiveKit)
+Shipped primary: living2 (`b840f51f312abcd5b205e1fc1e32b2ed`) plus
+`sayso-verifier.npz` (`0c632e778ca263e51c92d9ca95f451af`).
 
-`sayso-training.yaml` is the **only active** wake training recipe. It targets
-`livekit-wakeword` 0.2.1 with `target_fp_per_hour: 0.02`, the `/seI soU/`
-confusable set as hard negatives, and a deliberately small corpus. The shipped
-model was trained on upstream defaults (`target_fp_per_hour: 0.2`); it could not
-meet even that, so `find_best_threshold()` fell through to max-balanced-accuracy
-and emitted `optimal_threshold` 0.19.
+## Retraining (living2)
 
-Do not run training on the Pi. `setup` downloads ~16 GB of ACAV100M features plus
-MUSAN (~1.1 GB) and RIRs. Use a CUDA host.
+`living2.yaml` is the production recipe. Skip `livekit.wakeword generate`.
+The mix is 50 this-room Snowball positives, 90 this-room train negatives,
+and 89 overlapping-talk clips as **val only**. Holdout, miner party, and
+`nano_live_fp` stay out of the classifier.
+
+living1 used the same wavs with `positive: 16` / `ACAV100M_sample: 256` /
+`max_negative_weight: 3000` and never fired at 0.50. living2 only changes
+the class prior (`positive: 96`, `ACAV100M_sample: 64`,
+`max_negative_weight: 200`) so 0.50 can fire. Mixing extra TTS positives
+(blend) or more ACAV (living3) failed the this-room gates — do not repeat
+those.
+
+Do not run this on the Pi. Use a CUDA host. Do not set
+`CUDA_VISIBLE_DEVICES` to empty.
 
 Install host-only deps from `requirements-wake-train.txt` (not the satellite
 runtime requirements):
 
 ```bash
 pip install -r satellite/models/requirements-wake-train.txt
+pip install "livekit-wakeword[training]"
+python -m livekit.wakeword augment living2.yaml
+python -m livekit.wakeword train    living2.yaml
+python -m livekit.wakeword export   living2.yaml
 ```
 
-Prefer the batch wrapper (snapshots, run-key idempotency, candidate bundles):
+Ship `output-living2/sayso/sayso.onnx` back into this directory. Score at
+**0.50**, then AND with the verifier below. `sayso-training.yaml` is the
+older voxcpm/hard-negative recipe; it is not this operating point.
+
+Prefer the batch wrapper (snapshots, run-key idempotency, candidate bundles)
+when retraining from the mining spool:
 
 ```bash
 python3 scripts/wake_train.py \
@@ -37,40 +52,42 @@ python3 scripts/wake_train.py \
   --work-dir satellite/models/output/wake_runs
 ```
 
-Manual LiveKit stages remain available for debugging:
-
-```bash
-pip install "livekit-wakeword[training]==0.2.1"
-python -m livekit.wakeword setup    --config satellite/models/sayso-training.yaml
-python -m livekit.wakeword generate satellite/models/sayso-training.yaml
-python -m livekit.wakeword augment  satellite/models/sayso-training.yaml
-python -m livekit.wakeword train    satellite/models/sayso-training.yaml
-python -m livekit.wakeword export   satellite/models/sayso-training.yaml
-python -m livekit.wakeword eval     satellite/models/sayso-training.yaml
-```
-
-Ship `output/sayso/sayso.onnx` and its metrics JSON back into this directory,
-then set `wake_word.threshold` from calibration data (not by reusing 0.5).
-Freeze both the deployed threshold and the calibration-selected threshold in
-`satellite/eval/baseline.json` before retraining.
-
 Source splits and holdout rules live in `satellite/eval/splits.json`. Holdouts
 must not leak into training, calibration, background mixing, or derived features.
+Freeze both the deployed threshold and the calibration-selected threshold in
+`satellite/eval/baseline.json` before a later retrain.
 
-## NanoWakeWord prototype (archived)
+## Mel verifier (second stage)
 
-`sayso-nanowakeword.yaml` is an **optional prototype** only. The satellite
-defaults to LiveKit (`wake_word.provider: livekit`). NanoWakeWord uses a
-different feature frontend and score distribution — do not treat its output as
-production-equivalent.
+Frozen Google speech embeddings separate this-mic SaySo from overlapping
+talk (AUROC 0.97) but not from the 19 live false wakes (a probe fit on the
+89 still calls 13/19 SaySo; **mel AUROC 1.0**). Do not dump those FPs into
+the classifier.
 
-```bash
-pip install "nanowakeword[train]"
-nanowakeword -c satellite/models/sayso-nanowakeword.yaml -G -t -T
-```
+`sayso-verifier.npz` is a logistic on frozen-mel mean+std of the last-16
+embedding mel union, fit on the 50 recorded SaySo vs the 19 `nano_live_fp`
+windows only. Miner 74 and the 89 stay out of that fit.
 
-Generated `data/`, `output/`, Piper artifacts, and `.wav`/`.npy` features are
-gitignored. The LiveKit `sayso.onnx` is not a NanoWakeWord model.
+When `wake_word.verifier` is set, LiveKit remains the primary scorer and
+the verifier must also pass before the satellite fires. Mine on the LiveKit
+score as today — the veto runs after mining, not before.
+
+Fire iff `living2 ≥ 0.50` **and** `verifier ≥ 0.445`. Omit `verifier` for
+single-stage LiveKit. If `verifier` is set but the file is missing, wake
+detection fails closed.
+
+Host AND-gate (hop-scan at 0.50 / 0.445):
+
+| Set | Result |
+| --- | ---: |
+| living-room SaySo | **6/8** |
+| isolated talk | **0/8** |
+| overlapping talk (89) | **0/89** |
+| miner party (74) | **0/74** |
+| nano_live_fp (19) | **0/19** |
+
+The 19 are verifier-train, not an unbiased FP set. Best unbiased-FP backup
+on the Pi is `sayso.onnx.bak-03e612d8`.
 
 ## Bootstrap blockers
 

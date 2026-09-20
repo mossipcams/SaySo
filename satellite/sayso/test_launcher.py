@@ -287,7 +287,7 @@ def test_launcher_passes_device_name_separate_from_friendly_name(
     upstream.run.assert_called_once_with()  # type: ignore[attr-defined]
 
 
-def test_launcher_uses_nanowakeword_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_launcher_passes_verifier_to_livekit(monkeypatch: pytest.MonkeyPatch) -> None:
     package = ModuleType("linux_voice_assistant")
     package.__path__ = []  # type: ignore[attr-defined]
     upstream = ModuleType("linux_voice_assistant.__main__")
@@ -311,7 +311,7 @@ def test_launcher_uses_nanowakeword_provider(monkeypatch: pytest.MonkeyPatch) ->
             auto_gain=0,
         ),
         wake_word=SimpleNamespace(
-            provider="nanowakeword",
+            provider="livekit",
             model="wake.onnx",
             phrase="SaySo",
             threshold=0.5,
@@ -319,27 +319,24 @@ def test_launcher_uses_nanowakeword_provider(monkeypatch: pytest.MonkeyPatch) ->
             post_tts_cooldown_ms=500,
             preroll_ms=500,
             wake_skip_ms=500,
+            verifier="verifier.npz",
+            verifier_threshold=0.44,
         ),
         sounds=SimpleNamespace(wake="ack.wav", failure="failure.wav", unavailable="unavailable.wav"),
     )
     monkeypatch.setattr(launcher, "load_config", lambda: cfg)
-    nanowakeword_ctor = Mock(return_value=SimpleNamespace(available=True, predict_window=Mock()))
-    livekit_ctor = Mock()
-    monkeypatch.setattr(launcher, "NanoWakeWordProvider", nanowakeword_ctor)
-    monkeypatch.setattr(
-        launcher,
-        "LiveKitWakeWordProvider",
-        livekit_ctor,
-    )
+    livekit_ctor = Mock(return_value=SimpleNamespace(available=True, predict_window=Mock()))
+    monkeypatch.setattr(launcher, "LiveKitWakeWordProvider", livekit_ctor)
     monkeypatch.setattr(launcher, "install_wake_audio_path", Mock())
     monkeypatch.setattr(launcher, "install_voice_handlers", Mock())
     monkeypatch.setattr(launcher, "_configure_mpv", Mock())
 
     launcher.main()
 
-    nanowakeword_ctor.assert_called_once()
-    livekit_ctor.assert_not_called()
-    upstream.run.assert_called_once_with()  # type: ignore[attr-defined]
+    livekit_ctor.assert_called_once()
+    kwargs = livekit_ctor.call_args.kwargs
+    assert kwargs["verifier_path"] == "verifier.npz"
+    assert kwargs["verifier_threshold"] == 0.44
 
 
 def test_launcher_rejects_unavailable_wake_provider(monkeypatch: pytest.MonkeyPatch) -> None:

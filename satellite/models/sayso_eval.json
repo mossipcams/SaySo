@@ -1,13 +1,14 @@
 {
-  "aut": 0.008408923191051342,
-  "fpph": 0.0,
-  "recall": 0.5978125,
-  "accuracy": 0.7989062499999999,
+  "model": "living2",
+  "md5": "b840f51f312abcd5b205e1fc1e32b2ed",
   "threshold": 0.5,
-  "optimal_threshold": 0.19,
-  "optimal_recall": 0.8273958333333333,
-  "optimal_fpph": 0.24665257223396758,
-  "n_positive": 19200,
-  "n_negative": 51084,
-  "validation_hours": 28.38
+  "verifier_threshold": 0.445,
+  "note": "Trainer optimal_threshold (~0.05) is ignored. Fire iff living2 >= 0.50 AND verifier >= 0.445.",
+  "holdout": {
+    "living_sayso": "6/8",
+    "isolated_talk": "0/8",
+    "overlap_89": "0/89",
+    "miner_74": "0/74",
+    "nano_live_fp_19": "0/19"
+  }
 }

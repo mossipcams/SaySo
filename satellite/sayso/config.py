@@ -75,6 +75,9 @@ class WakeWordCfg:
     mine_near_cap: int = 1000
     mine_below_cap: int = 200
     mine_below_sample_rate: float = 0.002
+    # Optional second-stage mel verifier (LiveKit only). None keeps single-stage fire.
+    verifier: Path | None = None
+    verifier_threshold: float | None = None
 
 
 @dataclass
@@ -159,6 +162,16 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
         mine_near_cap=int(raw.get("wake_word", {}).get("mine_near_cap", 1000)),
         mine_below_cap=int(raw.get("wake_word", {}).get("mine_below_cap", 200)),
         mine_below_sample_rate=float(raw.get("wake_word", {}).get("mine_below_sample_rate", 0.002)),
+        verifier=(
+            Path(raw["wake_word"]["verifier"])
+            if raw.get("wake_word", {}).get("verifier")
+            else None
+        ),
+        verifier_threshold=(
+            float(raw["wake_word"]["verifier_threshold"])
+            if raw.get("wake_word", {}).get("verifier_threshold") is not None
+            else None
+        ),
     )
     sounds = SoundsCfg(
         wake=Path(_req(raw, "sounds", "wake")),
@@ -207,8 +220,8 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append("audio.input_device is empty; run sayso-satellite devices")
     if not cfg.audio.output_device:
         errors.append("audio.output_device is empty; run sayso-satellite devices")
-    if cfg.wake_word.provider not in ("livekit", "nanowakeword"):
-        errors.append("wake_word.provider must be 'livekit' or 'nanowakeword'")
+    if cfg.wake_word.provider != "livekit":
+        errors.append("wake_word.provider must be 'livekit'")
     if cfg.wake_word.phrase != "SaySo":
         errors.append("wake_word.phrase must be exactly 'SaySo'")
     if not (0.0 < cfg.wake_word.threshold < 1.0):
@@ -223,6 +236,10 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append("wake_word.wake_skip_ms must be >= 0")
     if not (0.0 < cfg.wake_word.mine_threshold < 1.0):
         errors.append("wake_word.mine_threshold must be between 0 and 1 exclusive")
+    if cfg.wake_word.verifier_threshold is not None and not (
+        0.0 < cfg.wake_word.verifier_threshold < 1.0
+    ):
+        errors.append("wake_word.verifier_threshold must be between 0 and 1 exclusive")
     if cfg.wake_word.mine_dir is not None and cfg.wake_word.mine_threshold >= cfg.wake_word.threshold:
         errors.append(
             "wake_word.mine_threshold must be below wake_word.threshold; mining at or above "

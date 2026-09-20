@@ -1,0 +1,58 @@
+# living2 — this-room LiveKit SaySo classifier (production primary).
+#
+# Skip generate. GPU (do not set CUDA_VISIBLE_DEVICES to empty). Phrase SaySo.
+# Holdout, miner party, and nano_live_fp stay out of this classifier. The 89
+# overlapping-talk clips are trainer val only.
+#
+# Mix (host, wavs not in git; renamed clip_NNNNNN.wav under output-living2):
+#   train pos  50  sayso-nanowakeword/data/positive_recorded  (no mine_*)
+#   train neg  90  negative_living_iso 23 + negative_room 43 + negative_recorded 24
+#   val pos    10  copies of the 50 (all 50 stay in train)
+#   val neg    89  negative_living_talk
+#
+# living1 used the same wavs with positive 16 / ACAV 256 / max_negative_weight
+# 3000 and was deaf at 0.50 even on its own 50. This file only changes the
+# class prior so 0.50 can fire.
+#
+#   python -m livekit.wakeword augment living2.yaml
+#   python -m livekit.wakeword train    living2.yaml
+#   python -m livekit.wakeword export   living2.yaml
+#
+# Ignore trainer optimal_threshold (~0.05). Score at 0.50. Then AND with
+# sayso-verifier.npz (mel logistic on the 50 vs 19 nano_live_fp, t=0.445).
+# Do not dump those 19 into this classifier.
+#
+# Exported ONNX md5: b840f51f312abcd5b205e1fc1e32b2ed
+
+model_name: sayso
+target_phrases:
+  - "Sayso"
+n_samples: 50
+n_samples_val: 10
+n_background_samples: 300
+n_background_samples_val: 80
+tts_batch_size: 50
+custom_negative_phrases:
+  - "say so"
+data_dir: ./data
+output_dir: ./output-living2
+augmentation:
+  clip_duration: 2.0
+  batch_size: 16
+  rounds: 8
+  background_paths: ["./data/backgrounds"]
+  rir_paths: ["./data/rirs"]
+model:
+  model_type: conv_attention
+  model_size: small
+steps: 20000
+learning_rate: 1.0e-4
+weight_decay: 1.0e-2
+label_smoothing: 0.05
+max_negative_weight: 200.0
+target_fp_per_hour: 0.02
+batch_n_per_class:
+  positive: 96
+  adversarial_negative: 48
+  ACAV100M_sample: 64
+  background_noise: 32
