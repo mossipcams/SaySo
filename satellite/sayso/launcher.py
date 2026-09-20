@@ -13,7 +13,6 @@ from .process_audio import NativeClipTally, install_native_rate_capture, install
 from .wake.hook import SaySoExternalWakeHook
 from .wake.livekit import LiveKitWakeWordProvider
 from .wake.mining import HardNegativeMiner
-from .wake.nanowakeword import NanoWakeWordProvider
 from .wake.provider import WakeWordProvider
 from .wake.stt_capture import SttAudioRecorder
 
@@ -37,15 +36,13 @@ def _build_wake_provider(
         "refractory_seconds": cfg.wake_word.refractory_seconds,
         "miner": miner,
     }
-    if cfg.wake_word.provider == "livekit":
-        return LiveKitWakeWordProvider(
-            **common,
-            verifier_path=getattr(cfg.wake_word, "verifier", None),
-            verifier_threshold=getattr(cfg.wake_word, "verifier_threshold", None),
-        )
-    if cfg.wake_word.provider == "nanowakeword":
-        return NanoWakeWordProvider(**common)
-    raise SystemExit(f"Unsupported wake_word.provider: {cfg.wake_word.provider}")
+    if cfg.wake_word.provider != "livekit":
+        raise SystemExit(f"Unsupported wake_word.provider: {cfg.wake_word.provider}")
+    return LiveKitWakeWordProvider(
+        **common,
+        verifier_path=getattr(cfg.wake_word, "verifier", None),
+        verifier_threshold=getattr(cfg.wake_word, "verifier_threshold", None),
+    )
 
 
 def main() -> None:

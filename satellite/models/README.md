@@ -69,27 +69,3 @@ Host AND-gate (hop-scan at 0.50 / 0.445):
 
 The 19 are verifier-train, not an unbiased FP set. Best unbiased-FP backup
 on the Pi is `sayso.onnx.bak-03e612d8`.
-
-## NanoWakeWord (opt-in, live-blocked)
-
-The satellite can load a NanoWakeWord ONNX model instead of LiveKit when
-`wake_word.provider` is set to `nanowakeword`. LiveKit living2 + verifier
-is production. Scale Nano (`0a3c0d64`) false-woke live in this room; do
-not flip a live satellite to Nano without an explicit operator decision.
-
-Shipped optional model: `sayso-nanowakeword.onnx` (md5
-`0a3c0d645c82adbb8c1d33f39cf81017`). Recipe: `sayso-nanowakeword.yaml`.
-Generated `data/`, `output/`, Piper artifacts, and `.wav`/`.npy` features
-are gitignored — do not commit them.
-
-```
-pip install "nanowakeword[train]"
-nanowakeword -c satellite/models/sayso-nanowakeword.yaml -G -t -T --overwrite
-```
-
-Compare LiveKit vs Nano on recorded clips:
-
-```
-python3 -m satellite.eval.compare_providers \
-  --audio-dir DIR --livekit models/sayso.onnx --nano models/sayso-nanowakeword.onnx
-```

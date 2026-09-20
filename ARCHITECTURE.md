@@ -166,10 +166,8 @@ an external wake hook for that feed; it does not wrap or replace LVA’s
 
 The SaySo overlay owns:
 
-- Loading and running a local wake-word model on the processed PCM feed from
-  LVA’s external wake hook. Production uses a LiveKit-compatible ONNX
-  classifier; NanoWakeWord (`NanoInterpreter`) is an optional overlay engine on
-  the same hook.
+- Loading and running a local LiveKit-compatible ONNX wake-word classifier on
+  the processed PCM feed from LVA’s external wake hook.
 - Converting a successful detection into an upstream satellite wake event.
 - SaySo-specific configuration, lifecycle commands, sounds, and diagnostics.
 - The smallest compatibility patches required for the supported hardware path

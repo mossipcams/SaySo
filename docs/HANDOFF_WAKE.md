@@ -12,7 +12,7 @@ Satellite is a thin LVA overlay. It does not do STT, NLU, or actions.
 | Machine | Role |
 | --- | --- |
 | Satellite `192.168.1.54` (`pi`, SSH port **2222**) | Capture, live wake, miner |
-| Train host `192.168.1.140` (`ubuntu`) | `/home/ubuntu/sayso-wakeword/` (LiveKit) and `/home/ubuntu/sayso-nanowakeword/` (Nano data) |
+| Train host `192.168.1.140` (`ubuntu`) | `/home/ubuntu/sayso-wakeword/` (LiveKit) and `/home/ubuntu/sayso-nanowakeword/` (Snowball wav data) |
 | Worktree | `ajax-nanowakeword` (branch `ajax/nanowakeword`) |
 
 **Loaded now** (Pi, 2026-09-20 17:40):
@@ -26,8 +26,6 @@ Satellite is a thin LVA overlay. It does not do STT, NLU, or actions.
 - miner: `/var/lib/sayso-satellite/wake-mining`
 - Rollback backup: `sayso.onnx.bak-03e612d8`
   (`03e612d8671df941bd63c5a982d37ad4`)
-- Nano on disk, **not loaded**: `sayso-nanowakeword.onnx`
-  (`0a3c0d645c82adbb8c1d33f39cf81017`)
 
 How we trained it: `satellite/models/living2.yaml` and
 `satellite/models/README.md`. Ship record: `docs/PLAN_LIVEKIT_VERIFIER.md`.
@@ -37,12 +35,9 @@ How we trained it: `satellite/models/living2.yaml` and
 - Record more unless asked.
 - Train the classifier on holdout / miner / `nano_live_fp` / the 89.
 - Dump conversational FPs into the main LiveKit mix (living3 / blend).
-- Restore `from_list` “say so” clone negatives for Nano.
 - Stop LFM2 on the train host. Empty `CUDA_VISIBLE_DEVICES`.
 - Commit wavs or `context.json`.
 - Treat prompted talk 0/8 as “FPs are fixed.”
-- Flip `provider: nanowakeword` — scale Nano false-woke live (~18 clips in
-  25 min at 0.87–0.99).
 
 ## Data (host, never git)
 
@@ -68,14 +63,6 @@ How we trained it: `satellite/models/living2.yaml` and
 | Set | n | Path |
 | --- | ---: | --- |
 | `nano_live_fp` | 19 | `sayso-nanowakeword/data/nano_live_fp/` |
-
-## Eval
-
-```bash
-PYTHONPATH=. python3 -m satellite.eval.compare_providers \
-  --audio-dir DIR --livekit satellite/models/sayso.onnx \
-  --nano satellite/models/sayso-nanowakeword.onnx
-```
 
 LiveKit uses 2 s windows. Isolated `live_talk_*` is not the FP test that
 matched the live complaint; overlapping 89 and miner 74 are. The 19 live

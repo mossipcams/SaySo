@@ -1,4 +1,4 @@
-# NanoWakeWord prototype train artifacts (host-side only)
+# Wake-word training artifacts (host-side only)
 models/data/
 models/output/
 models/NwwResourcesModel/

@@ -46,7 +46,7 @@ training/hf_cache/
 evals/results/*
 !evals/results/.gitkeep
 
-# NanoWakeWord prototype train artifacts (satellite/models/)
+# Wake-word training artifacts (satellite/models/)
 satellite/models/data/
 satellite/models/output/
 satellite/models/NwwResourcesModel/

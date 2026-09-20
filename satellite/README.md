@@ -68,11 +68,6 @@ Copy `models/sayso.onnx` and `models/sayso-verifier.npz` to
 plus the mel verifier. See `models/README.md` and `models/sayso_eval.json`
 (threshold 0.5 and verifier 0.445).
 
-Opt-in (live-blocked in this room): set `wake_word.provider: nanowakeword`
-and point `wake_word.model` at
-`/opt/sayso-satellite/models/sayso-nanowakeword.onnx`. LiveKit stays the
-default; staging the Nano ONNX does not change the active provider.
-
 ## Service
 
 The satellite runs as a **system** service under a dedicated `sayso` account,

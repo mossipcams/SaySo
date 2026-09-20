@@ -12,11 +12,9 @@ Ship the this-room LiveKit recipe that actually hears the Snowball:
 2. Check in `satellite/models/living2.yaml` (skip-generate mix + class
    prior) and `sayso-verifier.npz`.
 3. Keep verifier wiring (`verifier.py`, LiveKit AND-gate, tests).
-4. Restore `sayso-nanowakeword.yaml` to the scale recipe (drop the failed
-   live-room val-only mix). Keep optional Nano provider + unprime-on-fire.
-5. Slim `docs/HANDOFF_WAKE.md` and `satellite/models/README.md` to this
+4. Slim `docs/HANDOFF_WAKE.md` and `satellite/models/README.md` to this
    operating point.
-6. Delete failed-experiment `docs/PLAN_NANOWAKEWORD_*` (except the
+5. Delete failed-experiment `docs/PLAN_NANOWAKEWORD_*` (except the
    optional-provider plan), `PLAN_LIVEKIT_LIVE*`, `PLAN_LIVEKIT_LIVING`,
    `PLAN_LIVEKIT_RETHINK`, `PLAN_LIVEKIT_EMBED`, `PLAN_WAKE_*`,
    `PLAN_PR81_CI.md`.
@@ -77,8 +75,7 @@ PYTHONPATH=satellite pytest -q \
   satellite/sayso/wake/test_livekit.py \
   satellite/sayso/wake/test_verifier.py \
   satellite/sayso/test_config.py \
-  satellite/sayso/test_launcher.py \
-  satellite/sayso/wake/test_nanowakeword.py
+  satellite/sayso/test_launcher.py
 ```
 
 Confirm `satellite/models/sayso.onnx` md5 `b840f51f312abcd5b205e1fc1e32b2ed`
