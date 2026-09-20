@@ -9,6 +9,7 @@ from .buffer import PrerollFlush, WakeAudioBuffer
 from .capture import WakeCaptureRing
 from .detection import Detection
 from .livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
+from .mining import HardNegativeMiner
 from .provider import WakeWordProvider
 from .worker import WakeInferenceWorker
 
@@ -95,6 +96,7 @@ class SaySoExternalWakeHook:
         preroll_ms: int = 0,
         wake_skip_ms: int = DEFAULT_WAKE_SKIP_MS,
         capture_ring: WakeCaptureRing | None = None,
+        miner: HardNegativeMiner | None = None,
     ) -> None:
         self._provider = provider
         self._buffer = WakeAudioBuffer(WINDOW_SAMPLES, HOP_SAMPLES)
@@ -105,6 +107,9 @@ class SaySoExternalWakeHook:
             + _RING_HEADROOM_SAMPLES
         )
         self._ring = capture_ring if capture_ring is not None else WakeCaptureRing(ring_capacity)
+        self._miner = miner
+        if self._miner is not None:
+            self._miner.bind_ring(self._ring)
         self._preroll_ms = int(preroll_ms)
         self._wake_skip_ms = wake_skip_ms
         self._worker = WakeInferenceWorker(provider.predict_window)
@@ -140,6 +145,10 @@ class SaySoExternalWakeHook:
     def rearm(self) -> None:
         """One controlled reset after TTS; do not clear on every capture block."""
         self._buffer.rearm_with_silence()
+        if self._miner is not None:
+            trigger = self._detection_index if self._detection_index is not None else self._ring.end_index
+            self._miner.snapshot_pre_trigger(trigger, synthetic_padding=True)
+            self._miner.note_rearm()
         # Re-anchor rather than zero the index so a detection that arrived just
         # before rearm can never be confused with one from the next cycle.
         self._ring.reset()
@@ -257,13 +266,27 @@ class SaySoExternalWakeHook:
     def _on_detection(self, detection: Detection) -> None:
         if detection.sample_index is not None:
             self._detection_index = detection.sample_index
+            if self._miner is not None:
+                self._miner.snapshot_pre_trigger(detection.sample_index)
+        capture_id = (
+            self._miner.latest_detection_capture_id if self._miner is not None else None
+        )
         satellite = self._get_satellite() if self._get_satellite else None
         if satellite is None or getattr(satellite, "_pipeline_active", False):
+            if self._miner is not None and capture_id is not None:
+                self._miner.publish_wake_outcome(
+                    capture_id,
+                    accepted=False,
+                    suppressed=True,
+                    reason="pipeline_active_or_unbound",
+                )
             # No wakeup will run, so no flush will claim this boundary. Release
             # it rather than leaving the live path blocked behind a handoff that
             # is never going to happen.
             self.discard_detection()
             return
+        if capture_id is not None:
+            setattr(satellite, "_sayso_wake_capture_id", capture_id)
         try:
             satellite.wakeup(_WakePhrase(detection.phrase))
         except Exception:

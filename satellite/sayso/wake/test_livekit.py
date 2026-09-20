@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -75,3 +76,36 @@ def test_process_pcm_runs_predict_after_window_and_hop(
     provider.process_pcm(chunk)
 
     mock_wake_model.predict.assert_called()
+
+
+def test_predict_window_wall_clock_refractory_without_sample_index(
+    mock_wake_model: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model_path = tmp_path / "hey_ferra.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    mock_wake_model.predict.return_value = {"hey_ferra": 0.99}
+
+    clock = {"t": 100.0}
+
+    def fake_monotonic() -> float:
+        return clock["t"]
+
+    monkeypatch.setattr(time, "monotonic", fake_monotonic)
+
+    provider = LiveKitWakeWordProvider(
+        model_path=model_path,
+        phrase="hey ferra",
+        threshold=0.5,
+        refractory_seconds=2.0,
+    )
+    provider.start()
+
+    window = np.zeros(WINDOW_SAMPLES, dtype=np.int16)
+    first = provider.predict_window(window)
+    clock["t"] += 1.0
+    second = provider.predict_window(window)
+
+    assert first is not None
+    assert second is None

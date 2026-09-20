@@ -76,12 +76,16 @@ class WakeCaseResult:
     status: str
     detected: Optional[bool] = None
     detection_ok: Optional[bool] = None
+    detection_sample: Optional[int] = None
+    activation_samples: Optional[tuple[int, ...]] = None
     missing_first_word: Optional[bool] = None
     missing_first_word_ok: Optional[bool] = None
     stt_transcript_success: Optional[bool] = None
     actual_transcript: Optional[str] = None
     speech_end_to_ack_ms: Optional[float] = None
     pi_inference_ms: Optional[dict[str, float]] = None
+    inference_ms: tuple[float, ...] = ()
+    audio_duration_seconds: float = 0.0
     skip_reason: Optional[str] = None
     error: Optional[str] = None
 
@@ -182,32 +186,39 @@ def scan_wake_audio(
     pcm: bytes,
     sample_rate: int = SAMPLE_RATE,
     *,
-    predict: Optional[Callable[[np.ndarray], Any]] = None,
-) -> tuple[bool, list[float], Optional[int]]:
+    predict: Optional[Callable[..., Any]] = None,
+) -> tuple[bool, list[float], Optional[int], tuple[int, ...]]:
     if sample_rate != SAMPLE_RATE:
         raise ValueError(f"expected sample rate {SAMPLE_RATE}, got {sample_rate}")
     buffer = WakeAudioBuffer(WINDOW_SAMPLES, HOP_SAMPLES)
     provider.start()
     inference_ms: list[float] = []
-    detection_sample: Optional[int] = None
-    predict_fn = predict or provider.predict_window
+    activation_samples: list[int] = []
+    predict_fn = predict
 
-    offset = 0
     samples = np.frombuffer(pcm, dtype="<i2")
     for start in range(0, samples.size, CHUNK_SAMPLES):
         chunk = samples[start : start + CHUNK_SAMPLES]
         if chunk.size == 0:
             continue
+        window_end = start + chunk.size
         if buffer.feed(chunk.tobytes()):
             window = buffer.window()
             start_time = time.perf_counter()
-            detection = predict_fn(window)
+            if predict_fn is not None:
+                detection = predict_fn(window)
+            else:
+                try:
+                    detection = provider.predict_window(window, sample_index=window_end)
+                except TypeError:
+                    detection = provider.predict_window(window)
             inference_ms.append((time.perf_counter() - start_time) * 1000.0)
-            if detection is not None and detection_sample is None:
-                detection_sample = offset
-        offset = start + chunk.size
+            if detection is not None:
+                sample_idx = getattr(detection, "sample_index", None)
+                activation_samples.append(int(sample_idx if sample_idx is not None else window_end))
 
-    return detection_sample is not None, inference_ms, detection_sample
+    first_sample = activation_samples[0] if activation_samples else None
+    return first_sample is not None, inference_ms, first_sample, tuple(activation_samples)
 
 
 def evaluate_case(
@@ -215,6 +226,7 @@ def evaluate_case(
     eval_root: Path,
     provider: LiveKitWakeWordProvider,
 ) -> WakeCaseResult:
+    provider.reset()
     audio_path = eval_root / case.audio
     if not audio_path.is_file():
         return WakeCaseResult(
@@ -234,7 +246,8 @@ def evaluate_case(
             error=str(exc),
         )
 
-    detected, inference_ms, _ = scan_wake_audio(provider, pcm, rate)
+    detected, inference_ms, detection_sample, activation_samples = scan_wake_audio(provider, pcm, rate)
+    audio_duration_seconds = len(pcm) / 2 / rate
     detection_ok = detected == case.expect_detection
     pi_inference = compute_latency_percentiles(inference_ms) if inference_ms else {"p50": 0.0, "p95": 0.0}
 
@@ -255,7 +268,11 @@ def evaluate_case(
                 skip_reason=f"missing transcript fixture: {fixture_path}",
                 detected=detected,
                 detection_ok=detection_ok,
+                detection_sample=detection_sample,
+                activation_samples=activation_samples or None,
                 pi_inference_ms=pi_inference,
+                inference_ms=tuple(inference_ms),
+                audio_duration_seconds=audio_duration_seconds,
             )
         fixture = load_transcript_fixture(eval_root, fixture_path)
         actual_transcript = str(fixture.get("text", "")).strip()
@@ -283,13 +300,42 @@ def evaluate_case(
         status="passed" if passed else "failed",
         detected=detected,
         detection_ok=detection_ok,
+        detection_sample=detection_sample,
+        activation_samples=activation_samples or None,
         missing_first_word=missing_first_word,
         missing_first_word_ok=missing_first_word_ok,
         stt_transcript_success=stt_success,
         actual_transcript=actual_transcript,
         speech_end_to_ack_ms=speech_end_to_ack_ms,
         pi_inference_ms=pi_inference,
+        inference_ms=tuple(inference_ms),
+        audio_duration_seconds=audio_duration_seconds,
     )
+
+
+def _finalize_case_status(result: WakeCaseResult, *, strict: bool) -> WakeCaseResult:
+    if not strict or result.status not in {"skipped", "error"}:
+        return result
+    reason = result.skip_reason or result.error or result.status
+    return WakeCaseResult(
+        case_id=result.case_id,
+        category=result.category,
+        status="failed",
+        skip_reason=result.skip_reason,
+        error=result.error,
+        detected=result.detected,
+        detection_ok=False,
+        detection_sample=result.detection_sample,
+        activation_samples=result.activation_samples,
+        missing_first_word=result.missing_first_word,
+        missing_first_word_ok=result.missing_first_word_ok,
+        stt_transcript_success=result.stt_transcript_success,
+        actual_transcript=result.actual_transcript,
+        speech_end_to_ack_ms=result.speech_end_to_ack_ms,
+        pi_inference_ms=result.pi_inference_ms,
+        inference_ms=result.inference_ms,
+        audio_duration_seconds=result.audio_duration_seconds,
+    ) if reason else result
 
 
 def run_wake_eval(
@@ -299,9 +345,12 @@ def run_wake_eval(
     phrase: str = "SaySo",
     threshold: float = 0.65,
     refractory_seconds: float = 0.0,
+    strict: bool = False,
+    hardware: str = "unknown",
 ) -> dict[str, Any]:
     cases_path = eval_root / "cases.json"
     if not cases_path.is_file():
+        errors = 1 if strict else 0
         return {
             "version": 0,
             "summary": {
@@ -309,11 +358,14 @@ def run_wake_eval(
                 "passed": 0,
                 "failed": 0,
                 "skipped": 0,
-                "errors": 0,
+                "errors": errors,
             },
             "aggregate": {
                 "pi_inference_ms": {"p50": 0.0, "p95": 0.0},
+                "background_duration_seconds": 0.0,
             },
+            "strict": strict,
+            "hardware": hardware,
             "results": [],
             "note": f"missing case manifest: {cases_path}",
         }
@@ -330,36 +382,31 @@ def run_wake_eval(
 
     results: list[WakeCaseResult] = []
     all_inference_ms: list[float] = []
+    background_duration_seconds = 0.0
     for case in case_set.cases:
-        result = evaluate_case(case, eval_root, provider)
+        result = _finalize_case_status(evaluate_case(case, eval_root, provider), strict=strict)
         results.append(result)
-        if result.pi_inference_ms is not None and result.status != "skipped":
-            # ponytail: per-case p50 only; aggregate uses raw predict timings across cases
-            pass
-
-    # Re-scan for aggregate inference stats from stored per-case isn't ideal;
-    # aggregate from all non-skipped inference samples during evaluate.
-    for case in case_set.cases:
-        audio_path = eval_root / case.audio
-        if not audio_path.is_file():
-            continue
-        pcm, rate = read_wav_pcm(audio_path)
-        _, inference_ms, _ = scan_wake_audio(provider, pcm, rate)
-        all_inference_ms.extend(inference_ms)
+        all_inference_ms.extend(result.inference_ms)
+        if case.category in {"negative_tv_conversation", "negative_distance_noise"}:
+            background_duration_seconds += result.audio_duration_seconds
 
     summary = {
         "total": len(results),
         "passed": sum(1 for r in results if r.status == "passed"),
         "failed": sum(1 for r in results if r.status == "failed"),
         "skipped": sum(1 for r in results if r.status == "skipped"),
-        "errors": sum(1 for r in results if r.status == "error"),
+        "errors": sum(1 for r in results if r.status == "error") + int(strict and not results),
     }
 
     return {
         "version": case_set.version,
+        "strict": strict,
+        "hardware": hardware,
+        "refractory_seconds": refractory_seconds,
         "summary": summary,
         "aggregate": {
             "pi_inference_ms": compute_latency_percentiles(all_inference_ms),
+            "background_duration_seconds": background_duration_seconds,
         },
         "results": [case_result_to_dict(r) for r in results],
     }
@@ -379,6 +426,10 @@ def case_result_to_dict(result: WakeCaseResult) -> dict[str, Any]:
         payload["detected"] = result.detected
     if result.detection_ok is not None:
         payload["detection_ok"] = result.detection_ok
+    if result.detection_sample is not None:
+        payload["detection_sample"] = result.detection_sample
+    if result.activation_samples is not None:
+        payload["activation_samples"] = list(result.activation_samples)
     if result.missing_first_word is not None:
         payload["missing_first_word"] = result.missing_first_word
     if result.missing_first_word_ok is not None:

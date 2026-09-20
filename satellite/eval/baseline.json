@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "status": "blocked",
+  "blocker": "satellite/eval/audio fixtures absent; strict baseline eval cannot run",
+  "collection_requirement": "Populate satellite/eval/audio with trusted seed, calibration, and independent eval recordings per cases.json before freezing baselines.",
+  "model": {
+    "path": "satellite/models/sayso.onnx",
+    "provider": "livekit",
+    "metrics_source": "satellite/models/sayso_eval.json"
+  },
+  "deployed_threshold": {
+    "threshold": 0.5,
+    "source": "satellite/models/sayso_eval.json",
+    "frozen": false,
+    "status": "recorded_from_metrics",
+    "recall": 0.5978125,
+    "fpph": 0.0,
+    "validation_hours": 28.38,
+    "strict_eval_report": null
+  },
+  "calibration_threshold": {
+    "status": "blocked",
+    "reason": "no calibration split audio",
+    "threshold": null,
+    "selected_on": "calibration split only",
+    "strict_eval_report": null
+  },
+  "strict_eval": {
+    "status": "blocked",
+    "command": "python3 satellite/eval/run.py --strict --model /path/to/sayso.onnx",
+    "refractory_seconds": 2.0,
+    "hardware_note": "Report pi_inference_ms and background duration on the target Pi hardware; laptop runs are diagnostic only."
+  }
+}

@@ -39,7 +39,8 @@ class NanoWakeWordProvider:
         self._suspended = False
         self._available = False
         self._interpreter = None
-        self._last_fire = 0.0
+        self._last_fire_sample: int | None = None
+        self._last_fire_time: float | None = None
         self._logged_keys = False
         self._last_score_log = 0.0
         self._max_score_window = 0.0
@@ -85,7 +86,8 @@ class NanoWakeWordProvider:
         self._suspended = False
 
     def reset(self) -> None:
-        self._last_fire = 0.0
+        self._last_fire_sample = None
+        self._last_fire_time = None
         if self._interpreter is not None:
             self._interpreter.reset()
 
@@ -129,17 +131,30 @@ class NanoWakeWordProvider:
             self._max_score_window = 0.0
 
         if self._miner is not None:
-            self._miner.offer(score, window)
+            self._miner.offer(score, window, sample_index=sample_index)
 
         if score < self._threshold:
             return None
-        if self._last_fire and (now - self._last_fire) < self._refractory:
+        if sample_index is not None:
+            refractory_samples = int(self._refractory * SAMPLE_RATE)
+            if (
+                self._last_fire_sample is not None
+                and refractory_samples > 0
+                and (sample_index - self._last_fire_sample) < refractory_samples
+            ):
+                return None
+            self._last_fire_sample = sample_index
+        elif (
+            self._refractory > 0
+            and self._last_fire_time is not None
+            and (now - self._last_fire_time) < self._refractory
+        ):
             return None
-
-        self._last_fire = now
+        else:
+            self._last_fire_time = now
         self._interpreter.reset()
         _LOGGER.info(
-            "Wake phrase detected phrase=%r confidence=%.3f (no audio retained)",
+            "Wake phrase detected phrase=%r confidence=%.3f",
             self._phrase,
             score,
         )

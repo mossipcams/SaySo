@@ -179,8 +179,12 @@ The satellite does not perform speech-to-text, text-to-speech, language
 understanding, model inference, or Home Assistant action execution. It never
 communicates directly with llama.cpp.
 
-Wake detection runs locally on processed PCM and does not retain audio. It must
-not start another request while the current voice pipeline is active.
+Wake detection runs locally on processed PCM. By default it does not retain
+audio. When `wake_word.mine_dir` is set, the satellite may retain bounded,
+opt-in scored windows plus short ring context for offline transfer; capture ids
+are satellite-local and distinct from Home Assistant's pipeline trace id. Mining
+must never block capture, inference, or the voice path, and must not start
+another request while the current voice pipeline is active.
 
 ## Interaction tracing
 

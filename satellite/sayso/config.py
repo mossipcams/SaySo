@@ -65,6 +65,16 @@ class WakeWordCfg:
     # well below threshold so near-misses are captured, not just fires.
     mine_dir: Path | None = None
     mine_threshold: float = 0.1
+    mine_pre_context_ms: int = 500
+    mine_post_context_ms: int = 500
+    mine_post_deadline_ms: int = 1000
+    mine_queue_size: int = 32
+    mine_max_records: int = 2000
+    mine_max_bytes: int = 256 * 1024 * 1024
+    mine_detection_cap: int = 800
+    mine_near_cap: int = 1000
+    mine_below_cap: int = 200
+    mine_below_sample_rate: float = 0.002
 
 
 @dataclass
@@ -139,6 +149,16 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
             else None
         ),
         mine_threshold=float(raw.get("wake_word", {}).get("mine_threshold", 0.1)),
+        mine_pre_context_ms=int(raw.get("wake_word", {}).get("mine_pre_context_ms", 500)),
+        mine_post_context_ms=int(raw.get("wake_word", {}).get("mine_post_context_ms", 500)),
+        mine_post_deadline_ms=int(raw.get("wake_word", {}).get("mine_post_deadline_ms", 1000)),
+        mine_queue_size=int(raw.get("wake_word", {}).get("mine_queue_size", 32)),
+        mine_max_records=int(raw.get("wake_word", {}).get("mine_max_records", 2000)),
+        mine_max_bytes=int(raw.get("wake_word", {}).get("mine_max_bytes", 256 * 1024 * 1024)),
+        mine_detection_cap=int(raw.get("wake_word", {}).get("mine_detection_cap", 800)),
+        mine_near_cap=int(raw.get("wake_word", {}).get("mine_near_cap", 1000)),
+        mine_below_cap=int(raw.get("wake_word", {}).get("mine_below_cap", 200)),
+        mine_below_sample_rate=float(raw.get("wake_word", {}).get("mine_below_sample_rate", 0.002)),
     )
     sounds = SoundsCfg(
         wake=Path(_req(raw, "sounds", "wake")),

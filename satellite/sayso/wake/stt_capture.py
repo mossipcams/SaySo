@@ -35,6 +35,7 @@ DEFAULT_MAX_AGE_DAYS = 14
 @dataclass
 class _Command:
     run_id: str
+    wake_capture_id: str | None = None
     samples: bytearray = field(default_factory=bytearray)
     transcript: str = ""
     underflow: bool = False
@@ -131,7 +132,7 @@ class SttAudioRecorder:
                 return
             time.sleep(0.005)
 
-    def begin_command(self, run_id: str) -> None:
+    def begin_command(self, run_id: str, *, wake_capture_id: str | None = None) -> None:
         if not self._enabled:
             return
         with self._lock:
@@ -140,7 +141,11 @@ class SttAudioRecorder:
                 if self._native_clip_tally is not None
                 else 0
             )
-            self._active = _Command(run_id=str(run_id), native_clip_count=baseline)
+            self._active = _Command(
+                run_id=str(run_id),
+                wake_capture_id=str(wake_capture_id) if wake_capture_id else None,
+                native_clip_count=baseline,
+            )
 
     def tap(self, pcm_s16le: bytes) -> None:
         """Record bytes on their way to Home Assistant. Never blocks on IO."""
@@ -166,6 +171,7 @@ class SttAudioRecorder:
         transcript: str = "",
         underflow: bool = False,
         failed_reason: str | None = None,
+        wake_capture_id: str | None = None,
     ) -> Optional[Path]:
         """Finish the active command and queue it for writing.
 
@@ -179,6 +185,8 @@ class SttAudioRecorder:
             self._active = None
         if active is None:
             return None
+        if wake_capture_id and not active.wake_capture_id:
+            active.wake_capture_id = str(wake_capture_id)
         if self._native_clip_tally is not None:
             active.native_clip_count = (
                 int(self._native_clip_tally.count) - active.native_clip_count
@@ -247,6 +255,7 @@ class SttAudioRecorder:
         clip_count = int(np.sum(np.abs(data) >= 32767))
         return {
             "run_id": command.run_id,
+            "wake_capture_id": command.wake_capture_id,
             "capture_rate": self._capture_rate,
             "sample_rate": self._sample_rate,
             "mic_gain_db": self._mic_gain_db,

@@ -63,3 +63,58 @@ def test_eval_run_main_skips_missing_audio(
     report = json.loads(output.read_text(encoding="utf-8"))
     assert report["summary"]["skipped"] == 1
     assert output.is_file()
+
+
+def test_eval_run_main_strict_fails_on_missing_audio(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    eval_root = tmp_path / "eval"
+    eval_root.mkdir()
+    (eval_root / "cases.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "cases": [
+                    {
+                        "id": "pos",
+                        "category": "positive_sayso",
+                        "audio": "audio/positive.wav",
+                        "expect_detection": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+
+    mock_model = MagicMock()
+    mock_model.predict.return_value = {"sayso": 0.0}
+    fake_wakeword = MagicMock(WakeWordModel=MagicMock(return_value=mock_model))
+    monkeypatch.setitem(sys.modules, "livekit", MagicMock(wakeword=fake_wakeword))
+    monkeypatch.setitem(sys.modules, "livekit.wakeword", fake_wakeword)
+
+    rc = eval_run.main(
+        [
+            "--model",
+            str(model_path),
+            "--eval-root",
+            str(eval_root),
+            "--strict",
+            "--refractory-seconds",
+            "2.0",
+        ]
+    )
+    assert rc == 1
+
+
+def test_eval_run_main_strict_fails_on_missing_cases(tmp_path) -> None:
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+
+    rc = eval_run.main(
+        ["--model", str(model_path), "--eval-root", str(tmp_path), "--strict"]
+    )
+    assert rc == 1

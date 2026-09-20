@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 import types
 from pathlib import Path
 from types import SimpleNamespace
@@ -144,3 +145,36 @@ def test_process_pcm_does_not_open_microphone(
 
     mic_mock.assert_not_called()
     mock_interpreter.predict.assert_called()
+
+
+def test_predict_window_wall_clock_refractory_without_sample_index(
+    mock_interpreter: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    mock_interpreter.predict.return_value = SimpleNamespace(score=0.9)
+
+    clock = {"t": 100.0}
+
+    def fake_monotonic() -> float:
+        return clock["t"]
+
+    monkeypatch.setattr(time, "monotonic", fake_monotonic)
+
+    provider = NanoWakeWordProvider(
+        model_path=model_path,
+        phrase="SaySo",
+        threshold=0.5,
+        refractory_seconds=2.0,
+    )
+    provider.start()
+
+    window = np.zeros(WINDOW_SAMPLES, dtype=np.int16)
+    first = provider.predict_window(window)
+    clock["t"] += 1.0
+    second = provider.predict_window(window)
+
+    assert first is not None
+    assert second is None
