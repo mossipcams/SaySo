@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.0](https://github.com/mossipcams/SaySo/compare/1.7.0...1.8.0) (2026-09-21)
+
+
+### Features
+
+* **wake:** add long-form corpus pipeline for wake training ([94d2f81](https://github.com/mossipcams/SaySo/commit/94d2f816a786495c1c578be1815502760d3c314e))
+* **wake:** rsync long-form sessions to the train VM then delete on Pi ([6cb3828](https://github.com/mossipcams/SaySo/commit/6cb3828995d09b7c41ebfc69a942ebd33973d412))
+
 ## [1.7.0](https://github.com/mossipcams/SaySo/compare/1.6.1...1.7.0) (2026-09-21)
 
 
