@@ -17,7 +17,13 @@ Satellite is a thin LVA overlay. It does not do STT, NLU, or actions. It
 | Config gain | `audio.mic_gain_db: 10.0` on the satellite path |
 | Unit | `sayso-satellite.service` (override User=`pi`, `PULSE_SERVER` in `/run/user/1001`) |
 
-Pi has **no `sftp-server`**. Copy with `tar` over SSH. Wavs stay off git.
+Pi has **no `sftp-server`**. Copy with `rsync` over SSH. Wavs stay off git.
+
+Long-form sessions ingested on the Pi are **staging** only. After capture,
+`wake_corpus.py ship` rsyncs the session to the train VM
+(`ubuntu@192.168.1.140:/home/ubuntu/sayso-wake-data/corpus`), verifies remote
+`audio.wav` sha256 against `session.json`, and deletes the Pi copy only on
+success. Do not stop LFM2 on the train host when shipping.
 
 ## Three capture paths (current)
 
@@ -44,12 +50,39 @@ Each capture is a directory:
   pre.wav / post.wav   # optional
 ```
 
-Host ingest: `scripts/wake_mine_report.py` (`--label`, `--inventory`). The
-satellite deletes **only** host-acked records. Caps: `mine_max_records`
-(default 2000).
+Host ingest: `scripts/wake_mine_report.py` (`--ingest`, `--label`,
+`--inventory`). The satellite deletes **only** host-acked records. Caps:
+`mine_max_records` (default 2000).
 
 This is the path that matches inference. Labelling is still manual and
 easy to skip. Unlabelled spool must **not** go into the classifier.
+
+The Pi mines **2 s windows live** only. Long-form ingest on the Pi is
+**temporary staging** under `/var/lib/sayso-satellite/wake-sessions` (or
+another local `--corpus`). After a session is ingested, ship it to the train VM
+and delete the Pi copy once the remote `audio.wav` sha256 matches
+`session.json`:
+
+```text
+Pi live miner spool (2 s windows)
+  -> wake_mine_report.py --ingest / --label
+
+Pi long-form WAV (staging)
+  -> wake_corpus.py ingest --corpus /var/lib/sayso-satellite/wake-sessions
+  -> wake_corpus.py ship SESSION --corpus /var/lib/sayso-satellite/wake-sessions
+     (rsync over SSH to ubuntu@192.168.1.140; verify; delete local on success)
+
+train VM canonical corpus
+  -> wake_corpus.py replay / label / split / snapshot / holdout-eval
+```
+
+Pi has no `sftp-server`; `ship` uses `rsync` over SSH. Do **not** stop LFM2 on
+`192.168.1.140` when shipping. Copy or verify failure leaves the Pi session
+directory in place; `--dry-run` rsyncs and deletes nothing.
+
+Re-replay on the host replaces unlabeled events for that session and writes
+into a per-session `.replay_spool/<session_id>/` scratch dir so UUIDs do not
+accumulate across runs.
 
 ### 2. Prompted session (2026-09-21) — ad hoc, not wired into the unit
 
@@ -113,7 +146,7 @@ Prompted ALSA needs the unit **stopped** or the Snowball stays with
 PipeWire. After a session, start `sayso-satellite.service` again. Miner
 collection needs the unit **running**. Those two modes fight.
 
-Do not stop LFM2 on `192.168.1.140` when copying wavs there.
+Do not stop LFM2 on `192.168.1.140` when shipping sessions there.
 
 ## Why this collection setup is not ideal
 

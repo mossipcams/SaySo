@@ -17,6 +17,9 @@ from satellite.sayso.wake.eval import (
     compute_latency_percentiles,
     detect_missing_first_word,
     evaluate_case,
+    evaluate_holdout_session,
+    filter_false_activations,
+    false_activations_per_hour,
     load_wake_cases,
     read_wav_pcm,
     run_wake_eval,
@@ -30,6 +33,7 @@ from satellite.sayso.wake.livekit import (
     WINDOW_SAMPLES,
     LiveKitWakeWordProvider,
 )
+from satellite.sayso.wake.sessions import ingest_session
 
 
 def test_compute_latency_percentiles() -> None:
@@ -439,3 +443,153 @@ def test_scan_wake_audio_reports_sample_time_and_refractory(
     assert detection_sample is not None
     assert len(activation_samples) == 2
     assert activation_samples[1] - activation_samples[0] > SAMPLE_RATE * 2
+
+
+def test_false_activations_per_hour_from_duration() -> None:
+    assert false_activations_per_hour(activation_count=2, duration_seconds=3600.0) == pytest.approx(2.0)
+
+
+def test_evaluate_holdout_session_reports_fa_per_hour(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    corpus = tmp_path / "corpus"
+    wav = tmp_path / "holdout.wav"
+    span = WINDOW_SAMPLES + HOP_SAMPLES * 4
+    samples = np.zeros(span, dtype="<i2")
+    samples[WINDOW_SAMPLES : WINDOW_SAMPLES + HOP_SAMPLES] = 9000
+    write_synthetic_wav(wav, samples)
+    session = ingest_session(wav, corpus, session_id="holdout_eval")
+
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    mock_model = MagicMock()
+    mock_model.predict.return_value = {"sayso": 0.0}
+    fake_wakeword = MagicMock(WakeWordModel=MagicMock(return_value=mock_model))
+    monkeypatch.setitem(sys.modules, "livekit", MagicMock(wakeword=fake_wakeword))
+    monkeypatch.setitem(sys.modules, "livekit.wakeword", fake_wakeword)
+
+    provider = LiveKitWakeWordProvider(
+        model_path=model_path,
+        phrase="SaySo",
+        threshold=0.5,
+        refractory_seconds=0.0,
+    )
+
+    original_predict = LiveKitWakeWordProvider.predict_window
+
+    def patched_predict(self, window: np.ndarray, sample_index: int | None = None):
+        if int(np.max(np.abs(window))) >= 9000:
+            mock_model.predict.return_value = {"sayso": 0.99}
+        else:
+            mock_model.predict.return_value = {"sayso": 0.0}
+        return original_predict(self, window, sample_index=sample_index)
+
+    monkeypatch.setattr(LiveKitWakeWordProvider, "predict_window", patched_predict)
+
+    report = evaluate_holdout_session(session, provider)
+    assert report["session_id"] == "holdout_eval"
+    assert report["activation_count"] >= 1
+    assert report["false_activations_per_hour"] > 0.0
+
+
+def test_evaluate_holdout_session_matches_replay_lag(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from satellite.sayso.wake.replay import collect_session_activations
+
+    corpus = tmp_path / "corpus"
+    wav = tmp_path / "holdout.wav"
+    span = WINDOW_SAMPLES + HOP_SAMPLES * 4
+    samples = np.zeros(span, dtype="<i2")
+    samples[WINDOW_SAMPLES : WINDOW_SAMPLES + HOP_SAMPLES] = 9000
+    write_synthetic_wav(wav, samples)
+    session = ingest_session(wav, corpus, session_id="lag_holdout")
+
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    mock_model = MagicMock()
+    mock_model.predict.return_value = {"sayso": 0.0}
+    fake_wakeword = MagicMock(WakeWordModel=MagicMock(return_value=mock_model))
+    monkeypatch.setitem(sys.modules, "livekit", MagicMock(wakeword=fake_wakeword))
+    monkeypatch.setitem(sys.modules, "livekit.wakeword", fake_wakeword)
+
+    provider = LiveKitWakeWordProvider(
+        model_path=model_path,
+        phrase="SaySo",
+        threshold=0.5,
+        refractory_seconds=0.0,
+    )
+
+    original_predict = LiveKitWakeWordProvider.predict_window
+
+    def patched_predict(self, window: np.ndarray, sample_index: int | None = None):
+        if int(np.max(np.abs(window))) >= 9000:
+            mock_model.predict.return_value = {"sayso": 0.99}
+        else:
+            mock_model.predict.return_value = {"sayso": 0.0}
+        return original_predict(self, window, sample_index=sample_index)
+
+    monkeypatch.setattr(LiveKitWakeWordProvider, "predict_window", patched_predict)
+
+    replay_activations, _, _, _ = collect_session_activations(session, provider)
+    report = evaluate_holdout_session(session, provider)
+    assert list(replay_activations) == report["activation_samples"]
+
+
+def test_labeled_positives_excluded_from_fa_per_hour(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    from satellite.sayso.wake.replay import collect_session_activations
+
+    corpus = tmp_path / "corpus"
+    wav = tmp_path / "holdout.wav"
+    span = WINDOW_SAMPLES + HOP_SAMPLES * 4
+    samples = np.zeros(span, dtype="<i2")
+    trigger_start = WINDOW_SAMPLES
+    samples[trigger_start : trigger_start + HOP_SAMPLES] = 9000
+    write_synthetic_wav(wav, samples)
+    session = ingest_session(wav, corpus, session_id="labeled_holdout")
+
+    model_path = tmp_path / "sayso.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    mock_model = MagicMock()
+    mock_model.predict.return_value = {"sayso": 0.0}
+    fake_wakeword = MagicMock(WakeWordModel=MagicMock(return_value=mock_model))
+    monkeypatch.setitem(sys.modules, "livekit", MagicMock(wakeword=fake_wakeword))
+    monkeypatch.setitem(sys.modules, "livekit.wakeword", fake_wakeword)
+
+    provider = LiveKitWakeWordProvider(
+        model_path=model_path,
+        phrase="SaySo",
+        threshold=0.5,
+        refractory_seconds=0.0,
+    )
+
+    original_predict = LiveKitWakeWordProvider.predict_window
+
+    def patched_predict(self, window: np.ndarray, sample_index: int | None = None):
+        if int(np.max(np.abs(window))) >= 9000:
+            mock_model.predict.return_value = {"sayso": 0.99}
+        else:
+            mock_model.predict.return_value = {"sayso": 0.0}
+        return original_predict(self, window, sample_index=sample_index)
+
+    monkeypatch.setattr(LiveKitWakeWordProvider, "predict_window", patched_predict)
+
+    activation_samples, _, _, _ = collect_session_activations(session, provider)
+    assert activation_samples
+    labeled_positive = SimpleNamespace(
+        label="positive",
+        sample_start=min(activation_samples) - WINDOW_SAMPLES,
+        sample_end=max(activation_samples) + WINDOW_SAMPLES,
+    )
+    report = evaluate_holdout_session(session, provider, labeled_positives=[labeled_positive])
+    assert report["activation_count"] >= 1
+    assert report["false_activation_count"] == 0
+    assert report["false_activations_per_hour"] == 0.0
+    assert filter_false_activations(report["activation_samples"], [labeled_positive]) == []

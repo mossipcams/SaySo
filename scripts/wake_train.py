@@ -37,6 +37,13 @@ from sayso.wake.eval import (  # noqa: E402
     write_synthetic_wav,
 )
 from sayso.wake.livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
+from sayso.wake.snapshot import (  # noqa: E402
+    CorpusExample,
+    derive_training_examples,
+    ensure_session_splits,
+    holdout_sessions,
+    load_session_splits,
+)
 from scripts.wake_mine_report import load as load_spool_records  # noqa: E402
 
 TEACHER_POLICY_VERSION = "conservative-v1"
@@ -390,7 +397,14 @@ def feasibility_gate(*, baseline: dict[str, Any], seed_dir: Path | None, eval_ro
     }
 
 
-def ingest_sources(spool: Path, seed_dir: Path | None) -> list[dict[str, Any]]:
+def ingest_sources(
+    spool: Path,
+    seed_dir: Path | None,
+    *,
+    corpus_root: Path | None = None,
+    corpus_seed: int = 42,
+    corpus_holdouts: Sequence[str] | None = None,
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     if spool.is_dir():
         rows.extend(load_spool_records(spool))
@@ -407,7 +421,49 @@ def ingest_sources(spool: Path, seed_dir: Path | None) -> list[dict[str, Any]]:
                         "_record_dir": None,
                     }
                 )
+    if corpus_root and corpus_root.is_dir():
+        rows.extend(ingest_corpus_rows(corpus_root, seed=corpus_seed, holdout_session_ids=corpus_holdouts))
     return rows
+
+
+def ingest_corpus_rows(
+    corpus_root: Path,
+    *,
+    seed: int,
+    holdout_session_ids: Sequence[str] | None = None,
+) -> list[dict[str, Any]]:
+    from sayso.wake.corpus import load_events
+
+    session_splits = ensure_session_splits(
+        corpus_root,
+        seed=seed,
+        holdout_session_ids=holdout_session_ids,
+    )
+    examples = derive_training_examples(load_events(corpus_root), session_splits)
+    rows: list[dict[str, Any]] = []
+    for example in examples:
+        row = dict(example.meta)
+        row.update(
+            {
+                "capture_id": example.source_id,
+                "session_id": example.session_id,
+                "label": example.label,
+                "split": example.split,
+                "origin": example.origin,
+                "_wav": example.wav_path,
+                "_record_dir": row.get("_record_dir"),
+            }
+        )
+        rows.append(row)
+    return rows
+
+
+def corpus_examples_for_snapshot(corpus_root: Path, *, seed: int) -> tuple[list[CorpusExample], dict[str, str]]:
+    from sayso.wake.corpus import load_events
+
+    session_splits = ensure_session_splits(corpus_root, seed=seed)
+    examples = derive_training_examples(load_events(corpus_root), session_splits)
+    return examples, session_splits
 
 
 def label_records(
@@ -497,14 +553,21 @@ def select_examples(
     splits: dict[str, Any],
     *,
     require_known_real: str | None = None,
+    corpus_root: Path | None = None,
 ) -> list[Example]:
     holdouts = _holdout_source_ids(splits)
+    if corpus_root and corpus_root.is_dir():
+        for session_id in holdout_sessions(load_session_splits(corpus_root)):
+            holdouts.add(session_id)
     train: list[Example] = []
     weak_negs: list[Example] = []
     seen: set[str] = set()
     for ex in examples:
         if ex.source_id in holdouts:
             raise RuntimeError(f"split leakage: holdout source {ex.source_id}")
+        session_id = str(ex.meta.get("session_id") or "")
+        if session_id in holdouts:
+            continue
         if ex.split != "train":
             continue
         if ex.source_id in seen:
@@ -1134,6 +1197,9 @@ def run_pipeline(
     interrupt_after: str | None = None,
     force_retrain: bool = False,
     eval_runner: Callable[[Path, Path, float], dict[str, Any]] | None = None,
+    corpus_root: Path | None = None,
+    corpus_holdouts: Sequence[str] | None = None,
+    replace_living2: bool = False,
 ) -> PipelineResult:
     work_dir.mkdir(parents=True, exist_ok=True)
     lock = acquire_lock(work_dir)
@@ -1150,7 +1216,13 @@ def run_pipeline(
         )
         teacher_impl = _resolve_teacher(stub_mode, teacher)
         trainer_impl = _resolve_trainer(stub_mode, trainer)
-        rows = ingest_sources(spool, seed_dir)
+        rows = ingest_sources(
+            spool,
+            None if replace_living2 else seed_dir,
+            corpus_root=corpus_root,
+            corpus_seed=seed,
+            corpus_holdouts=corpus_holdouts,
+        )
         try:
             labeled, teacher_audit = label_records(rows, teacher_impl)
         except RuntimeError:
@@ -1165,7 +1237,12 @@ def run_pipeline(
             )
             return PipelineResult(run_key=run_key, status="rejected", bundle_dir=None, reason="teacher failure")
 
-        selected = select_examples(labeled, splits, require_known_real=require_known_real)
+        selected = select_examples(
+            labeled,
+            splits,
+            require_known_real=require_known_real,
+            corpus_root=corpus_root,
+        )
         deps_path = _REPO_ROOT / "satellite" / "models" / "requirements-wake-train.txt"
         deps_hash = deps_hash_from_requirements(deps_path)
         run_key, snapshot_id, _clips_hash = preview_run_key(
@@ -1299,6 +1376,19 @@ def assert_source_feature_counts(snapshot: Snapshot) -> None:
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--spool", type=Path, required=True, help="Wake mining spool directory")
+    parser.add_argument("--corpus", type=Path, default=None, help="Wake corpus root with sessions/events")
+    parser.add_argument(
+        "--corpus-holdout",
+        action="append",
+        default=[],
+        metavar="SESSION_ID",
+        help="Session IDs kept entirely outside training for continuous eval",
+    )
+    parser.add_argument(
+        "--replace-living2",
+        action="store_true",
+        help="Omit trusted seed/living2 clips; train only from spool/corpus inputs",
+    )
     parser.add_argument("--seed-dir", type=Path, default=None, help="Trusted seed positive/negative wav dirs")
     parser.add_argument("--work-dir", type=Path, required=True, help="Local training workspace")
     parser.add_argument("--recipe", type=Path, default=default_recipe_path())
@@ -1351,6 +1441,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         seed=args.seed,
         stub_mode=stub_mode,
         force_retrain=args.force,
+        corpus_root=args.corpus,
+        corpus_holdouts=args.corpus_holdout or None,
+        replace_living2=args.replace_living2,
     )
     if result.noop:
         print(f"no-op: {result.reason} (status={result.status}, run_key={result.run_key})")

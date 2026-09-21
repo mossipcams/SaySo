@@ -1,20 +1,68 @@
 # Wake training-data architecture
 
-Phrase is **SaySo**. Wavs are **off git**. This file describes **what exists
-today**, not a target design. The current layout is **not ideal**: too many
-directories with overlapping jobs, no single train/eval contract, and new
-positives do not match the window the classifier actually scores.
+Phrase is **SaySo**. Wavs are **off git**. Long-form recording sessions are the
+canonical wake corpus source; 2 s scored windows are derived artifacts for
+training, mining, and evaluation.
 
 Living ops counts: `docs/HANDOFF_WAKE.md`. Collection: `docs/SATELLITE_DATA_COLLECTION.md`.
-Older intent (partly stale): `docs/WAKE_WORD_DATA.md`.
+Pipeline plan: `docs/PLAN_wake_corpus_pipeline.md`. Labeling rules: `docs/WAKE_WORD_DATA.md`.
 
-## Machines
+## Canonical corpus pipeline (implemented)
+
+```text
+long-form WAV session (Pi: ingest as staging, then ship to train VM)
+  -> scripts/wake_corpus.py ingest
+  -> scripts/wake_corpus.py ship SESSION  # rsync-over-SSH; delete Pi copy on verify
+  -> production living2 + verifier replay (16 kHz, 2 s window, 160 ms hop)
+  -> candidate events under corpus/events/
+  -> human labels via scripts/wake_mine_report.py or wake_corpus.py label
+  -> deterministic session-level splits (corpus_splits.json)
+  -> scripts/wake_corpus.py snapshot (train + eval examples; holdout excluded)
+  -> scripts/wake_train.py train (living2 seed preserved unless --replace-living2)
+  -> scripts/wake_corpus.py holdout-eval (continuous FA/hour on holdout sessions)
+```
+
+Rules:
+
+- Long-form sessions are canonical; 2 s scored windows are derived artifacts.
+- Human labels are authoritative. No automatic positives.
+- Split at recording-session level before deriving train/eval windows.
+- `corpus_splits.json` is sticky: later `--holdout` / `--corpus-holdout` IDs
+  reassign those sessions to holdout instead of being ignored.
+- Eval-session labeled events appear in snapshots with `split=eval` and are
+  excluded from train. Holdout sessions stay completely outside snapshots.
+- Re-replay uses a per-session `.replay_spool/<session_id>/` scratch dir and
+  prunes unlabeled prior events for that session before import.
+- Holdout FA/hour uses the same hop/lag path as replay (`window_end -
+  pending_lag`). Human-labeled positive windows are not counted as false
+  activations.
+- Trusted living2 seed and eval holdouts remain unless `--replace-living2`.
+
+CLI surface:
+
+| Command | Role |
+| --- | --- |
+| `wake_corpus.py ingest` | Register a long-form WAV as a named session |
+| `wake_corpus.py ship` | rsync one session Pi → train VM; delete Pi copy after remote sha256 verify |
+| `wake_corpus.py replay` | Replay one session and import candidate events |
+| `wake_corpus.py split` | Write or update session-level splits |
+| `wake_corpus.py snapshot` | Deterministic train/eval snapshot manifest |
+| `wake_corpus.py holdout-eval` | Continuous holdout replay + FA/hour report |
+| `wake_corpus.py label` | Set a human label on one corpus event |
+| `wake_mine_report.py --replay-session` | Same replay/import helper on a corpus root |
+| `wake_train.py --corpus` | Train from corpus snapshot + living2 seed |
 
 | Host | Tree | Job |
 | --- | --- | --- |
 | Pi `192.168.1.54` | `/var/lib/sayso-satellite/` | Capture, live ONNX, miner spool |
+| Pi `192.168.1.54` | `/var/lib/sayso-satellite/wake-sessions/` | **Staging** for long-form ingest before `ship` |
+| Train `192.168.1.140` | `/home/ubuntu/sayso-wake-data/corpus/` | **Canonical** long-form session corpus (replay, splits, snapshots) |
 | Train `192.168.1.140` | `/home/ubuntu/sayso-wake-data/data/` | Named wav **sets** (Snowball) |
 | Train `192.168.1.140` | `/home/ubuntu/sayso-wakeword/` | LiveKit `data/` (backgrounds, RIRs, ACAV features), `output-living2/`, isolated `runs/` |
+
+`wake_corpus.py ship` defaults to `ubuntu@192.168.1.140` and remote corpus
+`/home/ubuntu/sayso-wake-data/corpus` (rsync over SSH). Shipping does
+not require stopping LFM2 on the train host.
 
 The git worktree does **not** hold training wavs. `satellite/models/living2.yaml`
 is the recipe; `n_samples` there is a leftover generate field. Skip

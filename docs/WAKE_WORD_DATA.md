@@ -134,10 +134,24 @@ Host-only dependencies live in `satellite/models/requirements-wake-train.txt`
 (`livekit-wakeword[training]==0.2.1`, `faster-whisper`). Do not install them on
 the satellite runtime.
 
+Corpus workflow:
+
+```bash
+python3 scripts/wake_corpus.py ingest room.wav --corpus /path/to/wake-corpus --session-id room_a
+python3 scripts/wake_corpus.py replay room_a --corpus /path/to/wake-corpus
+python3 scripts/wake_mine_report.py /path/to/wake-corpus --unreviewed --play
+python3 scripts/wake_mine_report.py /path/to/wake-corpus --label <event_id> negative
+python3 scripts/wake_corpus.py split --corpus /path/to/wake-corpus --holdout room_a
+python3 scripts/wake_corpus.py snapshot --corpus /path/to/wake-corpus
+```
+
+Training command:
+
 ```bash
 pip install -r satellite/models/requirements-wake-train.txt
 python3 scripts/wake_train.py \
   --spool /var/lib/sayso-satellite/wake-mining \
+  --corpus /path/to/wake-corpus \
   --seed-dir satellite/models/data/seed \
   --work-dir satellite/models/output/wake_runs \
   --stub

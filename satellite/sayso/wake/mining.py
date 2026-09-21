@@ -222,6 +222,10 @@ class HardNegativeMiner:
     def latest_detection_capture_id(self) -> Optional[str]:
         return self._latest_detection_id
 
+    @property
+    def published_record_count(self) -> int:
+        return self._published_records
+
     def bind_ring(self, ring: Any) -> None:
         self._ring = ring
         self._ring_reader = ring.read
