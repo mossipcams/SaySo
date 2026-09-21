@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.7.0](https://github.com/mossipcams/SaySo/compare/1.6.1...1.7.0) (2026-09-21)
+
+
+### Features
+
+* **satellite:** add wake mining pipeline, strict eval, and wake_train stub ([fb95621](https://github.com/mossipcams/SaySo/commit/fb95621fb791b00da20d34b3223ae70936ae1ab0))
+* **satellite:** drop the experimental third-party wake provider after live false wakes ([75ddae3](https://github.com/mossipcams/SaySo/commit/75ddae3d71fdaae29d1b84387dc2b1bb0256f00e))
+* **satellite:** ship living2 LiveKit with a mel verifier ([ea5e333](https://github.com/mossipcams/SaySo/commit/ea5e3338eec04fcad4dfec4f528a237dbd20fc3c))
+
+
+### Bug Fixes
+
+* **satellite:** address PR 86 wake review findings ([3e775a4](https://github.com/mossipcams/SaySo/commit/3e775a4489b50f025bea18974dc71a293215ad55))
+
+
+### Documentation
+
+* **wake:** record current training-data layout and satellite collection ([292aa1b](https://github.com/mossipcams/SaySo/commit/292aa1b5c5ecc629aa153c043a4e7f9f94f248dc))
+
 ## [1.6.1](https://github.com/mossipcams/SaySo/compare/1.6.0...1.6.1) (2026-09-19)
 
 

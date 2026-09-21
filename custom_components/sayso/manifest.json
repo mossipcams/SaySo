@@ -12,5 +12,5 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/sayso/sayso/issues",
   "requirements": [],
-  "version": "1.6.1"
+  "version": "1.7.0"
 }
