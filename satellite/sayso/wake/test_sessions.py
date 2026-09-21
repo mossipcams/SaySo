@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import subprocess
 import wave
 from pathlib import Path
 
@@ -12,10 +12,15 @@ import pytest
 from satellite.sayso.wake.eval import write_synthetic_wav
 from satellite.sayso.wake.livekit import SAMPLE_RATE
 from satellite.sayso.wake.sessions import (
+    DEFAULT_SHIP_REMOTE,
+    DEFAULT_SHIP_REMOTE_CORPUS,
+    ShipSessionError,
     derive_session_id,
     ingest_session,
     list_sessions,
     load_session,
+    session_dir,
+    ship_session,
     verify_session,
 )
 
@@ -87,3 +92,85 @@ def test_ingest_writes_canonical_16khz_audio(tmp_path: Path) -> None:
 
     ok, message = verify_session(session)
     assert ok, message
+
+
+def _mock_ship_subprocess(session_hash: str):
+    def fake_run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+        if cmd[0] == "rsync":
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        if cmd[0] == "ssh":
+            remote_cmd = cmd[2] if len(cmd) > 2 else ""
+            if "sha256sum" in remote_cmd:
+                return subprocess.CompletedProcess(
+                    cmd,
+                    0,
+                    f"{session_hash}  /remote/audio.wav\n",
+                    "",
+                )
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    return fake_run
+
+
+def test_ship_session_success_deletes_local(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    wav = tmp_path / "room.wav"
+    _long_form_wav(wav)
+    session = ingest_session(wav, corpus, session_id="room_a")
+    local_dir = session_dir(corpus, "room_a")
+    calls: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+        calls.append(cmd)
+        return _mock_ship_subprocess(session.audio_sha256)(cmd, **kwargs)
+
+    result = ship_session(
+        corpus,
+        "room_a",
+        remote_corpus=DEFAULT_SHIP_REMOTE_CORPUS,
+        subprocess_run=fake_run,
+    )
+    assert result.deleted_local is True
+    assert result.dry_run is False
+    assert not local_dir.exists()
+    assert len(calls) == 3
+    assert calls[0][:2] == ["ssh", DEFAULT_SHIP_REMOTE]
+    assert "mkdir -p" in calls[0][2]
+    assert calls[1][0] == "rsync"
+    assert calls[1][-1] == (
+        f"{DEFAULT_SHIP_REMOTE}:{DEFAULT_SHIP_REMOTE_CORPUS}/sessions/room_a/"
+    )
+    assert calls[2][:2] == ["ssh", DEFAULT_SHIP_REMOTE]
+
+
+def test_ship_session_verify_fail_keeps_local(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    wav = tmp_path / "room.wav"
+    _long_form_wav(wav)
+    ingest_session(wav, corpus, session_id="room_a")
+    local_dir = session_dir(corpus, "room_a")
+    wrong_hash = "0" * 64
+
+    with pytest.raises(ShipSessionError, match="hash mismatch"):
+        ship_session(corpus, "room_a", subprocess_run=_mock_ship_subprocess(wrong_hash))
+    assert local_dir.is_dir()
+
+
+def test_ship_session_dry_run_no_copy_no_delete(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    wav = tmp_path / "room.wav"
+    _long_form_wav(wav)
+    ingest_session(wav, corpus, session_id="room_a")
+    local_dir = session_dir(corpus, "room_a")
+    calls: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    result = ship_session(corpus, "room_a", dry_run=True, subprocess_run=fake_run)
+    assert result.dry_run is True
+    assert result.deleted_local is False
+    assert local_dir.is_dir()
+    assert calls == []

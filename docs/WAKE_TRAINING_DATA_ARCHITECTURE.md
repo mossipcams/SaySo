@@ -10,8 +10,9 @@ Pipeline plan: `docs/PLAN_wake_corpus_pipeline.md`. Labeling rules: `docs/WAKE_W
 ## Canonical corpus pipeline (implemented)
 
 ```text
-long-form WAV session
+long-form WAV session (Pi: ingest as staging, then ship to train VM)
   -> scripts/wake_corpus.py ingest
+  -> scripts/wake_corpus.py ship SESSION  # rsync-over-SSH; delete Pi copy on verify
   -> production living2 + verifier replay (16 kHz, 2 s window, 160 ms hop)
   -> candidate events under corpus/events/
   -> human labels via scripts/wake_mine_report.py or wake_corpus.py label
@@ -42,6 +43,7 @@ CLI surface:
 | Command | Role |
 | --- | --- |
 | `wake_corpus.py ingest` | Register a long-form WAV as a named session |
+| `wake_corpus.py ship` | rsync one session Pi → train VM; delete Pi copy after remote sha256 verify |
 | `wake_corpus.py replay` | Replay one session and import candidate events |
 | `wake_corpus.py split` | Write or update session-level splits |
 | `wake_corpus.py snapshot` | Deterministic train/eval snapshot manifest |
@@ -53,8 +55,14 @@ CLI surface:
 | Host | Tree | Job |
 | --- | --- | --- |
 | Pi `192.168.1.54` | `/var/lib/sayso-satellite/` | Capture, live ONNX, miner spool |
+| Pi `192.168.1.54` | `/var/lib/sayso-satellite/wake-sessions/` | **Staging** for long-form ingest before `ship` |
+| Train `192.168.1.140` | `/home/ubuntu/sayso-wake-data/corpus/` | **Canonical** long-form session corpus (replay, splits, snapshots) |
 | Train `192.168.1.140` | `/home/ubuntu/sayso-wake-data/data/` | Named wav **sets** (Snowball) |
 | Train `192.168.1.140` | `/home/ubuntu/sayso-wakeword/` | LiveKit `data/` (backgrounds, RIRs, ACAV features), `output-living2/`, isolated `runs/` |
+
+`wake_corpus.py ship` defaults to `ubuntu@192.168.1.140` and remote corpus
+`/home/ubuntu/sayso-wake-data/corpus` (rsync over SSH). Shipping does
+not require stopping LFM2 on the train host.
 
 The git worktree does **not** hold training wavs. `satellite/models/living2.yaml`
 is the recipe; `n_samples` there is a leftover generate field. Skip

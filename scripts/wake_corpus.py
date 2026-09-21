@@ -15,7 +15,15 @@ if str(_SATELLITE_ROOT) not in sys.path:
 
 from sayso.wake.corpus import labeled_positive_events, load_events, set_event_label  # noqa: E402
 from sayso.wake.replay import production_replay_constants, replay_and_import_session  # noqa: E402
-from sayso.wake.sessions import ingest_session, list_sessions, load_session  # noqa: E402
+from sayso.wake.sessions import (  # noqa: E402
+    DEFAULT_SHIP_REMOTE,
+    DEFAULT_SHIP_REMOTE_CORPUS,
+    ShipSessionError,
+    ingest_session,
+    list_sessions,
+    load_session,
+    ship_session,
+)
 from sayso.wake.snapshot import (  # noqa: E402
     corpus_snapshot_id,
     derive_snapshot_examples,
@@ -163,6 +171,31 @@ def cmd_constants(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ship(args: argparse.Namespace) -> int:
+    try:
+        result = ship_session(
+            args.corpus,
+            args.session_id,
+            remote=args.remote,
+            remote_corpus=args.remote_corpus,
+            dry_run=args.dry_run,
+        )
+    except (FileNotFoundError, ValueError, ShipSessionError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if result.dry_run:
+        print(
+            f"dry-run ship session={result.session_id} "
+            f"remote={result.remote} corpus={result.remote_corpus}"
+        )
+        return 0
+    print(
+        f"shipped session={result.session_id} "
+        f"remote={result.remote} corpus={result.remote_corpus}"
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus", type=Path, required=True, help="Corpus root directory")
@@ -221,6 +254,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     constants = sub.add_parser("constants", help="Print production replay window/hop constants")
     constants.set_defaults(func=cmd_constants)
+
+    ship = sub.add_parser(
+        "ship",
+        help="Copy one session to the train VM via rsync-over-SSH, verify, then delete locally",
+    )
+    ship.add_argument("session_id")
+    ship.add_argument("--remote", default=DEFAULT_SHIP_REMOTE, help="SSH destination user@host")
+    ship.add_argument(
+        "--remote-corpus",
+        type=Path,
+        default=Path(DEFAULT_SHIP_REMOTE_CORPUS),
+        help="Remote corpus root directory",
+    )
+    ship.add_argument("--dry-run", action="store_true", help="Print the ship target without copying")
+    ship.set_defaults(func=cmd_ship)
     return parser
 
 

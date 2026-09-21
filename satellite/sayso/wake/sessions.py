@@ -5,9 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shlex
 import shutil
+import subprocess
 import time
 import wave
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +20,8 @@ from .livekit import SAMPLE_RATE
 SESSIONS_DIR = "sessions"
 SESSION_MANIFEST = "session.json"
 SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$")
+DEFAULT_SHIP_REMOTE = "ubuntu@192.168.1.140"
+DEFAULT_SHIP_REMOTE_CORPUS = "/home/ubuntu/sayso-wake-data/corpus"
 
 
 def _utc_stamp() -> str:
@@ -211,3 +216,136 @@ def verify_session(session: RecordingSession) -> tuple[bool, str]:
     if frames != session.sample_count or rate != session.sample_rate:
         return False, "manifest/audio metadata mismatch"
     return True, "ok"
+
+
+class ShipSessionError(RuntimeError):
+    """Session could not be copied to the train VM or verified remotely."""
+
+
+@dataclass(frozen=True)
+class ShipSessionResult:
+    session_id: str
+    remote: str
+    remote_corpus: Path
+    dry_run: bool
+    deleted_local: bool
+
+
+def _remote_session_dir(remote_corpus: Path, session_id: str) -> Path:
+    return Path(remote_corpus) / SESSIONS_DIR / session_id
+
+
+def _remote_session_audio(remote_corpus: Path, session_id: str) -> Path:
+    return _remote_session_dir(remote_corpus, session_id) / "audio.wav"
+
+
+def _run_subprocess(
+    cmd: list[str],
+    *,
+    subprocess_run: Callable[..., subprocess.CompletedProcess],
+    action: str,
+) -> subprocess.CompletedProcess:
+    completed = subprocess_run(cmd, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise ShipSessionError(f"{action} failed: {detail or completed.returncode}")
+    return completed
+
+
+def _copy_session_rsync(
+    local_dir: Path,
+    session_id: str,
+    *,
+    remote: str,
+    remote_corpus: Path,
+    subprocess_run: Callable[..., subprocess.CompletedProcess],
+) -> None:
+    remote_sessions = Path(remote_corpus) / SESSIONS_DIR
+    remote_session = _remote_session_dir(remote_corpus, session_id)
+    _run_subprocess(
+        ["ssh", remote, f"mkdir -p {shlex.quote(str(remote_sessions))}"],
+        subprocess_run=subprocess_run,
+        action="remote mkdir",
+    )
+    _run_subprocess(
+        [
+            "rsync",
+            "-a",
+            f"{local_dir}/",
+            f"{remote}:{remote_session}/",
+        ],
+        subprocess_run=subprocess_run,
+        action="rsync copy",
+    )
+
+
+def _remote_audio_sha256(
+    remote: str,
+    remote_audio: Path,
+    *,
+    subprocess_run: Callable[..., subprocess.CompletedProcess],
+) -> str:
+    completed = _run_subprocess(
+        ["ssh", remote, f"sha256sum {shlex.quote(str(remote_audio))}"],
+        subprocess_run=subprocess_run,
+        action="remote sha256",
+    )
+    line = (completed.stdout or "").strip().splitlines()
+    if not line:
+        raise ShipSessionError("remote sha256 returned no output")
+    digest = line[0].split()[0].strip()
+    if len(digest) != 64:
+        raise ShipSessionError(f"remote sha256 malformed: {line[0]!r}")
+    return digest
+
+
+def ship_session(
+    corpus_root: Path,
+    session_id: str,
+    *,
+    remote: str = DEFAULT_SHIP_REMOTE,
+    remote_corpus: Path | str = DEFAULT_SHIP_REMOTE_CORPUS,
+    dry_run: bool = False,
+    subprocess_run: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> ShipSessionResult:
+    """Copy one session to the train VM via rsync-over-SSH, verify, then delete locally."""
+    runner = subprocess_run or subprocess.run
+    sid = _validate_session_id(session_id)
+    session = load_session(corpus_root, sid)
+    local_dir = session_dir(corpus_root, sid)
+    remote_root = Path(remote_corpus)
+
+    if dry_run:
+        return ShipSessionResult(
+            session_id=sid,
+            remote=remote,
+            remote_corpus=remote_root,
+            dry_run=True,
+            deleted_local=False,
+        )
+
+    _copy_session_rsync(
+        local_dir,
+        sid,
+        remote=remote,
+        remote_corpus=remote_root,
+        subprocess_run=runner,
+    )
+    remote_digest = _remote_audio_sha256(
+        remote,
+        _remote_session_audio(remote_root, sid),
+        subprocess_run=runner,
+    )
+    if remote_digest != session.audio_sha256:
+        raise ShipSessionError(
+            f"remote audio hash mismatch for {sid}: expected {session.audio_sha256}, got {remote_digest}"
+        )
+
+    shutil.rmtree(local_dir)
+    return ShipSessionResult(
+        session_id=sid,
+        remote=remote,
+        remote_corpus=remote_root,
+        dry_run=False,
+        deleted_local=True,
+    )
