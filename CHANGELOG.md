@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.7.0](https://github.com/mossipcams/SaySo/compare/1.6.1...1.7.0) (2026-09-21)
+
+
+### Features
+
+* **satellite:** add wake mining pipeline, strict eval, and wake_train stub ([fb95621](https://github.com/mossipcams/SaySo/commit/fb95621fb791b00da20d34b3223ae70936ae1ab0))
+* **satellite:** drop NanoWakeWord after live false wakes ([75ddae3](https://github.com/mossipcams/SaySo/commit/75ddae3d71fdaae29d1b84387dc2b1bb0256f00e))
+* **satellite:** promote ACAV NanoWakeWord SaySo model ([105101a](https://github.com/mossipcams/SaySo/commit/105101ab010ec91eef1b1a8ea138f07d388e1118))
+* **satellite:** ship living2 LiveKit with a mel verifier ([ea5e333](https://github.com/mossipcams/SaySo/commit/ea5e3338eec04fcad4dfec4f528a237dbd20fc3c))
+* **satellite:** ship scale NanoWakeWord and run it on the Pi ([60fb202](https://github.com/mossipcams/SaySo/commit/60fb202a0559985c936d4277f786cb8dcc8d371b))
+
+
+### Bug Fixes
+
+* **satellite:** address PR 86 wake review findings ([3e775a4](https://github.com/mossipcams/SaySo/commit/3e775a4489b50f025bea18974dc71a293215ad55))
+
+
+### Documentation
+
+* **wake:** record current training-data layout and satellite collection ([292aa1b](https://github.com/mossipcams/SaySo/commit/292aa1b5c5ecc629aa153c043a4e7f9f94f248dc))
+* **wake:** record Pi ACAV Nano staging with LiveKit still live ([1851d3f](https://github.com/mossipcams/SaySo/commit/1851d3f2956122fea0c37d7f32d4a371e5d536c3))
+
 ## [1.6.1](https://github.com/mossipcams/SaySo/compare/1.6.0...1.6.1) (2026-09-19)
 
 
