@@ -1,0 +1,95 @@
+# SaySo wake-word classifier — LiveKit prod-scale recipe (generate-first).
+#
+# Primary training contract for the next model. Do not skip generate.
+# Piper TTS (default); homophone negatives are custom_negative_phrases only.
+# Shipped Pi operating point remains living2 + mel verifier until a later
+# qualified export replaces it.
+#
+# Run on a CUDA host (not the Pi). Use an isolated work dir:
+#   python3 scripts/wake_livekit_run.py run \
+#     --config satellite/models/sayso.yaml \
+#     --work-dir /home/ubuntu/sayso-wakeword/runs/livekit-restart
+#
+# Do not write into output-living2/. Do not empty CUDA_VISIBLE_DEVICES.
+
+model_name: sayso
+
+target_phrases:
+  - "SaySo"
+  - "Sayso"
+
+# ============================================================================
+# Data Generation
+# ============================================================================
+
+n_samples: 25000
+n_samples_val: 5000
+n_background_samples: 2000
+n_background_samples_val: 500
+tts_batch_size: 50
+
+# SaySo homophones and near-misses — never target_phrases.
+custom_negative_phrases:
+  - "say so"
+  - "says so"
+  - "said so"
+  - "saying so"
+  - "if you say so"
+  - "just say so"
+  - "you don't say so"
+  - "so so"
+  - "stay so"
+  - "same so"
+  - "safe so"
+  - "say slow"
+  - "say show"
+  - "say sorry"
+  - "say something"
+  - "essay so"
+  - "hey so"
+  - "they say so"
+  - "lasso"
+
+noise_scales: [0.98]
+noise_scale_ws: [0.98]
+length_scales: [0.75, 1.0, 1.25]
+slerp_weights: [0.2, 0.35, 0.5, 0.65, 0.8]
+
+data_dir: ./data
+output_dir: ./output
+
+# ============================================================================
+# Augmentation
+# ============================================================================
+
+augmentation:
+  clip_duration: 2.0
+  batch_size: 16
+  rounds: 3
+  background_paths: ["./data/backgrounds"]
+  rir_paths: ["./data/rirs"]
+
+# ============================================================================
+# Model Architecture
+# ============================================================================
+
+model:
+  model_type: conv_attention
+  model_size: small
+
+# ============================================================================
+# Training
+# ============================================================================
+
+steps: 100000
+learning_rate: 0.0001
+weight_decay: 0.01
+label_smoothing: 0.05
+max_negative_weight: 3000
+target_fp_per_hour: 0.1
+
+batch_n_per_class:
+  positive: 50
+  adversarial_negative: 50
+  ACAV100M_sample: 1024
+  background_noise: 50

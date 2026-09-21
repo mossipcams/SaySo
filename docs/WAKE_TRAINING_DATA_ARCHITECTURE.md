@@ -1,13 +1,32 @@
 # Wake training-data architecture
 
-Phrase is **SaySo**. Wavs are **off git**. Long-form recording sessions are the
-canonical wake corpus source; 2 s scored windows are derived artifacts for
-training, mining, and evaluation.
+Phrase is **SaySo**. Wavs are **off git**. The canonical trainer is LiveKit
+generate-first (`sayso.yaml`). Long-form recording sessions and miner windows
+are eval, labeling, and optional later overlay — not the primary positive class.
+2 s scored windows are derived artifacts for mining and evaluation.
 
-Living ops counts: `docs/HANDOFF_WAKE.md`. Collection: `docs/SATELLITE_DATA_COLLECTION.md`.
-Pipeline plan: `docs/PLAN_wake_corpus_pipeline.md`. Labeling rules: `docs/WAKE_WORD_DATA.md`.
+Collection: `docs/SATELLITE_DATA_COLLECTION.md`.
+Labeling rules: `docs/WAKE_WORD_DATA.md`.
 
-## Canonical corpus pipeline (implemented)
+## Canonical trainer (LiveKit generate-first)
+
+```text
+satellite/models/sayso.yaml  (LiveKit prod scale; Piper default)
+  -> scripts/wake_livekit_run.py setup
+  -> scripts/wake_livekit_run.py generate   # never skip
+  -> scripts/wake_livekit_run.py augment
+  -> scripts/wake_livekit_run.py train
+  -> scripts/wake_livekit_run.py export
+  -> scripts/wake_livekit_run.py eval
+```
+
+Or `wake_livekit_run.py run --work-dir <isolated host dir>`. `data_dir` and
+`output_dir` rewrite under `--work-dir`; do not write into `output-living2/`.
+Real Snowball / miner audio stays eval and optional later overlay — not the
+primary positive class. Shipped Pi operating point remains living2 + verifier
+until a later qualified export.
+
+## Corpus / snapshot pipeline (secondary — implemented)
 
 ```text
 long-form WAV session (Pi: ingest as staging, then ship to train VM)
@@ -64,10 +83,12 @@ CLI surface:
 `/home/ubuntu/sayso-wake-data/corpus` (rsync over SSH). Shipping does
 not require stopping LFM2 on the train host.
 
-The git worktree does **not** hold training wavs. `satellite/models/living2.yaml`
-is the recipe; `n_samples` there is a leftover generate field. Skip
-`livekit.wakeword generate`. Features are 16 kHz mono, **2.0 s** windows
-(`clip_duration: 2.0`), then 8 augment rounds.
+The git worktree does **not** hold training wavs. `satellite/models/sayso.yaml`
+is the primary training recipe (generate-first, 25k/5k samples, 3 augment
+rounds, `target_fp_per_hour: 0.1`). `satellite/models/living2.yaml` documents
+the **historical shipped** skip-generate recipe (50 clips, 8 augment rounds) —
+current Pi operating point, not the next train. Features are 16 kHz mono,
+**2.0 s** windows (`clip_duration: 2.0`).
 
 ## What the classifier actually sees
 
@@ -120,8 +141,8 @@ Fit: 50 recorded SaySo vs these 19. Do not dump them into living2.
 
 | Set | n | What it actually is |
 | --- | ---: | --- |
-| `200-positive/` | 200 | 16 kHz **2.0 s** center-padded prompted takes + `SOURCE.txt` |
-| `200-positive/raw/` | 200 | Native **48 kHz ~1.13 s** ALSA chops from the same session |
+| `200-positive/` | 200 | 16 kHz **2.0 s** center-padded prompted takes + `SOURCE.txt` — **keep** |
+| `200-positive/raw/` | 200 | Native **48 kHz ~1.13 s** ALSA chops from the same session — **keep** |
 | `positive_recorded_holdback/` | 74 | Extra recorded positives; not the living2 50 |
 
 On the stored 2 s `200-positive/*.wav` files, living2 AND-gate already fires
@@ -184,14 +205,21 @@ holdout. One hard negative = **human-labelled miner window** near 0.25–0.45,
 not the 89/74/19 eval sets. Keep the 50. Do not silence-pad 1 s takes or
 overlay room beds the verifier rejects.
 
-## Trainer contract (living2)
+## Trainer contract (sayso.yaml — next model)
 
 ```text
-skip generate
+setup → generate (Piper) → augment × 3 → train 100k steps → export → eval
+conv_attention / small; target_fp_per_hour 0.1; batch 50/50/1024/50
+ignore optimal_threshold (~0.05) until a new export qualifies
+```
+
+## Shipped operating point (living2 — unchanged on Pi)
+
+```text
+skip generate (historical)
 augment × 8 → features (n × 8, 16, 96)
 train 20k + optional FP phases
 export sayso.onnx
-ignore optimal_threshold (~0.05)
 score at 0.28 (Pi) / 0.50 (host notes) AND verifier 0.445
 ```
 

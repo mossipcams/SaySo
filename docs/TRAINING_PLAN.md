@@ -249,7 +249,7 @@ This is a label/coverage intent map only — not a model accuracy claim.
 | Contrast groups preserved in planning/split metadata | `status`, `ambiguity`, `unavailable`, `exclusion`, `multi_action` |
 
 Allocation shares for accepted rows live in
-`training/configs/generation/production.yaml` (see `docs/PLAN_GENERATOR_REFACTOR.md`).
+`training/configs/generation/production.yaml`.
 
 ### Family allocations and area rows
 

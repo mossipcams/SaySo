@@ -1,7 +1,6 @@
 # STT audio capture
 
-Status: operational. This is milestone 0 of
-`docs/PLAN_AUDIO_PATH_REMEDIATION.md`.
+Status: operational.
 
 ## Why
 
