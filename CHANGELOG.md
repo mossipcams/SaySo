@@ -5,7 +5,7 @@
 
 ### Bug Fixes
 
-* **deps:** update dependency nanowakeword to v3 ([fd8f69c](https://github.com/mossipcams/SaySo/commit/fd8f69c65affe7b193733eba196d7cdf7f48340e))
+* **deps:** update optional wake-provider dependency ([fd8f69c](https://github.com/mossipcams/SaySo/commit/fd8f69c65affe7b193733eba196d7cdf7f48340e))
 * **inference:** parse embedded tool-call arguments for GGUF templates ([98fc6d0](https://github.com/mossipcams/SaySo/commit/98fc6d07763c28da0fc810b798231b16b51d0250))
 
 ## [1.6.0](https://github.com/mossipcams/SaySo/compare/1.5.1...1.6.0) (2026-09-18)
@@ -13,17 +13,17 @@
 
 ### Features
 
-* **satellite:** add opt-in NanoWakeWord provider for SaySo ([5a6a548](https://github.com/mossipcams/SaySo/commit/5a6a5485f56e28cb0e7a6d50963a73b51ce66965))
+* **satellite:** add opt-in experimental wake provider for SaySo ([5a6a548](https://github.com/mossipcams/SaySo/commit/5a6a5485f56e28cb0e7a6d50963a73b51ce66965))
 
 
 ### Bug Fixes
 
-* **satellite:** disable NanoWakeWord feature-gen workers ([3f2ce69](https://github.com/mossipcams/SaySo/commit/3f2ce69ead13e0652c0575b5b1fec9ab3b92ffd4))
-* **satellite:** make NanoWakeWord train config work with 2.1.3 ([27f0f64](https://github.com/mossipcams/SaySo/commit/27f0f6490f5544920dbcb589b3d03aa0daf9d883))
-* **satellite:** point NanoWakeWord train yaml at local Piper voice ([df04ca2](https://github.com/mossipcams/SaySo/commit/df04ca2e3dfcfc5fcc4573203be500c82bb12c94))
+* **satellite:** disable experimental wake-provider feature-gen workers ([3f2ce69](https://github.com/mossipcams/SaySo/commit/3f2ce69ead13e0652c0575b5b1fec9ab3b92ffd4))
+* **satellite:** make experimental wake train config work with 2.1.3 ([27f0f64](https://github.com/mossipcams/SaySo/commit/27f0f6490f5544920dbcb589b3d03aa0daf9d883))
+* **satellite:** point experimental wake train yaml at local Piper voice ([df04ca2](https://github.com/mossipcams/SaySo/commit/df04ca2e3dfcfc5fcc4573203be500c82bb12c94))
 * **satellite:** set argparse dest for disable-built-in-wake-word ([d70d770](https://github.com/mossipcams/SaySo/commit/d70d7702e9dc69d71d6daf49514034206f843ae9))
 * **satellite:** set argparse dest for disable-built-in-wake-word ([948240d](https://github.com/mossipcams/SaySo/commit/948240db349eabf451835adcc689f047bad43235))
-* **satellite:** skip NanoWakeWord distillation after train ([a019c50](https://github.com/mossipcams/SaySo/commit/a019c501b99121e34a7f4ef52c26f333280c6b27))
+* **satellite:** skip experimental wake distillation after train ([a019c50](https://github.com/mossipcams/SaySo/commit/a019c501b99121e34a7f4ef52c26f333280c6b27))
 
 ## [1.5.1](https://github.com/mossipcams/SaySo/compare/1.5.0...1.5.1) (2026-09-18)
 

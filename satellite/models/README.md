@@ -3,7 +3,7 @@ Place this LiveKit-exported Sayso classifier on the satellite:
   /opt/sayso-satellite/models/sayso.onnx
 
 It detects the spoken phrase "Sayso" only. Operating point is in
-`sayso_eval.json` and `living2.yaml`. Use threshold **0.5** and the mel
+`sayso_eval.json` and `living2.yaml`. Use threshold **0.28** and the mel
 verifier at **0.445**. Do not use the trainer `optimal_threshold` (~0.05).
 Do not substitute hey_livekit, hey_jarvis, or another model.
 
@@ -15,7 +15,7 @@ Shipped primary: living2 (`b840f51f312abcd5b205e1fc1e32b2ed`) plus
 `living2.yaml` is the production recipe. Skip `livekit.wakeword generate`.
 The mix is 50 this-room Snowball positives, 90 this-room train negatives,
 and 89 overlapping-talk clips as **val only**. Holdout, miner party, and
-`nano_live_fp` stay out of the classifier.
+`verifier_live_fp` stay out of the classifier.
 
 living1 used the same wavs with `positive: 16` / `ACAV100M_sample: 256` /
 `max_negative_weight: 3000` and never fired at 0.50. living2 only changes
@@ -65,18 +65,18 @@ talk (AUROC 0.97) but not from the 19 live false wakes (a probe fit on the
 the classifier.
 
 `sayso-verifier.npz` is a logistic on frozen-mel mean+std of the last-16
-embedding mel union, fit on the 50 recorded SaySo vs the 19 `nano_live_fp`
+embedding mel union, fit on the 50 recorded SaySo vs the 19 `verifier_live_fp`
 windows only. Miner 74 and the 89 stay out of that fit.
 
 When `wake_word.verifier` is set, LiveKit remains the primary scorer and
 the verifier must also pass before the satellite fires. Mine on the LiveKit
 score as today — the veto runs after mining, not before.
 
-Fire iff `living2 ≥ 0.50` **and** `verifier ≥ 0.445`. Omit `verifier` for
+Fire iff `living2 ≥ 0.28` **and** `verifier ≥ 0.445`. Omit `verifier` for
 single-stage LiveKit. If `verifier` is set but the file is missing, wake
 detection fails closed.
 
-Host AND-gate (hop-scan at 0.50 / 0.445):
+Host AND-gate (hop-scan at living2 **0.50** / verifier **0.445**):
 
 | Set | Result |
 | --- | ---: |
@@ -84,7 +84,16 @@ Host AND-gate (hop-scan at 0.50 / 0.445):
 | isolated talk | **0/8** |
 | overlapping talk (89) | **0/89** |
 | miner party (74) | **0/74** |
-| nano_live_fp (19) | **0/19** |
+| verifier_live_fp (19) | **0/19** |
+
+Pi operating point (living2 **0.28** / verifier **0.445**):
+
+| Set | Result |
+| --- | ---: |
+| living-room SaySo | **7/8** |
+
+Miss on Pi: `live_sayso_05` = 0.179 collides with `live_talk_02` = 0.178
+(verifier blesses both). 8/8 is blocked by that collision.
 
 The 19 are verifier-train, not an unbiased FP set. Best unbiased-FP backup
 on the Pi is `sayso.onnx.bak-03e612d8`.

@@ -14,21 +14,20 @@ Ship the this-room LiveKit recipe that actually hears the Snowball:
 3. Keep verifier wiring (`verifier.py`, LiveKit AND-gate, tests).
 4. Slim `docs/HANDOFF_WAKE.md` and `satellite/models/README.md` to this
    operating point.
-5. Delete failed-experiment `docs/PLAN_NANOWAKEWORD_*` (except the
-   optional-provider plan), `PLAN_LIVEKIT_LIVE*`, `PLAN_LIVEKIT_LIVING`,
+5. Delete failed-experiment wake-provider plans, `PLAN_LIVEKIT_LIVE*`, `PLAN_LIVEKIT_LIVING`,
    `PLAN_LIVEKIT_RETHINK`, `PLAN_LIVEKIT_EMBED`, `PLAN_WAKE_*`,
    `PLAN_PR81_CI.md`.
 
 Do not commit wavs, npy, or `context.json`. Do not empty
 `CUDA_VISIBLE_DEVICES`. Do not train the classifier on holdout, miner, the
-89, or `nano_live_fp`. Phrase **SaySo**.
+89, or `verifier_live_fp`. Phrase **SaySo**.
 
 ## How living2 was trained (host `/home/ubuntu/sayso-wakeword`)
 
 Skip `livekit.wakeword generate`. Features come from the living
 skip-generate tree (same 50 / 90 / 89 wavs, renamed `clip_NNNNNN.wav`):
 
-| Role | n | Host path under `sayso-nanowakeword/data/` |
+| Role | n | Host path under `sayso-wake-data/data/` |
 | --- | ---: | --- |
 | Train pos | 50 | `positive_recorded/` (no `mine_*`) |
 | Train neg | 90 | `negative_living_iso` 23 + `negative_room` 43 + `negative_recorded` 24 |
@@ -36,7 +35,7 @@ skip-generate tree (same 50 / 90 / 89 wavs, renamed `clip_NNNNNN.wav`):
 | Trainer val neg | 89 | `negative_living_talk` (**val only**) |
 
 Omit: `holdout_living`, `holdout_eval`, `negative_miner_party`,
-`nano_live_fp`, `negative_mined`, `negative_living_up`, generate/`from_list`
+`verifier_live_fp`, `negative_mined`, `negative_living_up`, generate/`from_list`
 TTS.
 
 living1 (`b070d8a9`, pos 16 / ACAV 256 / `max_negative_weight` 3000) was
@@ -62,7 +61,7 @@ Frozen Google speech embedding separates this-mic SaySo from the 89
 (AUROC 0.97) but not from the 19 live FPs (probe on the 89 still fires
 13/19; **mel AUROC 1.0**). Second stage is a logistic on frozen-mel
 mean+std of the last-16-embedding mel union, fit on 50 recorded SaySo vs
-the 19 `nano_live_fp` windows only. Threshold **0.445**. Miner 74 and the
+the 19 `verifier_live_fp` windows only. Threshold **0.445**. Miner 74 and the
 89 stay out of verifier train.
 
 Fire iff `living2 ≥ 0.50` **and** `verifier ≥ 0.445`. Mine on the LiveKit
@@ -82,7 +81,7 @@ Confirm `satellite/models/sayso.onnx` md5 `b840f51f312abcd5b205e1fc1e32b2ed`
 and `sayso-verifier.npz` md5 `0c632e778ca263e51c92d9ca95f451af`.
 
 Host AND (already passed): SaySo 6/8, talk 0/8, overlap 0/89, miner 0/74,
-nano_live_fp 0/19.
+verifier_live_fp 0/19.
 
 ## Result (staged)
 
@@ -92,7 +91,7 @@ nano_live_fp 0/19.
 | isolated talk 8 | **0/8** |
 | overlap 89 | **0/89** (killed `neg_talk_038` without training on the 89) |
 | miner 74 | **0/74** (held out of verifier train) |
-| nano_live_fp 19 | **0/19** (fingerprint of the 19; not an unbiased FP set) |
+| verifier_live_fp 19 | **0/19** (fingerprint of the 19; not an unbiased FP set) |
 
 Pi journal 2026-09-20 17:40: Loaded LiveKit `b840f51f` + mel verifier 0.445.
 Rollback: `sayso.onnx.bak-03e612d8` (best unbiased-FP backup).

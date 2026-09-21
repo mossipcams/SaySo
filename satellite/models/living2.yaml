@@ -1,11 +1,11 @@
 # living2 — this-room LiveKit SaySo classifier (production primary).
 #
 # Skip generate. GPU (do not set CUDA_VISIBLE_DEVICES to empty). Phrase SaySo.
-# Holdout, miner party, and nano_live_fp stay out of this classifier. The 89
+# Holdout, miner party, and verifier_live_fp stay out of this classifier. The 89
 # overlapping-talk clips are trainer val only.
 #
 # Mix (host, wavs not in git; renamed clip_NNNNNN.wav under output-living2):
-#   train pos  50  sayso-nanowakeword/data/positive_recorded  (no mine_*)
+#   train pos  50  sayso-wake-data/data/positive_recorded  (no mine_*)
 #   train neg  90  negative_living_iso 23 + negative_room 43 + negative_recorded 24
 #   val pos    10  copies of the 50 (all 50 stay in train)
 #   val neg    89  negative_living_talk
@@ -19,7 +19,7 @@
 #   python -m livekit.wakeword export   living2.yaml
 #
 # Ignore trainer optimal_threshold (~0.05). Score at 0.50. Then AND with
-# sayso-verifier.npz (mel logistic on the 50 vs 19 nano_live_fp, t=0.445).
+# sayso-verifier.npz (mel logistic on the 50 vs 19 verifier_live_fp, t=0.445).
 # Do not dump those 19 into this classifier.
 #
 # Exported ONNX md5: b840f51f312abcd5b205e1fc1e32b2ed

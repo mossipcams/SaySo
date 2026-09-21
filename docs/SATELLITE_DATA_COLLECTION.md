@@ -68,7 +68,7 @@ Beep on the speaker, ~1.2 s record, 200 takes. Output on the Pi:
   padded_16k_2s/         # 16 kHz, 2.0 s, silence pad (center)
 ```
 
-Host copy: `sayso-nanowakeword/data/200-positive/` (padded) and `raw/`.
+Host copy: `sayso-wake-data/data/200-positive/` (padded) and `raw/`.
 
 Measured vs living2’s 50 / holdout SaySo:
 
