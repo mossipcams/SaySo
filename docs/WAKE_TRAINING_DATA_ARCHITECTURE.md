@@ -1,0 +1,150 @@
+# Wake training-data architecture
+
+Phrase is **SaySo**. Wavs are **off git**. This file describes **what exists
+today**, not a target design. The current layout is **not ideal**: too many
+directories with overlapping jobs, no single train/eval contract, and new
+positives do not match the window the classifier actually scores.
+
+Living ops counts: `docs/HANDOFF_WAKE.md`. Collection: `docs/SATELLITE_DATA_COLLECTION.md`.
+Older intent (partly stale): `docs/WAKE_WORD_DATA.md`.
+
+## Machines
+
+| Host | Tree | Job |
+| --- | --- | --- |
+| Pi `192.168.1.54` | `/var/lib/sayso-satellite/` | Capture, live ONNX, miner spool |
+| Train `192.168.1.140` | `/home/ubuntu/sayso-nanowakeword/data/` | Named wav **sets** (Snowball) |
+| Train `192.168.1.140` | `/home/ubuntu/sayso-wakeword/` | LiveKit `data/` (backgrounds, RIRs, ACAV features), `output-living2/`, isolated `runs/` |
+
+The git worktree does **not** hold training wavs. `satellite/models/living2.yaml`
+is the recipe; `n_samples` there is a leftover generate field. Skip
+`livekit.wakeword generate`. Features are 16 kHz mono, **2.0 s** windows
+(`clip_duration: 2.0`), then 8 augment rounds.
+
+## What the classifier actually sees
+
+LiveKit `predict` is one **32000-sample** (2.0 s) window, hop **2560**.
+living2 train originals on disk are **32768** samples (2.048 s). Replay uses
+the first 2.0 s only, so the last 48 ms is unused. That is the real positive
+class: a **this-mic 2 s frame**, not “a SaySo burst in isolation.”
+
+Shipped model: living2 ONNX + mel verifier. Fire iff LiveKit ≥ **0.28** (Pi)
+or **0.50** (host recipe comment) **and** verifier ≥ **0.445**. Mine on
+LiveKit **before** the verifier veto.
+
+## Named sets on the host (`sayso-nanowakeword/data/`)
+
+Counts are wavs in the directory root (2026-09-21). Many folders are leftover
+experiments and must not be treated as “more data = better.”
+
+### In living2 (classifier)
+
+| Set | n | Role |
+| --- | ---: | --- |
+| `positive_recorded/` | 50 | Train positives |
+| `negative_living_iso/` | 23 | Train neg |
+| `negative_room/` | 43 | Train neg |
+| `negative_recorded/` | 24 | Train neg |
+| `negative_living_talk/` | 89 | Trainer **val only** |
+
+Val positives are **10 copies** of the 50 (not independent). Backgrounds/RIRs
+live under `sayso-wakeword/data/`, not this tree. Class prior: positive **96**,
+ACAV **64**, `max_negative_weight` **200**.
+
+### Verifier only (not the classifier)
+
+| Set | n |
+| --- | ---: |
+| `nano_live_fp/` | 19 |
+
+Fit: 50 recorded SaySo vs these 19. Do not dump them into living2.
+
+### Never train the classifier on
+
+| Set | n | Why |
+| --- | ---: | --- |
+| `holdout_living/` | 23 | Living-room gate (8 SaySo + talk/cmd/neg) |
+| `holdout_eval/` | 21 | Second holdout |
+| `negative_miner_party/` | 74 | Live-complaint-style FPs |
+| Pi mining spool | — | Unlabelled until `--label` |
+
+### Available, not in living2
+
+| Set | n | What it actually is |
+| --- | ---: | --- |
+| `200-positive/` | 200 | 16 kHz **2.0 s** center-padded prompted takes + `SOURCE.txt` |
+| `200-positive/raw/` | 200 | Native **48 kHz ~1.13 s** ALSA chops from the same session |
+| `positive_recorded_holdback/` | 74 | Extra recorded positives; not the living2 50 |
+
+On the stored 2 s `200-positive/*.wav` files, living2 AND-gate already fires
+**147/200** at 0.28 (median LiveKit ~0.74). They are real SaySos in that
+packaging. They are **not** a drop-in replacement for the 50: raw captures
+are quieter (~−48 dBFS, peak ~900 vs living2 ~−37 dBFS, peak ~3700) and
+only ~0.56 s of active speech vs ~1.2 s on the 50/holdout.
+
+### Leftover / do not casually mix
+
+TTS and scrape piles from older recipes: `positive/` (13700), `positive_val/`
+(6000), `negative/` (21500), `negative_phoneme/` (8000), `negative_talk/`,
+`negative_iso_tts/`, `negative_tts_small/`, `negative_living_up/`,
+`negative_mined/` (1539 unlabelled-style), `negative_mined_labelled/` (32).
+`sayso-training.yaml` still points at phonetic inference. Failed levers
+(blend, living3 ACAV, living6 +357 mine negs) used this sprawl.
+
+## Isolated train runs (`sayso-wakeword/runs/`)
+
+Each candidate should copy wavs into `output/sayso/{positive,negative}_{train,test}/`
+as `clip_NNNNNN.wav` (unaugmented) plus `_r0`…`_r7` after augment. Do **not**
+write into `output-living2/`.
+
+Known runs:
+
+| Run | Intent | Outcome |
+| --- | --- | --- |
+| `labelled-20260921/` | 50 + labelled miner clips | Rejected (recall/FP trade) |
+| `pos200-20260921/` | **Replace** 50 with 200, `target_fpph` 0.02 | `max_neg_w` 200→800; 5/8; dry train ~0.08 |
+| `pos200-wake-20260921/` | 50 + 200 **+10 dB, room overlay, right-align** | 7/8 but FPs; overlay verifier ~0.03 |
+| `pos200-keep-20260921/` | 50 + 200 as stored 2 s | **Aborted** (no export) |
+
+Production Pi still living2.
+
+## Why this architecture is not ideal
+
+1. **Two host trees** (`nanowakeword/data` vs `wakeword/output-living2`) with
+   duplicated splits. The yaml `data_dir` is backgrounds/RIRs, not the named
+   sets. Easy to train the wrong folder.
+2. **Directory name = label** with no sidecar on the 50/200. Miner records
+   have labels; recorded positives do not. Easy to mix holdout into train.
+3. **Val talk (89) is also an eval gate.** `target_fp_per_hour: 0.02` on that
+   val set **doubles** `max_negative_weight`. living2.yaml still has 0.02.
+   Pinning 1800 is a trainer hack, not a data model.
+4. **New positives have no intake spec.** 200 arrived as 1.13 s 48 kHz chops,
+   then silence-padded 2 s, then (in one run) room-overlaid. Three different
+   objects, one folder name. The classifier window is always 2 s this-mic.
+5. **Eval sets and hard-neg piles sit next to train sets** with similar names
+   (`negative_mined` vs `negative_miner_party` vs `negative_living_talk`).
+6. **Holdback 74, 200-positive, and the 50** are three positive families
+   with no documented join rule (union vs replace vs “misses only”).
+7. **Git cannot see the data.** Architecture lives in HANDOFF + this file +
+   host disk. Drift is normal.
+
+## Intake that would match inference (not implemented)
+
+One positive example = **this Snowball**, **16 kHz**, **2.05 s native** (or
+2.0 s with the word in-window), level near the 50 (**~−38 dBFS**), **not** in
+holdout. One hard negative = **human-labelled miner window** near 0.25–0.45,
+not the 89/74/19 eval sets. Keep the 50. Do not silence-pad 1 s takes or
+overlay room beds the verifier rejects.
+
+## Trainer contract (living2)
+
+```text
+skip generate
+augment × 8 → features (n × 8, 16, 96)
+train 20k + optional FP phases
+export sayso.onnx
+ignore optimal_threshold (~0.05)
+score at 0.28 (Pi) / 0.50 (host notes) AND verifier 0.445
+```
+
+`wake_train.py --schedule` stays disabled (`satellite/eval/audio/` empty).
