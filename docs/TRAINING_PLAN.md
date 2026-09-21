@@ -314,7 +314,7 @@ when the training design or its safety boundary changes.
 run unattended training and evaluation. Save candidate bundles locally;
 deployment remains separate.
 
-**Scope:** LiveKit first; NanoWakeWord stays an optional prototype. Reuse the
+**Scope:** LiveKit is the only wake provider. Reuse the
 LVA audio feed, existing trainer/evaluator, one Python batch command, ordinary
 files, SSH/rsync, and one host scheduler. Training and offline transcription
 run on the host. Preserve HA ownership, voice-path validation/execution/state
@@ -379,7 +379,7 @@ without degrading the voice path.
    without restart. Age retention applies to acknowledged local remnants and
    unpinned host-side unknown records; protect pinned datasets and run inputs.
 
-**Files:** `satellite/sayso/wake/{mining,livekit,nanowakeword,hook}.py`,
+**Files:** `satellite/sayso/wake/{mining,livekit,hook}.py`,
 `satellite/sayso/{events,launcher,config}.py`, and
 `satellite/sayso/wake/stt_capture.py` for correlation metadata;
 `scripts/wake_mine_report.py`, `satellite/README.md`, and colocated checks.
@@ -427,7 +427,7 @@ and a reproducible evaluation of the current model.
    deployed threshold and a threshold chosen only on calibration data. Freeze
    both baselines before training; calibration alone may fix the immediate issue.
 
-**Files:** `satellite/models/{README.md,sayso-training.yaml,sayso-nanowakeword.yaml}`,
+**Files:** `satellite/models/{README.md,sayso-training.yaml,sayso-wake-data.yaml}`,
 `.gitignore`, `scripts/wake_mine_report.py`,
 `satellite/sayso/wake/{eval.py,test_eval.py}`,
 `satellite/eval/{cases.json,manifest.json,run.py,test_run.py,README.md}`,

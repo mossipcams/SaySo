@@ -13,7 +13,7 @@ Older intent (partly stale): `docs/WAKE_WORD_DATA.md`.
 | Host | Tree | Job |
 | --- | --- | --- |
 | Pi `192.168.1.54` | `/var/lib/sayso-satellite/` | Capture, live ONNX, miner spool |
-| Train `192.168.1.140` | `/home/ubuntu/sayso-nanowakeword/data/` | Named wav **sets** (Snowball) |
+| Train `192.168.1.140` | `/home/ubuntu/sayso-wake-data/data/` | Named wav **sets** (Snowball) |
 | Train `192.168.1.140` | `/home/ubuntu/sayso-wakeword/` | LiveKit `data/` (backgrounds, RIRs, ACAV features), `output-living2/`, isolated `runs/` |
 
 The git worktree does **not** hold training wavs. `satellite/models/living2.yaml`
@@ -32,7 +32,7 @@ Shipped model: living2 ONNX + mel verifier. Fire iff LiveKit ≥ **0.28** (Pi)
 or **0.50** (host recipe comment) **and** verifier ≥ **0.445**. Mine on
 LiveKit **before** the verifier veto.
 
-## Named sets on the host (`sayso-nanowakeword/data/`)
+## Named sets on the host (`sayso-wake-data/data/`)
 
 Counts are wavs in the directory root (2026-09-21). Many folders are leftover
 experiments and must not be treated as “more data = better.”
@@ -55,7 +55,7 @@ ACAV **64**, `max_negative_weight` **200**.
 
 | Set | n |
 | --- | ---: |
-| `nano_live_fp/` | 19 |
+| `verifier_live_fp/` | 19 |
 
 Fit: 50 recorded SaySo vs these 19. Do not dump them into living2.
 
@@ -110,7 +110,7 @@ Production Pi still living2.
 
 ## Why this architecture is not ideal
 
-1. **Two host trees** (`nanowakeword/data` vs `wakeword/output-living2`) with
+1. **Two host trees** (`sayso-wake-data/data` vs `wakeword/output-living2`) with
    duplicated splits. The yaml `data_dir` is backgrounds/RIRs, not the named
    sets. Easy to train the wrong folder.
 2. **Directory name = label** with no sidecar on the 50/200. Miner records
