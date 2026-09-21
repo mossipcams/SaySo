@@ -98,3 +98,34 @@ def test_rglob_does_not_double_index_records_window(tmp_path: Path) -> None:
     entries = wake_mine_report._scan_wake_roots([spool])
     window_entries = [entry for entry in entries if entry.get("path") == str(window)]
     assert len(window_entries) == 1
+
+
+def test_label_corpus_event(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    corpus = tmp_path / "corpus"
+    from satellite.sayso.wake.corpus import import_spool_record
+
+    record_dir = corpus / "spool" / "records" / "evt-1"
+    record_dir.mkdir(parents=True)
+    _write_window_wav(record_dir / "window.wav", seed=9)
+    (record_dir / "record.json").write_text(
+        json.dumps(
+            {
+                "capture_id": "evt-1",
+                "session_id": "s1",
+                "score": 0.4,
+                "sampling_reason": "near_threshold",
+                "hashes": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    import_spool_record(record_dir, corpus)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["wake_mine_report.py", str(corpus), "--label", "evt-1", "negative"],
+    )
+    rc = wake_mine_report.main()
+    assert rc == 0
+    meta = json.loads((corpus / "events" / "evt-1" / "record.json").read_text())
+    assert meta["label"] == "negative"

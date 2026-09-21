@@ -41,6 +41,14 @@ if str(_SATELLITE_ROOT) not in sys.path:
     sys.path.insert(0, str(_SATELLITE_ROOT))
 
 from sayso.wake.mining import ingest_record, write_ack  # noqa: E402
+from sayso.wake.corpus import (  # noqa: E402
+    EVENTS_DIR,
+    import_spool_records,
+    load_events,
+    set_event_label,
+)
+from sayso.wake.replay import replay_and_import_session  # noqa: E402
+from sayso.wake.sessions import ingest_session, list_sessions, load_session  # noqa: E402
 
 LABELS = ("positive", "negative", "unsure")
 MANIFEST_NAME = "wake_cleanup_manifest.json"
@@ -71,6 +79,9 @@ def _record_dirs(spool: Path) -> list[Path]:
     records = spool / "records"
     if records.is_dir():
         return sorted(p for p in records.iterdir() if p.is_dir())
+    events = spool / EVENTS_DIR
+    if events.is_dir():
+        return sorted(p for p in events.iterdir() if p.is_dir())
     return []
 
 
@@ -106,6 +117,8 @@ def load(spool: Path) -> list[dict]:
         meta["_wav"] = record_dir / "window.wav"
         meta["_json"] = meta_path
         rows.append(meta)
+    if not rows and (spool / EVENTS_DIR).is_dir():
+        rows.extend(event.to_row() for event in load_events(spool))
     rows.extend(_legacy_rows(spool))
     return rows
 
@@ -420,6 +433,18 @@ def main() -> int:
     ap.add_argument("--play", action="store_true", help="Print a play command per row")
     ap.add_argument("--ingest", action="store_true", help="Verify hashes and write ack files")
     ap.add_argument("--label", nargs=2, metavar=("STEM", "LABEL"), help=f"Set label; one of {LABELS}")
+    ap.add_argument("--ingest-session", type=Path, default=None, help="Ingest a long-form WAV as a named session")
+    ap.add_argument("--session-id", default=None, help="Optional stable session id for --ingest-session")
+    ap.add_argument("--notes", default=None, help="Optional session notes")
+    ap.add_argument("--replay-session", default=None, help="Replay one ingested session through production wake path")
+    ap.add_argument("--import-spool", type=Path, default=None, help="Import verified mining records into corpus events")
+    ap.add_argument("--model", type=Path, default=_REPO_ROOT / "satellite" / "models" / "output-living2" / "sayso" / "sayso.onnx")
+    ap.add_argument("--verifier", type=Path, default=_REPO_ROOT / "satellite" / "models" / "output-living2" / "sayso" / "verifier.npz")
+    ap.add_argument("--phrase", default="SaySo")
+    ap.add_argument("--detect-threshold", type=float, default=0.28)
+    ap.add_argument("--mine-threshold", type=float, default=0.1)
+    ap.add_argument("--refractory", type=float, default=2.0)
+    ap.add_argument("--below-rate", type=float, default=0.002)
     ap.add_argument("--inventory", action="store_true", help="Scan wake-only roots and write cleanup manifest")
     ap.add_argument(
         "--cleanup",
@@ -471,14 +496,57 @@ def main() -> int:
             print(f"Label must be one of {LABELS}", file=sys.stderr)
             return 1
         record_json = args.spool / "records" / stem / "record.json"
-        sidecar = record_json if record_json.is_file() else args.spool / f"{stem}.json"
+        event_json = args.spool / EVENTS_DIR / stem / "record.json"
+        sidecar = record_json if record_json.is_file() else event_json if event_json.is_file() else args.spool / f"{stem}.json"
         if not sidecar.is_file():
             print(f"No sidecar for stem {stem}", file=sys.stderr)
             return 1
-        meta = json.loads(sidecar.read_text(encoding="utf-8"))
-        meta["label"] = label
-        sidecar.write_text(json.dumps(meta, indent=2, sort_keys=True), encoding="utf-8")
+        if sidecar == event_json:
+            set_event_label(args.spool, stem, label)
+        else:
+            meta = json.loads(sidecar.read_text(encoding="utf-8"))
+            meta["label"] = label
+            sidecar.write_text(json.dumps(meta, indent=2, sort_keys=True), encoding="utf-8")
         print(f"{stem} -> {label}")
+        return 0
+
+    if args.ingest_session:
+        session = ingest_session(args.ingest_session, args.spool, session_id=args.session_id, notes=args.notes)
+        print(f"session {session.session_id}  {session.duration_seconds:.1f}s  {session.audio_path}")
+        return 0
+
+    if args.replay_session:
+        session = load_session(args.spool, args.replay_session)
+        from sayso.wake.livekit import LiveKitWakeWordProvider
+
+        provider = LiveKitWakeWordProvider(
+            model_path=args.model,
+            phrase=args.phrase,
+            threshold=args.detect_threshold,
+            refractory_seconds=args.refractory,
+            verifier_path=args.verifier,
+        )
+        if not provider.available:
+            print(f"wake model unavailable: {args.model}", file=sys.stderr)
+            return 1
+        stats, imported = replay_and_import_session(
+            args.spool,
+            session,
+            provider,
+            mine_threshold=args.mine_threshold,
+            detect_threshold=args.detect_threshold,
+            model_path=args.model,
+            below_sample_rate=args.below_rate,
+        )
+        print(
+            f"replayed {session.session_id}: windows={stats.windows_scored} "
+            f"detections={stats.detections} events={len(imported)}"
+        )
+        return 0
+
+    if args.import_spool:
+        imported = import_spool_records(args.import_spool, args.spool)
+        print(f"imported {len(imported)} event(s) into corpus")
         return 0
 
     rows = load(args.spool)

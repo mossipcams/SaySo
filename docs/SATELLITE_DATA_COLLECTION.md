@@ -44,12 +44,30 @@ Each capture is a directory:
   pre.wav / post.wav   # optional
 ```
 
-Host ingest: `scripts/wake_mine_report.py` (`--label`, `--inventory`). The
-satellite deletes **only** host-acked records. Caps: `mine_max_records`
-(default 2000).
+Host ingest: `scripts/wake_mine_report.py` (`--ingest`, `--label`,
+`--inventory`). The satellite deletes **only** host-acked records. Caps:
+`mine_max_records` (default 2000).
 
 This is the path that matches inference. Labelling is still manual and
 easy to skip. Unlabelled spool must **not** go into the classifier.
+
+The Pi mines **2 s windows live** only. It does **not** ingest long-form
+sessions. Long-form corpus work happens on the host:
+
+```text
+Pi live miner spool (2 s windows)
+  -> wake_mine_report.py --ingest / --label
+
+host long-form WAV
+  -> wake_corpus.py ingest
+  -> wake_corpus.py replay (or wake_mine_report.py --replay-session)
+  -> wake_corpus.py label / wake_mine_report.py --label
+  -> wake_corpus.py split / snapshot / holdout-eval
+```
+
+Re-replay on the host replaces unlabeled events for that session and writes
+into a per-session `.replay_spool/<session_id>/` scratch dir so UUIDs do not
+accumulate across runs.
 
 ### 2. Prompted session (2026-09-21) — ad hoc, not wired into the unit
 

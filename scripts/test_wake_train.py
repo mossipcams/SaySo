@@ -204,6 +204,57 @@ def test_split_leakage_rejected(tmp_path: Path) -> None:
         wake_train.select_examples([leaked, good], splits)
 
 
+def test_select_examples_excludes_corpus_holdout_sessions(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "corpus_splits.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "seed": 1,
+                "holdout_session_ids": ["holdout_session"],
+                "assignments": {
+                    "holdout_session": "holdout",
+                    "train_session": "train",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    holdout_example = wake_train.Example(
+        source_id="evt_hold",
+        wav_path=tmp_path / "hold.wav",
+        label="positive",
+        split="train",
+        origin="corpus_event",
+        meta={"session_id": "holdout_session"},
+    )
+    train_example = wake_train.Example(
+        source_id="evt_train",
+        wav_path=tmp_path / "train.wav",
+        label="positive",
+        split="train",
+        origin="corpus_event",
+        meta={"session_id": "train_session"},
+    )
+    neg = wake_train.Example(
+        source_id="evt_neg",
+        wav_path=tmp_path / "neg.wav",
+        label="negative",
+        split="train",
+        origin="corpus_event",
+        meta={"session_id": "train_session"},
+    )
+    selected = wake_train.select_examples(
+        [holdout_example, train_example, neg],
+        {},
+        corpus_root=corpus,
+    )
+    source_ids = {ex.source_id for ex in selected}
+    assert "evt_hold" not in source_ids
+    assert {"evt_train", "evt_neg"} <= source_ids
+
+
 def test_omitted_real_features_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     result = _run_fixture(
         tmp_path,
@@ -527,3 +578,72 @@ def test_source_feature_count_assert(tmp_path: Path) -> None:
     feature.unlink()
     with pytest.raises(RuntimeError, match="source-to-feature"):
         wake_train.assert_source_feature_counts(snapshot)
+
+
+def _write_corpus_event(corpus: Path, event_id: str, session_id: str, *, label: str) -> None:
+    from satellite.sayso.wake.corpus import import_spool_record
+    from satellite.sayso.wake.livekit import WINDOW_SAMPLES
+
+    spool = corpus / "spool"
+    record_dir = spool / "records" / event_id
+    record_dir.mkdir(parents=True)
+    _write_pcm_wav(record_dir / "window.wav", 3000)
+    (record_dir / "record.json").write_text(
+        json.dumps(
+            {
+                "capture_id": event_id,
+                "session_id": session_id,
+                "score": 0.4,
+                "sampling_reason": "near_threshold",
+                "sample_start": 0,
+                "sample_end": WINDOW_SAMPLES,
+                "label": label,
+                "hashes": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    import_spool_record(record_dir, corpus)
+
+
+def test_corpus_holdout_excluded_from_training(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    paths = _fixture_paths(tmp_path)
+    corpus = tmp_path / "corpus"
+    _write_corpus_event(corpus, "hold_pos", "holdout_session", label="positive")
+    _write_corpus_event(corpus, "hold_neg", "holdout_session", label="negative")
+    _write_corpus_event(corpus, "train_pos", "train_session", label="positive")
+    _write_corpus_event(corpus, "train_neg", "train_session", label="negative")
+    (corpus / "corpus_splits.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "seed": 1,
+                "holdout_session_ids": ["holdout_session"],
+                "assignments": {
+                    "holdout_session": "holdout",
+                    "train_session": "train",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    rows = wake_train.ingest_corpus_rows(corpus, seed=1)
+    source_ids = {row["capture_id"] for row in rows}
+    assert "hold_pos" not in source_ids
+    assert "hold_neg" not in source_ids
+    assert {"train_pos", "train_neg"} <= source_ids
+
+
+def test_living2_seed_preserved_without_replace_flag(tmp_path: Path) -> None:
+    paths = _fixture_paths(tmp_path)
+    rows = wake_train.ingest_sources(paths["spool"], paths["seed_dir"])
+    origins = {row.get("origin") for row in rows}
+    assert "trusted_seed" in origins
+
+
+def test_replace_living2_omits_seed(tmp_path: Path) -> None:
+    paths = _fixture_paths(tmp_path)
+    rows = wake_train.ingest_sources(paths["spool"], paths["seed_dir"], corpus_root=None)
+    assert any(row.get("origin") == "trusted_seed" for row in rows)
+    rows = wake_train.ingest_sources(paths["spool"], None)
+    assert not any(row.get("origin") == "trusted_seed" for row in rows)

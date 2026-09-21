@@ -7,7 +7,7 @@ import time
 import wave
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 import numpy as np
 
@@ -443,6 +443,115 @@ def case_result_to_dict(result: WakeCaseResult) -> dict[str, Any]:
     if result.pi_inference_ms is not None:
         payload["pi_inference_ms"] = result.pi_inference_ms
     return payload
+
+
+def false_activations_per_hour(
+    *,
+    activation_count: int,
+    duration_seconds: float,
+) -> float:
+    if duration_seconds <= 0:
+        return float("inf")
+    hours = duration_seconds / 3600.0
+    return activation_count / hours if hours > 0 else float("inf")
+
+
+def activation_matches_labeled_positive(
+    sample_index: int,
+    labeled_positives: Sequence[Any],
+) -> bool:
+    for event in labeled_positives:
+        if getattr(event, "label", None) != "positive":
+            continue
+        start = int(getattr(event, "sample_start", 0) or 0)
+        end = int(getattr(event, "sample_end", 0) or 0)
+        if start <= sample_index <= end:
+            return True
+    return False
+
+
+def filter_false_activations(
+    activation_samples: Sequence[int],
+    labeled_positives: Sequence[Any] | None = None,
+) -> list[int]:
+    labeled = labeled_positives or []
+    return [
+        sample
+        for sample in activation_samples
+        if not activation_matches_labeled_positive(sample, labeled)
+    ]
+
+
+def evaluate_holdout_session(
+    session: "RecordingSession",
+    provider: LiveKitWakeWordProvider,
+    *,
+    predict: Optional[Callable[..., Any]] = None,
+    labeled_positives: Sequence[Any] | None = None,
+) -> dict[str, Any]:
+    """Continuous replay of one holdout session; report detections and FA/hour."""
+    from .replay import collect_session_activations
+    from .sessions import RecordingSession
+
+    _ = RecordingSession  # re-export for type checkers
+    activation_samples, inference_ms, duration_seconds, detected = collect_session_activations(
+        session,
+        provider,
+        predict=predict,
+    )
+    false_activations = filter_false_activations(activation_samples, labeled_positives)
+    detection_sample = activation_samples[0] if activation_samples else None
+    return {
+        "session_id": session.session_id,
+        "duration_seconds": duration_seconds,
+        "detected": detected,
+        "detection_sample": detection_sample,
+        "activation_samples": list(activation_samples),
+        "activation_count": len(activation_samples),
+        "false_activation_count": len(false_activations),
+        "false_activations_per_hour": false_activations_per_hour(
+            activation_count=len(false_activations),
+            duration_seconds=duration_seconds,
+        ),
+        "pi_inference_ms": compute_latency_percentiles(inference_ms) if inference_ms else {"p50": 0.0, "p95": 0.0},
+    }
+
+
+def evaluate_holdout_sessions(
+    sessions: Sequence["RecordingSession"],
+    provider: LiveKitWakeWordProvider,
+    *,
+    predict: Optional[Callable[..., Any]] = None,
+    labeled_positives_by_session: Mapping[str, Sequence[Any]] | None = None,
+) -> dict[str, Any]:
+    from .sessions import RecordingSession
+
+    _ = RecordingSession
+    labeled_by_session = labeled_positives_by_session or {}
+    results = [
+        evaluate_holdout_session(
+            session,
+            provider,
+            predict=predict,
+            labeled_positives=labeled_by_session.get(session.session_id),
+        )
+        for session in sessions
+    ]
+    total_seconds = sum(float(entry["duration_seconds"]) for entry in results)
+    total_false_activations = sum(int(entry["false_activation_count"]) for entry in results)
+    return {
+        "sessions": results,
+        "aggregate": {
+            "session_count": len(results),
+            "duration_seconds": total_seconds,
+            "activation_count": sum(int(entry["activation_count"]) for entry in results),
+            "false_activation_count": total_false_activations,
+            "false_activations_per_hour": false_activations_per_hour(
+                activation_count=total_false_activations,
+                duration_seconds=total_seconds,
+            ),
+        },
+    }
 
 
 def write_synthetic_wav(path: Path, samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> None:
