@@ -18,9 +18,12 @@ The overlay owns one deliberate resample and the capture timeline:
 
 - Upstream LVA hardcodes `samplerate=16000`, which makes the audio server
   resample the device implicitly. The overlay wraps `process_audio`, opens the
-  recorder at `audio.capture_rate` (44.1 kHz for a Snowball-class mic), and
-  resamples **once** to 16 kHz through a continuous polyphase resampler
-  (`satellite/sayso/wake/capture.py`). No per-block interpolation.
+  recorder at `audio.capture_rate`, and resamples **once** to 16 kHz through a
+  continuous polyphase resampler (`satellite/sayso/wake/capture.py`) when
+  `capture_rate` ≠ `sample_rate`. The living-room Pi uses an **EMEET OfficeCore
+  M0 Plus** at **16 kHz native** (`capture_rate: 16000`, `mic_gain_db: 0.0`) so
+  transport matches the device without a 16→48→16 chain. Snowball-class mics at
+  44.1/48 kHz remain supported the same way. No per-block interpolation.
 - One `WakeCaptureRing` is the single source of truth for sample order. Wake
   inference reads a window from it, the detection carries the window's end
   sample index, and the wake→STT handoff drains
@@ -63,10 +66,10 @@ CI on this repo applies the patches to the pinned LVA tree; a running satellite 
 
 ## Wake model
 
-Copy `models/sayso.onnx` and `models/sayso-verifier.npz` to
-`/opt/sayso-satellite/models/` before start. Production is living2 LiveKit
-plus the mel verifier. See `models/README.md` and `models/sayso_eval.json`
-(threshold 0.5 and verifier 0.445).
+Copy `models/sayso.onnx` to `/opt/sayso-satellite/models/` before start.
+Production on the Pi is **`livekit-corpus-hn-v1`** (`0a3260c8`) at threshold
+**0.42**, single-stage LiveKit (no mel verifier). See `models/README.md`.
+Historical living2 + `sayso-verifier.npz` notes remain in that file.
 
 ### Wake mining (opt-in)
 

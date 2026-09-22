@@ -19,10 +19,16 @@ Satellite is a thin LVA overlay. It does not do STT, NLU, or actions. It
 | | |
 | --- | --- |
 | Host | `192.168.1.54`, user `pi`, SSH **2222** |
-| Mic | Blue Snowball USB (`hw:1,0` / Pulse `alsa_input.usb-BLUE_MICROPHONE_Blue_Snowball_…`) |
-| Native capture | **48 kHz** mono; pipeline resamples **once** to **16 kHz** |
-| Config gain | `audio.mic_gain_db: 10.0` on the satellite path |
+| Mic | **EMEET OfficeCore M0 Plus** USB (`328f:0109`) |
+| Pulse input | `alsa_input.usb-EMEET_OfficeCore_M0_Plus_EMEET_OfficeCore_M0_Plus_EM140c8d78cae92506-00.mono-fallback` |
+| Pulse output | `alsa_output.usb-EMEET_OfficeCore_M0_Plus_EMEET_OfficeCore_M0_Plus_EM140c8d78cae92506-00.analog-stereo` |
+| Native capture | **`audio.capture_rate: 16000`** mono — device-native; **no** 16 kHz→48 kHz→16 kHz chain |
+| Config gain | `audio.mic_gain_db: 0.0` (Snowball at +24 dB clipped: peak 32767, 394 clips — **historical**) |
+| Wake model | `livekit-corpus-hn-v1` ONNX SHA **`0a3260c8`**, threshold **0.42** (single-stage LiveKit) |
 | Unit | `sayso-satellite.service` (override User=`pi`, `PULSE_SERVER` in `/run/user/1001`) |
+
+Pi runtime config lives in **`/etc/sayso-satellite/config.yaml`** on the device (not copied into this repo).
+The living-room mic was previously a Blue Snowball; Snowball paths below are **historical** capture notes.
 
 Pi has **no `sftp-server`**. Copy with `rsync` over SSH. Wavs stay off git.
 
@@ -44,8 +50,8 @@ Config: `wake_word.mine_dir: /var/lib/sayso-satellite/wake-mining`.
 classifier scored (`satellite/sayso/wake/mining.py`), plus optional
 `pre.wav` / `post.wav` from the capture ring. Sampling classes:
 
-- `detection` — score ≥ threshold (0.28)
-- `near_threshold` — `mine_threshold` (0.25) ≤ score < threshold
+- `detection` — score ≥ threshold (**0.42** on the Pi today)
+- `near_threshold` — `mine_threshold` ≤ score < threshold
 - `below_threshold` — sparse sample of the rest
 
 Each capture is a directory:

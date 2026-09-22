@@ -45,8 +45,8 @@ preroll `underflow` flag.
 ```yaml
 audio:
   sample_rate: 16000        # transport rate to Home Assistant (fixed)
-  capture_rate: 44100       # native device rate; one deliberate resample
-  mic_gain_db: 6.0          # fixed gain, applied once
+  capture_rate: 16000       # Pi today: EMEET M0 Plus native 16 kHz (no extra resample)
+  mic_gain_db: 0.0          # fixed gain, applied once (+24 dB Snowball clipped — historical)
   noise_suppression: 0      # stay off until a test proves it helps
   auto_gain: 0              # no AGC
   aec_gate_ms: 0            # optional extra delay before the mic opens (does not strip STT audio)

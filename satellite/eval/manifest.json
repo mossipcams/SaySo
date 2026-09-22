@@ -6,6 +6,6 @@
   "audio_dir": "audio",
   "fixture_dir": "fixtures",
   "bootstrap_blocker": "satellite/eval/audio has no trusted fixtures. All five cases in cases.json skip in default mode and fail in --strict mode.",
-  "collection_requirement": "Record trusted seed, calibration, and independent eval WAVs (16-bit PCM mono, 16 kHz preferred) from the target Pi + Blue Snowball living-room setup. Do not fabricate evaluation audio.",
+  "collection_requirement": "Record trusted seed, calibration, and independent eval WAVs (16-bit PCM mono, 16 kHz preferred) from the target Pi + EMEET OfficeCore M0 Plus living-room setup (Snowball recordings are historical). Do not fabricate evaluation audio.",
   "notes": "Place reviewed WAV fixtures under audio/. Missing files are skipped by default and fail in strict mode."
 }

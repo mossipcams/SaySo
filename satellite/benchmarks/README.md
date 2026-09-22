@@ -9,7 +9,7 @@ the audio path.
 | Variant | What it does |
 | --- | --- |
 | `current` | Requests 16 kHz from the device and lets the audio server resample implicitly, with no anti-alias filter under our control. |
-| `corrected` | Captures at the device's native rate (44.1 kHz for the Snowball), applies fixed gain, and resamples once to 16 kHz through the production `CaptureResampler`. |
+| `corrected` | Captures at the device's native rate (16 kHz on the Pi EMEET M0 Plus today; 44.1 kHz was typical for the historical Snowball), applies fixed gain, and resamples once to 16 kHz through the production `CaptureResampler` when native ≠ 16 kHz. |
 
 Both variants get the same fixed gain. The benchmark deliberately does **not**
 sweep noise suppression: the working hypothesis is that gain, not NS, is the

@@ -147,18 +147,61 @@ The canonical trainer for the next model is LiveKit's documented pipeline via
 pip install -r satellite/models/requirements-wake-train.txt
 python3 scripts/wake_livekit_run.py run \
   --config satellite/models/sayso.yaml \
-  --work-dir /home/ubuntu/sayso-wakeword/runs/livekit-restart
+  --work-dir /home/ubuntu/sayso-wakeword/runs/livekit-corpus-hn-v1 \
+  --hard-negative-features /home/ubuntu/sayso-wakeword/runs/corpus-hn-v1/overlay.npy \
+  --hard-negative-provenance /home/ubuntu/sayso-wakeword/runs/corpus-hn-v1/overlay.provenance.json
 ```
 
 Stages: `setup` → `generate` (Piper TTS + adversarial negatives + backgrounds)
-→ `augment` → `train` → `export` → `eval`. **Do not skip generate.** Target
-phrases are SaySo/Sayso spelling variants only; `"say so"` homophones are
-`custom_negative_phrases`, never targets. Wavs stay off git; use an isolated
-`--work-dir` (never `output-living2/`).
+→ `augment` → **verified hard-negative overlay** → `train` → `export` → `eval`.
+**Do not skip generate.** Target phrases are SaySo/Sayso spelling variants
+only; `"say so"` homophones are `custom_negative_phrases`, never targets. Wavs
+stay off git; use an isolated `--work-dir` (never `output-living2/`).
 
-Real Snowball / miner audio is eval and optional later overlay — not the
-primary positive class for this restart. The shipped Pi model (living2 +
-verifier) is unchanged until a later qualified export.
+### Next retrain (2026-09-22): overlay corpus false-positive embeddings
+
+Every activation on the replayed corpora is a false positive (no
+device-addressed SaySo). Production frontend, deployed `5c5c3187`, threshold
+0.42, +10 dB:
+
+| Corpus | Hours | Clustered FPs | /hour | Max |
+| --- | ---: | ---: | ---: | ---: |
+| AMI far-field Mix Array1-01 | 8.67 | 42 | 4.84 | 0.596 |
+| VOiCES `mc05-stu-far` + `tele` | 14.15 | 8 | 0.57 | 0.495 |
+| Live Snowball TV/room 2026-09-21/22 | minutes | 13 labelled | — | 0.529 |
+
+ACAV-only overlay (`d57c11c2`, top-5000) cut AMI to 2.08 /hour. ACAV's mined
+tail topped out at 0.338, so random/hard ACAV does not cover far-TV. **Do not**
+put AMI, VOiCES, or TV wavs into generate / `negative_train` / 
+`custom_negative_phrases` — that memorizes those recordings. Overlay the
+**(16, 96) embeddings** of hard production windows only.
+
+Method:
+
+1. Split at recording level. Overlay train AMI meetings and VOiCES rooms;
+   hold out at least one AMI block and one VOiCES room (prefer `rm4`, which
+   carried long-track FPs). Labelled Snowball FPs are overlay-only, not
+   generate clips.
+2. Mine embeddings from production 2 s / 160 ms windows with score ≥ 0.25
+   (near-misses, not only 0.42 fires), diversity gap, provenance (path,
+   `start_sample`, score, model sha256). Cap ~5000 corpus rows. Concat with
+   ACAV top-5000 mined by `5c5c3187`.
+3. `sayso.yaml` stays ACAV 2048 / `target_fp_per_hour` 0.05 /
+   `max_negative_weight` 5000. Isolated work-dir
+   `/home/ubuntu/sayso-wakeword/runs/livekit-corpus-hn-v1`. Do not empty
+   `CUDA_VISIBLE_DEVICES`. Do not stop LFM2.
+4. Qualify on stock LiveKit val, held-out AMI, held-out VOiCES room,
+   `room-fp-challenge-20260922`, and `negative_tv_live_20260921`. Compare at
+   0.42 and at matched recall vs `5c5c3187`.
+
+Shipped 2026-09-22: Pi `/opt/sayso-satellite/models/sayso.onnx` is
+`livekit-corpus-hn-v1` (`0a3260c8`) at threshold 0.42. `5c5c3187` remains
+`sayso.onnx.bak-5c5c3187`. Clean holdout (AMI ES2005* + VOiCES rm4, 5.43 h)
+was 0 clustered FPs vs 5 on `5c5c3187` and 2 on `d57c11c2`.
+
+Real Snowball / miner wavs stay eval and optional embedding overlay — not the
+primary positive class. Current Pi model is `livekit-corpus-hn-v1`
+(`0a3260c8`) at threshold 0.42.
 
 ## Batch snapshot command (part 3 — secondary)
 

@@ -7,11 +7,13 @@ It detects the spoken phrase "Sayso" only. The generate-first model runs
 trainer `optimal_threshold` (~0.05). Do not substitute hey_livekit, hey_jarvis,
 or another model.
 
-Shipped on the Pi today: living2 (`b840f51f312abcd5b205e1fc1e32b2ed`) at
-threshold **0.28** with legacy `sayso-verifier.npz`
-(`0c632e778ca263e51c92d9ca95f451af`). That mel artifact is **not** a phrase
-check for the generate-first export; the satellite ignores it and stays
-single-stage when it is configured.
+Shipped on the Pi today: **`livekit-corpus-hn-v1`** (`0a3260c8`) at threshold
+**0.42**, single-stage LiveKit (no mel verifier). Mic path: EMEET OfficeCore
+M0 Plus, `capture_rate` **16000**, `mic_gain_db` **0.0** — see
+`docs/SATELLITE_DATA_COLLECTION.md`.
+
+Historical: living2 (`b840f51f312abcd5b205e1fc1e32b2ed`) at **0.28** with
+legacy `sayso-verifier.npz` (`0c632e778ca263e51c92d9ca95f451af`).
 
 ## Next train (LiveKit generate-first)
 
@@ -45,8 +47,9 @@ recorded data — keep it; `runs/pos200-*` were disposable workspaces.
 
 ## Shipped model (living2 — historical recipe)
 
-`living2.yaml` documents the **skip-generate** recipe that produced the ONNX on
-the Pi today. It is the current operating point, not the next train. The mix
+`living2.yaml` documents the **skip-generate** recipe that produced the prior
+Pi ONNX (replaced by `livekit-corpus-hn-v1`). It is not the current operating
+point. The mix
 is 50 this-room Snowball positives, 90 this-room train negatives, and 89
 overlapping-talk clips as **val only**.
 
@@ -142,8 +145,8 @@ on the Pi is `sayso.onnx.bak-03e612d8`.
 ## Bootstrap blockers
 
 - `../eval/audio/` has no trusted fixtures. `cases.json` skips every case in
-  default mode and fails in `--strict`. Populate with real Blue Snowball
-  recordings from the living room before baseline freeze, qualification, or
+  default mode and fails in `--strict`. Populate with real EMEET (or historical
+  Snowball) recordings from the living room before baseline freeze, qualification, or
   enabling `--schedule` on `scripts/wake_train.py`.
 - Homophone negatives in `sayso.yaml` remain phonetic inference until the
   mining spool supplies labelled real confusions. Run

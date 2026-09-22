@@ -2,8 +2,8 @@
 #
 # Primary training contract for the next model. Do not skip generate.
 # Piper TTS (default); homophone negatives are custom_negative_phrases only.
-# Shipped Pi operating point remains living2 + mel verifier until a later
-# qualified export replaces it.
+# Shipped Pi operating point: livekit-corpus-hn-v1 (0a3260c8) at threshold 0.42,
+# EMEET M0 Plus 16 kHz native, mic_gain_db 0.0 (see docs/SATELLITE_DATA_COLLECTION.md).
 #
 # Run on a CUDA host (not the Pi). Use an isolated work dir:
 #   python3 scripts/wake_livekit_run.py run \
@@ -85,11 +85,11 @@ steps: 100000
 learning_rate: 0.0001
 weight_decay: 0.01
 label_smoothing: 0.05
-max_negative_weight: 3000
-target_fp_per_hour: 0.1
+max_negative_weight: 5000
+target_fp_per_hour: 0.05
 
 batch_n_per_class:
   positive: 50
   adversarial_negative: 50
-  ACAV100M_sample: 1024
+  ACAV100M_sample: 2048
   background_noise: 50
