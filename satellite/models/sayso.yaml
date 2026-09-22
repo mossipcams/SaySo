@@ -2,8 +2,9 @@
 #
 # Primary training contract for the next model. Do not skip generate.
 # Piper TTS (default); homophone negatives are custom_negative_phrases only.
-# Shipped Pi operating point: livekit-corpus-hn-v1 (0a3260c8) at threshold 0.42,
-# EMEET M0 Plus 16 kHz native, mic_gain_db 0.0 (see docs/SATELLITE_DATA_COLLECTION.md).
+# Shipped Pi model: livekit-corpus-hn-v1 (0a3260c8). Live runtime audio/wake
+# settings: satellite/config.yaml (threshold 0.25, mine 0.12, mic_gain_db 6.0,
+# capture_rate 16000; Pulse sink 90% via pactl).
 #
 # Run on a CUDA host (not the Pi). Use an isolated work dir:
 #   python3 scripts/wake_livekit_run.py run \

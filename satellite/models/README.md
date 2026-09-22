@@ -7,10 +7,11 @@ It detects the spoken phrase "Sayso" only. The generate-first model runs
 trainer `optimal_threshold` (~0.05). Do not substitute hey_livekit, hey_jarvis,
 or another model.
 
-Shipped on the Pi today: **`livekit-corpus-hn-v1`** (`0a3260c8`) at threshold
-**0.42**, single-stage LiveKit (no mel verifier). Mic path: EMEET OfficeCore
-M0 Plus, `capture_rate` **16000**, `mic_gain_db` **0.0** — see
-`docs/SATELLITE_DATA_COLLECTION.md`.
+Shipped on the Pi today: **`livekit-corpus-hn-v1`** (`0a3260c8`) at live threshold
+**0.25** (`mine_threshold` **0.12**), single-stage LiveKit (no mel verifier).
+Mic path: EMEET OfficeCore M0 Plus, `capture_rate` **16000**, `mic_gain_db`
+**6.0** — see `satellite/config.yaml` and `docs/SATELLITE_DATA_COLLECTION.md`.
+Pulse sink volume **90%** is set outside yaml (`pactl`).
 
 Historical: living2 (`b840f51f312abcd5b205e1fc1e32b2ed`) at **0.28** with
 legacy `sayso-verifier.npz` (`0c632e778ca263e51c92d9ca95f451af`).

@@ -96,9 +96,11 @@ Identifying it requires the audio.
   hashes and writes `acks/`; the satellite deletes only acknowledged ids via
   `drain_acks()` and resumes after drain without restart.
 
-Live config (`/etc/sayso-satellite/config.yaml`): `mine_dir:
-/var/lib/sayso-satellite/wake-mining`, `mine_threshold: 0.1`. Review and label
-with `scripts/wake_mine_report.py`.
+Live config: **`satellite/config.yaml`** (Pi deploy:
+`/etc/sayso-satellite/config.yaml`). Wake `threshold: 0.25`, `mine_dir:
+/var/lib/sayso-satellite/wake-mining`, `mine_threshold: 0.12`, `mic_gain_db:
+6.0`, `capture_rate: 16000`. EMEET Pulse sink volume **90%** is via `pactl`,
+not yaml. Review and label with `scripts/wake_mine_report.py`.
 
 ## Train/eval split rule
 
@@ -195,13 +197,15 @@ Method:
    0.42 and at matched recall vs `5c5c3187`.
 
 Shipped 2026-09-22: Pi `/opt/sayso-satellite/models/sayso.onnx` is
-`livekit-corpus-hn-v1` (`0a3260c8`) at threshold 0.42. `5c5c3187` remains
-`sayso.onnx.bak-5c5c3187`. Clean holdout (AMI ES2005* + VOiCES rm4, 5.43 h)
-was 0 clustered FPs vs 5 on `5c5c3187` and 2 on `d57c11c2`.
+`livekit-corpus-hn-v1` (`0a3260c8`). Live detect threshold **0.25** and
+`mine_threshold` **0.12** are in `satellite/config.yaml` (qualified at **0.42**
+on holdout). `5c5c3187` remains `sayso.onnx.bak-5c5c3187`. Clean holdout
+(AMI ES2005* + VOiCES rm4, 5.43 h) was 0 clustered FPs vs 5 on `5c5c3187` and
+2 on `d57c11c2`.
 
 Real Snowball / miner wavs stay eval and optional embedding overlay — not the
 primary positive class. Current Pi model is `livekit-corpus-hn-v1`
-(`0a3260c8`) at threshold 0.42.
+(`0a3260c8`) with live threshold **0.25** per `satellite/config.yaml`.
 
 ## Batch snapshot command (part 3 — secondary)
 

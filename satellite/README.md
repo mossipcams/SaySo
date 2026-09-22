@@ -21,7 +21,8 @@ The overlay owns one deliberate resample and the capture timeline:
   recorder at `audio.capture_rate`, and resamples **once** to 16 kHz through a
   continuous polyphase resampler (`satellite/sayso/wake/capture.py`) when
   `capture_rate` ≠ `sample_rate`. The living-room Pi uses an **EMEET OfficeCore
-  M0 Plus** at **16 kHz native** (`capture_rate: 16000`, `mic_gain_db: 0.0`) so
+  M0 Plus** at **16 kHz native** (`capture_rate: 16000`, `mic_gain_db: 6.0` per
+  `satellite/config.yaml`) so
   transport matches the device without a 16→48→16 chain. Snowball-class mics at
   44.1/48 kHz remain supported the same way. No per-block interpolation.
 - One `WakeCaptureRing` is the single source of truth for sample order. Wake
@@ -68,7 +69,9 @@ CI on this repo applies the patches to the pinned LVA tree; a running satellite 
 
 Copy `models/sayso.onnx` to `/opt/sayso-satellite/models/` before start.
 Production on the Pi is **`livekit-corpus-hn-v1`** (`0a3260c8`) at threshold
-**0.42**, single-stage LiveKit (no mel verifier). See `models/README.md`.
+**0.25** (`mine_threshold` **0.12**), single-stage LiveKit (no mel verifier).
+See `models/README.md` and `satellite/config.yaml`. EMEET speaker level is **90%**
+on the Pulse sink (`pactl`, not yaml).
 Historical living2 + `sayso-verifier.npz` notes remain in that file.
 
 ### Wake mining (opt-in)
@@ -106,7 +109,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now sayso-satellite
 ```
 
-`/etc/sayso-satellite/config.yaml` and `secrets.yaml` must be readable by
+Copy `satellite/config.yaml` to `/etc/sayso-satellite/config.yaml` on the Pi.
+`secrets.yaml` stays on the device only. Both must be readable by
 `sayso`; keep `secrets.yaml` at `0640` owned by `root:sayso`.
 
 State lives in `/var/lib/sayso-satellite`, created by systemd through

@@ -43,7 +43,8 @@ Overlay rows are **(N, 16, 96) embeddings**, never wavs:
 Hold out at least one AMI recording block and one VOiCES room (`rm4`) from the
 overlay. Stock LiveKit val plus that holdout plus
 `room-fp-challenge-20260922` / `negative_tv_live_20260921` is the qualification
-path. Pi is `livekit-corpus-hn-v1` (`0a3260c8`) at 0.42. Prior
+path. Pi is `livekit-corpus-hn-v1` (`0a3260c8`) at live threshold **0.25**
+(`satellite/config.yaml`). Prior
 `5c5c3187` is `sayso.onnx.bak-5c5c3187`.
 
 ## Corpus / snapshot pipeline (secondary — implemented)
@@ -93,7 +94,7 @@ CLI surface:
 
 | Host | Tree | Job |
 | --- | --- | --- |
-| Pi `192.168.1.54` | `/var/lib/sayso-satellite/` | EMEET M0 Plus 16 kHz capture, live ONNX (`0a3260c8` @ 0.42), miner spool |
+| Pi `192.168.1.54` | `/var/lib/sayso-satellite/` | EMEET M0 Plus 16 kHz capture, live ONNX (`0a3260c8` @ 0.25), miner spool |
 | Pi `192.168.1.54` | `/var/lib/sayso-satellite/wake-sessions/` | **Staging** for long-form ingest before `ship` |
 | Train `192.168.1.140` | `/home/ubuntu/sayso-wake-data/corpus/` | **Canonical** long-form session corpus (replay, splits, snapshots) |
 | Train `192.168.1.140` | `/home/ubuntu/sayso-wake-data/data/` | Named wav **sets** (Snowball) |
@@ -108,7 +109,8 @@ is the primary training recipe (generate-first, 25k/5k samples, 3 augment
 rounds, `target_fp_per_hour: 0.05`, ACAV 2048, `max_negative_weight` 5000).
 `satellite/models/living2.yaml` documents the **historical** skip-generate
 recipe. Current Pi operating point is `livekit-corpus-hn-v1` (`0a3260c8`) at
-0.42. Features are 16 kHz mono, **2.0 s** windows (`clip_duration: 2.0`).
+**0.25** live / **0.12** mine (`satellite/config.yaml`). Features are 16 kHz
+mono, **2.0 s** windows (`clip_duration: 2.0`).
 
 ## What the classifier actually sees
 
@@ -117,7 +119,8 @@ living2 train originals on disk are **32768** samples (2.048 s). Replay uses
 the first 2.0 s only, so the last 48 ms is unused. That is the real positive
 class: a **this-mic 2 s frame**, not “a SaySo burst in isolation.”
 
-Shipped model (Pi): `livekit-corpus-hn-v1` (`0a3260c8`) at **0.42**, single-stage.
+Shipped model (Pi): `livekit-corpus-hn-v1` (`0a3260c8`) at live **0.25**
+(`satellite/config.yaml`), single-stage.
 Historical living2 ONNX + mel verifier: fire iff LiveKit ≥ **0.28** (Pi) or
 **0.50** (host recipe) **and** verifier ≥ **0.445**.
 
@@ -193,7 +196,7 @@ Known runs:
 | `livekit-restart/` | Generate-first baseline | Superseded; wavs deleted. ONNX md5 `3dd067e9` |
 | `livekit-random-neg/` | ACAV 2048 / FPPH 0.05 / max_neg 5000 | Prior Pi (`5c5c3187`); bak on device. Wavs deleted; features+ONNX kept |
 | `livekit-hard-neg-v1/` | Same generate + ACAV top-5000 overlay | AMI 4.84→2.08 /hour; not deployed (`d57c11c2`) |
-| `livekit-corpus-hn-v1/` | Generate-first + ACAV ∪ corpus FP embeddings | **On Pi** (`0a3260c8`) at 0.42. Holdout AMI+rm4: 0 FP / 5.43 h |
+| `livekit-corpus-hn-v1/` | Generate-first + ACAV ∪ corpus FP embeddings | **On Pi** (`0a3260c8`) at live 0.25. Holdout AMI+rm4: 0 FP / 5.43 h (qualified at 0.42) |
 | `labelled-20260921/` | 50 + labelled miner clips | Rejected (recall/FP trade) |
 | `pos200-20260921/` | **Replace** 50 with 200, `target_fpph` 0.02 | `max_neg_w` 200→800; 5/8; dry train ~0.08 |
 | `pos200-wake-20260921/` | 50 + 200 **+10 dB, room overlay, right-align** | 7/8 but FPs; overlay verifier ~0.03 |

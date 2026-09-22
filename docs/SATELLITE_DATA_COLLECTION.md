@@ -23,11 +23,13 @@ Satellite is a thin LVA overlay. It does not do STT, NLU, or actions. It
 | Pulse input | `alsa_input.usb-EMEET_OfficeCore_M0_Plus_EMEET_OfficeCore_M0_Plus_EM140c8d78cae92506-00.mono-fallback` |
 | Pulse output | `alsa_output.usb-EMEET_OfficeCore_M0_Plus_EMEET_OfficeCore_M0_Plus_EM140c8d78cae92506-00.analog-stereo` |
 | Native capture | **`audio.capture_rate: 16000`** mono — device-native; **no** 16 kHz→48 kHz→16 kHz chain |
-| Config gain | `audio.mic_gain_db: 0.0` (Snowball at +24 dB clipped: peak 32767, 394 clips — **historical**) |
-| Wake model | `livekit-corpus-hn-v1` ONNX SHA **`0a3260c8`**, threshold **0.42** (single-stage LiveKit) |
+| Config gain | `audio.mic_gain_db: 6.0` (Snowball at +24 dB clipped: peak 32767, 394 clips — **historical**) |
+| Pulse sink volume | **90%** on the EMEET analog-stereo sink (`pactl set-sink-volume`; not in yaml) |
+| Wake model | `livekit-corpus-hn-v1` ONNX SHA **`0a3260c8`**, live threshold **0.25**, `mine_threshold` **0.12** (single-stage LiveKit) |
 | Unit | `sayso-satellite.service` (override User=`pi`, `PULSE_SERVER` in `/run/user/1001`) |
 
-Pi runtime config lives in **`/etc/sayso-satellite/config.yaml`** on the device (not copied into this repo).
+Checked-in template: **`satellite/config.yaml`**. Deploy copy on the Pi:
+**`/etc/sayso-satellite/config.yaml`** (plus `secrets.yaml` on device only).
 The living-room mic was previously a Blue Snowball; Snowball paths below are **historical** capture notes.
 
 Pi has **no `sftp-server`**. Copy with `rsync` over SSH. Wavs stay off git.
@@ -50,7 +52,7 @@ Config: `wake_word.mine_dir: /var/lib/sayso-satellite/wake-mining`.
 classifier scored (`satellite/sayso/wake/mining.py`), plus optional
 `pre.wav` / `post.wav` from the capture ring. Sampling classes:
 
-- `detection` — score ≥ threshold (**0.42** on the Pi today)
+- `detection` — score ≥ threshold (**0.25** on the Pi today; see `satellite/config.yaml`)
 - `near_threshold` — `mine_threshold` ≤ score < threshold
 - `below_threshold` — sparse sample of the rest
 

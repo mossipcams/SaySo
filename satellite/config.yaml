@@ -1,0 +1,33 @@
+satellite:
+  name: Living Room
+  device_name: sayso-living-room
+  area: living_room
+home_assistant:
+  port: 6053
+audio:
+  input_device: alsa_input.usb-EMEET_OfficeCore_M0_Plus_EMEET_OfficeCore_M0_Plus_EM140c8d78cae92506-00.mono-fallback
+  output_device: alsa_output.usb-EMEET_OfficeCore_M0_Plus_EMEET_OfficeCore_M0_Plus_EM140c8d78cae92506-00.analog-stereo
+  sample_rate: 16000
+  channels: 1
+  capture_rate: 16000
+  mic_gain_db: 6.0
+  noise_suppression: 0
+  auto_gain: 0
+  aec_gate_ms: 150
+  stt_capture_enabled: true
+  stt_capture_dir: /var/lib/sayso-satellite/stt_capture
+wake_word:
+  provider: livekit
+  phrase: SaySo
+  model: /opt/sayso-satellite/models/sayso.onnx
+  threshold: 0.25
+  refractory_seconds: 2.0
+  preroll_ms: 750
+  post_tts_cooldown_ms: 250
+  wake_skip_ms: 120
+  mine_dir: /var/lib/sayso-satellite/wake-mining
+  mine_threshold: 0.12
+sounds:
+  wake: /opt/sayso-satellite/sounds/wake.wav
+  failure: /opt/sayso-satellite/sounds/failure.wav
+  unavailable: /opt/sayso-satellite/sounds/unavailable.wav

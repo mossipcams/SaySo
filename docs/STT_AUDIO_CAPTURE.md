@@ -42,14 +42,18 @@ preroll `underflow` flag.
 
 ## Configuration
 
+Living-room values match **`satellite/config.yaml`** (deployed at
+`/etc/sayso-satellite/config.yaml` on the Pi). EMEET Pulse sink playback level is
+**90%** via `pactl`, not yaml.
+
 ```yaml
 audio:
   sample_rate: 16000        # transport rate to Home Assistant (fixed)
   capture_rate: 16000       # Pi today: EMEET M0 Plus native 16 kHz (no extra resample)
-  mic_gain_db: 0.0          # fixed gain, applied once (+24 dB Snowball clipped — historical)
+  mic_gain_db: 6.0          # fixed gain, applied once
   noise_suppression: 0      # stay off until a test proves it helps
   auto_gain: 0              # no AGC
-  aec_gate_ms: 0            # optional extra delay before the mic opens (does not strip STT audio)
+  aec_gate_ms: 150          # optional extra delay before the mic opens (does not strip STT audio)
   stt_capture_enabled: true
   stt_capture_dir: /var/lib/sayso-satellite/stt_capture
 ```
