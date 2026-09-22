@@ -51,6 +51,7 @@ select = ["E9", "F63", "F7", "F82"]
 [tool.ruff.format]
 exclude = [
     "custom_components/**",
+    "docs/**",
     "evals/**",
     "satellite/**",
     "scripts/**",
