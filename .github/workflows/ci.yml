@@ -27,6 +27,53 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: python3 scripts/check_pr_title.py
 
+  python:
+    name: Python lint and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          HA_VERSION="$(python -c 'from scripts.compat_matrix import CURRENT_HA_VERSION; print(CURRENT_HA_VERSION)')"
+          python -m pip install -e ".[dev,test]" "homeassistant==${HA_VERSION}"
+          python -m pip install numpy PyYAML
+          python <<'PY'
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          import homeassistant
+
+          from scripts.compat_matrix import (
+              COMPONENT_REQUIREMENT_ROOTS,
+              collect_integration_requirements,
+          )
+
+          components_dir = Path(homeassistant.__file__).resolve().parent / "components"
+          reqs = collect_integration_requirements(
+              components_dir,
+              COMPONENT_REQUIREMENT_ROOTS["current"],
+          )
+          if reqs:
+              subprocess.run([sys.executable, "-m", "pip", "install", *reqs], check=True)
+          PY
+
+      - name: Ruff check
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Run tests
+        run: pytest tests evals/tests --ignore=tests/test_realistic_v3.py
+
   satellite:
     name: Satellite unit tests
     runs-on: ubuntu-latest

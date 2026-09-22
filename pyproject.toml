@@ -12,6 +12,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+dev = [
+    "ruff>=0.9.0",
+]
 test = [
     "homeassistant>=2026.8.3",
     # Only Home Assistant <= 2026.8 ships this; kept so the legacy conversion
@@ -34,3 +37,25 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests", "evals/tests", "satellite/sayso"]
 pythonpath = ["."]
+
+[tool.ruff]
+extend-exclude = [
+    "satellite",
+    "training",
+    "scripts",
+]
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.ruff.format]
+exclude = [
+    "custom_components/**",
+    "docs/**",
+    "evals/**",
+    "satellite/**",
+    "scripts/**",
+    "tests/**",
+    "training/**",
+    "sayso_contract.py",
+]
