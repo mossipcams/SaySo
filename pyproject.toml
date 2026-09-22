@@ -12,6 +12,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+dev = [
+    "ruff>=0.9.0",
+]
 test = [
     "homeassistant>=2026.8.3",
     # Only Home Assistant <= 2026.8 ships this; kept so the legacy conversion
