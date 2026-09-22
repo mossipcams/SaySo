@@ -37,3 +37,24 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests", "evals/tests", "satellite/sayso"]
 pythonpath = ["."]
+
+[tool.ruff]
+extend-exclude = [
+    "satellite",
+    "training",
+    "scripts",
+]
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.ruff.format]
+exclude = [
+    "custom_components/**",
+    "evals/**",
+    "satellite/**",
+    "scripts/**",
+    "tests/**",
+    "training/**",
+    "sayso_contract.py",
+]
