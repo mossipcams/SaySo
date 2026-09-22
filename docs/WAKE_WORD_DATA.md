@@ -3,9 +3,15 @@
 Decision record for how `sayso.onnx` gets its training data. Every future model
 should be traceable to the rules here.
 
-## Status: blocked on data collection, part 3 command ready
+## Status: locked trainer is LiveKit generate-first
 
-The intended workflow is:
+The next classifier is trained from `satellite/models/sayso.yaml` via
+`scripts/wake_livekit_run.py` — **never skip generate.** Capture, miner spool,
+and long-form corpus are eval / holdout / optional later overlay, not the
+primary positive class. The batch snapshot path (`wake_corpus.py` /
+`wake_train.py`) remains for labeling and a later mix-in.
+
+The intended eval workflow (once trusted real audio exists) is:
 
 ```
 real production audio -> identify false positives -> cluster failure modes
@@ -128,11 +134,35 @@ continuous audio through the production sliding-window path, not isolated clips.
 - Baseline freeze: `satellite/eval/baseline.json` records deployed and
   calibration thresholds. Status is **blocked** until trusted eval audio exists.
 
-## Batch training command (part 3)
+## Primary training command (LiveKit generate-first)
 
 Host-only dependencies live in `satellite/models/requirements-wake-train.txt`
-(`livekit-wakeword[training]==0.2.1`, `faster-whisper`). Do not install them on
-the satellite runtime.
+(`livekit-wakeword[train,eval,export]==0.2.1`, `faster-whisper`). Do not
+install them on the satellite runtime.
+
+The canonical trainer for the next model is LiveKit's documented pipeline via
+`satellite/models/sayso.yaml` and `scripts/wake_livekit_run.py`:
+
+```bash
+pip install -r satellite/models/requirements-wake-train.txt
+python3 scripts/wake_livekit_run.py run \
+  --config satellite/models/sayso.yaml \
+  --work-dir /home/ubuntu/sayso-wakeword/runs/livekit-restart
+```
+
+Stages: `setup` → `generate` (Piper TTS + adversarial negatives + backgrounds)
+→ `augment` → `train` → `export` → `eval`. **Do not skip generate.** Target
+phrases are SaySo/Sayso spelling variants only; `"say so"` homophones are
+`custom_negative_phrases`, never targets. Wavs stay off git; use an isolated
+`--work-dir` (never `output-living2/`).
+
+Real Snowball / miner audio is eval and optional later overlay — not the
+primary positive class for this restart. The shipped Pi model (living2 +
+verifier) is unchanged until a later qualified export.
+
+## Batch snapshot command (part 3 — secondary)
+
+Do not install training deps on the satellite runtime.
 
 Corpus workflow:
 
@@ -166,7 +196,11 @@ Candidate bundles land under `--work-dir/runs/<run_key>/candidate/` with status
 Scheduling (`--schedule`) refuses while `baseline.json` is blocked or trusted
 seed/eval audio is missing.
 
-Colocated checks: `python3 -m pytest scripts/test_wake_train.py -q`
+Colocated checks:
+
+```bash
+python3 -m pytest scripts/test_wake_livekit_run.py scripts/test_wake_train.py -q
+```
 
 ## Deliberately not built yet
 

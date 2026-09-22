@@ -108,6 +108,7 @@ class CachedEmbeddingScorer:
             )
         self._embeddings_computed = 0
         self._embeddings_reused = 0
+        self._last_embeddings: Optional[np.ndarray] = None
 
     @property
     def supported(self) -> bool:
@@ -122,6 +123,12 @@ class CachedEmbeddingScorer:
         """Drop cached state. Call after rearm/suspend so no stale audio is reused."""
         self._prev_mel = None
         self._prev_embeddings = None
+        self._last_embeddings = None
+
+    @property
+    def last_embeddings(self) -> Optional[np.ndarray]:
+        """Last (16, 96) speech embeddings from ``score()``, for the second stage."""
+        return self._last_embeddings
 
     def _mel(self, audio: np.ndarray) -> np.ndarray:
         mel = self._model._mel_frontend(audio)
@@ -207,7 +214,9 @@ class CachedEmbeddingScorer:
         self._prev_mel = mel
         self._prev_embeddings = embeddings
 
-        emb_input = np.stack(embeddings, axis=0)[np.newaxis, :, :].astype(np.float32)
+        stacked = np.stack(embeddings, axis=0).astype(np.float32)
+        self._last_embeddings = stacked
+        emb_input = stacked[np.newaxis, :, :]
         scores: dict[str, float] = {}
         for name, (session, input_name) in classifiers.items():
             outputs = session.run(None, {input_name: emb_input})

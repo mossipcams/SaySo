@@ -10,14 +10,6 @@ HEAD: `d606b71 fix(evals): stop runner from importing training jsonschema chain`
 The generator refactor is **uncommitted** (large `training/` + `docs/TRAINING_PLAN.md`
 delta vs HEAD).
 
-Plans already on disk (do not re-litigate layout):
-
-- `docs/PLAN_GENERATOR_REFACTOR.md` — original contract
-- `docs/PLAN_GENERATOR_PIPELINE_THIN.md` — pipeline → orchestration
-- `docs/PLAN_GENERATOR_DELETE_DUALS.md` — leftover dual deletion
-
----
-
 ## TL;DR
 
 One CLI, one YAML recipe, one accept loop, evals-shaped package. Independent

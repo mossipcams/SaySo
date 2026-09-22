@@ -1,8 +1,15 @@
 # Satellite wake-data collection
 
 How the living-room Pi **actually** gathers audio today. This is **not** an
-ideal collection pipeline. Training-side layout:
-`docs/WAKE_TRAINING_DATA_ARCHITECTURE.md`. Live model: `docs/HANDOFF_WAKE.md`.
+ideal collection pipeline and it is **not** how the next classifier is trained.
+
+The locked trainer is LiveKit generate-first via `satellite/models/sayso.yaml`
+and `scripts/wake_livekit_run.py` — **never skip generate.** Miner 2 s windows,
+long-form corpus sessions, and prompted takes (including `200-positive`) are
+eval, labeling, and optional later overlay only. Holdouts, miner party,
+`verifier_live_fp`, and unlabeled spool stay out of train.
+
+Training-side layout: `docs/WAKE_TRAINING_DATA_ARCHITECTURE.md`.
 
 Satellite is a thin LVA overlay. It does not do STT, NLU, or actions. It
 **does** own the mic, the 2 s wake window, and the mining spool.
@@ -101,7 +108,9 @@ Beep on the speaker, ~1.2 s record, 200 takes. Output on the Pi:
   padded_16k_2s/         # 16 kHz, 2.0 s, silence pad (center)
 ```
 
-Host copy: `sayso-wake-data/data/200-positive/` (padded) and `raw/`.
+Host copy (keep): `/home/ubuntu/sayso-wake-data/data/200-positive/` (padded)
+and `raw/`. Do not delete this tree. Isolated `runs/pos200-*` workspaces were
+disposable copies; the Snowball takes are not.
 
 Measured vs living2’s 50 / holdout SaySo:
 

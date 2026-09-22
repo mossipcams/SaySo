@@ -18,7 +18,7 @@ from .buffer import WakeAudioBuffer
 from .detection import Detection
 from .mining import HardNegativeMiner
 from .streaming import CachedEmbeddingScorer, single_threaded_ort
-from .verifier import MelVerifier
+from .verifier import WakeVerifier, load_wake_verifier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class LiveKitWakeWordProvider:
         self._refractory = float(refractory_seconds)
         self._miner = miner
         self._verifier_path = Path(verifier_path) if verifier_path is not None else None
-        self._verifier: Optional[MelVerifier] = None
+        self._verifier: Optional[WakeVerifier] = None
         self._enabled = False
         self._suspended = False
         self._available = False
@@ -98,12 +98,13 @@ class LiveKitWakeWordProvider:
             self._available = False
             return
         try:
-            self._verifier = MelVerifier(self._verifier_path, threshold=verifier_threshold)
-            _LOGGER.info(
-                "Loaded mel wake verifier %s (threshold=%.3f)",
-                self._verifier_path,
-                self._verifier.threshold,
-            )
+            self._verifier = load_wake_verifier(self._verifier_path, threshold=verifier_threshold)
+            if self._verifier is not None:
+                _LOGGER.info(
+                    "Loaded speech-embedding wake verifier %s (threshold=%.3f)",
+                    self._verifier_path,
+                    self._verifier.threshold,
+                )
         except Exception:
             _LOGGER.exception(
                 "Failed to load wake verifier %s (fail closed)",
@@ -213,7 +214,12 @@ class LiveKitWakeWordProvider:
             self._last_fire_time = now
 
         if self._verifier is not None:
-            verifier_score = self._verifier.score(window, self._model)
+            embeddings = self._scorer.last_embeddings if self._scorer is not None else None
+            verifier_score = self._verifier.score(
+                window,
+                self._model,
+                embeddings=embeddings,
+            )
             if verifier_score is None or verifier_score < self._verifier.threshold:
                 _LOGGER.info(
                     "Wake verifier veto phrase=%r livekit=%.3f verifier=%s thresh=%.3f",

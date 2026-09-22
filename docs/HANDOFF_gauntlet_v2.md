@@ -246,8 +246,6 @@ attributes. Unstarted, and it is the next real piece of work.
 - **Docs not updated.** `training/README.md`, `TRAINING_LOG.md` untouched.
   `docs/CORPUS_v2.md` not written. Deferred on purpose: v2 is not cleared for
   training, so there is no run to log.
-- `docs/PLAN_grounding_corpus_fix.md` ceiling section **corrected** with the
-  measurements above.
 - **Local vs remote drift resolved** — `sampling.py` re-synced to remote
   (both `23ec899c9e854ed0`). See "Environment" for current hashes.
 - **Stale remote watcher** PID 147673 (from Sep 11, alive 2d 06h). Its loop is
@@ -395,7 +393,6 @@ New:
 
 - `training/generators/test_grounding_v2.py` — 12 regression tests.
 - `training/scripts/audit_discrimination.py` — the pre-flight probe.
-- `docs/PLAN_grounding_corpus_fix.md` — plan (ceiling section corrected).
 - `docs/HANDOFF_gauntlet_v2.md` — this file.
 
 Nothing is committed.
@@ -434,23 +431,22 @@ so the suite only runs locally.
 
 1. ~~Budget grounding capacity in the quota planner~~ — **done differently, and
    the planner is not where it belonged.** See section 3.
-2. ~~Correct `docs/PLAN_grounding_corpus_fix.md`~~ — **done.**
-3. ~~Generate Gauntlet v2~~ — **done** (local, see "Environment").
-4. ~~Promote the pre-flight probe~~ — **done**:
+2. ~~Generate Gauntlet v2~~ — **done** (local, see "Environment").
+3. ~~Promote the pre-flight probe~~ — **done**:
    `training/scripts/audit_discrimination.py`, exits 1 above `--max-verbatim`
    (default 0.60) so a build script can gate on it.
-5. **Raise the discrimination rate** (section 3a). This is the blocking item for
+4. **Raise the discrimination rate** (section 3a). This is the blocking item for
    a v2 training run. Measured leads, cheapest first: force `home_size >= 48` on
    discrimination rows (1.98% -> 3.4%, one line in `generate_row`); then widen
    past the `individual` / single-call / value-free eligibility filters, which
    cost ~2/3 of forced attempts before a description is even attempted. Re-run
    the probe; the target is verbatim share < 60%.
    **Do not spend GPU time until that probe passes.**
-6. **Update `training/README.md` and `TRAINING_LOG.md`**; write
+5. **Update `training/README.md` and `TRAINING_LOG.md`**; write
    `docs/CORPUS_v2.md` — once there is a cleared corpus to describe.
-7. **Kill stale remote watcher** PID 147673.
-8. **Fix `routing.py:536`** deprecation (cheap, independent).
-9. **Fix #49** (`wake_skip_ms` truncation) — separate from corpus work.
+6. **Kill stale remote watcher** PID 147673.
+7. **Fix `routing.py:536`** deprecation (cheap, independent).
+8. **Fix #49** (`wake_skip_ms` truncation) — separate from corpus work.
 
 ## 9. Honest caveats
 

@@ -1,4 +1,8 @@
-# living2 — this-room LiveKit SaySo classifier (production primary).
+# living2 — historical shipped recipe (current Pi operating point).
+#
+# NOT the next train. The primary training contract is sayso.yaml (generate-first
+# LiveKit prod scale). This file documents the 50-clip skip-generate recipe that
+# produced the ONNX on the Pi today.
 #
 # Skip generate. GPU (do not set CUDA_VISIBLE_DEVICES to empty). Phrase SaySo.
 # Holdout, miner party, and verifier_live_fp stay out of this classifier. The 89
