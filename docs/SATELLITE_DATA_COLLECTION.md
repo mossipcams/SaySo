@@ -14,6 +14,8 @@ Training-side layout: `docs/WAKE_TRAINING_DATA_ARCHITECTURE.md`.
 Satellite is a thin LVA overlay. It does not do STT, NLU, or actions. It
 **does** own the mic, the 2 s wake window, and the mining spool.
 
+> **2026-09-23:** the train host moved from the retired `192.168.1.140` to the `llm` VM (`LLM@192.168.1.76`). The Pi's `id_ed25519_sayso_train` key is authorized there. The old wake corpus and sets were **not** migrated; the new trees are empty. Host setup: [training/wake/README.md](../training/wake/README.md).
+
 ## Device
 
 | | |
@@ -28,7 +30,7 @@ Pi has **no `sftp-server`**. Copy with `rsync` over SSH. Wavs stay off git.
 
 Long-form sessions ingested on the Pi are **staging** only. After capture,
 `wake_corpus.py ship` rsyncs the session to the train VM
-(`ubuntu@192.168.1.140:/home/ubuntu/sayso-wake-data/corpus`), verifies remote
+(`LLM@192.168.1.76:/srv/llm/data/wake/corpus`), verifies remote
 `audio.wav` sha256 against `session.json`, and deletes the Pi copy only on
 success. Do not stop LFM2 on the train host when shipping.
 
@@ -77,14 +79,14 @@ Pi live miner spool (2 s windows)
 Pi long-form WAV (staging)
   -> wake_corpus.py ingest --corpus /var/lib/sayso-satellite/wake-sessions
   -> wake_corpus.py ship SESSION --corpus /var/lib/sayso-satellite/wake-sessions
-     (rsync over SSH to ubuntu@192.168.1.140; verify; delete local on success)
+     (rsync over SSH to LLM@192.168.1.76; verify; delete local on success)
 
 train VM canonical corpus
   -> wake_corpus.py replay / label / split / snapshot / holdout-eval
 ```
 
-Pi has no `sftp-server`; `ship` uses `rsync` over SSH. Do **not** stop LFM2 on
-`192.168.1.140` when shipping. Copy or verify failure leaves the Pi session
+Pi has no `sftp-server`; `ship` uses `rsync` over SSH. Do **not** stop vLLM or training on
+the `llm` VM when shipping. Copy or verify failure leaves the Pi session
 directory in place; `--dry-run` rsyncs and deletes nothing.
 
 Re-replay on the host replaces unlabeled events for that session and writes
@@ -108,7 +110,7 @@ Beep on the speaker, ~1.2 s record, 200 takes. Output on the Pi:
   padded_16k_2s/         # 16 kHz, 2.0 s, silence pad (center)
 ```
 
-Host copy (keep): `/home/ubuntu/sayso-wake-data/data/200-positive/` (padded)
+Host copy (keep): `/srv/llm/data/wake/data/200-positive/` (padded; lost with the retired `192.168.1.140`, re-ship from the Pi if it still has it)
 and `raw/`. Do not delete this tree. Isolated `runs/pos200-*` workspaces were
 disposable copies; the Snowball takes are not.
 
@@ -155,7 +157,7 @@ Prompted ALSA needs the unit **stopped** or the Snowball stays with
 PipeWire. After a session, start `sayso-satellite.service` again. Miner
 collection needs the unit **running**. Those two modes fight.
 
-Do not stop LFM2 on `192.168.1.140` when shipping sessions there.
+Do not stop vLLM or training on the `llm` VM when shipping sessions there.
 
 ## Why this collection setup is not ideal
 

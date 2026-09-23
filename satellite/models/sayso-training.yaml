@@ -5,7 +5,7 @@
 #
 #   python3 scripts/wake_livekit_run.py run \
 #     --config satellite/models/sayso.yaml \
-#     --work-dir /home/ubuntu/sayso-wakeword/runs/livekit-restart
+#     --work-dir /srv/llm/wake/runs/livekit-restart
 #
 # Shipped Pi operating point remains living2 + mel verifier until a later
 # qualified export replaces it.

@@ -5,12 +5,13 @@
 # Shipped Pi operating point remains living2 + mel verifier until a later
 # qualified export replaces it.
 #
-# Run on a CUDA host (not the Pi). Use an isolated work dir:
-#   python3 scripts/wake_livekit_run.py run \
+# Run on the llm VM (7900 XTX, ROCm torch; not the Pi) with
+# /srv/llm/bin/gpu train wake (uses /srv/llm/data/wake/.venv). Isolated work dir:
+#   /srv/llm/bin/gpu train wake python scripts/wake_livekit_run.py run \
 #     --config satellite/models/sayso.yaml \
-#     --work-dir /home/ubuntu/sayso-wakeword/runs/livekit-restart
+#     --work-dir /srv/llm/wake/runs/livekit-restart
 #
-# Do not write into output-living2/. Do not empty CUDA_VISIBLE_DEVICES.
+# Do not write into output-living2/. Do not empty HIP_VISIBLE_DEVICES.
 
 model_name: sayso
 
