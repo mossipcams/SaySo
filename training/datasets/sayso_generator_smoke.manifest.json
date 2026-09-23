@@ -1,0 +1,983 @@
+{
+  "allocations": {
+    "achieved_area": {
+      "area_alias": 1,
+      "area_wide_action": 1,
+      "duplicate_name_clarification": 1,
+      "exact_name_in_satellite_area": 1,
+      "exact_name_outside_satellite_area": 1,
+      "exclusion_within_area": 1,
+      "explicit_area": 1,
+      "explicit_area_conflicts_with_satellite": 1,
+      "implicit_satellite_area": 1,
+      "missing_satellite_area": 1,
+      "multi_action_across_areas": 1,
+      "unique_entity_across_home": 1,
+      "unresolved_target_area": 1
+    },
+    "achieved_family": {
+      "absence": 5,
+      "aliases": 4,
+      "clarify": 8,
+      "datetime": 1,
+      "exclusion": 7,
+      "junk": 6,
+      "multi_action": 8,
+      "ordinary": 32,
+      "settings": 12,
+      "status": 12,
+      "unavailable": 7,
+      "unsupported": 5
+    },
+    "requested": {
+      "absence": 5,
+      "aliases": 4,
+      "clarify": 8,
+      "datetime": 1,
+      "exclusion": 7,
+      "junk": 6,
+      "multi_action": 8,
+      "ordinary": 32,
+      "settings": 12,
+      "status": 12,
+      "unavailable": 7,
+      "unsupported": 5
+    },
+    "requested_area": {
+      "area_alias": 1,
+      "area_wide_action": 1,
+      "duplicate_name_clarification": 1,
+      "exact_name_in_satellite_area": 1,
+      "exact_name_outside_satellite_area": 1,
+      "exclusion_within_area": 1,
+      "explicit_area": 1,
+      "explicit_area_conflicts_with_satellite": 1,
+      "implicit_satellite_area": 1,
+      "missing_satellite_area": 1,
+      "multi_action_across_areas": 1,
+      "unique_entity_across_home": 1,
+      "unresolved_target_area": 1
+    },
+    "total": 120
+  },
+  "area_target_source_coverage": {
+    "explicit": 80,
+    "multiple": 8,
+    "none": 1,
+    "satellite": 31
+  },
+  "config": {
+    "allocations": {
+      "absence": 0.05,
+      "aliases": 0.04,
+      "clarify": 0.08,
+      "exclusion": 0.07,
+      "junk": 0.06,
+      "multi_action": 0.08,
+      "ordinary": 0.29,
+      "settings": 0.1,
+      "status": 0.1,
+      "unavailable": 0.07,
+      "unsupported": 0.05
+    },
+    "area_distribution_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/training/configs/area_distribution_smoke.json",
+    "bare_name_rate": 0.35,
+    "count": 120,
+    "discrimination_rate": 0.0,
+    "get_datetime_positive_min": 1,
+    "grounding_rate": 0.0,
+    "manifest_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/training/datasets/sayso_generator_smoke.manifest.json",
+    "max_absence_rate": 0.15,
+    "min_positive_per_operation": 1,
+    "min_positive_per_tool": 1,
+    "near_duplicate_limit": 4,
+    "output_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/training/datasets/sayso_generator_smoke.jsonl",
+    "paraphrase_enabled": false,
+    "real_home_entity_cap": 0,
+    "real_home_path": null,
+    "real_home_rate": 0.0,
+    "recipe_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/training/configs/generation/smoke.yaml",
+    "recipe_version": 1,
+    "schema_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/schemas/sayso-tool-schema-v2.json",
+    "seed": 20260917,
+    "split": "train",
+    "stt_noise_rate": 0.15,
+    "synthetic_only": true,
+    "token_budget": 7168,
+    "tokenizer_model": "LiquidAI/LFM2.5-230M-Base"
+  },
+  "contrast_coverage": {},
+  "dataset_hash": "e7d9746bfa84eb23da7621fee83b0d321c8cf8ce891f7dc1c84001b5f991d4af",
+  "final_row_count": 120,
+  "generator_code_sha": "7f60a01e507053b779a7f7ed593cd4e72f9deb53",
+  "outcome_coverage": {
+    "absence": 6,
+    "action": 74,
+    "clarify": 16,
+    "status": 12,
+    "unsupported": 12
+  },
+  "positive_tool_coverage": {
+    "climate__HassClimateSetTemperature": 2,
+    "evening_cleanup": 1,
+    "fan__HassFanSetSpeed": 6,
+    "homeassistant__GetLiveContext": 12,
+    "intent__HassTurnOff": 26,
+    "intent__HassTurnOn": 29,
+    "light__HassLightSet": 5,
+    "llm__GetDateTime": 1,
+    "media_player__HassMediaPrevious": 1,
+    "media_player__HassSetVolume": 3,
+    "utility_room_evening_lighting": 1,
+    "vacuum__HassVacuumReturnToBase": 1,
+    "vacuum__HassVacuumStart": 4
+  },
+  "recipe": {
+    "path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/training/configs/generation/smoke.yaml",
+    "sha256": "d3b2b12bcd1cbea587f4a23f6c7442b5de325877485ba1dfbc18c8965af602a8"
+  },
+  "rejections": {
+    "family_mismatch": 12,
+    "status_not_query": 1
+  },
+  "renderer": "generators.rendering",
+  "requested_count": 120,
+  "schema_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/schemas/sayso-tool-schema-v2.json",
+  "seed": 20260917,
+  "split": "train",
+  "stats": {
+    "accepted": 120,
+    "achieved_stt_rate": 0.1417,
+    "area_distribution": {
+      "achieved": {
+        "area_alias": 1,
+        "area_wide_action": 1,
+        "duplicate_name_clarification": 1,
+        "exact_name_in_satellite_area": 1,
+        "exact_name_outside_satellite_area": 1,
+        "exclusion_within_area": 1,
+        "explicit_area": 1,
+        "explicit_area_conflicts_with_satellite": 1,
+        "implicit_satellite_area": 1,
+        "missing_satellite_area": 1,
+        "multi_action_across_areas": 1,
+        "unique_entity_across_home": 1,
+        "unresolved_target_area": 1
+      },
+      "required": {
+        "area_alias": 1,
+        "area_wide_action": 1,
+        "duplicate_name_clarification": 1,
+        "exact_name_in_satellite_area": 1,
+        "exact_name_outside_satellite_area": 1,
+        "exclusion_within_area": 1,
+        "explicit_area": 1,
+        "explicit_area_conflicts_with_satellite": 1,
+        "implicit_satellite_area": 1,
+        "missing_satellite_area": 1,
+        "multi_action_across_areas": 1,
+        "unique_entity_across_home": 1,
+        "unresolved_target_area": 1
+      },
+      "rows": 13,
+      "satellite_area_share_of_actionable_rows": 1.0,
+      "share": 0.1083,
+      "source_counts": {
+        "explicit": 80,
+        "multiple": 8,
+        "none": 1,
+        "satellite": 31
+      },
+      "version": 1
+    },
+    "attempts": 133,
+    "by_capability": {
+      "buttons": 1,
+      "climate": 11,
+      "covers": 3,
+      "datetime": 1,
+      "fans": 18,
+      "lights": 45,
+      "locks": 6,
+      "media_players": 12,
+      "scenes": 1,
+      "switches": 15,
+      "vacuums": 7
+    },
+    "by_difficulty": {
+      "alias_distractor": 4,
+      "ambiguity": 24,
+      "area_grounding": 13,
+      "datetime": 1,
+      "exclusion": 7,
+      "multi_action": 8,
+      "ordinary": 56,
+      "unavailable": 7
+    },
+    "by_home_size": {
+      "7": 13,
+      "8": 7,
+      "16": 24,
+      "32": 41,
+      "64": 35
+    },
+    "by_operation": {
+      "activate": 1,
+      "lock": 4,
+      "previous_track": 1,
+      "query_state": 12,
+      "query_time": 1,
+      "return_home": 1,
+      "set_brightness": 5,
+      "set_speed": 5,
+      "set_temperature": 9,
+      "start": 4,
+      "turn_off": 33,
+      "turn_on": 36,
+      "unlock": 1,
+      "volume_set": 7
+    },
+    "by_tier": {
+      "0": 1,
+      "1": 110,
+      "2": 8,
+      "3": 1
+    },
+    "config": {
+      "allocations": {
+        "absence": 0.05,
+        "aliases": 0.04,
+        "clarify": 0.08,
+        "exclusion": 0.07,
+        "junk": 0.06,
+        "multi_action": 0.08,
+        "ordinary": 0.29,
+        "settings": 0.1,
+        "status": 0.1,
+        "unavailable": 0.07,
+        "unsupported": 0.05
+      },
+      "area_distribution_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/training/configs/area_distribution_smoke.json",
+      "bare_name_rate": 0.35,
+      "count": 120,
+      "discrimination_rate": 0.0,
+      "get_datetime_positive_min": 1,
+      "grounding_rate": 0.0,
+      "manifest_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/training/datasets/sayso_generator_smoke.manifest.json",
+      "max_absence_rate": 0.15,
+      "min_positive_per_operation": 1,
+      "min_positive_per_tool": 1,
+      "near_duplicate_limit": 4,
+      "output_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/training/datasets/sayso_generator_smoke.jsonl",
+      "paraphrase_enabled": false,
+      "real_home_entity_cap": 0,
+      "real_home_path": null,
+      "real_home_rate": 0.0,
+      "recipe_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/training/configs/generation/smoke.yaml",
+      "recipe_version": 1,
+      "schema_path": "/Users/matt/Desktop/Projects/SaySo__worktrees/ajax-training-data/schemas/sayso-tool-schema-v2.json",
+      "seed": 20260917,
+      "split": "train",
+      "stt_noise_rate": 0.15,
+      "synthetic_only": true,
+      "token_budget": 7168,
+      "tokenizer_model": "LiquidAI/LFM2.5-230M-Base"
+    },
+    "deterministic": 120,
+    "discrimination": {
+      "achieved_rate": 0.0,
+      "requested_rate": 0.0,
+      "rows": 0
+    },
+    "full_tool_catalog": {
+      "achieved_rate": 1.0,
+      "requested_rate": 1.0,
+      "rows": 120
+    },
+    "grounding": {
+      "achieved_rate": 0.0,
+      "by_family": {},
+      "requested_rate": 0.0,
+      "rows": 0
+    },
+    "paraphrased": 0,
+    "quality_audit": {
+      "absence_rate": 0.05,
+      "alias_rows": 2,
+      "by_outcome": {
+        "absence": 6,
+        "action": 74,
+        "clarify": 16,
+        "status": 12,
+        "unsupported": 12
+      },
+      "by_targeting": {
+        "area": 7,
+        "context": 1,
+        "floor": 5,
+        "individual": 73,
+        "none": 34
+      },
+      "by_tool": {
+        "climate__HassClimateSetTemperature": 2,
+        "evening_cleanup": 1,
+        "fan__HassFanSetSpeed": 6,
+        "homeassistant__GetLiveContext": 12,
+        "intent__HassTurnOff": 26,
+        "intent__HassTurnOn": 29,
+        "light__HassLightSet": 5,
+        "llm__GetDateTime": 1,
+        "media_player__HassMediaPrevious": 1,
+        "media_player__HassSetVolume": 3,
+        "utility_room_evening_lighting": 1,
+        "vacuum__HassVacuumReturnToBase": 1,
+        "vacuum__HassVacuumStart": 4
+      },
+      "call": 86,
+      "casing": {
+        "call": {
+          "lower": 43,
+          "upper": 43
+        },
+        "no_call": {
+          "lower": 22,
+          "upper": 12
+        }
+      },
+      "conversational_rows": 56,
+      "exclusion_rows": 8,
+      "fallback_rows": 43,
+      "get_datetime_positive": 1,
+      "multi_call_rows": 20,
+      "negatives_by_reason": {
+        "action": 1,
+        "area_unavailable": 6,
+        "clarify": 10,
+        "device_unsupported": 5,
+        "not_understood": 6,
+        "unsupported": 7
+      },
+      "no_call": 34,
+      "ohf_rows": 43,
+      "ohf_source_count": 9,
+      "ohf_sources": {
+        "sentences/en/HassClimateSetTemperature/floor_temperature.yaml": 1,
+        "sentences/en/HassClimateSetTemperature/name_temperature.yaml": 1,
+        "sentences/en/HassLightSet/area_brightness.yaml": 2,
+        "sentences/en/HassLightSet/name_brightness.yaml": 3,
+        "sentences/en/HassTurnOff/area_domain.yaml": 1,
+        "sentences/en/HassTurnOff/floor_domain.yaml": 1,
+        "sentences/en/HassTurnOff/name_only.yaml": 26,
+        "sentences/en/HassTurnOn/name_only.yaml": 20,
+        "sentences/en/HassTurnOn/name_scene.yaml": 1
+      },
+      "ohf_template_count": 15,
+      "positive_by_domain_targeting": {
+        "buttons/query_state/individual": 1,
+        "climate/query_state/individual": 2,
+        "climate/set_temperature/floor": 1,
+        "climate/set_temperature/individual": 1,
+        "covers/query_state/individual": 3,
+        "fans/query_state/individual": 1,
+        "fans/set_speed/floor": 1,
+        "fans/set_speed/individual": 4,
+        "fans/turn_off/area": 1,
+        "fans/turn_on/floor": 1,
+        "fans/turn_on/individual": 4,
+        "lights/query_state/individual": 2,
+        "lights/set_brightness/area": 2,
+        "lights/set_brightness/individual": 3,
+        "lights/turn_off/area": 4,
+        "lights/turn_off/floor": 1,
+        "lights/turn_off/individual": 13,
+        "lights/turn_on/individual": 14,
+        "locks/lock/floor": 1,
+        "locks/lock/individual": 3,
+        "locks/query_state/individual": 1,
+        "locks/unlock/individual": 1,
+        "media_players/previous_track/individual": 1,
+        "media_players/volume_set/individual": 3,
+        "scenes/activate/individual": 1,
+        "switches/turn_off/individual": 4,
+        "switches/turn_on/individual": 4,
+        "vacuums/query_state/individual": 2,
+        "vacuums/return_home/individual": 1,
+        "vacuums/start/individual": 4
+      },
+      "positive_by_operation": {
+        "(1, 'climate', 'query_state')": 2,
+        "(1, 'climate', 'set_temperature')": 2,
+        "(1, 'covers', 'query_state')": 3,
+        "(1, 'fans', 'query_state')": 1,
+        "(1, 'fans', 'set_speed')": 5,
+        "(1, 'fans', 'turn_off')": 1,
+        "(1, 'fans', 'turn_on')": 5,
+        "(1, 'lights', 'query_state')": 2,
+        "(1, 'lights', 'set_brightness')": 5,
+        "(1, 'lights', 'turn_off')": 18,
+        "(1, 'lights', 'turn_on')": 14,
+        "(1, 'locks', 'lock')": 4,
+        "(1, 'locks', 'query_state')": 1,
+        "(1, 'locks', 'unlock')": 1,
+        "(1, 'media_players', 'previous_track')": 1,
+        "(1, 'media_players', 'volume_set')": 3,
+        "(1, 'switches', 'turn_off')": 4,
+        "(1, 'switches', 'turn_on')": 4,
+        "(2, 'scenes', 'activate')": 1,
+        "(2, 'vacuums', 'query_state')": 2,
+        "(2, 'vacuums', 'return_home')": 1,
+        "(2, 'vacuums', 'start')": 4,
+        "(3, 'buttons', 'query_state')": 1
+      },
+      "positive_by_tool": {
+        "GetDateTime": 1,
+        "GetLiveContext": 12,
+        "HassClimateSetTemperature": 2,
+        "HassFanSetSpeed": 5,
+        "HassLightSet": 5,
+        "HassMediaPrevious": 1,
+        "HassSetVolume": 3,
+        "HassTurnOff": 24,
+        "HassTurnOn": 28,
+        "HassVacuumReturnToBase": 1,
+        "HassVacuumStart": 4
+      },
+      "real_home_rows": 0,
+      "rows": 120,
+      "tool_calls": 106,
+      "unique_requests": 120
+    },
+    "quota": {
+      "achieved_area": {
+        "area_alias": 1,
+        "area_wide_action": 1,
+        "duplicate_name_clarification": 1,
+        "exact_name_in_satellite_area": 1,
+        "exact_name_outside_satellite_area": 1,
+        "exclusion_within_area": 1,
+        "explicit_area": 1,
+        "explicit_area_conflicts_with_satellite": 1,
+        "implicit_satellite_area": 1,
+        "missing_satellite_area": 1,
+        "multi_action_across_areas": 1,
+        "unique_entity_across_home": 1,
+        "unresolved_target_area": 1
+      },
+      "achieved_family": {
+        "absence": 5,
+        "aliases": 4,
+        "clarify": 8,
+        "datetime": 1,
+        "exclusion": 7,
+        "junk": 6,
+        "multi_action": 8,
+        "ordinary": 32,
+        "settings": 12,
+        "status": 12,
+        "unavailable": 7,
+        "unsupported": 5
+      },
+      "requested": {
+        "absence": 5,
+        "aliases": 4,
+        "clarify": 8,
+        "datetime": 1,
+        "exclusion": 7,
+        "junk": 6,
+        "multi_action": 8,
+        "ordinary": 32,
+        "settings": 12,
+        "status": 12,
+        "unavailable": 7,
+        "unsupported": 5
+      },
+      "requested_area": {
+        "area_alias": 1,
+        "area_wide_action": 1,
+        "duplicate_name_clarification": 1,
+        "exact_name_in_satellite_area": 1,
+        "exact_name_outside_satellite_area": 1,
+        "exclusion_within_area": 1,
+        "explicit_area": 1,
+        "explicit_area_conflicts_with_satellite": 1,
+        "implicit_satellite_area": 1,
+        "missing_satellite_area": 1,
+        "multi_action_across_areas": 1,
+        "unique_entity_across_home": 1,
+        "unresolved_target_area": 1
+      },
+      "total": 120
+    },
+    "registry": {
+      "buttons": {
+        "blocker": "no button tool in Assist schema",
+        "operations": [
+          {
+            "blocker": "no button press tool in Assist schema",
+            "name": "control",
+            "support": "unavailable",
+            "tool": null
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "unavailable",
+        "tier": 3
+      },
+      "climate": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "set_temperature",
+            "support": "supported",
+            "tool": "HassClimateSetTemperature"
+          },
+          {
+            "blocker": null,
+            "name": "turn_on",
+            "support": "supported",
+            "tool": "HassTurnOn"
+          },
+          {
+            "blocker": null,
+            "name": "turn_off",
+            "support": "supported",
+            "tool": "HassTurnOff"
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "supported",
+        "tier": 1
+      },
+      "covers": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "open",
+            "support": "supported",
+            "tool": "HassTurnOn"
+          },
+          {
+            "blocker": null,
+            "name": "close",
+            "support": "supported",
+            "tool": "HassTurnOff"
+          },
+          {
+            "blocker": "no position tool in Assist schema",
+            "name": "set_position",
+            "support": "unavailable",
+            "tool": null
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "supported",
+        "tier": 1
+      },
+      "fans": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "turn_on",
+            "support": "supported",
+            "tool": "HassTurnOn"
+          },
+          {
+            "blocker": null,
+            "name": "turn_off",
+            "support": "supported",
+            "tool": "HassTurnOff"
+          },
+          {
+            "blocker": null,
+            "name": "set_speed",
+            "support": "supported",
+            "tool": "HassFanSetSpeed"
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "supported",
+        "tier": 1
+      },
+      "lawn_mowers": {
+        "blocker": "no lawn mower tool in Assist schema",
+        "operations": [
+          {
+            "blocker": "no lawn mower tool in Assist schema",
+            "name": "control",
+            "support": "unavailable",
+            "tool": null
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "unavailable",
+        "tier": 3
+      },
+      "lights": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "turn_on",
+            "support": "supported",
+            "tool": "HassTurnOn"
+          },
+          {
+            "blocker": null,
+            "name": "turn_off",
+            "support": "supported",
+            "tool": "HassTurnOff"
+          },
+          {
+            "blocker": null,
+            "name": "set_brightness",
+            "support": "supported",
+            "tool": "HassLightSet"
+          },
+          {
+            "blocker": null,
+            "name": "set_color",
+            "support": "supported",
+            "tool": "HassLightSet"
+          },
+          {
+            "blocker": null,
+            "name": "set_color_temperature",
+            "support": "supported",
+            "tool": "HassLightSet"
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "supported",
+        "tier": 1
+      },
+      "locks": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "lock",
+            "support": "supported",
+            "tool": "HassTurnOn"
+          },
+          {
+            "blocker": null,
+            "name": "unlock",
+            "support": "supported",
+            "tool": "HassTurnOff"
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "supported",
+        "tier": 1
+      },
+      "media_players": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "turn_on",
+            "support": "supported",
+            "tool": "HassTurnOn"
+          },
+          {
+            "blocker": null,
+            "name": "turn_off",
+            "support": "supported",
+            "tool": "HassTurnOff"
+          },
+          {
+            "blocker": null,
+            "name": "play",
+            "support": "supported",
+            "tool": "HassMediaUnpause"
+          },
+          {
+            "blocker": null,
+            "name": "pause",
+            "support": "supported",
+            "tool": "HassMediaPause"
+          },
+          {
+            "blocker": null,
+            "name": "next_track",
+            "support": "supported",
+            "tool": "HassMediaNext"
+          },
+          {
+            "blocker": null,
+            "name": "previous_track",
+            "support": "supported",
+            "tool": "HassMediaPrevious"
+          },
+          {
+            "blocker": null,
+            "name": "volume_set",
+            "support": "supported",
+            "tool": "HassSetVolume"
+          },
+          {
+            "blocker": null,
+            "name": "volume_up",
+            "support": "supported",
+            "tool": "HassSetVolumeRelative"
+          },
+          {
+            "blocker": null,
+            "name": "volume_down",
+            "support": "supported",
+            "tool": "HassSetVolumeRelative"
+          },
+          {
+            "blocker": null,
+            "name": "mute",
+            "support": "supported",
+            "tool": "HassMediaPlayerMute"
+          },
+          {
+            "blocker": null,
+            "name": "unmute",
+            "support": "supported",
+            "tool": "HassMediaPlayerUnmute"
+          },
+          {
+            "blocker": null,
+            "name": "search_and_play",
+            "support": "supported",
+            "tool": "HassMediaSearchAndPlay"
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "supported",
+        "tier": 1
+      },
+      "scenes": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "activate",
+            "support": "supported",
+            "tool": "HassTurnOn"
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "supported",
+        "tier": 2
+      },
+      "scripts": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "run",
+            "support": "supported",
+            "tool": "__script__"
+          },
+          {
+            "blocker": "GetLiveContext excludes the script domain",
+            "name": "query_state",
+            "support": "unavailable",
+            "tool": null
+          }
+        ],
+        "support": "supported",
+        "tier": 2
+      },
+      "switches": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "turn_on",
+            "support": "supported",
+            "tool": "HassTurnOn"
+          },
+          {
+            "blocker": null,
+            "name": "turn_off",
+            "support": "supported",
+            "tool": "HassTurnOff"
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "supported",
+        "tier": 1
+      },
+      "timers": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "cancel_all",
+            "support": "supported",
+            "tool": "HassCancelAllTimers"
+          },
+          {
+            "blocker": null,
+            "name": "start",
+            "support": "supported",
+            "tool": "HassStartTimer"
+          },
+          {
+            "blocker": null,
+            "name": "pause",
+            "support": "supported",
+            "tool": "HassPauseTimer"
+          },
+          {
+            "blocker": null,
+            "name": "unpause",
+            "support": "supported",
+            "tool": "HassUnpauseTimer"
+          },
+          {
+            "blocker": null,
+            "name": "cancel",
+            "support": "supported",
+            "tool": "HassCancelTimer"
+          },
+          {
+            "blocker": null,
+            "name": "increase",
+            "support": "supported",
+            "tool": "HassIncreaseTimer"
+          },
+          {
+            "blocker": null,
+            "name": "decrease",
+            "support": "supported",
+            "tool": "HassDecreaseTimer"
+          },
+          {
+            "blocker": null,
+            "name": "status",
+            "support": "supported",
+            "tool": "HassTimerStatus"
+          }
+        ],
+        "support": "supported",
+        "tier": 1
+      },
+      "todo_lists": {
+        "blocker": "no todo tool in Assist schema",
+        "operations": [
+          {
+            "blocker": "no todo list tool in Assist schema",
+            "name": "control",
+            "support": "unavailable",
+            "tool": null
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "unavailable",
+        "tier": 3
+      },
+      "vacuums": {
+        "blocker": null,
+        "operations": [
+          {
+            "blocker": null,
+            "name": "start",
+            "support": "supported",
+            "tool": "HassVacuumStart"
+          },
+          {
+            "blocker": null,
+            "name": "return_home",
+            "support": "supported",
+            "tool": "HassVacuumReturnToBase"
+          },
+          {
+            "blocker": null,
+            "name": "clean_area",
+            "support": "supported",
+            "tool": "HassVacuumCleanArea"
+          },
+          {
+            "blocker": null,
+            "name": "query_state",
+            "support": "supported",
+            "tool": "GetLiveContext"
+          }
+        ],
+        "support": "supported",
+        "tier": 2
+      }
+    },
+    "rejected": 13,
+    "rejection_reasons": {
+      "family_mismatch": 12,
+      "status_not_query": 1
+    },
+    "requested": 120,
+    "requested_stt_rate": 0.15,
+    "stt_corrupted": 17,
+    "unique_semantic_ids": 120
+  },
+  "token_length": {
+    "max": 6458,
+    "min": 2663,
+    "oversized_rejects": 0,
+    "p50": 5473,
+    "p95": 6402
+  },
+  "tokenizer_model": "LiquidAI/LFM2.5-230M-Base"
+}

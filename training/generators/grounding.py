@@ -616,12 +616,53 @@ def pick_variant(
 # Requiring every grounding contrast family needs slack, not parity.
 GROUNDING_FAMILY_SLACK = 2
 
+# Recipe families that can host a grounding row unchanged: the variant's gold
+# alone decides the family (action -> ordinary, area_unavailable -> absence, ...).
+# follow_up/correction/junk rewrite the gold after the fact; aliases/settings
+# would lose their own contract; multi_action/area never match one variant.
+GROUNDING_CARRIER_FAMILIES = frozenset({"ordinary", "absence", "unsupported", "clarify"})
 
-def grounding_pairs() -> set[tuple[str, str]]:
-    return {
+
+@lru_cache(maxsize=None)
+def carrier_variants(family: str) -> tuple[dict[str, Any], ...]:
+    """Training variants whose graph-derived gold satisfies ``family``."""
+    if family not in GROUNDING_CARRIER_FAMILIES:
+        return ()
+    from generators.gold import gold_matches_family
+
+    return tuple(
+        variant
+        for variant in training_variants()
+        if gold_matches_family(build_spec(variant)["expected"], family)
+    )
+
+
+def pick_carrier_variant(
+    slot: dict[str, Any], rng: random.Random, missing: Any = ()
+) -> dict[str, Any] | None:
+    """Variant for a carrier slot: missing families first, then the slot's own pair."""
+    pool = list(carrier_variants(slot.get("family") or ""))
+    pool = [v for v in pool if v["family"] in missing] or pool
+    same_pair = [
+        v for v in pool
+        if (v["capability"], v["operation"]) == (slot.get("capability"), slot.get("operation"))
+    ]
+    return rng.choice(same_pair or pool) if pool else None
+
+
+@lru_cache(maxsize=1)
+def grounding_pairs() -> frozenset[tuple[str, str]]:
+    return frozenset(
         (variant["capability"], variant["operation"])
         for variant in required_training_variants()
-    }
+    )
+
+
+def slot_can_carry_grounding(slot: dict[str, Any] | None) -> bool:
+    """True when a recipe slot can overlay a grounding variant without a family steal."""
+    if not slot or slot.get("area_scenario"):
+        return False
+    return bool(carrier_variants(slot.get("family") or ""))
 
 
 def grounding_capacity(config: Any) -> int:

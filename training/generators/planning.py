@@ -12,29 +12,46 @@ from generators.sampling import sample_home_size
 
 PRIMARY_FAMILIES = (
     "ordinary",
+    "follow_up",
     "status",
     "settings",
-    "multi_action",
     "clarify",
+    "correction",
+    "junk",
+    "multi_action",
     "exclusion",
     "unavailable",
-    "absence",
     "unsupported",
+    "absence",
     "aliases",
 )
+
+# Families that teach catalog gaps, absence refusals, or non-command transcripts,
+# not real-home names. The real-home balancer must never steer these slots onto
+# ``real_home_train``.
+REAL_HOME_EXCLUDED_FAMILIES = frozenset({
+    "unavailable",
+    "unsupported",
+    "junk",
+    "datetime",
+    "absence",
+})
 
 FAMILY_ROBUSTNESS: dict[str, str] = {
     "datetime": "datetime",
     "ordinary": "ordinary",
+    "follow_up": "ambiguity",
     "status": "ordinary",
     "settings": "ordinary",
     "multi_action": "multi_action",
     "clarify": "ambiguity",
+    "correction": "ordinary",
     "exclusion": "exclusion",
     "unavailable": "unavailable",
     "absence": "ambiguity",
     "unsupported": "unsupported",
     "aliases": "alias_distractor",
+    "junk": "ambiguity",
 }
 
 SETTINGS_OPERATIONS = frozenset({
@@ -139,34 +156,87 @@ def _pick_capability_operation(family: str, rng: random.Random) -> tuple[str, st
         cap_name = rng.choice(["lights", "fans", "switches", "media_players"])
         operation = rng.choice(["turn_on", "turn_off", "query_state"])
         return cap_name, operation, CAPABILITIES[cap_name].tier
+    if family == "follow_up":
+        cap_name = rng.choice(["lights", "fans", "switches", "media_players"])
+        operation = rng.choice(["turn_on", "turn_off"])
+        return cap_name, operation, CAPABILITIES[cap_name].tier
+    if family == "correction":
+        cap_name = rng.choice(["lights", "fans", "switches", "media_players"])
+        operation = rng.choice(["turn_on", "turn_off"])
+        return cap_name, operation, CAPABILITIES[cap_name].tier
     if family == "unavailable":
-        return "climate", "set_temperature", CAPABILITIES["climate"].tier
+        # Any operation whose tool Home Assistant can withhold, not just the
+        # thermostat. Pinned to climate/set_temperature this family had one
+        # semantic identity to draw from, so a 40k allocation spent 95% of its
+        # attempts colliding on duplicate_semantic_id and still fell short --
+        # and the corpus only ever taught "the thermostat tool is missing",
+        # never the same refusal for a light, a vacuum, or a media player.
+        cap_name, operation = rng.choice(_WITHHOLDABLE_OPERATIONS)
+        return cap_name, operation, CAPABILITIES[cap_name].tier
     if family == "absence":
         return rng.choice(["lights", "fans", "media_players"]), "turn_on", 1
     if family == "unsupported":
-        operation = rng.choice(["turn_on", "volume_set"])
-        return "media_players", operation, CAPABILITIES["media_players"].tier
+        # Same widening as ``unavailable``: a device that cannot do the thing is
+        # not only ever a media player.
+        cap_name, operation = rng.choice(_UNDERPOWERED_OPERATIONS)
+        return cap_name, operation, CAPABILITIES[cap_name].tier
     if family == "aliases":
         return rng.choice(["lights", "fans", "switches"]), "turn_on", 1
+    if family == "junk":
+        # The graph is irrelevant -- a junk transcript names no device. Borrow the
+        # clarify shape so the row still renders against a real home and catalog.
+        cap_name = rng.choice(["lights", "fans", "switches", "media_players"])
+        return cap_name, "turn_on", CAPABILITIES[cap_name].tier
     # ordinary
     tier = rng.choices(
         list(TIER_PROPORTIONS),
         weights=[TIER_PROPORTIONS[t] for t in sorted(TIER_PROPORTIONS)],
         k=1,
     )[0]
-    if tier == 1:
-        cap_name = rng.choices(
-            list(CAPABILITIES),
-            weights=[1 if CAPABILITIES[c].tier == 1 else 0 for c in CAPABILITIES],
-            k=1,
-        )[0]
-    else:
-        tier_caps = [name for name, cap in CAPABILITIES.items() if cap.tier == tier]
-        cap_name = rng.choice(tier_caps)
-    cap = CAPABILITIES[cap_name]
-    ops = [op.name for op in cap.operations if op.tool_name and op.name not in SETTINGS_OPERATIONS]
-    operation = rng.choice(ops or [cap.operations[0].name])
-    return cap_name, operation, tier
+    # Only capabilities with an action to take: a slot whose only op is query_state
+    # (status gold) can never satisfy ordinary/aliases, and gets re-picked forever.
+    tier_caps = [name for name, cap in CAPABILITIES.items() if cap.tier == tier and _action_ops(cap)]
+    cap_name = rng.choice(tier_caps)
+    return cap_name, rng.choice(_action_ops(CAPABILITIES[cap_name])), tier
+
+
+def _action_ops(cap: Any) -> list[str]:
+    """Tool-backed operations whose gold is an action: no settings, no state queries."""
+    return [
+        op.name
+        for op in cap.operations
+        if op.tool_name and op.name not in SETTINGS_OPERATIONS and op.name != "query_state"
+    ]
+
+
+def _eligible_operations() -> tuple[tuple[tuple[str, str], ...], tuple[tuple[str, str], ...]]:
+    """(withholdable, underpowered) capability/operation pairs for refusal families.
+
+    ``withholdable`` is anything Home Assistant supplies a tool for, so the
+    recipe can remove that tool. ``underpowered`` additionally needs the device
+    template to carry a feature the operation does not require, so an entity
+    that genuinely lacks the capability can be built.
+    """
+    from generators.capability_registry import SupportLevel, required_features
+    from generators.homes import _ENTITY_TEMPLATES
+
+    withholdable: list[tuple[str, str]] = []
+    underpowered: list[tuple[str, str]] = []
+    for cap_name, cap in CAPABILITIES.items():
+        template = _ENTITY_TEMPLATES.get(cap_name)
+        for op in cap.operations:
+            if not op.tool_name or op.support != SupportLevel.SUPPORTED:
+                continue
+            withholdable.append((cap_name, op.name))
+            if not template:
+                continue
+            needed = set(required_features(cap_name, op.name))
+            if needed and any(feature not in needed for feature in template[2]):
+                underpowered.append((cap_name, op.name))
+    return tuple(withholdable), tuple(underpowered)
+
+
+_WITHHOLDABLE_OPERATIONS, _UNDERPOWERED_OPERATIONS = _eligible_operations()
 
 
 def _area_required_counts(distribution_path: Path | None, count: int) -> dict[str, int]:
@@ -178,6 +248,52 @@ def _area_required_counts(distribution_path: Path | None, count: int) -> dict[st
     return assert_required_counts_feasible(plan, count)
 
 
+def _refusal_identity_ceiling(
+    real_home_path: Path,
+    *,
+    near_duplicate_limit: int,
+) -> dict[str, int]:
+    """Max rows per refusal family if every attempt used the real home fixture."""
+    from generators.capability_registry import entities_supporting, operation_spec
+    from generators.real_home import load_real_home
+
+    home = load_real_home(real_home_path, split="train")
+    entities = home["entities"]
+    areas = {entity["area"] for entity in entities}
+
+    unavailable_keys: set[tuple[str, str, str, str | None]] = set()
+    for cap_name, op_name in _WITHHOLDABLE_OPERATIONS:
+        cap_entities = [entity for entity in entities if entity["capability"] == cap_name]
+        op = operation_spec(cap_name, op_name)
+        tool = op.tool_name if op else None
+        for entity in entities_supporting(cap_entities, cap_name, op_name):
+            unavailable_keys.add((cap_name, op_name, entity["entity_id"], tool))
+
+    unsupported_keys: set[tuple[str, str, str]] = set()
+    for cap_name, op_name in _UNDERPOWERED_OPERATIONS:
+        for area in areas:
+            unsupported_keys.add((cap_name, op_name, area))
+
+    return {
+        "unavailable": len(unavailable_keys) * near_duplicate_limit,
+        "unsupported": len(unsupported_keys) * near_duplicate_limit,
+    }
+
+
+def _eligible_real_home_slots(
+    family_counts: dict[str, int],
+    area_required: dict[str, int],
+) -> int:
+    """Rows whose family may be drawn from the real home when balancing the mix."""
+    eligible = sum(
+        count
+        for family, count in family_counts.items()
+        if family not in REAL_HOME_EXCLUDED_FAMILIES
+    )
+    eligible += sum(area_required.values())
+    return eligible
+
+
 def verify_feasible(
     count: int,
     allocations: dict[str, float],
@@ -186,6 +302,9 @@ def verify_feasible(
     area_required: dict[str, int],
     grounding_variants: int,
     grounding_rate: float,
+    real_home_path: Path | None = None,
+    real_home_rate: float = 0.0,
+    refusal_on_synthetic_only: bool = True,
 ) -> None:
     """Fail before generation when quotas cannot be met."""
     family_counts = _distribute_shares(count, allocations)
@@ -203,6 +322,29 @@ def verify_feasible(
                 f"grounding_rate {grounding_rate} requests {requested} rows but "
                 f"catalogue allows at most {max_grounding}"
             )
+    if real_home_path and real_home_rate > 0:
+        real_target = int(round(count * real_home_rate))
+        eligible = _eligible_real_home_slots(family_counts, area_required)
+        if real_target > eligible:
+            raise ValueError(
+                f"real_home rate {real_home_rate} requests {real_target} rows but only "
+                f"{eligible} slots may use the real home once "
+                f"{sorted(REAL_HOME_EXCLUDED_FAMILIES)} stay synthetic"
+            )
+        ceilings = _refusal_identity_ceiling(
+            real_home_path,
+            near_duplicate_limit=near_duplicate_limit,
+        )
+        for family in ("unavailable", "unsupported"):
+            need = family_counts.get(family, 0)
+            ceiling = ceilings[family]
+            if need > ceiling and not refusal_on_synthetic_only:
+                raise ValueError(
+                    f"{family} allocation requests {need} rows but the real home "
+                    f"supports at most {ceiling} distinct refusal identities at "
+                    f"near_duplicate_limit={near_duplicate_limit}; keep the family "
+                    f"synthetic or lower its share"
+                )
 
 
 def build_plan(
@@ -215,6 +357,8 @@ def build_plan(
     grounding_variants: int = 0,
     grounding_rate: float = 0.0,
     datetime_required: int = 0,
+    real_home_path: Path | None = None,
+    real_home_rate: float = 0.0,
 ) -> AllocationPlan:
     """Build shuffled generation slots from a versioned recipe."""
     area_required = _area_required_counts(area_distribution_path, count)
@@ -232,6 +376,8 @@ def build_plan(
         area_required=area_required,
         grounding_variants=grounding_variants,
         grounding_rate=grounding_rate,
+        real_home_path=real_home_path,
+        real_home_rate=real_home_rate,
     )
     requested = _distribute_shares(primary_count, allocations)
     if datetime_required:
@@ -260,7 +406,7 @@ def build_plan(
                     operation=operation if family != "status" else "query_state",
                     tier=tier,
                     home_size=home_size,
-                    contrast_group=f"{family}_contrast" if family in {"status", "clarify"} else None,
+                    contrast_group=f"{family}_contrast" if family in {"status", "clarify", "follow_up"} else None,
                 )
             )
             index += 1

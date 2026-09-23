@@ -7,6 +7,7 @@ are eval, labeling, and optional later overlay — not the primary positive clas
 
 Collection: `docs/SATELLITE_DATA_COLLECTION.md`.
 Labeling rules: `docs/WAKE_WORD_DATA.md`.
+Training plan: [SAYSO_WAKE_WORD_TRAINING_PLAN.md](SAYSO_WAKE_WORD_TRAINING_PLAN.md).
 
 ## Canonical trainer (LiveKit generate-first)
 
@@ -75,13 +76,15 @@ CLI surface:
 | --- | --- | --- |
 | Pi `192.168.1.54` | `/var/lib/sayso-satellite/` | Capture, live ONNX, miner spool |
 | Pi `192.168.1.54` | `/var/lib/sayso-satellite/wake-sessions/` | **Staging** for long-form ingest before `ship` |
-| Train `192.168.1.140` | `/home/ubuntu/sayso-wake-data/corpus/` | **Canonical** long-form session corpus (replay, splits, snapshots) |
-| Train `192.168.1.140` | `/home/ubuntu/sayso-wake-data/data/` | Named wav **sets** (Snowball) |
-| Train `192.168.1.140` | `/home/ubuntu/sayso-wakeword/` | LiveKit `data/` (backgrounds, RIRs, ACAV features), `output-living2/`, isolated `runs/` |
+| Train `llm` (`192.168.1.76`) | `/srv/llm/data/wake/corpus/` | **Canonical** long-form session corpus (replay, splits, snapshots) |
+| Train `llm` (`192.168.1.76`) | `/srv/llm/data/wake/data/` | Named wav **sets** (Snowball) |
+| Train `llm` (`192.168.1.76`) | `/srv/llm/wake/runs/` (SSD) | LiveKit work dirs: `data/` (backgrounds, RIRs, ACAV features), outputs, isolated runs |
 
-`wake_corpus.py ship` defaults to `ubuntu@192.168.1.140` and remote corpus
-`/home/ubuntu/sayso-wake-data/corpus` (rsync over SSH). Shipping does
-not require stopping LFM2 on the train host.
+> **2026-09-23:** the train host moved from the retired `192.168.1.140` to the `llm` VM (`LLM@192.168.1.76`). The Pi's `id_ed25519_sayso_train` key is authorized there. The old wake corpus and sets were **not** migrated; the new trees are empty. Host setup: [training/wake/README.md](../training/wake/README.md).
+
+`wake_corpus.py ship` defaults to `LLM@192.168.1.76` and remote corpus
+`/srv/llm/data/wake/corpus` (rsync over SSH). Shipping does
+not require stopping vLLM or training on the train host.
 
 The git worktree does **not** hold training wavs. `satellite/models/sayso.yaml`
 is the primary training recipe (generate-first, 25k/5k samples, 3 augment
@@ -117,7 +120,7 @@ experiments and must not be treated as “more data = better.”
 | `negative_living_talk/` | 89 | Trainer **val only** |
 
 Val positives are **10 copies** of the 50 (not independent). Backgrounds/RIRs
-live under `sayso-wakeword/data/`, not this tree. Class prior: positive **96**,
+live in each LiveKit work dir's `data/` (`/srv/llm/wake/runs/<run>/data/`), not this tree. Class prior: positive **96**,
 ACAV **64**, `max_negative_weight` **200**.
 
 ### Verifier only (not the classifier)
@@ -160,7 +163,7 @@ TTS and scrape piles from older recipes: `positive/` (13700), `positive_val/`
 `sayso-training.yaml` still points at phonetic inference. Failed levers
 (blend, living3 ACAV, living6 +357 mine negs) used this sprawl.
 
-## Isolated train runs (`sayso-wakeword/runs/`)
+## Isolated train runs (`/srv/llm/wake/runs/`)
 
 Each candidate should copy wavs into `output/sayso/{positive,negative}_{train,test}/`
 as `clip_NNNNNN.wav` (unaugmented) plus `_r0`…`_r7` after augment. Do **not**

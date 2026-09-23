@@ -66,11 +66,17 @@ def build_manifest(
         if area_ctx.get("target_area_source"):
             area_sources[area_ctx["target_area_source"]] += 1
 
-    lengths = token_lengths or [
-        row["metadata"].get("_token_length", 0) for row in rows if row["metadata"].get("_token_length")
-    ]
-    if not lengths and rows:
+    # Every accepted row, measured exactly once. Validation only tokenizes the
+    # rows its cheap character bound could not clear, so mixing cached and
+    # missing counts is normal -- taking only the cached ones would report the
+    # longest tail of the corpus as if it were the whole distribution.
+    lengths = list(token_lengths or [])
+    if not lengths:
         for row in rows:
+            cached = row["metadata"].get("_token_length")
+            if cached:
+                lengths.append(cached)
+                continue
             try:
                 lengths.append(count_row_tokens(row, model_name=tokenizer_model))
             except Exception:  # noqa: BLE001

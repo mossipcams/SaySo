@@ -1,7 +1,7 @@
 # SaySo training log
 
 What actually ran, what changed, what it scored, and which checkpoint was selected.
-Design rules live in [docs/TRAINING_PLAN.md](../docs/TRAINING_PLAN.md); current
+Design rules live in [docs/SAYSO_LFM_TRAINING_PLAN.md](../docs/SAYSO_LFM_TRAINING_PLAN.md); current
 commands live in [training/README.md](README.md). Neither belongs here.
 
 ## Conventions
@@ -16,17 +16,21 @@ commands live in [training/README.md](README.md). Neither belongs here.
   two scorers that disagree on the same checkpoint. See "Scorers" below.
 - Hashes are the first 16 hex of sha256. Datasets are gitignored, so the hash is
   the only durable identifier.
+- Host paths below are as recorded. The old host `192.168.1.140` is retired;
+  its `/srv/models`, `/srv/datasets`, and `/srv/training-runs` now live on
+  `ssh llm` under `/srv/llm/data/lfm/legacy-140/{models,datasets,training-runs}`.
 
-## Scorers
+## Historical scorers
 
-Neither scorer is in this repository — both live on the training host and are
-not version-controlled. That is a known gap: a scorer change cannot currently be
-attributed to a commit, so results are pinned by file hash instead.
+The table below describes scorers used by historical runs, including host-only
+scripts and repository paths that have since moved. New evaluations use the
+single version-controlled runner under `evals/` and the production parser.
+Keep old scores attributed to their original scorer and corpus revision.
 
 | Scorer | Path (host) | sha256 | Reads | Notes |
 |---|---|---|---|---|
 | `structured` | `/srv/training-runs/sayso-eval-quality-llamacpp.py` | `068f412a9be0872b` | `/v1/chat/completions` `tool_calls` | Truncates apostrophe names (`O'Malley's`, `Kids'`). Serving bug, not a label bug. |
-| `rawparse` | `/srv/training-runs/eval_gold_raw.py` | `b649076ed217f950` | raw `/completion` text | Apostrophe-safe Python-call parser. Authoritative per TRAINING_PLAN §4. Hangs on untuned-base output — see below. |
+| `rawparse` | `/srv/training-runs/eval_gold_raw.py` | `b649076ed217f950` | raw `/completion` text | Apostrophe-safe Python-call parser. Authoritative per SAYSO_LFM_TRAINING_PLAN §4. Hangs on untuned-base output — see below. |
 | `repoparse` | `training/scripts/eval_v3_rawparse.py` | pinned by commit | raw `/completion` text | Same method as `rawparse`, in-repo. Calibrated equal to it (below). |
 
 `repoparse` exists because `rawparse` cannot score the base model: its
@@ -122,7 +126,7 @@ eval artifacts. Recorded so the config is not mistaken for a completed run.
 
 **Selected:** ep2.
 **Artifact:** `/srv/training-runs/SaySo-LFM2.5-230M-Base-First-ep2/checkpoint-625`
-**Note:** continuing from a merged checkpoint was later ruled out; TRAINING_PLAN now requires training from Base.
+**Note:** continuing from a merged checkpoint was later ruled out; SAYSO_LFM_TRAINING_PLAN now requires training from Base.
 
 ## Run 005: 10k-plus supplement
 - **Base:** `/srv/models/LFM2.5-230M-Base`
@@ -641,3 +645,93 @@ is stale outright.
 
 Resolve which model is live by hashing the served file against run artifacts.
 Both markers are on the host and neither is version-controlled.
+
+## Host cleanup — 2026-09-23
+
+The retired host's data on the `llm` VM was cleaned per
+[docs/PLAN_VM_LAYOUT.md](../docs/PLAN_VM_LAYOUT.md) Task 2. The full manifest
+(1,016 files, 23.6 GB, sha256 + size + path) is
+[legacy-140-deleted.sha256](legacy-140-deleted.sha256). Non-regenerable files
+were copied to the Mac (`~/SaySo-archive/vm-20260923/`) and hash-verified
+before deletion. Also deleted without archive: rotating LoRA checkpoints
+(selected steps survive as GGUFs), `-merged` HF folders (their f16 GGUFs
+survive), and the duplicate Base model. The two unfinished runs (Newhaven,
+ha-contract-v2) kept their logs, results, and scored step-2500 GGUFs; only
+their final checkpoints were archived. Both `CHAMPION.txt` files were replaced
+by `lfm/legacy-140/CHAMPION.md`, which records the shipped model and the eval
+champion separately.
+
+Kept training corpora are zstd-compressed in place (`*.jsonl.zst`);
+decompressing restores the hashed bytes (checked: Run 009 `a6babc7345fc097c`,
+Run 008 `17754a93ae9c397e`).
+
+Deleted datasets and GGUFs:
+
+| Path (under old `/srv/`, now `/srv/llm/data/lfm/legacy-140/`) | sha256[:16] | Size | Mac archive |
+|---|---|---|---|
+| `datasets/home_assistant_train.jsonl` | `cbb90f9f83aa36ce` | 260 MB | yes |
+| `datasets/sample.jsonl` | `2dc21eb38d9d676e` | 48 MB | yes |
+| `datasets/sayso_40k_ha_contract_20260914/sayso_train_v3_40k.jsonl` | `a11d75579539cbf6` | 858 MB | yes |
+| `datasets/sayso_40k_ha_contract_20260914/sayso_train_v3_40k_render.jsonl` | `ee98e7f28fdb27e4` | 858 MB | yes |
+| `datasets/sayso_realistic_20260908/sayso-realistic-40k.jsonl` | `0d158271052a9717` | 399 MB | yes |
+| `datasets/sayso_realistic_20260908/train_render.jsonl` | `e088b3a6066f7fba` | 399 MB | yes |
+| `datasets/sayso_train_2551_raw.jsonl` | `70715f95d949385f` | 12 MB | yes |
+| `datasets/sayso_train_2552_raw.jsonl` | `ab54312c898be78f` | 12 MB | yes |
+| `datasets/sayso_v3_grounded_20260911/sayso_train_v3_40k.jsonl` | `d5bfee9e9e17e2c1` | 417 MB | yes |
+| `datasets/sayso_v3_grounded_20260911/sayso_train_v3_40k_render.jsonl` | `36f1f39552ffa8a2` | 416 MB | yes |
+| `models/Home-FunctionGemma-270m.q8_0.gguf` | `a07d6d29e2850878` | 292 MB | yes |
+| `models/Qwen3.5-9B-Q4_K_M.gguf` | `03b74727a860a563` | 5,681 MB | no (re-downloadable or duplicate) |
+| `models/SaySo-LFM2.5-230M-40k-gauntlet-step2500-Q8_0.gguf` | `229c805d85e7ef80` | 247 MB | no (re-downloadable or duplicate) |
+| `training-runs/run013-eval/artifacts/step-3250-Q8_0.gguf` | `20ad707d4497c9a4` | 247 MB | yes |
+| `training-runs/run013-eval/artifacts/step-3250-f16.gguf` | `5c714942ba57d95a` | 462 MB | yes |
+| `training-runs/run013-eval/artifacts/step-5000-Q8_0.gguf` | `c02ed6e786504711` | 247 MB | yes |
+| `training-runs/run013-eval/artifacts/step-5000-f16.gguf` | `a398b016ebcd8f78` | 462 MB | yes |
+| `training-runs/sayso-semantic-early-20260908/artifacts/step-250-Q8_0.gguf` | `82e742c37235e0ea` | 247 MB | yes |
+| `training-runs/sayso-semantic-early-20260908/artifacts/step-250-f16.gguf` | `e58dfa8d1c6b7ab8` | 462 MB | yes |
+
+## Host inventory — 2026-09-22 (no new training run)
+
+Read-only inspection found a GTX 1070 with 8,192 MiB VRAM and no active training
+or llama.cpp process. The proposed 24 GB full fine-tune is planning only. Host
+hardware, package versions, and actual launch paths are recorded in
+[training/README.md](README.md#retired-host-192168140).
+
+Later artifacts exist beyond the last numbered run documented above:
+
+| Host output under `/srv/training-runs/` | Latest retained trainer state | Configured training |
+|---|---|---|
+| `SaySo-LFM2.5-230M-ha-contract-v2-20260914/` | Step 3,950; epoch 1.58; planned maximum 5,000 steps | Fresh Base rsLoRA, 40k HA-contract corpus |
+| `Newhaven/` | Step 2,650; epoch 1.06; planned maximum 5,000 steps | Fresh Base rsLoRA, 40k Haven corpus |
+
+Both host configs use FP32 with the custom xFormers/Liger entry point, batch 1,
+accumulation 16, rank/alpha 32, learning rate `2e-4`, max length 8,192, and saving
+every 50 steps. These are observed configs and saved states, not evidence that
+either two-epoch run finished. Inspection did not establish their stopping
+reason, comparable current-suite scores, promotion, or deployment.
+
+`/srv/training-runs/{ha-contract-v2-eval,newhaven-eval}/` contain evaluation
+artifacts. Audit their checkpoint hashes, source revisions, corpora, and scorers
+before using them as baselines. Existing `CHAMPION.txt` markers remain historical:
+the `/srv/models/` marker's claimed serving PID/port was not live at inspection,
+and the `/srv/training-runs/` marker still points to the old corrective run.
+This does not inspect or identify the artifact running inside Home Assistant.
+
+No host files, processes, models, datasets, or deployment were changed.
+
+### VM layout completed — 2026-09-23
+
+Task 3 in `docs/PLAN_VM_LAYOUT.md` is applied: checkout and LFM datasets on the
+HDD; LFM models/runs, vLLM (`serve/vllm/`), Unsloth (`services/unsloth/`), and
+shared HF cache on the SSD. Retired helpers/configs are archived on the HDD
+and Mac. Both services passed HTTP checks; authenticated vLLM inference passed.
+Generation import, GPU self-check, and Pi shipping destination checks passed.
+No model training or corpus generation was run during migration.
+
+### Shared GPU command completed — 2026-09-23
+
+`/srv/llm/bin/gpu` is the sole training/serving entry point. Wake and LFM
+cancellation, concurrent serve refusal, failed cleanup, and restart-after were
+checked; legacy start/stop scripts and ROCm state mirror were retired. State
+tracks both wrapper and worker so a dead wrapper cannot free a live worker.
+Interrupted/failed LFM commands restart Unsloth before releasing the GPU.
+Studio is exploration-only. These checks ran sleep/no-op commands, not training.

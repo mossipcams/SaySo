@@ -1,0 +1,79 @@
+# Full fine-tune corpus v4 — defect-driven. See docs/PLAN_LFM_DATA_GENERATION.md.
+#
+# Targets open issues #39 (tools refuse to fire), #94 (MatchFailedError on the
+# living-room TV), and #97 (noisy STT emits unavailable tools). Unlike every
+# shipped 40k corpus, this one is built from family allocations, so the negative
+# and clarify families actually get their requested share.
+version: 1
+count: 40000
+seed: 20260922
+split: train
+output: training/datasets/sayso_full_sft_v4_20260922.jsonl
+manifest: training/datasets/sayso_full_sft_v4_20260922.manifest.json
+
+tokenizer:
+  model: LiquidAI/LFM2.5-230M-Base
+
+schema:
+  path: schemas/sayso-tool-schema-v2.json
+
+allocations:
+  ordinary: 0.36
+  status: 0.12
+  settings: 0.10
+  multi_action: 0.08
+  clarify: 0.07
+  exclusion: 0.05
+  unavailable: 0.05
+  absence: 0.04
+  unsupported: 0.03
+  aliases: 0.04
+  junk: 0.06   # issue #97: non-command transcripts answered with no tool call
+
+cross_cutting:
+  area:
+    enabled: true
+    distribution: training/configs/area_distribution_v1.json
+
+generation:
+  stt_noise_rate: 0.15
+  stt_log_rate: 0.10  # live Whisper: librarian/ribbon, dropped articles, homophones, punct
+  paraphrase_enabled: false
+  # Measured on this checkout with the repaired tokenizer path: production-shaped
+  # rows run min 2,663 / p50 5,401 / p95 6,508. The old 4,096 and 5,120 budgets
+  # were never enforced (the gate was dead), so they never clipped anything.
+  # 7,168 leaves headroom under the 8,192 training context without truncation.
+  token_budget: 7168
+  near_duplicate_limit: 8
+  max_attempts_multiplier: 20
+  synthetic_only: false
+  # Issue #94: Home Assistant entities commonly carry a bare name plus an area
+  # ("TV" in "Living Room"). Every synthetic name was area-prefixed, so the model
+  # learned to emit "Living room TV" -- a string no registry holds.
+  bare_name_rate: 0.35
+
+real_home:
+  path: training/fixtures/real_home.json
+  rate: 0.10
+  entity_cap: 0
+
+grounding:
+  rate: 0.0
+
+discrimination:
+  # v3 production requested 0.02 against its own composition. The junk family and
+  # the real GetDateTime floor take ~7% of rows that can never be discrimination
+  # rows (they need an action with an individual target), which drops the
+  # reachable ceiling to ~0.018. Measured achieved here: 0.0174.
+  rate: 0.015
+
+coverage:
+  # Issue #39: the old floors of 1 were vacuous, and GetDateTime actually shipped
+  # at zero positives in all three 40k corpora.
+  min_positive_per_operation: 40
+  min_positive_per_tool: 200
+  max_absence_rate: 0.10
+  get_datetime_positive_min: 400
+
+recipe_exclusions:
+  withheld_from_catalog: []

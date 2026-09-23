@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# One GPU, three users: vLLM serving, Unsloth (SaySo LFM) training, LiveKit (wake) training.
+# Installed on the llm VM as /srv/llm/bin/gpu -> /srv/llm/sayso/scripts/llm-host/gpu.
+# Plan: docs/PLAN_VM_LAYOUT.md Task 4.
+#
+#   gpu status
+#   gpu serve                         start vLLM (refuses while a training run is alive)
+#   gpu stop                          stop vLLM
+#   gpu train lfm  [--serve-after] <cmd...>   run <cmd> in the unsloth container
+#   gpu train wake [--serve-after] <cmd...>   run <cmd> with the wake venv on the host
+#
+# State is a file (vLLM is a detached container, so no process can hold a lock
+# while it serves): "idle" | "serve" | "train:<lfm|wake> <owner> <worker>".
+# flock guards transitions. Surviving worker groups keep the reservation.
+# Stale LFM reservations require container cleanup before the GPU can be reused.
+set -euo pipefail
+
+RUN=${GPU_RUN_DIR:-/srv/llm/run}
+STATE=$RUN/gpu.state
+LOCK=$RUN/gpu.lock
+VLLM_DIR=${GPU_VLLM_DIR:-/srv/llm/serve/vllm}
+VLLM_UP=${GPU_VLLM_UP:-docker compose --project-directory "$VLLM_DIR" up -d}
+VLLM_DOWN=${GPU_VLLM_DOWN:-docker compose --project-directory "$VLLM_DIR" down}
+WAKE_VENV=${GPU_WAKE_VENV:-/srv/llm/data/wake/.venv}
+mkdir -p "$RUN"
+die() { echo "gpu: $*" >&2; exit 1; }
+
+alive() {
+  local stat
+  [[ $1 =~ ^[1-9][0-9]*$ ]] || return 1
+  kill -0 "$1" 2>/dev/null || return 1
+  # Linux keeps zombies in /proc until their parent reaps them.
+  stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+  [[ ${stat##*) } != Z* ]]
+}
+
+group_alive() {
+  local members
+  [[ $1 =~ ^[1-9][0-9]*$ ]] || return 1
+  members=$(ps -eo pgid=,stat=) || die "cannot inspect worker groups"
+  awk -v group="$1" '$1 == group && $2 !~ /^Z/ {live=1} END {exit !live}' <<< "$members"
+}
+
+read_state() {
+  local s owner worker
+  if [[ -e $STATE ]]; then
+    s=$(cat "$STATE") || die "cannot read $STATE"
+  else
+    s=idle
+  fi
+  case $s in
+    idle|serve) ;;
+    starting:*) die "interrupted launch; inspect workers before clearing $STATE" ;;
+    *)
+      [[ $s =~ ^train:(lfm|wake)\ ([1-9][0-9]*)(\ ([1-9][0-9]*))?$ ]] || die "invalid GPU state; inspect $STATE before proceeding"
+      owner=${BASH_REMATCH[2]}; worker=${BASH_REMATCH[4]:-}
+      if ! alive "$owner" && ! alive "$worker" && ! group_alive "$worker"; then
+        if [[ $s == train:lfm* ]]; then
+          if [[ ${1:-} == recover ]]; then
+            write_state blocked:lfm-cleanup
+            docker restart unsloth >/dev/null || die "LFM recovery failed; GPU remains blocked"
+            write_state idle
+            s=idle
+          else
+            s="orphan:lfm $owner $worker"  # Status does not restart services.
+          fi
+        else
+          s=idle
+        fi
+      fi
+      ;;
+  esac
+  echo "$s"
+}
+
+write_state() {
+  echo "$1" > "$STATE.tmp"
+  mv "$STATE.tmp" "$STATE"
+}
+
+with_lock() { exec 9>"$LOCK"; flock -w 30 9 || die "lock busy"; }
+
+cmd=${1:-status}; shift || true
+case $cmd in
+  status)
+    with_lock
+    s=$(read_state)
+    echo "state: $s"
+    if [[ $s == train:* || $s == orphan:* ]]; then
+      read -r _ owner worker <<< "$s"
+      echo "owner alive: $(alive "$owner" && echo yes || echo no)"
+      echo "worker alive: $(alive "${worker:-}" && echo yes || echo no)"
+      echo "worker group alive: $(group_alive "${worker:-}" && echo yes || echo no)"
+    fi
+    exec 9>&-
+    command -v rocm-smi >/dev/null && rocm-smi --showmemuse 2>/dev/null | grep -m1 "VRAM%" || true
+    ;;
+  serve)
+    with_lock
+    s=$(read_state recover)
+    [[ $s == train:* ]] && die "training holds the GPU ($s); not starting vLLM"
+    eval "$VLLM_UP"
+    write_state serve
+    ;;
+  stop)
+    with_lock
+    s=$(read_state recover)
+    eval "$VLLM_DOWN"
+    [[ $s == train:* ]] || write_state idle
+    ;;
+  train)
+    pipeline=${1:-}; shift || true
+    [[ $pipeline == lfm || $pipeline == wake ]] || die "train needs lfm or wake"
+    serve_after=0
+    [[ ${1:-} == --serve-after ]] && { serve_after=1; shift; }
+    [[ $# -gt 0 ]] || die "train $pipeline needs a command"
+    with_lock
+    s=$(read_state recover)
+    [[ $s == train:* ]] && die "already training ($s)"
+    eval "$VLLM_DOWN"
+    child=
+    release() {
+      local rc=$?
+      trap - EXIT INT TERM HUP
+      with_lock
+      if [[ -n $child ]]; then
+        kill -TERM -- "-$child" 2>/dev/null || true
+        for _ in {1..50}; do
+          group_alive "$child" || break
+          sleep 0.1
+        done
+        kill -KILL -- "-$child" 2>/dev/null || true
+        wait "$child" 2>/dev/null || true
+        for _ in {1..50}; do
+          group_alive "$child" || break
+          sleep 0.1
+        done
+        if group_alive "$child"; then
+          write_state "blocked:$pipeline-cleanup"
+          die "worker group survived cleanup; GPU remains blocked"
+        fi
+      fi
+      # Killing docker exec alone does not stop its container-side command.
+      if [[ $pipeline == lfm && $rc != 0 ]]; then
+        write_state blocked:lfm-cleanup
+        docker restart unsloth >/dev/null || exit "$rc"
+      fi
+      write_state idle
+      exec 9>&-
+      if [[ $serve_after == 1 ]]; then "$0" serve || exit 1; fi
+      exit "$rc"
+    }
+    trap release EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    trap 'exit 129' HUP
+    write_state "starting:$pipeline $$"
+    if [[ $pipeline == lfm ]]; then
+      setsid docker exec unsloth "$@" 9>&- &
+    else
+      PATH=$WAKE_VENV/bin:$PATH setsid "$@" 9>&- &
+    fi
+    child=$!
+    write_state "train:$pipeline $$ $child"
+    exec 9>&-  # The live owner/worker now guard the GPU.
+    wait "$child"
+    ;;
+  *) die "unknown command: $cmd (status|serve|stop|train)" ;;
+esac

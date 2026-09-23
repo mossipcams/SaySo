@@ -10,7 +10,8 @@ from generators.capability_registry import CAPABILITIES
 from generators.config import GeneratorConfig
 from generators.deduplication import DuplicateTracker, pair_hash
 from generators.grounding import pick_variant
-from generators.gold import gold_matches_family
+from generators.correction import entity_name_contains_area
+from generators.gold import expected_action, gold_matches_family, target_names_from_expected
 from generators.labels import render_example, scenario_to_spec
 from generators.real_home import load_real_home
 from generators.scenarios import build_scenario, pick_robustness, pick_targeting
@@ -18,15 +19,20 @@ from generators.scenarios.discrimination import (
     call_carries_value,
     pick_discriminating_description,
 )
+from generators.planning import REAL_HOME_EXCLUDED_FAMILIES
 from generators.scenarios.unavailable import unique_no_action_hint
-from generators.stt_noise import apply_stt_noise
+from generators.stt_noise import apply_log_stt_noise, apply_stt_noise
 from generators.utterances import (
     apply_generic_wording,
     expand_utterance,
     finalize_training_utterance,
     request_seed_from_spec,
 )
-from generators.validation import check_quality_eval_overlap, validate_row
+from generators.validation import (
+    check_quality_eval_overlap,
+    validate_row,
+    validate_serialized_row,
+)
 
 _DATETIME_UTTERANCES = (
     "what time is it",
@@ -41,6 +47,48 @@ def _datetime_utterance(rng: random.Random, index: int) -> str:
     return rng.choice(_DATETIME_UTTERANCES)
 
 
+# Non-command transcripts: false wakes, far-field TV audio, and half-heard
+# speech. Live traces (issues #96, #97) show the model answering these with
+# out-of-schema tool calls or malformed output, because the corpus never showed
+# it one. Every fragment here is deliberately unactionable -- no device plus
+# verb pair. A near-miss command like "turn on the living room TV" belongs in
+# the ordinary families; putting it here would train the refusals of issue #39.
+_JUNK_HEADS = (
+    "but you're being", "and then he said", "i'll translate", "we were talking",
+    "she said something about", "it was just", "they're going to", "i think it was",
+    "so anyway", "that's what i", "you know how", "he's been",
+)
+_JUNK_TAILS = (
+    "safe away", "ready in the meal", "for the weekend", "over at the place",
+    "the other one", "about half of it", "before they left", "kind of thing",
+    "in a minute or two", "all the way down", "sort of like that", "on the way back",
+)
+_JUNK_FRAGMENTS = (
+    "war", "for gv", "uh huh", "hmm", "okay so", "right then", "no no",
+    "wait", "mm hmm", "yeah but", "oh", "hang on", "what the", "and um",
+)
+
+
+def _follow_up_reply(chosen: str, rng: random.Random) -> str:
+    templates = (chosen, f"the {chosen}", f"{chosen}, please")
+    return rng.choice(templates)
+
+
+def _junk_utterance(rng: random.Random, index: int) -> str:
+    """A transcript with no actionable request, shaped like real STT output."""
+    shape = rng.random()
+    if shape < 0.30:
+        return f"{rng.choice(_JUNK_FRAGMENTS)}."
+    if shape < 0.55:
+        return f"{rng.choice(_JUNK_FRAGMENTS)}, {rng.choice(_JUNK_FRAGMENTS)}."
+    if shape < 0.80:
+        return f"{rng.choice(_JUNK_HEADS)} {rng.choice(_JUNK_TAILS)}..."
+    return (
+        f"{rng.choice(_JUNK_HEADS)} {rng.choice(_JUNK_TAILS)} and... "
+        f"{rng.choice(_JUNK_FRAGMENTS)}?"
+    )
+
+
 def generate_row(
     slot: dict[str, Any],
     config: GeneratorConfig,
@@ -50,6 +98,7 @@ def generate_row(
     dup_tracker: DuplicateTracker,
     attempt: int = 0,
     stt_remaining: int = 0,
+    stt_log_remaining: int = 0,
     rows_remaining: int = 1,
     real_home_targets: Any | None = None,
     real_home_entity_cap: int = 0,
@@ -96,6 +145,11 @@ def generate_row(
         row["metadata"]["real_home"] = False
         row["metadata"]["grounding_family"] = None
         row["metadata"]["discrimination"] = False
+        reason = validate_serialized_row(
+            row, token_budget=config.token_budget, tokenizer_model=config.tokenizer_model
+        )
+        if reason:
+            return None, reason
         dup_tracker.record(spec)
         return row, None
 
@@ -131,6 +185,8 @@ def generate_row(
             rng.random() < config.real_home_rate
             if real_home_selected is None else real_home_selected
         )
+        if family in REAL_HOME_EXCLUDED_FAMILIES:
+            select_real_home = False
         variant = (
             pick_variant(capability, operation, slot["index"] + attempt, variants=grounding_variants)
             if grounding_variants else None
@@ -169,6 +225,9 @@ def generate_row(
         inject_missing=inject_missing,
         target_usage=real_home_usage if real_home_row else None,
         family=family,
+        bare_name_rate=config.bare_name_rate,
+        # Same scenario build_spec audits; without it named variants mislabel.
+        request_intent=variant.get("request_intent") if variant else None,
     )
     if grounding_family:
         scenario["phrasing_seed"] = variant["phrasing_seed"]
@@ -180,6 +239,20 @@ def generate_row(
     expected = spec.get("expected") or {}
     if family and not gold_matches_family(expected, family):
         return None, "family_mismatch"
+    follow_up_clarify_candidates: list[str] | None = None
+    if family == "correction":
+        entity = scenario.get("target_entity")
+        if entity is None or entity_name_contains_area(entity):
+            return None, "family_mismatch"
+        spec["correction_wrong_name"] = f"{entity['area']} {entity['name']}"
+        area = entity["area"]
+        name = entity["name"]
+        spec["spoken_targets"] = {name: f"the {area} {name}"}
+    if family == "follow_up":
+        candidates = list(expected.get("candidates") or [])
+        if expected.get("response") != "clarify" or len(candidates) < 2:
+            return None, "family_mismatch"
+        follow_up_clarify_candidates = candidates[:2]
     if expected.get("kind") == "no_action":
         spec["request_hint"] = unique_no_action_hint(spec, rng)
     elif robustness == "ambiguity":
@@ -187,6 +260,30 @@ def generate_row(
     if family == "datetime":
         spec["utterance"] = _datetime_utterance(rng, slot["index"])
         spec["linguistics"] = [{"source": "sayso_fallback", "intent": "GetDateTime"}]
+    elif family == "junk":
+        spec["utterance"] = _junk_utterance(rng, slot["index"])
+        spec["linguistics"] = [{"source": "sayso_fallback", "intent": "not_understood"}]
+        spec["expected"] = {**expected, "response": "not_understood"}
+        spec.pop("request_hint", None)
+        spec.pop("clarify_question", None)
+    elif family == "follow_up":
+        clarify_expected = expected
+        clarify_spec = {**spec, "expected": clarify_expected}
+        spec["utterance"] = expand_utterance(clarify_spec)
+        chosen = rng.choice(follow_up_clarify_candidates or [])
+        entity = next(
+            (item for item in scenario["home"]["entities"] if item["name"] == chosen),
+            None,
+        )
+        if entity is None:
+            return None, "family_mismatch"
+        spec["expected"] = expected_action(entity, operation, rng)
+        spec["follow_up_clarify_candidates"] = follow_up_clarify_candidates
+        spec["follow_up_reply"] = _follow_up_reply(chosen, rng)
+        # First user turn is ambiguous; gold name appears only after the follow-up.
+        spec["target_names"] = target_names_from_expected(spec["expected"])
+        spec["_follow_up_gold_targets"] = spec["target_names"]
+        spec["target_names"] = []
     else:
         spec["utterance"] = expand_utterance(spec)
 
@@ -217,25 +314,37 @@ def generate_row(
     if check_quality_eval_overlap(spec["utterance"]):
         return None, "quality_eval_overlap"
 
-    if (
-        stt_remaining > 0
-        and rows_remaining > 0
-        and rng.random() < stt_remaining / rows_remaining
-    ):
-        corrupted, kind = apply_stt_noise(
-            spec["utterance"],
-            rng,
-            target_names=spec.get("target_names"),
-            force_transform=True,
-        )
-        if kind:
-            trial = dict(spec)
-            trial["utterance"] = corrupted
-            trial["stt_corruption"] = kind
-            if validate_row(trial, token_budget=config.token_budget) is None:
-                spec = trial
+    if family != "junk":
+        # finalize_ wraps utterances in "can you ... for me?" politeness. On a
+        # junk transcript that produces a request shape the STT never emits.
+        spec["utterance"] = finalize_training_utterance(spec["utterance"], rng)
 
-    spec["utterance"] = finalize_training_utterance(spec["utterance"], rng)
+    # Log-shaped STT after phrasing so dropped articles/fillers are not put back.
+    if family != "junk" and rows_remaining > 0:
+        if stt_log_remaining > 0 and rng.random() < stt_log_remaining / rows_remaining:
+            corrupted, kind = apply_log_stt_noise(
+                spec["utterance"], rng, target_names=spec.get("target_names")
+            )
+            if kind:
+                trial = dict(spec)
+                trial["utterance"] = corrupted
+                trial["stt_corruption"] = kind
+                if validate_row(trial, token_budget=config.token_budget) is None:
+                    spec = trial
+        elif stt_remaining > 0 and rng.random() < stt_remaining / rows_remaining:
+            corrupted, kind = apply_stt_noise(
+                spec["utterance"],
+                rng,
+                target_names=spec.get("target_names"),
+                force_transform=True,
+            )
+            if kind:
+                trial = dict(spec)
+                trial["utterance"] = corrupted
+                trial["stt_corruption"] = kind
+                if validate_row(trial, token_budget=config.token_budget) is None:
+                    spec = trial
+
     if spec["utterance"].casefold() in excluded:
         return None, "excluded_prompt"
     if check_quality_eval_overlap(spec["utterance"]):
@@ -259,6 +368,9 @@ def generate_row(
         if any(real_home_targets[name] >= real_home_entity_cap for name in targets):
             return None, "real_home_entity_cap"
 
+    if family == "follow_up" and spec.get("_follow_up_gold_targets") is not None:
+        spec["target_names"] = spec.pop("_follow_up_gold_targets")
+
     try:
         row = render_example(spec)
     except ValueError as exc:
@@ -269,7 +381,12 @@ def generate_row(
     row["metadata"]["discrimination"] = discrimination
     if family:
         row["metadata"]["family"] = family
-    if quota is not None and family != "datetime":
+    reason = validate_serialized_row(
+        row, token_budget=config.token_budget, tokenizer_model=config.tokenizer_model
+    )
+    if reason:
+        return None, reason
+    if quota is not None and family not in {"datetime", "junk"}:
         from generators.coverage import classify_row
 
         reason = quota.wants(classify_row(row))

@@ -53,7 +53,8 @@ Defer if they threaten the voice path:
   `evals/suites/`, `evals/runner.py`, `evals/scorer.py`, `evals/cli.py`).
   Evaluator tests live in `evals/tests/`. Do not train on ChatML `<tool_call>`
   labels or on eval case IDs/utterances from `evals/cases/`.
-- Training design lives only in `docs/TRAINING_PLAN.md`. The target is
+- SaySo model training design lives in `docs/SAYSO_LFM_TRAINING_PLAN.md`; wake-word
+  training has its own `docs/SAYSO_WAKE_WORD_TRAINING_PLAN.md`. The model target is
   `LFM2.5-230M-Base` with schema-conditioned function calling. `ALLOWED_HASS_TOOLS`
   validates the pinned training contract only — it does not define runtime support.
 - Python throughout. Extend the existing test suite: `tests/`, `evals/tests/`,

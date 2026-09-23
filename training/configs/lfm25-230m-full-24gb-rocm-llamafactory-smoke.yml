@@ -1,0 +1,48 @@
+### model
+model_name_or_path: /srv/llm/models/LFM2.5-230M-Base
+trust_remote_code: true
+
+### method
+stage: sft
+do_train: true
+finetuning_type: full
+
+### dataset
+dataset: sayso_v5_rendered_smoke
+dataset_dir: /srv/llm/datasets
+template: empty
+cutoff_len: 8192
+overwrite_cache: true
+preprocessing_num_workers: 4
+
+### output
+output_dir: /srv/llm/runs/sayso-lfm-v5-smoke
+logging_steps: 1
+save_steps: 2
+plot_loss: true
+overwrite_output_dir: true
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 32
+learning_rate: 2.0e-5
+max_steps: 2
+lr_scheduler_type: cosine
+warmup_ratio: 0.03
+weight_decay: 0.01
+max_grad_norm: 1.0
+train_on_prompt: false
+mask_history: false
+
+### precision
+fp16: false
+bf16: true
+pure_bf16: false
+
+flash_attn: sdpa
+disable_gradient_checkpointing: false
+packing: false
+optim: adamw_torch
+dataloader_num_workers: 2
+seed: 42
+save_total_limit: 1

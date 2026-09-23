@@ -14,7 +14,12 @@ from generators.planning import PRIMARY_FAMILIES
 
 DEFAULT_TRAIN_COUNT = 40_000
 DEFAULT_SEED = 20260905
-DEFAULT_TOKEN_BUDGET = 5120
+# The training context every recipe declares. Until the token gate was repaired
+# this number enforced nothing: count_row_tokens raised on tool-call rows and
+# returned 2 on the rest, so no corpus was ever length-checked. Measured
+# properly, production-shaped rows run to ~6.6k tokens, so the old 5,120 default
+# would now silently delete half the distribution rather than catch an overflow.
+DEFAULT_TOKEN_BUDGET = 8192
 DEFAULT_STT_RATE = 0.15
 DEFAULT_MAX_ATTEMPTS_MULTIPLIER = 20
 DEFAULT_NEAR_DUPLICATE_LIMIT = 8
@@ -42,6 +47,7 @@ class GeneratorConfig:
     tier_proportions: dict[int, float] = field(default_factory=lambda: dict(TIER_PROPORTIONS))
     home_size_weights: dict[int, int] = field(default_factory=lambda: dict(HOME_SIZE_WEIGHTS))
     stt_noise_rate: float = DEFAULT_STT_RATE
+    stt_log_rate: float = 0.0
     paraphrase_enabled: bool = False
     paraphrase_variants: int = 0
     token_budget: int = DEFAULT_TOKEN_BUDGET
@@ -53,6 +59,7 @@ class GeneratorConfig:
     max_attempts_multiplier: int = DEFAULT_MAX_ATTEMPTS_MULTIPLIER
     grounding_rate: float = 0.0
     discrimination_rate: float = 0.0
+    bare_name_rate: float = 0.0
     area_distribution_path: Path | None = None
     min_positive_per_operation: int = 1
     min_positive_per_tool: int = 1
@@ -74,7 +81,7 @@ class GeneratorConfig:
             total = sum(self.allocations.values())
             if abs(total - 1.0) > 0.02:
                 raise ValueError(f"allocations must sum to ~1.0, got {total:.4f}")
-        for name in ("grounding_rate", "discrimination_rate"):
+        for name in ("grounding_rate", "discrimination_rate", "bare_name_rate", "stt_log_rate"):
             value = getattr(self, name)
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name} must be within [0, 1], got {value}")
@@ -134,6 +141,7 @@ class GeneratorConfig:
             recipe_version=int(raw.get("version", 1)),
             allocations={k: float(v) for k, v in allocations.items()},
             stt_noise_rate=float(gen.get("stt_noise_rate", DEFAULT_STT_RATE)),
+            stt_log_rate=float(gen.get("stt_log_rate", 0.0)),
             paraphrase_enabled=bool(gen.get("paraphrase_enabled", False)),
             token_budget=int(gen.get("token_budget", DEFAULT_TOKEN_BUDGET)),
             tokenizer_model=str(tokenizer.get("model", DEFAULT_TOKENIZER)),
@@ -144,6 +152,7 @@ class GeneratorConfig:
             ),
             grounding_rate=float(raw.get("grounding", {}).get("rate", 0.0)),
             discrimination_rate=float(raw.get("discrimination", {}).get("rate", 0.0)),
+            bare_name_rate=float(gen.get("bare_name_rate", 0.0)),
             area_distribution_path=area_distribution_path,
             min_positive_per_operation=int(coverage.get("min_positive_per_operation", 1)),
             min_positive_per_tool=int(coverage.get("min_positive_per_tool", 1)),
@@ -171,6 +180,7 @@ class GeneratorConfig:
             "recipe_version": self.recipe_version,
             "allocations": self.allocations,
             "stt_noise_rate": self.stt_noise_rate,
+            "stt_log_rate": self.stt_log_rate,
             "paraphrase_enabled": self.paraphrase_enabled,
             "token_budget": self.token_budget,
             "tokenizer_model": self.tokenizer_model,
@@ -178,6 +188,7 @@ class GeneratorConfig:
             "near_duplicate_limit": self.near_duplicate_limit,
             "grounding_rate": self.grounding_rate,
             "discrimination_rate": self.discrimination_rate,
+            "bare_name_rate": self.bare_name_rate,
             "area_distribution_path": str(self.area_distribution_path)
             if self.area_distribution_path
             else None,

@@ -20,8 +20,8 @@ from .livekit import SAMPLE_RATE
 SESSIONS_DIR = "sessions"
 SESSION_MANIFEST = "session.json"
 SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$")
-DEFAULT_SHIP_REMOTE = "ubuntu@192.168.1.140"
-DEFAULT_SHIP_REMOTE_CORPUS = "/home/ubuntu/sayso-wake-data/corpus"
+DEFAULT_SHIP_REMOTE = "LLM@192.168.1.76"
+DEFAULT_SHIP_REMOTE_CORPUS = "/srv/llm/data/wake/corpus"
 
 
 def _utc_stamp() -> str:

@@ -257,8 +257,17 @@ def _random_entity_name(
     rng: random.Random,
     taken: set[str] | None = None,
     owners: tuple[str, ...] = _OWNERS,
+    bare_name_rate: float = 0.0,
 ) -> str:
-    """Name a real fixture or routine in its room; uniqueness is home-local."""
+    """Name a real fixture or routine in its room; uniqueness is home-local.
+
+    ``bare_name_rate`` is the share of fixtures named without their area prefix.
+    Home Assistant installs commonly carry a bare ``TV`` in area ``Living Room``
+    -- the user's own home does -- while every name this generator produced was
+    ``f"{area} {role}"``. A corpus of only prefixed names teaches the model to
+    answer "the living room TV" with ``name="Living room TV"``, a string that
+    exists in no registry, which is the ``MatchFailedError`` in issue #94.
+    """
     taken = taken if taken is not None else set()
     roles = _roles(capability, area)
     brands = _BRANDS.get(capability, ())
@@ -275,6 +284,8 @@ def _random_entity_name(
             name = f"{rng.choice(owners)} {role}"
         elif shape < 0.35 and brands:
             name = f"{area} {rng.choice(brands)} {_ENTITY_TEMPLATES[capability][0]}"
+        elif rng.random() < bare_name_rate:
+            name = role
         else:
             name = f"{area} {role}"
         if rng.random() < 0.26:
@@ -305,12 +316,26 @@ def _capability_slots(size: int, rng: random.Random) -> list[str]:
     return slots[:size]
 
 
+def _collision_aliases(name: str, area: str, noun: str) -> list[str]:
+    """Aliases for a deliberate collision entity.
+
+    The bare ``noun`` is the point -- two devices answering to "tv" is what makes
+    the row hard. The area-prefixed form is dropped when the entity's own name is
+    not area-prefixed, so a bare or owner-named device never hands the model back
+    a "{area} {noun}" string to concatenate (issue #94).
+    """
+    if name.casefold().startswith(area.casefold()):
+        return [f"{area} {noun}", noun]
+    return [noun]
+
+
 def generate_home(
     index: int,
     size: int,
     rng: random.Random,
     *,
     sayso_entity_area: str | None = None,
+    bare_name_rate: float = 0.0,
 ) -> dict[str, Any]:
     """Build a coherent synthetic home with distractors."""
     capabilities = _capability_slots(size, rng)
@@ -325,10 +350,19 @@ def generate_home(
     owners = tuple(rng.sample(_OWNERS, 2))
     for slot, capability in enumerate(capabilities):
         area = rng.choice(device_areas(capability, rooms))
-        name = _random_entity_name(capability, area, slot, index, rng, taken, owners)
+        name = _random_entity_name(
+            capability, area, slot, index, rng, taken, owners, bare_name_rate=bare_name_rate
+        )
         taken.add(_slug(name))
         noun = _ENTITY_TEMPLATES[capability][0].lower()
-        aliases = [name] if capability in {"scripts", "scenes", "todo_lists"} else list(dict.fromkeys([name, f"{area} {noun}"]))
+        # A bare name keeps its area only in ``areas``. Giving it the usual
+        # "{area} {noun}" alias would hand the area-prefixed string straight back
+        # to the model and teach exactly the concatenation issue #94 is about.
+        bare = not name.casefold().startswith(area.casefold())
+        if capability in {"scripts", "scenes", "todo_lists"} or bare:
+            aliases = [name]
+        else:
+            aliases = list(dict.fromkeys([name, f"{area} {noun}"]))
         if capability == "lights":
             synonyms = {"light": "lamp", "lights": "lamps", "lamp": "light", "lamps": "lights",
                         "spotlights": "spots", "backlight": "backlighting"}
@@ -348,7 +382,10 @@ def generate_home(
         lights = [entity for entity in entities if entity["capability"] == "lights"]
         if lights:
             base = rng.choice(lights)
-            name = _random_entity_name("lights", base["area"], len(entities), index, rng, taken, owners)
+            name = _random_entity_name(
+                "lights", base["area"], len(entities), index, rng, taken, owners,
+                bare_name_rate=bare_name_rate,
+            )
             taken.add(_slug(name))
             entities.append(
                 make_entity(
@@ -357,13 +394,16 @@ def generate_home(
                     area=base["area"],
                     floor=base["floor"],
                     rng=rng,
-                    aliases=[f"{base['area']} light", "light"],
+                    aliases=_collision_aliases(name, base["area"], "light"),
                 )
             )
         tvs = [entity for entity in entities if entity["capability"] == "media_players"]
         if tvs:
             elsewhere = rng.choice([a for a in device_areas("media_players", rooms) if a != tvs[0]["area"]])
-            name = _random_entity_name("media_players", elsewhere, len(entities), index, rng, taken, owners)
+            name = _random_entity_name(
+                "media_players", elsewhere, len(entities), index, rng, taken, owners,
+                bare_name_rate=bare_name_rate,
+            )
             taken.add(_slug(name))
             entities.append(
                 make_entity(
@@ -372,7 +412,7 @@ def generate_home(
                     area=elsewhere,
                     floor=floors[elsewhere],
                     rng=rng,
-                    aliases=[f"{elsewhere} tv", "tv"],
+                    aliases=_collision_aliases(name, elsewhere, "tv"),
                 )
             )
 

@@ -85,8 +85,20 @@ def gold_matches_family(expected: dict[str, Any], family: str) -> bool:
     """Whether ``expected`` honors the recipe slot family contract."""
     kind = expected.get("kind")
     response = expected.get("response")
+    if family == "follow_up":
+        if kind == "no_action" and response == "clarify":
+            return True
+        return kind == "action"
+    if family == "correction":
+        return kind == "action" and bool(expected.get("calls"))
     if family == "clarify":
         return kind == "no_action" and response == "clarify"
+    if family == "junk":
+        # A junk row starts life as a clarify row; generate_row swaps the
+        # utterance for a non-command transcript and the response for
+        # ``not_understood`` once this contract has been checked. Both readings
+        # are valid, so re-checking a finished row still passes.
+        return kind == "no_action" and response in ("clarify", "not_understood")
     if family == "absence":
         return kind == "no_action" and response in ("area_unavailable", "device_absent")
     if family == "unavailable":
@@ -307,7 +319,10 @@ def _ambiguous_gold(
         )
     if len(matches) == 1:
         return expected_status(matches[0]) if operation == "query_state" else expected_action(matches[0], operation, rng)
-    return expected_no_action("clarify")
+    return expected_no_action(
+        "clarify",
+        candidates=[entity["name"] for entity in matches[:3]],
+    )
 
 
 def _type_label(capability: str) -> str:
