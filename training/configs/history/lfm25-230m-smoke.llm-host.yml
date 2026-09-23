@@ -1,0 +1,44 @@
+### model
+model_name_or_path: LiquidAI/LFM2.5-230M
+trust_remote_code: true
+# LlamaFactory registered template. `default` does not overwrite a model that
+# ships chat_template.jinja. Do not use Axolotl's `template: tokenizer`.
+# LFM2.5 tool calls: <|tool_call_start|>HassTurnOn(name='Kitchen')<|tool_call_end|>
+template: default
+
+### method
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_rank: 8
+lora_alpha: 16
+lora_target: all
+
+### dataset
+dataset: sayso_smoke
+dataset_dir: /srv/llm/datasets
+cutoff_len: 1024
+overwrite_cache: true
+preprocessing_num_workers: 2
+
+### output
+output_dir: /srv/llm/runs/smoke-LFM2.5-230M
+logging_steps: 1
+save_steps: 50
+save_total_limit: 1
+plot_loss: false
+overwrite_output_dir: true
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 4
+learning_rate: 2.0e-4
+num_train_epochs: 1.0
+lr_scheduler_type: cosine
+warmup_ratio: 0.05
+fp16: true
+bf16: false
+flash_attn: disabled
+gradient_checkpointing: true
+max_steps: 2
+seed: 42
