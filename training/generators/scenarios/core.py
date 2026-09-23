@@ -69,6 +69,9 @@ def semantic_id(scenario: dict[str, Any]) -> str:
         "home_id": scenario.get("home", {}).get("home_id"),
         "target_ids": sorted(target_ids),
         "target_names": sorted(target_names_from_expected(expected)),
+        "unsupported_names": sorted(expected.get("unsupported_names") or []),
+        "unavailable_tools": sorted(expected.get("unavailable_tools") or []),
+        "removed_tools": sorted(scenario.get("removed_tools") or []),
         "expected_kind": expected.get("kind"),
         "expected_response": expected.get("response"),
     }
@@ -139,9 +142,12 @@ def configure_family_scenario(
     removed_tools: list[str] = []
     request_intent: dict[str, Any] | None = None
 
-    if family == "clarify":
+    if family in {"clarify", "junk", "follow_up"}:
         _ensure_supporting_in_area(home, capability, operation, area, 2, rng, index)
         return "area", "ambiguity", request_intent, removed_tools
+
+    if family == "correction":
+        return "individual", "ordinary", request_intent, removed_tools
 
     if family == "absence":
         home["entities"] = [
@@ -205,6 +211,9 @@ def configure_family_scenario(
 
 _FAMILY_GRAPH_CONSTRAINTS = frozenset({
     "clarify",
+    "follow_up",
+    "correction",
+    "junk",
     "absence",
     "unavailable",
     "unsupported",
@@ -250,6 +259,7 @@ def build_scenario(
     target_usage: Counter[str] | None = None,
     request_intent: dict[str, Any] | None = None,
     family: str | None = None,
+    bare_name_rate: float = 0.0,
 ) -> dict[str, Any]:
     """Build one scenario. `home` overrides synthetic generation and is mutated
     (missing capabilities get an injected entity), so callers pass a fresh copy.
@@ -268,7 +278,7 @@ def build_scenario(
         ^ zlib.crc32(operation.encode())
     )
     if home is None:
-        home = generate_home(index, home_size, rng)
+        home = generate_home(index, home_size, rng, bare_name_rate=bare_name_rate)
     if family == "datetime":
         scenario: dict[str, Any] = {
             "scenario_index": index,

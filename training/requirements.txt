@@ -1,12 +1,12 @@
-# Training pipeline dependencies (install in a dedicated venv)
-axolotl>=0.7.0
-datasets>=3.0.0
-jsonschema>=4.23.0
-numpy>=1.26.0
-pandas>=2.2.0
-pyyaml>=6.0.0
-requests>=2.32.0
-hypothesis>=6.0.0
+# Corpus generation, data views, and training-repo tests (CPU; no torch, no trainer).
+# The trainer lives in its host container; this venv never needs torch.
+# Host venv: /srv/llm/sayso/training/.venv on `ssh llm`. See README.md.
 hassil==3.12.1
-torch>=2.1.0
-transformers>=4.46.0
+jsonschema==4.26.0
+PyYAML==6.0.3
+transformers==5.6.0
+tokenizers==0.22.2
+Jinja2==3.1.6
+requests>=2.32.0
+hypothesis==6.168.0
+pytest==9.1.1

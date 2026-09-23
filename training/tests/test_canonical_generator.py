@@ -42,7 +42,9 @@ def test_yaml_config_loads() -> None:
     cfg = GeneratorConfig.from_yaml(SMOKE_CONFIG, repo_root=REPO)
     assert cfg.count == 120
     assert abs(sum(cfg.allocations.values()) - 1.0) < 0.02
-    assert cfg.token_budget == 5120
+    # 7168, not the old 5120: until count_row_tokens was repaired the budget
+    # gated nothing, and production-shaped rows measure p50 ~5.4k / max ~6.6k.
+    assert cfg.token_budget == 7168
 
 
 def test_yaml_config_requires_repo_root() -> None:
@@ -63,7 +65,7 @@ def test_impossible_quota_fails_before_loop() -> None:
 
 
 def test_generation_is_deterministic() -> None:
-    cfg = _small_config(count=40, seed=99)
+    cfg = _small_config(count=40, seed=3)
     first = run_generation(cfg)["rows"]
     second = run_generation(cfg)["rows"]
     assert first == second
@@ -130,8 +132,7 @@ def test_genuine_ambiguity_clarifies() -> None:
         capability="lights",
         operation="turn_on",
         home_size=32,
-        targeting="area",
-        robustness="ambiguity",
+        family="clarify",
     )
     spec = scenario_to_spec(scenario)
     spec["utterance"] = "Turn on the light in the living room"
@@ -196,6 +197,108 @@ def test_clarify_family_never_labels_action() -> None:
         assert gold_matches_family(expected, "clarify")
         assert expected["kind"] == "no_action"
         assert expected["response"] == "clarify"
+
+
+def test_follow_up_row_shape() -> None:
+    cfg = _small_config(count=40, seed=77)
+    slot = {
+        "index": 0,
+        "family": "follow_up",
+        "robustness": "ambiguity",
+        "capability": "lights",
+        "operation": "turn_on",
+        "home_size": 16,
+    }
+    rng = __import__("random").Random(77)
+    row, reason = generate_row(
+        slot,
+        cfg,
+        rng,
+        excluded=set(),
+        dup_tracker=DuplicateTracker(near_limit=4),
+    )
+    assert reason is None, reason
+    assert row is not None
+    users = [m["content"] for m in row["messages"] if m["role"] == "user"]
+    assert len(users) >= 2
+    assistants = [m for m in row["messages"] if m["role"] == "assistant"]
+    first_assistant = assistants[0]
+    assert first_assistant.get("train_on_turn") is True
+    assert not first_assistant.get("tool_calls")
+    assert first_assistant["content"].startswith("Did you mean ")
+    trained_calls = [
+        c
+        for m in row["messages"]
+        if m.get("role") == "assistant" and m.get("train_on_turn")
+        for c in (m.get("tool_calls") or [])
+    ]
+    assert trained_calls
+    args = json.loads(trained_calls[-1]["function"]["arguments"])
+    gold_name = row["metadata"]["expected_target_names"][0]
+    assert args.get("name") == gold_name
+    assert gold_name in first_assistant["content"]
+
+
+def test_correction_row_shape() -> None:
+    cfg = _small_config(count=40, seed=88)
+    for attempt in range(30):
+        slot = {
+            "index": attempt,
+            "family": "correction",
+            "robustness": "ordinary",
+            "capability": "lights",
+            "operation": "turn_on",
+            "home_size": 16,
+        }
+        rng = __import__("random").Random(88 + attempt)
+        row, reason = generate_row(
+            slot,
+            cfg,
+            rng,
+            excluded=set(),
+            dup_tracker=DuplicateTracker(near_limit=4),
+        )
+        if reason == "family_mismatch":
+            continue
+        assert reason is None, reason
+        assert row is not None
+        assistants = [m for m in row["messages"] if m["role"] == "assistant"]
+        assert assistants[0].get("train_on_turn") is False
+        assert assistants[0].get("tool_calls")
+        tool_msgs = [m for m in row["messages"] if m["role"] == "tool"]
+        error_payload = json.loads(tool_msgs[0]["content"])
+        assert "error" in error_payload and error_payload["error"].get("code")
+        trained = next(m for m in assistants if m.get("train_on_turn") and m.get("tool_calls"))
+        args = json.loads(trained["tool_calls"][0]["function"]["arguments"])
+        gold_name = row["metadata"]["expected_target_names"][0]
+        assert args.get("name") == gold_name
+        wrong_args = json.loads(assistants[0]["tool_calls"][0]["function"]["arguments"])
+        assert wrong_args.get("name") != gold_name
+        return
+    pytest.fail("could not materialize a correction row in 30 attempts")
+
+
+def test_clarify_assistant_names_candidates() -> None:
+    scenario = build_scenario(
+        index=0,
+        seed=1,
+        capability="lights",
+        operation="turn_on",
+        home_size=16,
+        family="clarify",
+    )
+    expected = scenario["expected"]
+    names = expected.get("candidates") or []
+    assert len(names) >= 2
+    spec = scenario_to_spec(scenario)
+    spec["utterance"] = "Turn on the light"
+    row = render_example(spec)
+    text = row["messages"][-1]["content"]
+    assert text.startswith("Did you mean ")
+    assert " or " in text
+    for name in names[:2]:
+        assert name in text
+    assert not any(message.get("tool_calls") for message in row["messages"])
 
 
 def test_absence_family_never_labels_action_or_script_clarify() -> None:

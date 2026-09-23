@@ -7,7 +7,7 @@ generator tree, then a second code review of that diff.
 Written: 2026-09-17.
 Worktree: `SaySo__worktrees/ajax-evals`, branch `ajax/evals`.
 HEAD: `d606b71 fix(evals): stop runner from importing training jsonschema chain`.
-The generator refactor is **uncommitted** (large `training/` + `docs/TRAINING_PLAN.md`
+The generator refactor is **uncommitted** (large `training/` + `docs/SAYSO_LFM_TRAINING_PLAN.md`
 delta vs HEAD).
 
 ## TL;DR
@@ -39,7 +39,7 @@ new diff, (4) stop. No training run.
 | Validation / dups / manifest | `validation.py`, `deduplication.py`, `manifest.py` |
 | Duals deleted | `area_scenarios.py`, `duplicates.py`, `validate.py`, `validator.py`, colocated `generators/test_*.py`, `build_synthetic_dataset.py`, `v2_scenarios.py`, `llm_curation.py`, `scripts/rendering.py`, `generate_training_supplement.py` |
 | Held-out builder | `training/scripts/generate_balanced_test_data.py` wraps `GeneratorConfig.from_yaml` + `run_build` |
-| Commands | `training/README.md`, `docs/TRAINING_PLAN.md` implementation map |
+| Commands | `training/README.md`, `docs/SAYSO_LFM_TRAINING_PLAN.md` implementation map |
 
 Area rows go through `generate_row` → validate → duplicate (no post-loop append).
 Rendered rows use `production_catalog(home)` in `rendering.py`.
@@ -157,7 +157,7 @@ minimums are subtracted from `count`, remaining slots are primary families,
 “ordinary 40%” is 40% of `(count - area_total)`, and area rows are not also
 status/exclusion/etc.
 
-Acceptable if documented. If you keep this model, say so in `TRAINING_PLAN.md`
+Acceptable if documented. If you keep this model, say so in `SAYSO_LFM_TRAINING_PLAN.md`
 and stop calling area “cross-cutting inside primary.” If you honor the plan,
 tag area as metadata on ordinary/clarify/exclusion slots instead of a separate
 family.
@@ -295,7 +295,7 @@ Same pytest + `python3 -m pytest training/scripts -q`.
 ### Stop
 
 After D: re-read the diff against this review. Do not start a 40k generate.
-Do not claim model accuracy from generator tests. Record in `TRAINING_PLAN.md`
+Do not claim model accuracy from generator tests. Record in `SAYSO_LFM_TRAINING_PLAN.md`
 only if allocation semantics changed (area as sibling family, grounding rate).
 
 ---

@@ -65,6 +65,37 @@ def finalize_training_utterance(text: str, rng: random.Random) -> str:
     return utterance.lower() if rng.random() < 0.5 else utterance[:1].upper() + utterance[1:]
 
 
+def apply_bare_media_room_phrasing(spec: dict[str, Any]) -> dict[str, Any]:
+    """Phrase a bare registry name as ``the <area> tv`` while labels stay canonical.
+
+    Home Assistant often registers ``TV`` in ``Living Room``; users say "the living
+    room TV". Gold must remain ``name="TV"``, not a concatenated area prefix.
+    """
+    if spec.get("spoken_targets") or spec.get("category") == "ambiguity":
+        return spec
+    expected = spec.get("expected") or {}
+    if expected.get("kind") != "action":
+        return spec
+    by_name = {entity["name"]: entity for entity in spec.get("home", {}).get("entities", [])}
+    seed = str(spec.get("candidate_id") or spec.get("semantic_id") or spec.get("seed", 0))
+    rng = random.Random(zlib.crc32(seed.encode()))
+    spoken = dict(spec.get("spoken_targets") or {})
+    for name in spec.get("target_names") or []:
+        entity = by_name.get(name)
+        if entity is None or entity.get("capability") != "media_players":
+            continue
+        area = entity.get("area") or ""
+        if not area or name.casefold().startswith(area.casefold()):
+            continue
+        if rng.random() >= 0.55:
+            continue
+        noun = (entity.get("device_class") or "tv").casefold()
+        spoken[name] = f"the {area.casefold()} {noun}"
+    if spoken != (spec.get("spoken_targets") or {}):
+        spec["spoken_targets"] = spoken
+    return spec
+
+
 def apply_generic_wording(spec: dict[str, Any]) -> dict[str, Any]:
     """Speak the target as "the <area> <noun>" instead of its canonical name.
 
@@ -284,6 +315,7 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
 
 def expand_utterance(spec: dict[str, Any]) -> str:
     """Render deterministic utterance from labels."""
+    spec = apply_bare_media_room_phrasing(spec)
     category = spec.get("category", "clean_direct")
     expected = spec.get("expected") or {}
     if expected.get("kind") == "no_action":

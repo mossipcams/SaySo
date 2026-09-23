@@ -17,13 +17,15 @@ from generators.grounding import (
     GROUNDING_FAMILY_SLACK,
     grounding_capacity,
     grounding_capable_slot,
-    grounding_pairs,
+    pick_carrier_variant,
     required_training_variants,
+    slot_can_carry_grounding,
     training_variants,
 )
 from generators.paraphrase import load_paraphraser
 from generators.coverage import bare_tool_name, row_calls
 from generators.planning import (
+    REAL_HOME_EXCLUDED_FAMILIES,
     AllocationPlan,
     FamilyTracker,
     GenerationSlot,
@@ -138,11 +140,11 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
         allocation_summary=result["stats"].get("quota", {}),
         tokenizer_model=config.tokenizer_model,
         rejections=result["stats"].get("rejection_reasons", {}),
-        token_lengths=[
-            row["metadata"]["_token_length"]
-            for row in result["rows"]
-            if row.get("metadata", {}).get("_token_length")
-        ],
+        # Deliberately empty: only rows the cheap character bound could not clear
+        # carry ``_token_length``, so collecting just those would report the
+        # longest tail of the corpus as if it were the whole distribution.
+        # build_manifest walks every accepted row, reusing cached counts.
+        token_lengths=[],
     )
     return result
 
@@ -179,6 +181,8 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             grounding_variants=len(training_variants()),
             grounding_rate=grounding_rate,
             datetime_required=datetime_target,
+            real_home_path=config.real_home_path,
+            real_home_rate=config.real_home_rate,
         )
         tracker = FamilyTracker(plan)
     elif config.allocations:
@@ -191,6 +195,8 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             grounding_variants=len(training_variants()),
             grounding_rate=grounding_rate,
             datetime_required=datetime_target,
+            real_home_path=config.real_home_path,
+            real_home_rate=config.real_home_rate,
         )
         tracker = FamilyTracker(plan)
     else:
@@ -199,6 +205,12 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             config.seed,
             config.tier_proportions,
             negative_rate=DEFAULT_NEGATIVE_RATE,
+        )
+
+    carrier_remaining = 0
+    if plan is not None:
+        carrier_remaining = sum(
+            1 for candidate in plan.slots if slot_can_carry_grounding(_slot_to_dict(candidate))
         )
 
     excluded = _load_excluded_prompts(config.exclude_prompts_path)
@@ -239,6 +251,7 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
 
     load_paraphraser(config.paraphrase_enabled)
     stt_target = int(round(config.count * config.stt_noise_rate))
+    stt_log_target = int(round(config.count * config.stt_log_rate))
 
     def accepted_total() -> int:
         return len(accepted)
@@ -264,40 +277,49 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
         real_home_selected = None
         if balance_real_home:
             real_home_remaining = max(0, real_home_target - real_home_rows)
-            real_home_selected = rng.random() < real_home_remaining / rows_remaining
+            slot_family = slot.get("family")
+            if slot_family in REAL_HOME_EXCLUDED_FAMILIES:
+                real_home_selected = False
+            else:
+                real_home_selected = rng.random() < real_home_remaining / rows_remaining
 
         grounding_deficit = grounding_target - sum(grounding_rows.values())
         discrimination_deficit = discrimination_target - discrimination_rows
-        want_grounding = (
-            grounding_rate > 0
-            and (
-                bool(grounding_missing)
-                or (
-                    grounding_deficit > 0
-                    and rng.random() < min(1.0, grounding_deficit / rows_remaining)
+        carrier = quota is None and slot_can_carry_grounding(slot)
+        want_grounding = False
+        recipe_variant = None
+        if grounding_rate > 0 and grounding_deficit > 0:
+            rate_hit = rng.random() < min(1.0, grounding_deficit / rows_remaining)
+            if quota is not None:
+                # Quota runs have no family slots to starve; keep the v2 latch.
+                want_grounding = bool(grounding_missing) or rate_hit
+            elif carrier:
+                # Recipe: overlay a variant whose gold fits this slot's family,
+                # never steal another family's slot. Missing catalogue families
+                # take half the compatible carriers so a stubborn variant cannot
+                # stall the family quota. ponytail: p capped at 0.9 so a
+                # saturated tail under-delivers (rate gate fails) instead of hanging.
+                p = min(0.9, grounding_deficit / max(1, carrier_remaining))
+                variant = pick_carrier_variant(slot, rng, grounding_missing)
+                forced = variant is not None and variant["family"] in grounding_missing
+                want_grounding = variant is not None and (
+                    (forced and rng.random() < 0.5) or rng.random() < p
                 )
-            )
-        )
+                if want_grounding:
+                    slot = {
+                        **slot,
+                        "capability": variant["capability"],
+                        "operation": variant["operation"],
+                    }
+                    recipe_variant = [variant]
         want_discrimination = (
             config.discrimination_rate > 0
             and discrimination_deficit > 0
             and not want_grounding
             and rng.random() < max(0.5, min(1.0, 2.0 * discrimination_deficit / rows_remaining))
         )
-        if want_grounding:
-            forced = (
-                grounding_capable_slot(quota, rng)
-                if quota is not None
-                else next(
-                    (
-                        _slot_to_dict(candidate)
-                        for candidate in plan.slots
-                        if _slot_still_needed(candidate, tracker, plan)
-                        and (candidate.capability, candidate.operation) in grounding_pairs()
-                    ),
-                    None,
-                )
-            )
+        if want_grounding and quota is not None:
+            forced = grounding_capable_slot(quota, rng)
             if forced is not None:
                 slot = forced
         elif want_discrimination:
@@ -317,28 +339,47 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             if forced is not None:
                 slot = forced
                 slot["home_size"] = max(slot["home_size"], 64)
-        row, reason = generate_row(
-            slot,
-            config,
-            rng,
-            excluded=excluded,
-            dup_tracker=dup_tracker,
-            attempt=attempts,
-            stt_remaining=max(0, stt_target - stats["stt_corrupted"]),
-            rows_remaining=rows_remaining,
-            real_home_targets=real_home_targets,
-            real_home_entity_cap=real_home_entity_cap,
-            real_home_names=real_home_names,
-            real_home_usage=real_home_usage[(slot["capability"], slot["operation"])],
-            quota=quota,
-            grounding_required=want_grounding,
-            discrimination_required=want_discrimination,
-            real_home_selected=real_home_selected,
-            grounding_variants=(
-                list(grounding_missing.values()) if want_grounding and grounding_missing else None
-            ),
-            grounding_rate=grounding_rate,
+        row, reason = None, None
+        real_home_attempts = (
+            (True, False) if real_home_selected is True else (real_home_selected,)
         )
+        for real_sel in real_home_attempts:
+            row, reason = generate_row(
+                slot,
+                config,
+                rng,
+                excluded=excluded,
+                dup_tracker=dup_tracker,
+                attempt=attempts,
+                stt_remaining=max(
+                    0,
+                    stt_target - (stats["stt_corrupted"] - stats["stt_log_corrupted"]),
+                ),
+                stt_log_remaining=max(0, stt_log_target - stats["stt_log_corrupted"]),
+                rows_remaining=rows_remaining,
+                real_home_targets=real_home_targets,
+                real_home_entity_cap=real_home_entity_cap,
+                real_home_names=real_home_names,
+                real_home_usage=real_home_usage[(slot["capability"], slot["operation"])],
+                quota=quota,
+                grounding_required=want_grounding,
+                discrimination_required=want_discrimination,
+                real_home_selected=real_sel,
+                grounding_variants=recipe_variant or (
+                    list(grounding_missing.values())
+                    if want_grounding and grounding_missing
+                    else None
+                ),
+                # Recipe runs: the pipeline alone decides grounding; no extra
+                # random overlay on follow_up/clarify/refusal slots.
+                grounding_rate=(
+                    grounding_rate if quota is not None or want_grounding else 0.0
+                ),
+            )
+            if row is not None:
+                break
+            if reason != "family_mismatch" or real_sel is False:
+                break
         attempts += 1
         if row is None:
             record_reject(stats, reason or "unknown")
@@ -373,6 +414,8 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             family = row["metadata"]["grounding_family"]
             grounding_rows[family] += 1
             grounding_missing.pop(family, None)
+        if plan is not None and slot_can_carry_grounding(slot):
+            carrier_remaining = max(0, carrier_remaining - 1)
         if row["metadata"].get("discrimination"):
             discrimination_rows += 1
 
@@ -413,6 +456,10 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
     )
     report["requested_stt_rate"] = config.stt_noise_rate
     report["achieved_stt_rate"] = round(stats["stt_corrupted"] / max(stats["accepted"], 1), 4)
+    report["requested_stt_log_rate"] = config.stt_log_rate
+    report["achieved_stt_log_rate"] = round(
+        stats["stt_log_corrupted"] / max(stats["accepted"], 1), 4
+    )
     report["requested"] = config.count
     report["attempts"] = attempts
     report["config"] = config.to_dict()

@@ -1,6 +1,6 @@
 {
   "home_id": "real_home",
-  "size": 35,
+  "size": 21,
   "sayso_entity_area": "Hallway",
   "entities": [
     {
@@ -42,26 +42,6 @@
       ]
     },
     {
-      "entity_id": "light.apollo_msr_2_173d50_rgb_light",
-      "name": "Apollo MSR-2 RGB Light",
-      "aliases": [
-        "Apollo MSR-2 RGB Light"
-      ],
-      "domain": "light",
-      "kind": "light",
-      "capability": "lights",
-      "device_class": null,
-      "area": "Bedroom",
-      "floor": "Floor 1",
-      "state": "off",
-      "capabilities": [
-        "brightness",
-        "color",
-        "off",
-        "on"
-      ]
-    },
-    {
       "entity_id": "light.kitchen_light",
       "name": "Kitchen light",
       "aliases": [
@@ -96,6 +76,27 @@
       "floor": "Floor 1",
       "state": "on",
       "capabilities": [
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "light.nightstand",
+      "name": "Nightstand",
+      "aliases": [
+        "Nightstand"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "brightness",
+        "color",
+        "color_temp",
         "off",
         "on"
       ]
@@ -192,7 +193,7 @@
       "device_class": "tv",
       "area": "Living Room",
       "floor": "Main Floor",
-      "state": "playing",
+      "state": "idle",
       "capabilities": [
         "mute",
         "next",
@@ -201,25 +202,6 @@
         "pause",
         "play",
         "previous",
-        "volume_step"
-      ]
-    },
-    {
-      "entity_id": "media_player.matt_s_kitchen_echo_dot",
-      "name": "Matt's Kitchen Echo Dot",
-      "aliases": [
-        "Matt's Kitchen Echo Dot"
-      ],
-      "domain": "media_player",
-      "kind": "media_player",
-      "capability": "media_players",
-      "device_class": "speaker",
-      "area": "Unassigned",
-      "floor": "Main Floor",
-      "state": "idle",
-      "capabilities": [
-        "mute",
-        "volume",
         "volume_step"
       ]
     },
@@ -243,26 +225,6 @@
       ]
     },
     {
-      "entity_id": "media_player.sayso_satellite_living_room_media_player",
-      "name": "sayso-satellite-living-room Media Player",
-      "aliases": [
-        "sayso-satellite-living-room Media Player"
-      ],
-      "domain": "media_player",
-      "kind": "media_player",
-      "capability": "media_players",
-      "device_class": "speaker",
-      "area": "Unassigned",
-      "floor": "Main Floor",
-      "state": "idle",
-      "capabilities": [
-        "mute",
-        "pause",
-        "play",
-        "volume"
-      ]
-    },
-    {
       "entity_id": "scene.movie",
       "name": "Movie",
       "aliases": [
@@ -274,7 +236,7 @@
       "device_class": null,
       "area": "Living Room",
       "floor": "Main Floor",
-      "state": "2026-09-11T00:53:37.177377+00:00",
+      "state": "2026-09-22T23:21:49.718325+00:00",
       "capabilities": [
         "activate"
       ]
@@ -291,7 +253,7 @@
       "device_class": "outlet",
       "area": "Living Room",
       "floor": "Main Floor",
-      "state": "off",
+      "state": "on",
       "capabilities": [
         "on",
         "off"
@@ -309,61 +271,7 @@
       "device_class": "switch",
       "area": "Living Room",
       "floor": "Main Floor",
-      "state": "off",
-      "capabilities": [
-        "on",
-        "off"
-      ]
-    },
-    {
-      "entity_id": "switch.desk_echo_dot_do_not_disturb",
-      "name": "Desk Echo Dot Do not disturb",
-      "aliases": [
-        "Desk Echo Dot Do not disturb"
-      ],
-      "domain": "switch",
-      "kind": "switch",
-      "capability": "switches",
-      "device_class": "outlet",
-      "area": "Unassigned",
-      "floor": "Main Floor",
-      "state": "off",
-      "capabilities": [
-        "on",
-        "off"
-      ]
-    },
-    {
-      "entity_id": "switch.dishwasher",
-      "name": "Dishwasher",
-      "aliases": [
-        "Dishwasher"
-      ],
-      "domain": "switch",
-      "kind": "switch",
-      "capability": "switches",
-      "device_class": "outlet",
-      "area": "Kitchen",
-      "floor": "Floor 1",
       "state": "on",
-      "capabilities": [
-        "on",
-        "off"
-      ]
-    },
-    {
-      "entity_id": "switch.goneforvacation",
-      "name": "GoneforVacation",
-      "aliases": [
-        "GoneforVacation"
-      ],
-      "domain": "switch",
-      "kind": "switch",
-      "capability": "switches",
-      "device_class": "outlet",
-      "area": "Unassigned",
-      "floor": "Main Floor",
-      "state": "off",
       "capabilities": [
         "on",
         "off"
@@ -388,42 +296,6 @@
       ]
     },
     {
-      "entity_id": "switch.levoit_vesync_core_300s_plus_smart_air_purifier_child_lock",
-      "name": "Levoit VeSync Core 300S Plus Smart Air Purifier Child lock",
-      "aliases": [
-        "Levoit VeSync Core 300S Plus Smart Air Purifier Child lock"
-      ],
-      "domain": "switch",
-      "kind": "switch",
-      "capability": "switches",
-      "device_class": "outlet",
-      "area": "Bedroom",
-      "floor": "Floor 1",
-      "state": "off",
-      "capabilities": [
-        "on",
-        "off"
-      ]
-    },
-    {
-      "entity_id": "switch.levoit_vesync_core_300s_plus_smart_air_purifier_display",
-      "name": "Levoit VeSync Core 300S Plus Smart Air Purifier Display",
-      "aliases": [
-        "Levoit VeSync Core 300S Plus Smart Air Purifier Display"
-      ],
-      "domain": "switch",
-      "kind": "switch",
-      "capability": "switches",
-      "device_class": "outlet",
-      "area": "Bedroom",
-      "floor": "Floor 1",
-      "state": "on",
-      "capabilities": [
-        "on",
-        "off"
-      ]
-    },
-    {
       "entity_id": "switch.living_room_lights",
       "name": "Living room lights ",
       "aliases": [
@@ -435,7 +307,7 @@
       "device_class": "outlet",
       "area": "Living Room",
       "floor": "Main Floor",
-      "state": "off",
+      "state": "on",
       "capabilities": [
         "on",
         "off"
@@ -451,44 +323,8 @@
       "kind": "switch",
       "capability": "switches",
       "device_class": "switch",
-      "area": "Unassigned",
+      "area": "Living Room",
       "floor": "Main Floor",
-      "state": "off",
-      "capabilities": [
-        "on",
-        "off"
-      ]
-    },
-    {
-      "entity_id": "switch.matt_s_kitchen_echo_dot_do_not_disturb",
-      "name": "Matt's Kitchen Echo Dot Do not disturb",
-      "aliases": [
-        "Matt's Kitchen Echo Dot Do not disturb"
-      ],
-      "domain": "switch",
-      "kind": "switch",
-      "capability": "switches",
-      "device_class": "outlet",
-      "area": "Unassigned",
-      "floor": "Main Floor",
-      "state": "off",
-      "capabilities": [
-        "on",
-        "off"
-      ]
-    },
-    {
-      "entity_id": "switch.proxmox_plugin",
-      "name": "Proxmox_plugin",
-      "aliases": [
-        "Proxmox_plugin"
-      ],
-      "domain": "switch",
-      "kind": "switch",
-      "capability": "switches",
-      "device_class": "outlet",
-      "area": "Office",
-      "floor": "Floor 1",
       "state": "on",
       "capabilities": [
         "on",
@@ -525,7 +361,7 @@
       "device_class": "outlet",
       "area": "Living Room",
       "floor": "Main Floor",
-      "state": "off",
+      "state": "on",
       "capabilities": [
         "on",
         "off"
@@ -543,96 +379,10 @@
       "device_class": "switch",
       "area": "Living Room",
       "floor": "Main Floor",
-      "state": "off",
+      "state": "on",
       "capabilities": [
         "on",
         "off"
-      ]
-    },
-    {
-      "entity_id": "switch.zigbee2mqtt_bridge_permit_join",
-      "name": "Zigbee2MQTT Bridge Permit join",
-      "aliases": [
-        "Zigbee2MQTT Bridge Permit join"
-      ],
-      "domain": "switch",
-      "kind": "switch",
-      "capability": "switches",
-      "device_class": "outlet",
-      "area": "Unassigned",
-      "floor": "Main Floor",
-      "state": "off",
-      "capabilities": [
-        "on",
-        "off"
-      ]
-    },
-    {
-      "entity_id": "todo.family",
-      "name": "Family",
-      "aliases": [
-        "Family"
-      ],
-      "domain": "todo",
-      "kind": "todo",
-      "capability": "todo_lists",
-      "device_class": null,
-      "area": "Unassigned",
-      "floor": "Main Floor",
-      "state": "0",
-      "capabilities": [
-        "add"
-      ]
-    },
-    {
-      "entity_id": "todo.grocery",
-      "name": "Grocery",
-      "aliases": [
-        "Grocery"
-      ],
-      "domain": "todo",
-      "kind": "todo",
-      "capability": "todo_lists",
-      "device_class": null,
-      "area": "Unassigned",
-      "floor": "Main Floor",
-      "state": "0",
-      "capabilities": [
-        "add"
-      ]
-    },
-    {
-      "entity_id": "todo.shopping_list",
-      "name": "Shopping list",
-      "aliases": [
-        "Shopping list"
-      ],
-      "domain": "todo",
-      "kind": "todo",
-      "capability": "todo_lists",
-      "device_class": null,
-      "area": "Unassigned",
-      "floor": "Main Floor",
-      "state": "2",
-      "capabilities": [
-        "add"
-      ]
-    },
-    {
-      "entity_id": "todo.to_do_list",
-      "name": "To-do list",
-      "aliases": [
-        "To-do list"
-      ],
-      "domain": "todo",
-      "kind": "todo",
-      "capability": "todo_lists",
-      "device_class": null,
-      "area": "Unassigned",
-      "floor": "Main Floor",
-      "state": "0",
-      "capabilities": [
-        "add"
       ]
     },
     {
@@ -661,7 +411,6 @@
     "Outside",
     "Unassigned",
     "Living Room",
-    "Office",
     "Rock's room"
   ],
   "area_floors": {
@@ -671,7 +420,6 @@
     "Outside": "Main Floor",
     "Unassigned": "Main Floor",
     "Living Room": "Main Floor",
-    "Office": "Floor 1",
     "Rock's room": "Main Floor"
   },
   "owners": [],

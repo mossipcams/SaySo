@@ -12,8 +12,9 @@ from pathlib import Path
 from adapters.schema import tool_schema_map, validate_tool_arguments, v2_openai_tools
 from generators.tools import script_tool_name
 from generators.capability_registry import CAPABILITIES, SupportLevel, entity_supports
+from generators.config import DEFAULT_TOKEN_BUDGET
 from generators.gold import _type_label
-from generators.stt_noise import _int_to_words
+from generators.stt_noise import _int_to_words, utterance_contains_target
 
 _BANNED = re.compile(r"<tool_call>|evals/cases/|tool_call_start", re.I)
 
@@ -203,7 +204,11 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
         ):
             for name in spec.get("target_names") or []:
                 spoken = spec.get("spoken_targets", {}).get(name, name).casefold()
-                if spoken not in lowered and name.casefold() not in lowered:
+                if (
+                    spoken not in lowered
+                    and not utterance_contains_target(lowered, name)
+                    and not utterance_contains_target(lowered, spoken)
+                ):
                     area = (calls[0].get("arguments") or {}).get("area")
                     if not area or str(area).casefold() not in lowered:
                         if spec.get("discrimination"):
@@ -222,6 +227,18 @@ def _tokenizer(model_name: str):
     from transformers import AutoTokenizer
 
     return AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+
+
+def _call_with_parsed_arguments(call: dict[str, Any]) -> dict[str, Any]:
+    """Copy of ``call`` with its JSON-string ``arguments`` parsed into a dict."""
+    function = call.get("function")
+    if not isinstance(function, dict) or not isinstance(function.get("arguments"), str):
+        return call
+    try:
+        arguments = json.loads(function["arguments"])
+    except json.JSONDecodeError:
+        return call
+    return {**call, "function": {**function, "arguments": arguments}}
 
 
 def count_row_tokens(row: dict[str, Any], *, model_name: str) -> int:
@@ -244,17 +261,39 @@ def count_row_tokens(row: dict[str, Any], *, model_name: str) -> int:
     for message in row.get("messages") or []:
         entry = {"role": message["role"], "content": message.get("content", "")}
         if message.get("tool_calls"):
-            entry["tool_calls"] = message["tool_calls"]
+            # Canonical rows keep ``arguments`` as a JSON string, which is what
+            # the OpenAI wire format uses and what we write to disk. The LFM2
+            # chat template calls ``.items()`` on it, so templating a canonical
+            # row raises and every caller silently fell back to an estimate.
+            entry["tool_calls"] = [_call_with_parsed_arguments(c) for c in message["tool_calls"]]
         if message.get("tool_call_id"):
             entry["tool_call_id"] = message["tool_call_id"]
         messages.append(entry)
-    encoded = tokenizer.apply_chat_template(
+    rendered = tokenizer.apply_chat_template(
         messages,
         tools=tools or None,
-        tokenize=True,
+        tokenize=False,
         add_generation_prompt=False,
     )
-    return len(encoded)
+    # Not ``tokenize=True``: transformers >= 5 returns a BatchEncoding there, so
+    # ``len()`` counted its two keys and reported every row as 2 tokens.
+    return len(tokenizer(rendered, add_special_tokens=False)["input_ids"])
+
+
+def row_characters(row: dict[str, Any]) -> int:
+    """Characters the chat template will render: tools, content, and tool calls."""
+    total = len(json.dumps(row.get("tools") or []))
+    for message in row.get("messages") or []:
+        total += len(str(message.get("content") or ""))
+        total += len(json.dumps(message.get("tool_calls") or []))
+    return total
+
+
+# Lowest chars-per-token seen across a rendered corpus is 3.27 (p50 3.32, max
+# 3.40): the catalog and static context are ordinary English and JSON, which this
+# tokenizer packs very consistently. Dividing by 3.0 is therefore a safe upper
+# bound on the token count -- if that bound fits the budget, the real count does.
+_MIN_CHARS_PER_TOKEN = 3.0
 
 
 def validate_token_budget(
@@ -263,7 +302,17 @@ def validate_token_budget(
     *,
     tokenizer_model: str,
 ) -> str | None:
-    """Reject oversized rows; never truncate supervision."""
+    """Reject oversized rows; never truncate supervision.
+
+    Tokenizing costs ~9 ms. Generation calls this once per *candidate*, and a 40k
+    corpus burns several hundred thousand candidates, so tokenizing every one of
+    them added two hours to a build in order to reject almost nothing. Rows the
+    cheap character bound proves are under budget skip the tokenizer and are
+    measured once, on the accepted corpus, by ``manifest.build_manifest``.
+    """
+    if row_characters(row) / _MIN_CHARS_PER_TOKEN <= budget:
+        return None
+    estimated = False
     try:
         tokens = count_row_tokens(row, model_name=tokenizer_model)
     except Exception:  # noqa: BLE001 — offline fallback when HF hub unavailable
@@ -273,7 +322,11 @@ def validate_token_budget(
             len(str(m.get("content", ""))) for m in row.get("messages", [])
         )
         tokens = spec_len // 4
+        estimated = True
+    # Flagged, not silent: this fallback hid a dead tokenizer path for three
+    # shipped corpora. The manifest must be able to say the counts are guesses.
     row.setdefault("metadata", {})["_token_length"] = tokens
+    row["metadata"]["_token_length_estimated"] = estimated
     if tokens > budget:
         return "token_budget_exceeded"
     return None
@@ -282,7 +335,7 @@ def validate_token_budget(
 def validate_row(
     spec: dict[str, Any],
     *,
-    token_budget: int = 4096,
+    token_budget: int = DEFAULT_TOKEN_BUDGET,
     tokenizer_model: str = "LiquidAI/LFM2.5-230M-Base",
     rendered: dict[str, Any] | None = None,
 ) -> str | None:

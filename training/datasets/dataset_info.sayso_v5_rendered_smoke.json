@@ -1,0 +1,10 @@
+{
+  "sayso_v5_rendered_smoke": {
+    "file_name": "sayso_lfm_smoke_rendered.jsonl",
+    "formatting": "alpaca",
+    "columns": {
+      "prompt": "instruction",
+      "response": "output"
+    }
+  }
+}

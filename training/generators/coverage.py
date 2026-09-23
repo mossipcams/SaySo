@@ -27,6 +27,7 @@ OUTCOMES = POSITIVE_OUTCOMES | NEGATIVE_OUTCOMES
 
 _NO_ACTION_OUTCOMES = {
     "clarify": CLARIFY,
+    "not_understood": CLARIFY,
     "area_unavailable": ABSENCE,
     "unsupported": UNSUPPORTED,
     "device_unsupported": UNSUPPORTED,
