@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/mossipcams/SaySo/compare/1.8.0...1.9.0) (2026-09-22)
+
+
+### Features
+
+* **wake:** lock LiveKit generate-first training and skip legacy mel verifier ([127e341](https://github.com/mossipcams/SaySo/commit/127e341e58d0dc44b794376c61adac14989c5cd2))
+
 ## [1.8.0](https://github.com/mossipcams/SaySo/compare/1.7.0...1.8.0) (2026-09-21)
 
 
