@@ -108,8 +108,8 @@ limit, and HACS re-downloads the integration directory on every update. Ship the
 GGUF as a Release asset instead. From the machine holding the model:
 
 ```bash
-TITLE="SaySo Gauntlet v2" scripts/publish_model.sh /srv/models/<new>.gguf model-v2 --dry-run
-TITLE="SaySo Gauntlet v2" scripts/publish_model.sh /srv/models/<new>.gguf model-v2
+TITLE="SaySo Gauntlet v2" scripts/publish_model.sh /srv/llm/lfm/runs/<run>/<new>.gguf model-v2 --dry-run
+TITLE="SaySo Gauntlet v2" scripts/publish_model.sh /srv/llm/lfm/runs/<run>/<new>.gguf model-v2
 ```
 
 It uploads the asset, pins its SHA-256, and repoints `DEFAULT_MODEL_URL`,
@@ -127,4 +127,6 @@ pytest -q
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for runtime boundaries and
-[docs/TRAINING_PLAN.md](docs/TRAINING_PLAN.md) for SaySo model training design.
+[docs/SAYSO_LFM_TRAINING_PLAN.md](docs/SAYSO_LFM_TRAINING_PLAN.md) for SaySo model training design.
+Wake-word training is planned separately in
+[docs/SAYSO_WAKE_WORD_TRAINING_PLAN.md](docs/SAYSO_WAKE_WORD_TRAINING_PLAN.md).
