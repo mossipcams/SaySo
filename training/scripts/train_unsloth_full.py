@@ -8,12 +8,13 @@ Plan: docs/PLAN_LFM_V5_UNSLOTH_TRAIN.md. Launch through the GPU lock:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
 from unsloth import FastModel  # must import before transformers
 
 import torch
-from datasets import load_dataset
+from datasets import Dataset
 from transformers import DataCollatorForSeq2Seq, Trainer, TrainingArguments
 
 HOST = "/workspace/host"
@@ -55,7 +56,15 @@ def main() -> int:
             "supervised": len(completion),
         }
 
-    ds = load_dataset("json", data_files=args.data, split="train")
+    # Only the two training columns: per-row metadata structs vary, and arrow
+    # schema inference over them fails.
+    def rows():
+        with open(args.data, encoding="utf-8") as handle:
+            for line in handle:
+                row = json.loads(line)
+                yield {"instruction": row["instruction"], "output": row["output"]}
+
+    ds = Dataset.from_generator(rows)
     ds = ds.map(encode, remove_columns=ds.column_names, num_proc=6)
 
     # Zero truncation: a row over the cutoff fails the run, it is never clipped.
