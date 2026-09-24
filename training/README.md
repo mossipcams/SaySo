@@ -10,7 +10,7 @@ This directory holds dataset preparation and historical training assets for
 host (`ssh llm`, see [Training host](#training-host-observed-2026-09-23)).
 The trainer is **Unsloth** (it replaced LLaMA-Factory on 2026-09-23). The
 checked-in `*-llamafactory*.yml` recipes and LLaMA-Factory smoke results below
-are history; the Unsloth recipe is not written yet. Canonical JSONL
+are history; the Unsloth launcher is `scripts/train_unsloth_full.py`. Canonical JSONL
 stays OpenAI-shaped on disk; training consumes a derived prompt/completion
 view rendered with the Base `chat_template.jinja`.
 Axolotl, FunctionGemma, and rsLoRA YAML are historical, not the v5 path.
@@ -140,10 +140,15 @@ python scripts/export_llamafactory_view.py datasets/sayso_full_sft_v5.jsonl \
 ```
 
 The rendered view is plain alpaca `instruction`/`output` JSONL, so it is not
-tied to LLaMA-Factory. Training it in Unsloth Studio needs a new recipe with
-the same contract (`docs/PLAN_LFM_HOST_V5_SETUP.md`): full SFT from Base,
-completion-only loss, `cutoff_len` 8192, lr `2e-5`, batch 1 / accum 32, bf16.
-That recipe is not written.
+tied to LLaMA-Factory. `scripts/train_unsloth_full.py` trains it inside the
+`unsloth` container with the same contract (`docs/PLAN_LFM_HOST_V5_SETUP.md`):
+full SFT from Base, completion-only loss, 8192 cutoff with zero truncation,
+lr `2e-5`, batch 1 / accum 32, bf16, 2 epochs. `--max-steps N` is a smoke on
+the longest rows:
+
+```bash
+ssh llm '/srv/llm/bin/gpu train lfm --serve-after python /workspace/host/sayso/training/scripts/train_unsloth_full.py --max-steps 20 --out /workspace/host/lfm/runs/smoke'
+```
 
 Every real training run goes through the GPU lock, so vLLM is stopped first
 and the GPU is released when the run exits:
