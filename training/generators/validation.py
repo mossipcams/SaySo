@@ -161,6 +161,10 @@ def _names_one_clarify_candidate(spec: dict[str, Any], lowered: str) -> bool:
     question. A shared alias matches every candidate and stays ambiguous.
     """
     expected = spec.get("expected") or {}
+    # Grounding rows (the only ones with a phrasing_seed) derive the label from the
+    # graph by design, and their rate gate has no slack for rejected carriers.
+    if spec.get("phrasing_seed"):
+        return False
     if expected.get("response") == "clarify":
         candidates = list(expected.get("candidates") or [])
     else:

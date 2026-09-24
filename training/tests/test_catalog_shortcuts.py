@@ -57,10 +57,9 @@ def test_status_seeds_include_yes_no_questions_that_validate():
         })
         for i in range(200)
     ]
-    assert any(s.startswith(("is ", "did ")) for s in seeds)
+    assert any(s.startswith("is ") for s in seeds)
     assert any("status of" in s for s in seeds)
     assert all(_STATUS_QUERY.search(s) for s in seeds)
-    assert not any(s.startswith("did ") and "right now" in s for s in seeds)
 
 
 def test_log_stt_period_never_follows_a_question_mark():

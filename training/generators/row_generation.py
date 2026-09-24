@@ -75,7 +75,16 @@ def _follow_up_reply(chosen: str, rng: random.Random) -> str:
 
 
 def _junk_utterance(rng: random.Random, index: int) -> str:
-    """A transcript with no actionable request, shaped like real STT output."""
+    """A transcript with no actionable request, shaped like real STT output.
+
+    Cased like every other family (half sentence-cased): all-lowercase junk let
+    casing alone predict the no-call label.
+    """
+    text = _junk_text(rng)
+    return text[:1].upper() + text[1:] if rng.random() < 0.5 else text
+
+
+def _junk_text(rng: random.Random) -> str:
     shape = rng.random()
     if shape < 0.30:
         return f"{rng.choice(_JUNK_FRAGMENTS)}."

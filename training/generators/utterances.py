@@ -189,10 +189,10 @@ def _no_action_hint(expected: dict[str, Any]) -> str:
 # Natural yes/no state questions, by GetLiveContext domain. Users rarely say
 # "what is the status of X"; they ask "is X locked?".
 _STATUS_QUESTIONS: dict[str, tuple[str, ...]] = {
-    "lock": ("is {0} locked", "is {0} unlocked", "did I lock {0}"),
-    "light": ("is {0} on", "is {0} off", "did I leave {0} on", "are {0} still on"),
-    "switch": ("is {0} on", "is {0} off", "did I leave {0} on", "is {0} still on"),
-    "fan": ("is {0} on", "is {0} running", "did I leave {0} on"),
+    "lock": ("is {0} locked", "is {0} unlocked", "is {0} still locked"),
+    "light": ("is {0} on", "is {0} off", "is {0} still on", "are {0} still on"),
+    "switch": ("is {0} on", "is {0} off", "is {0} still on"),
+    "fan": ("is {0} on", "is {0} running", "is {0} still on"),
     "cover": ("is {0} open", "is {0} closed", "are {0} open"),
     "media_player": ("is {0} playing", "is {0} on", "is anything playing on {0}"),
     "climate": ("what is {0} set to", "is {0} heating", "is {0} on"),
@@ -202,8 +202,8 @@ _STATUS_QUESTIONS: dict[str, tuple[str, ...]] = {
 }
 
 _VACUUM_START = (
-    "have {0} start cleaning", "tell {0} to start cleaning", "get {0} cleaning",
-    "start cleaning with {0}", "send {0} out to clean",
+    "tell {0} to start cleaning", "start {0} cleaning", "start cleaning with {0}",
+    "send {0} out to clean", "tell {0} to clean",
 )
 
 _SPOKEN_PLURALS = {"switch": "outlets", "climate": "thermostats", "cover": "blinds",
