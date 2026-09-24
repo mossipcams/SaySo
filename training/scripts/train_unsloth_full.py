@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from unsloth import FastModel  # must import before transformers
@@ -58,13 +59,16 @@ def main() -> int:
 
     # Only the two training columns: per-row metadata structs vary, and arrow
     # schema inference over them fails.
-    def rows():
-        with open(args.data, encoding="utf-8") as handle:
+    def rows(path, stamp):
+        with open(path, encoding="utf-8") as handle:
             for line in handle:
                 row = json.loads(line)
                 yield {"instruction": row["instruction"], "output": row["output"]}
 
-    ds = Dataset.from_generator(rows)
+    # The HF cache keys on the generator and its kwargs, not the file: without the
+    # size/mtime stamp a regenerated corpus at the same path reuses the old rows.
+    stat = os.stat(args.data)
+    ds = Dataset.from_generator(rows, gen_kwargs={"path": args.data, "stamp": f"{stat.st_size}:{stat.st_mtime_ns}"})
     ds = ds.map(encode, remove_columns=ds.column_names, num_proc=6)
 
     # Zero truncation: a row over the cutoff fails the run, it is never clipped.
