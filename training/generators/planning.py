@@ -188,9 +188,19 @@ def _pick_capability_operation(family: str, rng: random.Random) -> tuple[str, st
         cap_name = rng.choice(["lights", "fans", "switches", "media_players"])
         return cap_name, "turn_on", CAPABILITIES[cap_name].tier
     # ordinary
+    # Only draw tiers that actually contain an actionable capability. A
+    # tier whose capabilities are all settings/query-only (tier 3 today)
+    # has no action ops, so an ordinary slot could never be satisfied —
+    # and the pre-fix code crashed on it (rng.choice over an empty list).
+    # Keep TIER_PROPORTIONS relative weighting among eligible tiers.
+    eligible_tiers = sorted(
+        tier
+        for tier in TIER_PROPORTIONS
+        if any(cap.tier == tier and _action_ops(cap) for cap in CAPABILITIES.values())
+    )
     tier = rng.choices(
-        list(TIER_PROPORTIONS),
-        weights=[TIER_PROPORTIONS[t] for t in sorted(TIER_PROPORTIONS)],
+        eligible_tiers,
+        weights=[TIER_PROPORTIONS[t] for t in eligible_tiers],
         k=1,
     )[0]
     # Only capabilities with an action to take: a slot whose only op is query_state
