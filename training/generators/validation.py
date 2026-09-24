@@ -150,6 +150,35 @@ def validate_spec(spec: dict[str, Any]) -> str | None:
     return None
 
 
+_STATUS_QUERY = re.compile(r"status|\bwhat|^\W*(?:please\s+)?(?:is|are|did|does|do|how)\b|\?\W*$")
+
+
+def _names_one_clarify_candidate(spec: dict[str, Any], lowered: str) -> bool:
+    """A clarify label is wrong when the request names exactly one candidate.
+
+    Home Assistant resolves an exact multi-word name or alias ("the kitchen tv"
+    when "Kitchen TV" exists), so asking "did you mean" there teaches a needless
+    question. A shared alias matches every candidate and stays ambiguous.
+    """
+    expected = spec.get("expected") or {}
+    if expected.get("response") == "clarify":
+        candidates = list(expected.get("candidates") or [])
+    else:
+        candidates = list(spec.get("follow_up_clarify_candidates") or [])
+    if len(candidates) < 2:
+        return False
+    entities = {e["name"]: e for e in (spec.get("home") or {}).get("entities", [])}
+
+    def spoken(name: str) -> bool:
+        phrases = [name, *(entities.get(name) or {}).get("aliases", [])]
+        return any(
+            len(p.split()) >= 2 and re.search(r"(?<!\w)" + re.escape(p.casefold()) + r"(?!\w)", lowered)
+            for p in phrases
+        )
+
+    return sum(spoken(name) for name in candidates) == 1
+
+
 def validate_utterance(spec: dict[str, Any]) -> str | None:
     """Check utterance aligns with expected behavior."""
     utterance = spec.get("utterance")
@@ -159,6 +188,8 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
         return "banned_marker"
     expected = spec.get("expected") or {}
     lowered = utterance.casefold()
+    if _names_one_clarify_candidate(spec, lowered):
+        return "clarify_target_named"
     if spec.get("area_scenario") or spec.get("category") == "area_grounding":
         for name in spec.get("excluded_names") or []:
             if "leave" not in lowered or name.casefold() not in lowered:
@@ -217,7 +248,7 @@ def validate_utterance(spec: dict[str, Any]) -> str | None:
         for name in spec.get("excluded_names") or []:
             if "leave" not in lowered or name.casefold() not in lowered:
                 return "missing_exclusion"
-    if expected.get("kind") == "status" and "status" not in lowered and "what" not in lowered:
+    if expected.get("kind") == "status" and not _STATUS_QUERY.search(lowered):
         return "status_not_query"
     return None
 

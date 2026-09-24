@@ -75,6 +75,12 @@ def require_exposure_source(path: str | Path, *, allowed: frozenset[str] = LIVE_
 @lru_cache(maxsize=4)
 def _load(path: str, split: str) -> dict[str, Any]:
     home = json.loads(Path(path).read_text(encoding="utf-8"))
+    # HA registries carry stray whitespace ("Living room lights "); the prompt strips
+    # it, so a label that kept it named an entity the model was never shown.
+    for entity in home["entities"]:
+        entity["name"] = " ".join(entity["name"].split())
+        if entity.get("aliases"):
+            entity["aliases"] = [" ".join(alias.split()) for alias in entity["aliases"]]
     entities = split_entities(home["entities"], split)
     if not entities:
         msg = f"{path} has no entities in split {split!r}"

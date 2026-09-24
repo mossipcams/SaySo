@@ -309,7 +309,8 @@ def build_cancel_all_timers(area: str | None = None) -> dict[str, Any]:
 
 
 def build_start_timer(rng: random.Random, *, name: str | None = None) -> dict[str, Any]:
-    args: dict[str, Any] = {"minutes": rng.randint(5, 30)}
+    unit, low, high = rng.choices((("minutes", 1, 90), ("seconds", 10, 90), ("hours", 1, 3)), weights=(6, 2, 2))[0]
+    args: dict[str, Any] = {unit: rng.randint(low, high)}
     if name:
         args["name"] = name
     return {"name": "HassStartTimer", "arguments": args}
@@ -345,7 +346,9 @@ def build_cancel_timer(*, name: str | None = None) -> dict[str, Any]:
 
 def build_adjust_timer(rng: random.Random, *, direction: str, name: str | None = None) -> dict[str, Any]:
     """HassIncreaseTimer / HassDecreaseTimer: a duration delta on a running timer."""
-    args: dict[str, Any] = {"minutes": rng.choice((1, 2, 5, 10, 15))}
+    args: dict[str, Any] = (
+        {"seconds": rng.choice((10, 15, 30, 45))} if rng.random() < 0.25 else {"minutes": rng.choice((1, 2, 5, 10, 15))}
+    )
     if name:
         args["name"] = name
     tool = "HassIncreaseTimer" if direction == "increase" else "HassDecreaseTimer"

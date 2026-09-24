@@ -306,7 +306,7 @@ def _capability_slots(size: int, rng: random.Random) -> list[str]:
         "lights": int(size * .40), "switches": int(size * .22),
         "covers": int(size * .10), "fans": int(size * .06), "media_players": int(size * .04),
         "climate": min(2, max(1, size // 24)), "locks": min(3, max(1, size // 24)),
-        "scripts": max(1, size // 20), "scenes": max(1, size // 24),
+        "scripts": rng.randint(1, 4),  # not size-scaled: script count must not fingerprint the catalog "scenes": max(1, size // 24),
         "vacuums": int(size >= 32), "buttons": int(size >= 32),
         "todo_lists": int(size >= 32), "lawn_mowers": int(size >= 64),
     }

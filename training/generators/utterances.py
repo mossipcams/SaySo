@@ -20,7 +20,7 @@ _CONVERSATIONAL = (
 def vary_training_utterance(text: str, rng: random.Random) -> str:
     """Vary request style independently of the expected call/no-call decision."""
     text = text[:1].lower() + text[1:]
-    if re.match(r"^(how|is|are|does|do|which)\b", text):
+    if re.match(r"^(how|is|are|does|do|did|which)\b", text) or text.endswith("?"):
         return text
     for technical, spoken in (("climates", "thermostats"), ("switchs", "outlets"), ("covers", "blinds"), ("media players", "TVs")):
         text = text.replace(f"the {technical} ", f"the {spoken} ")
@@ -135,6 +135,13 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
     if expected.get("kind") == "status":
         provenance.append({"source": "sayso_fallback", "intent": "GetLiveContext"})
         if targets:
+            domain = ((expected.get("calls") or [{}])[0].get("arguments") or {}).get("domain")
+            rng = random.Random(zlib.crc32(f"status:{spec.get('candidate_id', '')}".encode()))
+            questions = _STATUS_QUESTIONS.get(domain if isinstance(domain, str) else "", ())
+            if questions and rng.random() < 0.5:
+                question = rng.choice(questions).format(targets[0])
+                suffix = rng.choice(("", "", " right now")) if question.startswith("is ") else ""
+                return question + suffix + "?"
             return f"what is the status of {targets[0]}"
         call = (expected.get("calls") or [{}])[0]
         domain = (call.get("arguments") or {}).get("domain")
@@ -142,6 +149,13 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
             return f"what is the status of the {domain[0]}"
         return "what is the device status"
     phrases: list[str] = []
+    scope = spec.get("exclusion_scope")
+    if scope and spec.get("excluded_names"):
+        # One group phrase covers every target; the calls still name each device.
+        seed_key = spec.get("phrasing_seed") or spec.get("candidate_id", "")
+        first = (expected.get("calls") or [{}])[0]
+        return (_phrase_for_call(scope, first, f"{seed_key}:0", provenance)
+                + ", but leave " + " and ".join(spec["excluded_names"]) + " alone")
     for index, call in enumerate(expected.get("calls") or []):
         target = targets[index] if index < len(targets) else ""
         canonical = (call.get("arguments") or {}).get("name")
@@ -172,6 +186,26 @@ def _no_action_hint(expected: dict[str, Any]) -> str:
 
 
 # Domain ids are not spoken English nouns ("switchs", "climates").
+# Natural yes/no state questions, by GetLiveContext domain. Users rarely say
+# "what is the status of X"; they ask "is X locked?".
+_STATUS_QUESTIONS: dict[str, tuple[str, ...]] = {
+    "lock": ("is {0} locked", "is {0} unlocked", "did I lock {0}"),
+    "light": ("is {0} on", "is {0} off", "did I leave {0} on", "are {0} still on"),
+    "switch": ("is {0} on", "is {0} off", "did I leave {0} on", "is {0} still on"),
+    "fan": ("is {0} on", "is {0} running", "did I leave {0} on"),
+    "cover": ("is {0} open", "is {0} closed", "are {0} open"),
+    "media_player": ("is {0} playing", "is {0} on", "is anything playing on {0}"),
+    "climate": ("what is {0} set to", "is {0} heating", "is {0} on"),
+    "vacuum": ("is {0} cleaning", "is {0} docked", "is {0} running"),
+    "lawn_mower": ("is {0} mowing", "is {0} docked"),
+    "todo": ("what's on {0}", "is anything on {0}"),
+}
+
+_VACUUM_START = (
+    "have {0} start cleaning", "tell {0} to start cleaning", "get {0} cleaning",
+    "start cleaning with {0}", "send {0} out to clean",
+)
+
 _SPOKEN_PLURALS = {"switch": "outlets", "climate": "thermostats", "cover": "blinds",
                    "media_player": "TVs", "device_class": "devices"}
 
@@ -180,7 +214,20 @@ def _plural(noun: str) -> str:
     return _SPOKEN_PLURALS.get(noun, noun.replace("_", " ") + "s")
 
 
+def _duration(arguments: dict[str, Any]) -> str:
+    return " and ".join(
+        f"{arguments[unit]} {unit[:-1] if arguments[unit] == 1 else unit}"
+        for unit in ("hours", "minutes", "seconds") if arguments.get(unit)
+    )
+
+
 def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenance=None) -> str:
+    if call["name"] == "HassVacuumStart" and target:
+        rng = random.Random(zlib.crc32(f"vacuum:{seed}".encode()))
+        if rng.random() < 0.6:
+            if provenance is not None:
+                provenance.append({"source": "sayso_fallback", "intent": call["name"]})
+            return rng.choice(_VACUUM_START).format(target)
     rendered = render_call(call, target, seed, provenance=provenance)
     if rendered is not None:
         if rendered.lower().startswith("next track"):
@@ -257,7 +304,7 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
         # leading "play " to "resume ", which would relabel a search as an unpause.
         return f"search for {arguments['search_query']} on {target}"
     if name == "HassStartTimer":
-        duration = " and ".join(f"{arguments[unit]} {unit}" for unit in ("hours", "minutes", "seconds") if arguments.get(unit))
+        duration = _duration(arguments)
         suffix = f" called {arguments['name']}" if arguments.get("name") else ""
         suffix += "".join(f" {preposition} {arguments[key]}" for key, preposition in (("area", "in"), ("floor", "on")) if arguments.get(key))
         if duration:
@@ -273,9 +320,7 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
         scope = "".join(f" {preposition} {arguments[key]}" for key, preposition in (("area", "in"), ("floor", "on")) if arguments.get(key))
         return f"cancel the {arguments.get('name', '')} timer{scope}".replace("  ", " ")
     if name in {"HassIncreaseTimer", "HassDecreaseTimer"}:
-        delta = " and ".join(
-            f"{arguments[unit]} {unit}" for unit in ("hours", "minutes", "seconds") if arguments.get(unit)
-        )
+        delta = _duration(arguments)
         verb = "add" if name == "HassIncreaseTimer" else "take"
         preposition = "to" if name == "HassIncreaseTimer" else "off"
         return f"{verb} {delta} {preposition} the {arguments.get('name', '')} timer".replace("  ", " ")
