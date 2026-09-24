@@ -149,6 +149,10 @@ def _domain_args(entity: dict[str, Any]) -> dict[str, Any]:
     domain = entity["domain"]
     if domain in {"light", "fan", "switch", "media_player", "climate", "vacuum", "scene", "script"}:
         return {"domain": [domain]}
+    # HA locks have no device class, and "door" is a cover class: a lock labeled
+    # device_class=["door"] is filtered out and the intent fails to match.
+    if domain == "lock":
+        return {}
     if entity.get("device_class"):
         return {"device_class": [entity["device_class"]]}
     return {}
@@ -370,6 +374,8 @@ def build_area_call(
         args["floor"] = floor
     if domain in {"light", "fan", "switch", "media_player", "climate", "vacuum", "scene", "script"}:
         args["domain"] = [domain]
+    elif domain == "lock":
+        args["domain"] = ["lock"]  # no lock device class exists in HA
     elif cap.device_class:
         args["device_class"] = [cap.device_class]
     tool = _operation_tool(operation, capability)

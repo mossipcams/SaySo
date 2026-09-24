@@ -66,3 +66,32 @@ def test_log_stt_period_never_follows_a_question_mark():
     for seed in range(300):
         text, _ = apply_log_stt_noise("Is the kitchen light on?", random.Random(seed))
         assert not text.rstrip().endswith("?."), text
+
+
+def test_plan_reserves_the_tool_floor_for_every_covered_tool():
+    import collections
+
+    from generators.capability_registry import CAPABILITIES, trainable_operations
+    from generators.config import GeneratorConfig
+    from generators.coverage import expected_tool
+    from generators.planning import _FLOOR_HEADROOM, build_plan
+
+    cfg = GeneratorConfig.from_yaml(ROOT / "configs/generation/full_sft_v5.yaml", repo_root=ROOT.parent)
+    plan = build_plan(cfg.count, cfg.seed, cfg.allocations, min_positive_per_tool=200)
+    slots = collections.Counter(
+        expected_tool(s.capability, s.operation) for s in plan.slots if s.family in {"ordinary", "settings"}
+    )
+    tools = {expected_tool(n, op.name) for n, cap in CAPABILITIES.items() for op in trainable_operations(cap)}
+    for tool in tools - {None}:
+        assert slots[tool] >= int(200 * _FLOOR_HEADROOM), (tool, slots[tool])
+
+
+def test_lock_labels_carry_no_device_class():
+    # HA locks have no device class; "door" is a cover class and would filter the lock out.
+    from generators.tools import build_area_call, build_turn_off, build_turn_on
+
+    lock = {"name": "Front Door Lock", "domain": "lock", "device_class": "door", "capability": "locks"}
+    assert build_turn_on(lock)["arguments"] == {"name": "Front Door Lock"}
+    assert build_turn_off(lock)["arguments"] == {"name": "Front Door Lock"}
+    area = build_area_call("locks", "lock", "Garage")["arguments"]
+    assert area == {"area": "Garage", "domain": ["lock"]}

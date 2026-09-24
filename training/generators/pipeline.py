@@ -39,12 +39,51 @@ from generators.rates import (
     grounding_available_share,
 )
 from generators.real_home import derive_entity_cap, load_real_home
-from generators.row_generation import generate_row
+from generators.row_generation import casing_kind, generate_row
 from generators.sampling import QuotaTracker
 from generators.stats import empty_stats, finalize_stats, record_accept, record_reject
 
 
 _REAL_HOME_FALLBACK_REASONS = frozenset({"family_mismatch", "duplicate_semantic_id", "exact_duplicate_utterance"})
+
+
+def _discrimination_recipe_slot(
+    plan: AllocationPlan, tracker: FamilyTracker, rng: random.Random, closed: set[int]
+) -> dict[str, Any] | None:
+    """A random open on/off slot for a description-based row.
+
+    Discrimination needs one individual call with no value. Always forcing the
+    first needed slot in plan order retried the same slot, which fails whenever
+    it is a reserved media/timer slot or a grounding carrier.
+    """
+    from generators.planning import SURPLUS_OPERATIONS
+
+    candidates = [
+        slot for slot in plan.slots
+        if slot.family != "area" and not slot.grounding and slot.index not in closed
+        and (slot.capability, slot.operation) in SURPLUS_OPERATIONS
+        and _slot_still_needed(slot, tracker, plan)
+    ]
+    return _slot_to_dict(rng.choice(candidates)) if candidates else None
+
+
+def _recipe_required_operations(config: GeneratorConfig) -> set[tuple[int, str, str]]:
+    """Every covered action a recipe run must teach; without this the recipe's
+    min_positive_per_tool / min_positive_per_operation were never checked."""
+    # Enforced at full size only; a smaller run of the same recipe reserves its
+    # scaled floors best-effort (planning._reserve_tool_floors) without failing.
+    if config.count < config.recipe_count or (config.min_positive_per_tool <= 1 and config.min_positive_per_operation <= 1):
+        return set()
+    from generators.capability_registry import CAPABILITIES, covered_tool_names, trainable_operations
+    from generators.coverage import expected_tool
+
+    covered = covered_tool_names() | {"__script__"}
+    return {
+        (cap.tier, name, op.name)
+        for name, cap in CAPABILITIES.items()
+        for op in trainable_operations(cap)
+        if expected_tool(name, op.name) in covered
+    }
 
 
 def _load_excluded_prompts(path: Path | None) -> set[str]:
@@ -73,11 +112,24 @@ def _slot_still_needed(slot: GenerationSlot, tracker: FamilyTracker, plan: Alloc
     return tracker.accepted_family.get(slot.family, 0) < need
 
 
-def _pick_family_slot(plan: AllocationPlan, tracker: FamilyTracker, rng: random.Random) -> GenerationSlot:
-    candidates = [slot for slot in plan.slots if _slot_still_needed(slot, tracker, plan)]
-    if not candidates:
+# A slot that keeps failing is given up after this many attempts so one
+# infeasible (capability, operation) cannot stall its family.
+SLOT_MAX_FAILURES = 50
+
+
+def _pick_family_slot(
+    plan: AllocationPlan, tracker: FamilyTracker, rng: random.Random, closed: set[int] = frozenset()
+) -> GenerationSlot:
+    """Pick an unused slot of a family still short of its allocation.
+
+    Slots are consumed when they yield a row. Drawing with replacement let easy
+    operations fill each family and starved the hard ones the plan reserved.
+    """
+    needed = [slot for slot in plan.slots if _slot_still_needed(slot, tracker, plan)]
+    if not needed:
         raise RuntimeError("family tracker has no remaining shortfall slots")
-    return rng.choice(candidates)
+    open_slots = [slot for slot in needed if slot.index not in closed]
+    return rng.choice(open_slots or needed)
 
 
 def _datetime_slot_dict(index: int) -> dict[str, Any]:
@@ -94,6 +146,7 @@ def _slot_to_dict(slot: GenerationSlot) -> dict[str, Any]:
         "tier": slot.tier,
         "home_size": slot.home_size,
         "area_scenario": slot.area_scenario,
+        "grounding": slot.grounding,
     }
 
 
@@ -166,7 +219,7 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             f"{config.near_duplicate_limit}). Add sites in generators.grounding._sites "
             "or lower the rate."
         )
-    datetime_target = config.get_datetime_positive_min
+    datetime_target = config.scaled_floor(config.get_datetime_positive_min)
     datetime_accepted = 0
     plan = None
     tracker = None
@@ -186,6 +239,8 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             datetime_required=datetime_target,
             real_home_path=config.real_home_path,
             real_home_rate=config.real_home_rate,
+            min_positive_per_tool=config.scaled_floor(config.min_positive_per_tool),
+            min_positive_per_operation=config.scaled_floor(config.min_positive_per_operation),
         )
         tracker = FamilyTracker(plan)
     elif config.allocations:
@@ -210,11 +265,6 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             negative_rate=DEFAULT_NEGATIVE_RATE,
         )
 
-    carrier_remaining = 0
-    if plan is not None:
-        carrier_remaining = sum(
-            1 for candidate in plan.slots if slot_can_carry_grounding(_slot_to_dict(candidate))
-        )
 
     excluded = _load_excluded_prompts(config.exclude_prompts_path)
     dup_tracker = DuplicateTracker(near_limit=config.near_duplicate_limit)
@@ -267,8 +317,11 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             and quota.accepted_total() + datetime_accepted >= config.count
         )
 
+    closed_slots: set[int] = set()
+    casing_counts: dict[str, Counter[str]] = {"call": Counter(), "no_call": Counter()}
+    slot_failures: Counter[int] = Counter()
     while not complete() and attempts < max_attempts:
-        family_slot = _pick_family_slot(plan, tracker, rng) if tracker is not None else None
+        family_slot = _pick_family_slot(plan, tracker, rng, closed_slots) if tracker is not None else None
         rows_remaining = max(1, config.count - accepted_total())
         datetime_deficit = datetime_target - datetime_accepted
         if datetime_deficit > 0 and rows_remaining <= datetime_deficit:
@@ -278,13 +331,15 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
         else:
             slot = quota.next_slot()
         real_home_selected = None
+        real_home_forced = False
         if balance_real_home:
             real_home_remaining = max(0, real_home_target - real_home_rows)
             slot_family = slot.get("family")
             if slot_family in REAL_HOME_EXCLUDED_FAMILIES:
                 real_home_selected = False
             else:
-                real_home_selected = rng.random() < real_home_remaining / rows_remaining
+                real_home_forced = real_home_remaining >= rows_remaining
+                real_home_selected = real_home_forced or rng.random() < real_home_remaining / rows_remaining
 
         grounding_deficit = grounding_target - sum(grounding_rows.values())
         discrimination_deficit = discrimination_target - discrimination_rows
@@ -297,16 +352,14 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
                 # Quota runs have no family slots to starve; keep the v2 latch.
                 want_grounding = bool(grounding_missing) or rate_hit
             elif carrier:
-                # Recipe: overlay a variant whose gold fits this slot's family,
-                # never steal another family's slot. Missing catalogue families
-                # take half the compatible carriers so a stubborn variant cannot
-                # stall the family quota. ponytail: p capped at 0.9 so a
-                # saturated tail under-delivers (rate gate fails) instead of hanging.
-                p = min(0.9, grounding_deficit / max(1, carrier_remaining))
+                # Recipe: the plan marked which carrier slots overlay a variant
+                # (planning._mark_grounding_slots); the variant's gold fits the
+                # slot's family, so no family is stolen from. Missing catalogue
+                # families also take half the compatible carriers.
                 variant = pick_carrier_variant(slot, rng, grounding_missing)
                 forced = variant is not None and variant["family"] in grounding_missing
                 want_grounding = variant is not None and (
-                    (forced and rng.random() < 0.5) or rng.random() < p
+                    slot.get("grounding") or (forced and rng.random() < 0.5)
                 )
                 if want_grounding:
                     slot = {
@@ -315,6 +368,7 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
                         "operation": variant["operation"],
                     }
                     recipe_variant = [variant]
+        discrimination_index = None
         want_discrimination = (
             config.discrimination_rate > 0
             and discrimination_deficit > 0
@@ -329,19 +383,13 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             forced = (
                 discrimination_capable_slot(quota, rng)
                 if quota is not None
-                else next(
-                    (
-                        _slot_to_dict(candidate)
-                        for candidate in plan.slots
-                        if _slot_still_needed(candidate, tracker, plan)
-                        and candidate.family != "area"
-                    ),
-                    None,
-                )
+                else _discrimination_recipe_slot(plan, tracker, rng, closed_slots)
             )
             if forced is not None:
                 slot = forced
                 slot["home_size"] = max(slot["home_size"], 64)
+                if quota is None:
+                    discrimination_index = forced["index"]
         row, reason = None, None
         real_home_attempts = (
             (True, False) if real_home_selected is True else (real_home_selected,)
@@ -378,14 +426,29 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
                 grounding_rate=(
                     grounding_rate if quota is not None or want_grounding else 0.0
                 ),
+                casing_counts=casing_counts,
             )
             if row is not None:
                 break
-            # A saturated real home (21 entities) keeps producing duplicates; fall
-            # back to a synthetic home instead of spinning to max_attempts.
-            if real_sel is False or reason not in _REAL_HOME_FALLBACK_REASONS:
+            # A saturated real home (21 entities) keeps producing duplicates. Once
+            # the tail forces every row onto it, fall back to a synthetic home
+            # instead of spinning to max_attempts; otherwise just redraw.
+            if real_sel is False or not (
+                reason == "family_mismatch" or (real_home_forced and reason in _REAL_HOME_FALLBACK_REASONS)
+            ):
                 break
         attempts += 1
+        # Consume the plan slot this row came from (family draw or discrimination).
+        plan_index = discrimination_index if discrimination_index is not None else (
+            family_slot.index if family_slot is not None else None
+        )
+        if plan_index is not None and slot.get("index") == plan_index:
+            if row is not None:
+                closed_slots.add(plan_index)
+            else:
+                slot_failures[plan_index] += 1
+                if slot_failures[plan_index] >= SLOT_MAX_FAILURES:
+                    closed_slots.add(plan_index)
         if row is None:
             record_reject(stats, reason or "unknown")
             continue
@@ -409,6 +472,8 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             quota.record_accept(row)
         accepted.append(row)
         record_accept(stats, row)
+        first_user = next(m["content"] for m in row["messages"] if m["role"] == "user")
+        casing_counts[casing_kind(bool(row_calls(row)))]["upper" if first_user[:1].isupper() else "lower"] += 1
         if any(
             bare_tool_name(call["name"]) == "GetDateTime"
             for call in row_calls(row)
@@ -419,8 +484,6 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             family = row["metadata"]["grounding_family"]
             grounding_rows[family] += 1
             grounding_missing.pop(family, None)
-        if plan is not None and slot_can_carry_grounding(slot):
-            carrier_remaining = max(0, carrier_remaining - 1)
         if row["metadata"].get("discrimination"):
             discrimination_rows += 1
 
@@ -521,14 +584,14 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
         accepted,
         expected_count=config.count,
         required_operations=(
-            set()
+            _recipe_required_operations(config)
             if quota is None
             else {key for key, target in quota.targets["positive"].items() if target > 0}
         ),
-        min_positive_per_operation=config.min_positive_per_operation,
-        min_positive_per_tool=config.min_positive_per_tool,
+        min_positive_per_operation=config.scaled_floor(config.min_positive_per_operation),
+        min_positive_per_tool=config.scaled_floor(config.min_positive_per_tool),
         max_absence_rate=config.max_absence_rate,
-        get_datetime_positive_min=config.get_datetime_positive_min,
+        get_datetime_positive_min=config.scaled_floor(config.get_datetime_positive_min),
         allowed_operation_shortfall=(
             config.get_datetime_positive_min if quota is not None else 0
         ),

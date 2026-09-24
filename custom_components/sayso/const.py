@@ -42,9 +42,10 @@ DEFAULT_MODEL_SHA256: str | None = "229c805d85e7ef807bf895d91bf653079ec1eff7ee8d
 
 MODEL_STORAGE_SUBDIR = "sayso/models"
 
-# A 230M-class model is prompt-bound on CPU. 4096 holds the system prompt, the
-# filtered tool schema, and a few turns without spilling.
-DEFAULT_N_CTX = 4096
+# The training cutoff. A full (unrouted) HA 2026.9 catalog prompt measures
+# ~4.8-5.0k tokens with the LFM tokenizer, so the old 4096 overflowed every
+# request the router could not narrow; training rows run up to ~7k.
+DEFAULT_N_CTX = 8192
 # Home Assistant shares the box; do not take every core.
 MAX_DEFAULT_THREADS = 4
 

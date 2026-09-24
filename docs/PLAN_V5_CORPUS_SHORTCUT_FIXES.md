@@ -55,9 +55,41 @@ eval, and runtime are unchanged. The v5 full-SFT run was stopped at step ~2650
 9. **Timers were always 5–30 minutes;** the eval uses hours and seconds. Start and
    adjust timers now vary the unit, with singular units ("1 hour").
 
-Flagged, not changed: lock calls carry `device_class: ["door"]` (the eval cases
-disagree among themselves; needs a check against live HA). Timers, climate, scripts
-and vacuums are each 1–2% of rows vs ~8% per eval category (a recipe decision).
+### Third pass (2026-09-24, user: "fix those")
+
+10. **Lock labels:** locks carried `device_class: ["door"]`, but HA locks have no
+    device class ("door" is a cover class), so the intent could not match. Lock
+    calls are now `{"name"}`, or `domain: ["lock"]` for area/floor calls. A
+    phrasing-only copy keeps the "lock X" / "unlock X" wording. The locked
+    promotion suite already expected `{"name"}`. `evals/cases/regressions.jsonl`
+    still carries `door` (eval files untouched).
+11. **Coverage floors were dead config:** `required_operations` was empty for recipe
+    runs, so v4/v5's `min_positive_per_tool: 200` was never checked. Media tools
+    shipped with 18–25 positives, timers 35–55, vacuums 44–68. Fixes:
+    - `planning._reserve_tool_floors` reserves 1.05× every tool and operation floor
+      from surplus on/off (ordinary) and LightSet (settings) slots.
+    - Family slots are consumed on acceptance (they used to be drawn with
+      replacement, so easy operations filled each family). A slot is abandoned
+      after 50 failures.
+    - The audit enforces floors at full recipe size. Smaller runs scale every floor
+      (`GeneratorConfig.scaled_floor`), including `get_datetime_positive_min`,
+      which made a 1,500-row v5 run spend 400 rows on clock questions.
+12. **Grounding and discrimination now come from the plan:** the plan marks grounding
+    carrier slots per family in proportion to variant capacity, taking only surplus
+    on/off ordinary slots, and marked slots draw from the whole family pool.
+    Discrimination takes a random open surplus slot. It used to take the first
+    needed slot, the same one every time.
+13. **Casing balance:** once a label kind (call/no-call) drifts two rows off
+    balance, the next row gets the minority casing. The rng draw is kept, so the
+    stream does not shift.
+14. **Token limits:** `production.yaml` `token_budget` went from 5120 to 7168 (5120
+    rejected every 64-entity multi/exclusion row). The integration's
+    `DEFAULT_N_CTX` went from 4096 to 8192: full-catalog prompts measure
+    4,815–5,025 LFM tokens, so every unrouted request overflowed.
+
+Flagged, not changed: timers, climate, scripts and vacuums remain a small share of
+rows compared with ~8% per eval category. They now meet the 200-row floor, and the
+mix itself is a recipe decision.
 
 ## Verification
 

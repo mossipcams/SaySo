@@ -63,6 +63,8 @@ class GeneratorConfig:
     area_distribution_path: Path | None = None
     min_positive_per_operation: int = 1
     min_positive_per_tool: int = 1
+    # The recipe's own row count: coverage floors are authored for it.
+    recipe_count: int = 0
     max_absence_rate: float = 0.10
     get_datetime_positive_min: int = 1
     exclude_prompts_path: Path | None = None
@@ -90,6 +92,13 @@ class GeneratorConfig:
                 "grounding_rate + discrimination_rate must be <= 1, "
                 f"got {self.grounding_rate} + {self.discrimination_rate}"
             )
+
+    def scaled_floor(self, floor: int) -> int:
+        """A coverage floor scaled to this run: recipes author floors for their own
+        count, and a smaller run (tests, smoke builds) cannot hold them in full."""
+        if floor > 0 and self.recipe_count and 0 < self.count < self.recipe_count:
+            return max(1, floor * self.count // self.recipe_count)
+        return floor
 
     def max_attempts(self) -> int:
         return self.count * self.max_attempts_multiplier
@@ -154,6 +163,7 @@ class GeneratorConfig:
             discrimination_rate=float(raw.get("discrimination", {}).get("rate", 0.0)),
             bare_name_rate=float(gen.get("bare_name_rate", 0.0)),
             area_distribution_path=area_distribution_path,
+            recipe_count=int(raw.get("count", 0)),
             min_positive_per_operation=int(coverage.get("min_positive_per_operation", 1)),
             min_positive_per_tool=int(coverage.get("min_positive_per_tool", 1)),
             max_absence_rate=float(coverage.get("max_absence_rate", 0.10)),

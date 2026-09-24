@@ -59,10 +59,15 @@ def vary_training_utterance(text: str, rng: random.Random) -> str:
     return template.format(action=text)
 
 
-def finalize_training_utterance(text: str, rng: random.Random) -> str:
-    """Single casing site: vary phrasing, then randomize request case before validation."""
+def finalize_training_utterance(text: str, rng: random.Random, *, upper: bool | None = None) -> str:
+    """Single casing site: vary phrasing, then set request case before validation.
+
+    ``upper`` forces the casing (the pipeline uses it to keep casing balanced per
+    label kind); ``None`` draws it at random.
+    """
     utterance = vary_training_utterance(text, rng)
-    return utterance.lower() if rng.random() < 0.5 else utterance[:1].upper() + utterance[1:]
+    drawn = rng.random() >= 0.5  # always drawn, so forcing does not shift the rng stream
+    return utterance[:1].upper() + utterance[1:] if (drawn if upper is None else upper) else utterance.lower()
 
 
 def apply_bare_media_room_phrasing(spec: dict[str, Any]) -> dict[str, Any]:
@@ -166,12 +171,27 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
         # phrasing_seed lets a grounding pair share one request while their labels
         # differ; everything else keys phrasing off the row's own id.
         seed_key = spec.get("phrasing_seed") or spec.get("candidate_id", "")
-        phrases.append(_phrase_for_call(target, call, f"{seed_key}:{index}", provenance))
+        phrases.append(_phrase_for_call(target, _lock_phrasing(call, spec), f"{seed_key}:{index}", provenance))
     seed = " and ".join(phrases)
     excluded = spec.get("excluded_names") or []
     if excluded:
         seed += ", but leave " + " and ".join(excluded) + " alone"
     return seed
+
+
+def _lock_phrasing(call: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any]:
+    """Phrase a lock call as "lock X" / "unlock X".
+
+    Lock labels carry no device class (HA has none for locks), so the wording
+    hints the grammar keys on are added to a phrasing-only copy of the call.
+    """
+    arguments = call.get("arguments") or {}
+    if call.get("name") not in {"HassTurnOn", "HassTurnOff"}:
+        return call
+    by_name = {entity["name"]: entity for entity in (spec.get("home") or {}).get("entities", [])}
+    if arguments.get("domain") != ["lock"] and (by_name.get(arguments.get("name")) or {}).get("domain") != "lock":
+        return call
+    return {**call, "arguments": {**arguments, "domain": ["lock"], "device_class": ["door"]}}
 
 
 def _no_action_hint(expected: dict[str, Any]) -> str:

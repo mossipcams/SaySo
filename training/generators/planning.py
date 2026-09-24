@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from generators.capability_registry import CAPABILITIES, HOME_SIZE_WEIGHTS, TIER_PROPORTIONS
+from generators.capability_registry import CAPABILITIES, HOME_SIZE_WEIGHTS, TIER_PROPORTIONS, trainable_operations
 from generators.sampling import sample_home_size
 
 PRIMARY_FAMILIES = (
@@ -78,6 +78,7 @@ class GenerationSlot:
     home_size: int
     area_scenario: str | None = None
     contrast_group: str | None = None
+    grounding: bool = False
 
 
 @dataclass
@@ -369,6 +370,8 @@ def build_plan(
     datetime_required: int = 0,
     real_home_path: Path | None = None,
     real_home_rate: float = 0.0,
+    min_positive_per_tool: int = 0,
+    min_positive_per_operation: int = 0,
 ) -> AllocationPlan:
     """Build shuffled generation slots from a versioned recipe."""
     area_required = _area_required_counts(area_distribution_path, count)
@@ -420,6 +423,10 @@ def build_plan(
                 )
             )
             index += 1
+    if min_positive_per_tool > 1 or min_positive_per_operation > 1:
+        _reserve_tool_floors(slots, min_positive_per_tool, rng, min_positive_per_operation)
+    if grounding_rate and grounding_variants:
+        _mark_grounding_slots(slots, count, grounding_rate, near_duplicate_limit, rng)
     for scenario, need in area_required.items():
         for offset in range(need):
             slots.append(
@@ -441,6 +448,125 @@ def build_plan(
     if len(slots) != count:
         raise ValueError(f"planned {len(slots)} slots, expected {count}")
     return AllocationPlan(count=count, requested=requested, slots=slots, area_required=area_required)
+
+
+# Reserve this multiple of the floor: slots are drawn per family, and harder
+# operations (feature-gated media) accept at a lower rate than the donors.
+_FLOOR_HEADROOM = 1.05
+# Grounding marks: discrimination rows and abandoned slots also fill a family.
+_GROUNDING_HEADROOM = 1.25
+# Plentiful tools that donate slots: on/off for ordinary ops, LightSet for settings.
+_DONORS = {"ordinary": frozenset({"HassTurnOn", "HassTurnOff"}), "settings": frozenset({"HassLightSet"})}
+
+
+# Operations every family already supplies in the thousands: the only slots that
+# grounding overlays and discrimination rows may take over.
+SURPLUS_OPERATIONS = frozenset(
+    (capability, operation)
+    for capability in ("lights", "switches", "fans", "media_players")
+    for operation in ("turn_on", "turn_off")
+)
+
+
+def _reserve_tool_floors(
+    slots: list[GenerationSlot], tool_floor: int, rng: random.Random, op_floor: int = 0
+) -> None:
+    """Give every covered operation and tool enough ordinary/settings slots.
+
+    The uniform tier draw left media, timer and vacuum tools at 18-68 positive
+    rows in a 40k corpus while the recipe asked for 200. Settings operations
+    only render in the settings family, so each family donates its own slots,
+    and a donor only gives while its own operation stays above the op floor.
+    """
+    from collections import Counter
+
+    from generators.coverage import expected_tool
+
+    def family_of(operation: str) -> str:
+        return "settings" if operation in SETTINGS_OPERATIONS else "ordinary"
+
+    ops = [
+        (name, op.name, cap.tier)
+        for name, cap in CAPABILITIES.items()
+        for op in trainable_operations(cap)
+        if expected_tool(name, op.name)
+    ]
+    carriers = [s for s in slots if s.family in {"ordinary", "settings"}]
+    op_have = Counter((s.capability, s.operation) for s in carriers)
+    tool_have = Counter(expected_tool(s.capability, s.operation) for s in carriers)
+    donors = {
+        family: [s for s in carriers if s.family == family and expected_tool(s.capability, s.operation) in tools]
+        for family, tools in _DONORS.items()
+    }
+    for pool in donors.values():
+        rng.shuffle(pool)
+    need_op, need_tool = int(op_floor * _FLOOR_HEADROOM), int(tool_floor * _FLOOR_HEADROOM)
+
+    def move(family: str, target: tuple[str, str, int]) -> bool:
+        # Best effort: a run too small to hold every floor reserves what it can;
+        # the audit still fails closed on the scaled floor.
+        pool = donors[family]
+        while pool:
+            slot = pool.pop()
+            key = (slot.capability, slot.operation)
+            if op_have[key] > need_op:
+                op_have[key] -= 1
+                tool_have[expected_tool(*key)] -= 1
+                slot.capability, slot.operation, slot.tier = target
+                op_have[target[:2]] += 1
+                tool_have[expected_tool(*target[:2])] += 1
+                return True
+        return False
+
+    for target in ops:
+        while op_have[target[:2]] < need_op and move(family_of(target[1]), target):
+            pass
+    by_tool: dict[str, list[tuple[str, str, int]]] = {}
+    for target in ops:
+        by_tool.setdefault(expected_tool(*target[:2]), []).append(target)
+    for tool, targets in sorted(by_tool.items()):
+        family = family_of(targets[0][1])
+        if tool in _DONORS[family]:
+            continue
+        targets = [t for t in targets if family_of(t[1]) == family]
+        while tool_have[tool] < need_tool and move(family, rng.choice(targets)):
+            pass
+
+
+def _mark_grounding_slots(
+    slots: list[GenerationSlot], count: int, rate: float, near_limit: int, rng: random.Random
+) -> None:
+    """Pick exactly which carrier slots overlay a grounding variant.
+
+    Each carrier family gets a share proportional to its variant capacity
+    (ordinary holds most of the catalogue). A pooled per-attempt probability let
+    ordinary fill first and the small families saturate on duplicates, so the
+    zero-slack rate gate failed. Plain on/off slots go first, keeping the slots
+    reserved for tool floors on their own operation.
+    """
+    import math
+
+    from generators.coverage import expected_tool
+    from generators.grounding import carrier_variants
+
+    capacity = {family: len(carrier_variants(family)) * near_limit for family in {s.family for s in slots}}
+    capacity = {family: cap for family, cap in capacity.items() if cap}
+    total = sum(capacity.values())
+    if not total:
+        return
+    target = min(round(count * rate), total)
+    for family, cap in sorted(capacity.items()):
+        pool = [s for s in slots if s.family == family]
+        if family == "ordinary":
+            # Only surplus on/off slots: an overlay replaces the slot's operation,
+            # so a reserved media/timer/lock slot would lose its floor row.
+            pool = [s for s in pool if (s.capability, s.operation) in SURPLUS_OPERATIONS]
+        rng.shuffle(pool)
+        # Headroom: discrimination rows and abandoned slots also fill a family's
+        # quota, so not every marked slot is drawn. The pipeline stops overlaying
+        # once the total target is met, so extra marks cannot overshoot it.
+        for slot in pool[: min(cap, math.ceil(target * cap / total * _GROUNDING_HEADROOM))]:
+            slot.grounding = True
 
 
 class FamilyTracker:
