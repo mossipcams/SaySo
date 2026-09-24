@@ -44,6 +44,9 @@ from generators.sampling import QuotaTracker
 from generators.stats import empty_stats, finalize_stats, record_accept, record_reject
 
 
+_REAL_HOME_FALLBACK_REASONS = frozenset({"family_mismatch", "duplicate_semantic_id", "exact_duplicate_utterance"})
+
+
 def _load_excluded_prompts(path: Path | None) -> set[str]:
     if path is None or not path.is_file():
         return set()
@@ -378,7 +381,9 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             )
             if row is not None:
                 break
-            if reason != "family_mismatch" or real_sel is False:
+            # A saturated real home (21 entities) keeps producing duplicates; fall
+            # back to a synthetic home instead of spinning to max_attempts.
+            if real_sel is False or reason not in _REAL_HOME_FALLBACK_REASONS:
                 break
         attempts += 1
         if row is None:
