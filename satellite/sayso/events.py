@@ -43,7 +43,7 @@ PLAYBACK_HANDOFF_TIMEOUT_S = 5.0
 # HA's external VAD needs about 1.05 s to become ready on the affected host.
 # ponytail: fixed warm-up; remove when HA initializes VAD before STT audio.
 STT_VAD_WARMUP_MS = 1200
-STT_VAD_PRIMER_BYTES = 2048  # 64 ms of 16 kHz mono int16 PCM
+STT_VAD_PRIMER_BYTES = 16_000 * 2 * STT_VAD_WARMUP_MS // 1000
 
 
 def _defer_until_playback_idle(
@@ -308,8 +308,8 @@ def install_voice_handlers(
                     if result.underflow:
                         self._sayso_capture_underflow = True
 
-                # One normal-sized silent PCM frame triggers HA's VAD setup;
-                # the pending wake boundary prevents live speech overtaking it.
+                # Advance HA's per-stream VAD warm-up on silence before sending
+                # the buffered speech; the pending boundary holds live audio.
                 self.handle_audio(bytes(STT_VAD_PRIMER_BYTES), None)
                 if self._sayso_vad_warmup_token is token and self._pipeline_active:
                     timer = threading.Timer(

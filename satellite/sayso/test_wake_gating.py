@@ -171,8 +171,8 @@ def test_flush_preroll_runs_at_the_true_boundary_only(monkeypatch) -> None:
 
     protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))  # type: ignore[attr-defined]
     assert opened == ["SaySo"]
-    # The primer starts HA's VAD; command audio stays buffered until warm-up ends.
-    satellite.handle_audio.assert_called_once_with(bytes(2048), None)
+    # Silence advances HA's VAD; command audio stays buffered until warm-up ends.
+    satellite.handle_audio.assert_called_once_with(bytes(38400), None)
     assert timers[0][0] == pytest.approx(1.2)
 
     timers[0][1]()

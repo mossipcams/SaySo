@@ -1,20 +1,24 @@
-# STT VAD warm-up workaround
+# STT VAD input warm-up
 
 ## Scope
 
-Send a short silent PCM primer to Home Assistant when the satellite starts the
-STT stream, wait 1.2 seconds for HA's external VAD initialization, then flush
-the already-buffered microphone audio in order. This is a temporary workaround
-for the observed ~1.05 second VAD start delay.
+The current workaround sends only 64 ms of silence, then waits 1.2 seconds
+without sending audio. The next capture still shows the VAD opening around
+1.05 seconds into the audio stream. Send 1.2 seconds of silent PCM up front so
+Home Assistant's 10 ms VAD processing advances before the buffered microphone
+audio is flushed. Keep the existing 1.2 second wall-clock guard and audio
+ordering.
 
 ## Files
 
-- `satellite/sayso/events.py` — insert the primer and defer the existing wake
-  ring flush; cancel a pending flush when a pipeline ends early.
-- `docs/STT_AUDIO_CAPTURE.md` — document that saved captures include the primer.
+- `satellite/sayso/events.py` — make the silent primer 1.2 seconds; retain the
+  delayed wake-ring flush and cancellation behavior.
+- `satellite/sayso/test_events.py` and `satellite/sayso/test_wake_gating.py` —
+  expect the full silence pre-roll before buffered command audio.
+- `docs/STT_AUDIO_CAPTURE.md` — document the silence pre-roll in captures.
 
 ## Verification
 
-- Run `python -m py_compile satellite/sayso/events.py`.
-- Review the diff and confirm the VAD handoff remains buffered until warm-up
-  completes.
+- Run `python -m py_compile satellite/sayso/events.py` and Ruff checks.
+- Review the diff and confirm the microphone ring remains buffered until the
+  silent input pre-roll has been sent and the warm-up timer completes.
