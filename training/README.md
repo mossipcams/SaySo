@@ -77,6 +77,39 @@ python3 -m venv .venv
 HIP_VISIBLE_DEVICES= HF_HOME=/srv/llm/hf-cache .venv/bin/python -m pytest tests -q
 ```
 
+## Normal training workflow
+
+Run on the `llm` VM. Generated corpora remain candidates until static validation
+and canary evaluation pass. Full training reads only the explicitly promoted
+dataset, and model promotion requires the locked final promotion suite to pass.
+Run the commands in order:
+
+```bash
+# Fast dataset check
+python scripts/preflight.py
+
+# Candidate -> promoted dataset -> promoted model
+./sayso generate
+./sayso validate
+./sayso canary
+./sayso promote-dataset
+./sayso train
+./sayso eval
+./sayso promote-model
+```
+
+Promotion records and run metadata live under ignored `training/runs/promotion/`;
+candidate JSONL files live under ignored `training/datasets/candidates/`. Nothing
+is committed automatically. `./train.sh` remains a guarded shortcut for
+`./sayso train` and refuses to train without an explicitly promoted dataset.
+
+The dataset profile and eval reference scores live in
+[`configs/training_baseline.json`](configs/training_baseline.json). Update it
+only after reviewing a dataset and model that you accept; the gate never writes
+to the baseline. The initial eval reference is the latest recorded run from the
+shared scorer. Record actual summary rates and keep the regression tolerance
+reviewed in that file.
+
 ## Historical checked-in adapter config
 
 | | |
