@@ -20,6 +20,8 @@ CANDIDATES = ROOT / "training/datasets/candidates"
 GPU_LOCK = os.environ.get("GPU_LOCK", "/srv/llm/bin/gpu")
 BASE_MODEL = os.environ.get("BASE_MODEL", "/srv/llm/lfm/models/LFM2.5-230M-Base")
 DATASET_DIR = Path(os.environ.get("DATASET_DIR", "/srv/llm/data/lfm/datasets"))
+# Host path of the container's writable {HOST}/lfm/runs/sayso-promotion mount.
+EVAL_RESULTS = Path(os.environ.get("EVAL_RESULTS", "/srv/llm/lfm/runs/sayso-promotion"))
 HOST = "/workspace/host"
 os.environ.setdefault("HF_HOME", "/srv/llm/hf-cache")
 
@@ -91,8 +93,12 @@ def render_and_stage(record: dict) -> str:
 
 
 def eval_checkpoint(checkpoint: str, out_name: str, suite: str) -> tuple[bool, dict]:
-    shutil.rmtree(STATE / out_name, ignore_errors=True)
-    out = f"{HOST}/sayso/training/runs/promotion/{out_name}"
+    # The repo is mounted read-only in the container, so results go under the
+    # writable runs mount. A fresh directory per eval: the container writes as
+    # root, so the host cannot clear an old one, and stale summaries would mix in.
+    out_name = f"{out_name}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    out = f"{HOST}/lfm/runs/sayso-promotion/{out_name}"
+    results = EVAL_RESULTS / out_name
     cmd = ["docker", "exec", "-e", "CUDA_VISIBLE_DEVICES=", "-e", "HIP_VISIBLE_DEVICES=",
            "-w", f"{HOST}/sayso", "unsloth", "python",
            f"{HOST}/sayso/training/scripts/eval_checkpoint_cpu.py", checkpoint,
@@ -102,7 +108,7 @@ def eval_checkpoint(checkpoint: str, out_name: str, suite: str) -> tuple[bool, d
             cmd.extend(("--tag", tag))
     result = subprocess.run(cmd, cwd=ROOT)
     summaries: dict[str, dict] = {}
-    for summary_path in (STATE / out_name).glob("*/summary.json"):
+    for summary_path in results.glob("*/summary.json"):
         try:
             metadata = load(summary_path.parent / "metadata.json")
             if metadata.get("checkpoint") == checkpoint:
