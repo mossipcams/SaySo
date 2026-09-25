@@ -7,14 +7,14 @@ SaySo has two independently deployable components: the Home Assistant conversati
 ## Requirements
 
 - Home Assistant 2026.8.3 or newer
-- About 1 GB of free space in `/config` and roughly 500 MB of free RAM
+- About 1 GB of free space in `/config` and at least 1 GB of free RAM recommended
 - No server, URL, port, or API key
 
 On first setup SaySo installs a prebuilt `llama-cpp-python` wheel and downloads
-**SaySo Gauntlet v1** (`SaySo-Gauntlet-v1-Q8_0.gguf`, 247 MB, an LFM2.5-230M
-fine-tune) into `/config/sayso/models/`. The download is checksum-verified. The model is then held in memory
-while SaySo is loaded and runs on a dedicated worker thread, off Home
-Assistant’s event loop.
+**SaySo LFM v5b** (`SaySo-LFM-v5b-F16.gguf`, 462 MB, an LFM2.5-230M
+fine-tune) into `/config/sayso/models/`. The download is checksum-verified.
+The model stays in memory while SaySo is loaded and runs on a dedicated worker
+thread, off Home Assistant’s event loop.
 
 Prebuilt wheels exist for Home Assistant OS on amd64 and arm64. Verify your
 platform before relying on it:

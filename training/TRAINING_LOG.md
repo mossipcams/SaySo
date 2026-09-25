@@ -765,3 +765,12 @@ gate results false. `training/configs/training_baseline.json` records v5b as
 the current SaySo champion and captures its measured smoke behavior; promotion
 thresholds are unchanged. The general llama.cpp serving-model selection is a
 separate host setting.
+
+### Integration default release
+
+The exact evaluated F16 GGUF was published as the `model-v2` release asset
+`SaySo-LFM-v5b-F16.gguf` (461,883,488 bytes, SHA-256
+`7d4dff1cc6730f1494a3172b4ad8247566ff73dd5b25867be05283927e0b439e`). The
+integration default points to this asset after the model-publishing PR merges.
+The asset remains outside Git history; the PR contains its URL, filename, and
+checksum. Its manual-override and failed-gate status are unchanged.
