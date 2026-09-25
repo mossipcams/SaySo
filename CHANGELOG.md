@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.11.0](https://github.com/mossipcams/SaySo/compare/1.10.0...1.11.0) (2026-09-25)
+
+
+### Features
+
+* **training:** allow audited model promotion override ([37171ca](https://github.com/mossipcams/SaySo/commit/37171ca2dffa0f86b74e42143b44d37403ccc04c))
+
+
+### Documentation
+
+* **training:** designate SaySo v5b champion ([20cf165](https://github.com/mossipcams/SaySo/commit/20cf165d6950cd3c0ef5dce769d99b020910882a))
+
 ## [1.10.0](https://github.com/mossipcams/SaySo/compare/1.9.0...1.10.0) (2026-09-25)
 
 
