@@ -221,15 +221,23 @@ def cmd_eval(_: argparse.Namespace) -> None:
         raise SystemExit("Final promotion-suite evaluation failed; model was not promoted")
 
 
-def cmd_promote_model(_: argparse.Namespace) -> None:
+def cmd_promote_model(args: argparse.Namespace) -> None:
     record = current()
-    if not record.get("final_eval_passed"):
+    if not record.get("trained") or not record.get("final_metrics"):
+        raise SystemExit("Model promotion requires a completed final evaluation")
+    if args.manual_override and not (args.reason or "").strip():
+        raise SystemExit("Manual model promotion requires a non-empty --reason")
+    if not record.get("final_eval_passed") and not args.manual_override:
         raise SystemExit("Model promotion requires a passing final evaluation")
-    save(STATE / "promoted_model.json", {"promoted": True, "run_id": record["run_id"],
-         "checkpoint": record["checkpoint"], "dataset_run_id": record["run_id"],
-         "dataset_sha256": record["dataset_sha256"], "git_commit": record["git_commit"],
-         "config": record["config"], "eval_metrics": record["final_metrics"],
-         "promoted_at": datetime.now(timezone.utc).isoformat()})
+    promotion = {"promoted": True, "run_id": record["run_id"],
+                 "checkpoint": record["checkpoint"], "dataset_run_id": record["run_id"],
+                 "dataset_sha256": record["dataset_sha256"], "git_commit": record["git_commit"],
+                 "config": record["config"], "eval_metrics": record["final_metrics"],
+                 "final_eval_passed": bool(record["final_eval_passed"]),
+                 "promoted_at": datetime.now(timezone.utc).isoformat()}
+    if args.manual_override:
+        promotion.update(promotion_mode="manual_override", manual_override_reason=args.reason.strip())
+    save(STATE / "promoted_model.json", promotion)
     print(f"Promoted model: {record['checkpoint']}")
 
 
@@ -239,7 +247,11 @@ def main() -> int:
     for name, handler in (("generate", cmd_generate), ("validate", cmd_validate), ("canary", cmd_canary),
                           ("promote-dataset", cmd_promote_dataset), ("train", cmd_train),
                           ("eval", cmd_eval), ("promote-model", cmd_promote_model)):
-        sub.add_parser(name)
+        command = sub.add_parser(name)
+        if name == "promote-model":
+            command.add_argument("--manual-override", action="store_true",
+                                 help="promote an evaluated model whose final gates failed")
+            command.add_argument("--reason", help="required audit note for a manual override")
     args = parser.parse_args()
     {"generate": cmd_generate, "validate": cmd_validate, "canary": cmd_canary,
      "promote-dataset": cmd_promote_dataset, "train": cmd_train,
