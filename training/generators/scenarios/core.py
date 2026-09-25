@@ -19,6 +19,7 @@ from generators.capability_registry import (
     trainable_operations,
 )
 from generators.gold import gold_from_scenario, target_names_from_expected
+from generators.utterances import _plural
 from generators.homes import (
     _ENTITY_TEMPLATES,
     _random_entity_name,
@@ -166,7 +167,8 @@ def configure_family_scenario(
         return "individual", "unavailable", request_intent, removed_tools
 
     if family in {"multi_action", "exclusion"}:
-        _ensure_supporting_in_area(home, capability, operation, area, 2, rng, index)
+        # Exclusion needs a third in-area device so "the <area> lights, but leave X" has targets.
+        _ensure_supporting_in_area(home, capability, operation, area, 3 if family == "exclusion" else 2, rng, index)
         return "multiple", family, request_intent, removed_tools
 
     if family == "unsupported":
@@ -376,8 +378,17 @@ def build_scenario(
         },
     }
     if robustness == "exclusion" and len(cap_entities) >= 2:
-        scenario["target_entities"] = cap_entities[:2]
-        scenario["excluded_names"] = [cap_entities[2]["name"]] if len(cap_entities) > 2 else []
+        in_area = [e for e in cap_entities if e["area"] == home["sayso_entity_area"]]
+        if len(in_area) >= 3 and rng.random() < 0.6:
+            # "turn off the kitchen lights, but leave X alone": every other in-area device.
+            kept = rng.choice(in_area)
+            scenario["target_entities"] = [e for e in in_area if e is not kept]
+            scenario["excluded_names"] = [kept["name"]]
+            scenario["exclusion_scope"] = f"the {kept['area'].lower()} {_plural(kept['domain'])}"
+            scenario["spoken_targets"] = {e["name"]: scenario["exclusion_scope"] for e in scenario["target_entities"]}
+        else:
+            scenario["target_entities"] = cap_entities[:2]
+            scenario["excluded_names"] = [cap_entities[2]["name"]] if len(cap_entities) > 2 else []
     if robustness == "multi_action" and len(cap_entities) >= 2:
         others = [e for e in home["entities"]
                   if capability != "scripts" and e["capability"] != capability

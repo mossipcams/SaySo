@@ -187,7 +187,7 @@ def apply_log_stt_noise(
             candidates.append((corrupted, f"log_{kind}"))
             break
     punct = utterance.rstrip()
-    if not punct.endswith("."):
+    if not punct.endswith((".", "?", "!")):
         candidates.append((punct + ".", "log_trailing_period"))
     if utterance and not utterance.isupper():
         candidates.append((utterance.upper() if rng.random() < 0.5 else utterance.lower(), "log_casing"))

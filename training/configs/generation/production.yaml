@@ -32,7 +32,7 @@ cross_cutting:
 generation:
   stt_noise_rate: 0.15
   paraphrase_enabled: false
-  token_budget: 5120
+  token_budget: 7168  # 5120 rejected every 64-entity multi_action/exclusion row
   near_duplicate_limit: 8
   max_attempts_multiplier: 20
   synthetic_only: true
