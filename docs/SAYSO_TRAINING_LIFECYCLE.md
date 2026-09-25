@@ -68,6 +68,11 @@ evaluation passes. Promotion records model and dataset run IDs, generation
 commit, recipe, checkpoint path, and scorer metrics. It does not publish or
 deploy the checkpoint.
 
+If an operator explicitly accepts a model despite failed final gates, pass
+`--manual-override --reason "..."` to `promote-model`. The command still
+requires a completed evaluation and records its real metrics and failed gate
+state; it never changes `final_eval_passed` to true.
+
 ## Local records and baselines
 
 Candidate datasets are stored under ignored `training/datasets/candidates/`.
