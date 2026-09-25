@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.1](https://github.com/mossipcams/SaySo/compare/1.12.0...1.12.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **satellite:** advance HA VAD with silence pre-roll ([526c6a2](https://github.com/mossipcams/SaySo/commit/526c6a230eb5482beb11be838a36ced286f77f8e))
+* **satellite:** warm up HA VAD before command audio ([cd833f8](https://github.com/mossipcams/SaySo/commit/cd833f80e0c547cf797823cdc386839a3d133ded))
+
 ## [1.12.0](https://github.com/mossipcams/SaySo/compare/1.11.0...1.12.0) (2026-09-25)
 
 
