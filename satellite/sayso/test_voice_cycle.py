@@ -75,6 +75,7 @@ def _install_cycle_handlers(monkeypatch: pytest.MonkeyPatch, sounds: SoundsCfg, 
     events.LVAEvent = _LVAEvent  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "aioesphomeapi.model", model)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.events", events)
+    monkeypatch.setattr("satellite.sayso.events.threading.Timer", Mock())
 
     protocol = type(
         "VoiceSatelliteProtocol",
@@ -104,6 +105,7 @@ def test_tts_finished_rearms_wake_without_resetting_on_every_capture_block(
         duck=Mock(),
         _emit=Mock(),
         _start_audio_streaming=Mock(),
+        handle_audio=Mock(),
     )
     wake_word = SimpleNamespace(wake_word="SaySo")
 
