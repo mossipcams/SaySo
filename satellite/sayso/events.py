@@ -40,6 +40,11 @@ def _chain_chime_play(player: Any, path: str, done_callback: Callable[[], None] 
 # under a second, so this only ever trips on a callback that was lost.
 PLAYBACK_HANDOFF_TIMEOUT_S = 5.0
 
+# HA's external VAD needs about 1.05 s to become ready on the affected host.
+# ponytail: fixed warm-up; remove when HA initializes VAD before STT audio.
+STT_VAD_WARMUP_MS = 1200
+STT_VAD_PRIMER_BYTES = 2048  # 64 ms of 16 kHz mono int16 PCM
+
 
 def _defer_until_playback_idle(
     player: Any,
@@ -186,6 +191,13 @@ def install_voice_handlers(
                 failed_reason=failed_reason,
             )
 
+    def _cancel_vad_warmup(self: Any) -> None:
+        self._sayso_vad_warmup_token = None
+        timer = getattr(self, "_sayso_vad_warmup_timer", None)
+        self._sayso_vad_warmup_timer = None
+        if timer is not None:
+            timer.cancel()
+
     def wakeup(self, wake_word) -> None:
         if self.state.muted:
             return
@@ -267,17 +279,45 @@ def install_voice_handlers(
                 return
             if not _claim():
                 return
-            # Start the capture tap at the true command boundary so the WAV
-            # begins exactly where command audio begins.
+            # Start capture before sending the VAD primer and buffered audio.
             _start_capture(self, wake_word_phrase)
             self._start_audio_streaming(wake_word_phrase)
             if wake_hook is not None:
-                # Hand over retained pre-open audio now that capture is live.
-                # flush_preroll emits [trim, now], including audio captured
-                # while mic-open was deferred (playback handoff and gate delay).
-                result = wake_hook.flush_preroll(self)
-                if result.underflow:
-                    self._sayso_capture_underflow = True
+                token = object()
+                self._sayso_vad_warmup_token = token
+
+                def _flush_after_vad_warmup() -> None:
+                    if self._sayso_vad_warmup_token is not token:
+                        return
+                    self._sayso_vad_warmup_token = None
+                    self._sayso_vad_warmup_timer = None
+                    if not self._pipeline_active:
+                        return
+                    # Audio stays buffered in the wake ring during warm-up.
+                    # Flush it after HA has initialized its external VAD.
+                    try:
+                        result = wake_hook.flush_preroll(self)
+                    except Exception:
+                        _LOGGER.exception(
+                            "Could not flush STT audio after VAD warm-up"
+                        )
+                        _fail_turn(
+                            self, "stt", "stt_warmup_flush_failed", "pipeline_error"
+                        )
+                        return
+                    if result.underflow:
+                        self._sayso_capture_underflow = True
+
+                # One normal-sized silent PCM frame triggers HA's VAD setup;
+                # the pending wake boundary prevents live speech overtaking it.
+                self.handle_audio(bytes(STT_VAD_PRIMER_BYTES), None)
+                if self._sayso_vad_warmup_token is token and self._pipeline_active:
+                    timer = threading.Timer(
+                        STT_VAD_WARMUP_MS / 1000.0, _flush_after_vad_warmup
+                    )
+                    timer.daemon = True
+                    self._sayso_vad_warmup_timer = timer
+                    timer.start()
 
         def _after_settle() -> None:
             # Optional extra delay before opening the microphone. This does not
@@ -308,6 +348,7 @@ def install_voice_handlers(
         Rearming waits for the chime's own callback. Rearming before it
         finishes would let the failure sound itself re-trigger the wake word.
         """
+        _cancel_vad_warmup(self)
         trace.fail(stage, error)
         _finish_capture(self, transcript="", failed_reason=capture_reason)
         self._chime_rearm_pending = True
@@ -351,6 +392,7 @@ def install_voice_handlers(
             _fail_turn(self, "pipeline", "pipeline_error", "pipeline_error")
 
     def _tts_finished(self) -> None:
+        _cancel_vad_warmup(self)
         original_tts_finished(self)
         trace.playback_completed()
         trace.finish()
@@ -363,6 +405,7 @@ def install_voice_handlers(
             wake_hook.rearm()
 
     def stop(self) -> None:
+        _cancel_vad_warmup(self)
         original_stop(self)
         trace.fail("playback", "playback_interrupted")
         trace.finish()
