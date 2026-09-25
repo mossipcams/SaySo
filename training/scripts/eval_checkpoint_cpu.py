@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Evaluate a checkpoint on CPU through SaySo's production eval runner/scorer."""
+"""Evaluate a checkpoint on CPU through SaySo's production eval runner/scorer.
+
+Runs inside the unsloth container, without touching the GPU, even while a
+training run holds the lock:
+  docker exec -e HIP_VISIBLE_DEVICES= -e CUDA_VISIBLE_DEVICES= -w /workspace/host/sayso unsloth \
+    python training/scripts/eval_checkpoint_cpu.py CHECKPOINT --suite smoke --out DIR
+
+The repo mount is read-only, so results go to --out instead of evals/results/.
+Generation is greedy and capped like production (temperature 0, 160 tokens); the
+raw text (native <|tool_call_start|> markers) goes through the production parser.
+"""
 
 from __future__ import annotations
 

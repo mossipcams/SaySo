@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 import copy
 import random
 from typing import Any
@@ -75,7 +77,16 @@ def _follow_up_reply(chosen: str, rng: random.Random) -> str:
 
 
 def _junk_utterance(rng: random.Random, index: int) -> str:
-    """A transcript with no actionable request, shaped like real STT output."""
+    """A transcript with no actionable request, shaped like real STT output.
+
+    Cased like every other family (half sentence-cased): all-lowercase junk let
+    casing alone predict the no-call label.
+    """
+    text = _junk_text(rng)
+    return text[:1].upper() + text[1:] if rng.random() < 0.5 else text
+
+
+def _junk_text(rng: random.Random) -> str:
     shape = rng.random()
     if shape < 0.30:
         return f"{rng.choice(_JUNK_FRAGMENTS)}."
@@ -87,6 +98,26 @@ def _junk_utterance(rng: random.Random, index: int) -> str:
         f"{rng.choice(_JUNK_HEADS)} {rng.choice(_JUNK_TAILS)} and... "
         f"{rng.choice(_JUNK_FRAGMENTS)}?"
     )
+
+
+def casing_kind(has_calls: bool) -> str:
+    return "call" if has_calls else "no_call"
+
+
+def _balanced_upper(casing_counts: dict[str, Counter[str]] | None, spec: dict[str, Any]) -> bool | None:
+    """Force the minority casing once a label kind drifts two rows off balance.
+
+    Independent coin flips let casing correlate with the call/no-call label in
+    small runs (the audit's label-dependent-casing gate); ``None`` keeps it random.
+    """
+    if casing_counts is None:
+        return None
+    counts = casing_counts[casing_kind(bool((spec.get("expected") or {}).get("calls")))]
+    if counts["upper"] - counts["lower"] >= 2:
+        return False
+    if counts["lower"] - counts["upper"] >= 2:
+        return True
+    return None
 
 
 def generate_row(
@@ -110,6 +141,7 @@ def generate_row(
     real_home_selected: bool | None = None,
     grounding_variants: list[dict[str, Any]] | None = None,
     grounding_rate: float = 0.0,
+    casing_counts: dict[str, Counter[str]] | None = None,
 ) -> tuple[dict[str, Any] | None, str | None]:
     area_scenario = slot.get("area_scenario")
     if area_scenario:
@@ -119,7 +151,9 @@ def generate_row(
         spec["full_tool_catalog"] = True
         if check_quality_eval_overlap(spec["utterance"]):
             return None, "quality_eval_overlap"
-        spec["utterance"] = finalize_training_utterance(spec["utterance"], rng)
+        spec["utterance"] = finalize_training_utterance(
+            spec["utterance"], rng, upper=_balanced_upper(casing_counts, spec)
+        )
         if spec["utterance"].casefold() in excluded:
             return None, "excluded_prompt"
         if check_quality_eval_overlap(spec["utterance"]):
@@ -317,7 +351,9 @@ def generate_row(
     if family != "junk":
         # finalize_ wraps utterances in "can you ... for me?" politeness. On a
         # junk transcript that produces a request shape the STT never emits.
-        spec["utterance"] = finalize_training_utterance(spec["utterance"], rng)
+        spec["utterance"] = finalize_training_utterance(
+            spec["utterance"], rng, upper=_balanced_upper(casing_counts, spec)
+        )
 
     # Log-shaped STT after phrasing so dropped articles/fillers are not put back.
     if family != "junk" and rows_remaining > 0:

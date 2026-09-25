@@ -640,9 +640,16 @@ def carrier_variants(family: str) -> tuple[dict[str, Any], ...]:
 def pick_carrier_variant(
     slot: dict[str, Any], rng: random.Random, missing: Any = ()
 ) -> dict[str, Any] | None:
-    """Variant for a carrier slot: missing families first, then the slot's own pair."""
+    """Variant for a carrier slot: missing families first, then the slot's own pair.
+
+    A slot the plan marked for grounding draws from the whole family pool: the
+    overlay replaces its operation anyway, and pinning it to its own pair kept
+    re-drawing the few same-pair variants past the duplicate limit.
+    """
     pool = list(carrier_variants(slot.get("family") or ""))
     pool = [v for v in pool if v["family"] in missing] or pool
+    if slot.get("grounding"):
+        return rng.choice(pool) if pool else None
     same_pair = [
         v for v in pool
         if (v["capability"], v["operation"]) == (slot.get("capability"), slot.get("operation"))

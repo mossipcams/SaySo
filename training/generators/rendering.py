@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
+import re
+import zlib
 from typing import Any
 
+from generators.capability_registry import operation_spec
 from generators.context import area_context_for, system_prompt
 from generators.tools import namespaced_tool_name, production_catalog, script_tools
 
@@ -25,6 +29,7 @@ def scenario_to_spec(scenario: dict[str, Any]) -> dict[str, Any]:
         "target_names": target_names_from_expected(expected),
         "spoken_targets": scenario.get("spoken_targets", {}),
         "excluded_names": scenario.get("excluded_names", []),
+        "exclusion_scope": scenario.get("exclusion_scope"),
         "contrastive_group": scenario.get("contrastive_group"),
         "phrasing_seed": scenario.get("phrasing_seed"),
         "request_hint": scenario.get("request_hint", ""),
@@ -37,6 +42,35 @@ def scenario_to_spec(scenario: dict[str, Any]) -> dict[str, Any]:
         "family": scenario.get("family"),
         "removed_tools": scenario.get("removed_tools", []),
     }
+
+
+# Share of rows (outside deliberate removals) that withhold tools they do not need.
+# Without it, only `unavailable` rows had a short catalog, and the model learned
+# "a tool is missing -> refuse" from catalog shape instead of checking relevance.
+DECOY_WITHHOLD_RATE = 0.3
+
+
+def _offered_catalog(spec: dict[str, Any], messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    removed = list(spec["expected"].get("unavailable_tools") or spec.get("removed_tools") or [])
+    removed_ns = [namespaced_tool_name(t) if "__" not in t else t for t in removed]
+    if not removed_ns:
+        removed_ns = _decoy_removals(spec, messages)
+    return production_catalog(spec["home"], removed_tools=removed_ns)
+
+
+def _decoy_removals(spec: dict[str, Any], messages: list[dict[str, Any]]) -> list[str]:
+    """Withhold 1-2 tools the row never needs, drawn from every tool like `unavailable` does."""
+    rng = random.Random(zlib.crc32(f"decoy:{spec['candidate_id']}".encode()))
+    if rng.random() >= DECOY_WITHHOLD_RATE:
+        return []
+    needed = {call["function"]["name"] for m in messages for call in m.get("tool_calls") or []}
+    op = operation_spec(spec.get("capability") or "", spec.get("operation") or "")
+    if op and op.tool_name:
+        needed.add(namespaced_tool_name(op.tool_name))
+    for call in (spec["expected"].get("requested") or {}).get("calls") or []:
+        needed.add(namespaced_tool_name(call["name"]))
+    candidates = [t["function"]["name"] for t in production_catalog(spec["home"]) if t["function"]["name"] not in needed]
+    return rng.sample(candidates, min(len(candidates), rng.choice((1, 1, 2))))
 
 
 def _call_id(candidate_id: str, index: int, call: dict[str, Any]) -> str:
@@ -69,7 +103,13 @@ def _final_text(spec: dict[str, Any]) -> str:
         from generators.gold import target_names_from_expected
 
         names = names or target_names_from_expected(expected)
-        return f"{names[0]} is {expected.get('state', 'unknown')}."
+        state = str(expected.get("state", "unknown"))
+        # Real-home states are raw HA values: scenes/buttons hold a timestamp, to-do lists a count.
+        if re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d.*", state):
+            return f"{names[0]} was last activated at {state[11:16]}."
+        if state.isdigit():
+            return f"{names[0]} has {state} item{'' if state == '1' else 's'}."
+        return f"{names[0]} is {state}."
     if expected["kind"] == "action":
         return "Done."
     if expected.get("response") == "clarify":
@@ -89,7 +129,7 @@ def _final_text(spec: dict[str, Any]) -> str:
         return f"There is no {device} in the {area}."
     if expected.get("response") == "area_unavailable":
         unavailable = expected.get("unavailable") or {}
-        area = unavailable.get("area", "this area")
+        area = unavailable.get("area", "this area").casefold()  # one spelling across families
         device_type = unavailable.get("type", "devices")
         return f"The {area} has no {device_type} available."
     return {
@@ -217,9 +257,7 @@ def _render_follow_up(spec: dict[str, Any]) -> dict[str, Any]:
         {"role": "user", "content": follow_up_reply.strip(), "train_on_turn": False},
     ]
     _append_action_turn(messages, spec, calls, train_tool_turn=True)
-    removed = list(spec["expected"].get("unavailable_tools") or spec.get("removed_tools") or [])
-    removed_ns = [namespaced_tool_name(t) if "__" not in t else t for t in removed]
-    offered = production_catalog(spec["home"], removed_tools=removed_ns)
+    offered = _offered_catalog(spec, messages)
     return {"messages": messages, "tools": offered, "metadata": _production_metadata(spec, offered, utterance)}
 
 
@@ -246,9 +284,9 @@ def _render_correction(spec: dict[str, Any]) -> dict[str, Any]:
     correct_call = calls[0]
     bad_call = wrong_name_tool_call(correct_call, wrong_name)
     tool_name = namespaced_tool_name
-    removed = list(spec["expected"].get("unavailable_tools") or spec.get("removed_tools") or [])
-    removed_ns = [namespaced_tool_name(t) if "__" not in t else t for t in removed]
-    offered = production_catalog(spec["home"], removed_tools=removed_ns)
+    # The messages are built below from `allowed_tools`, so pass the calls directly.
+    planned = [{"tool_calls": [{"function": {"name": tool_name(call["name"])}} for call in calls]}]
+    offered = _offered_catalog(spec, planned)
     allowed_tools = sorted({entry["function"]["name"] for entry in offered})
     wrong_id = _call_id(spec["candidate_id"], 0, bad_call)
     correct_id = _call_id(spec["candidate_id"], 1, correct_call)
@@ -385,9 +423,7 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
             )
     messages.append({"role": "assistant", "content": _final_text(spec), "train_on_turn": True})
 
-    removed = list(spec["expected"].get("unavailable_tools") or spec.get("removed_tools") or [])
-    removed_ns = [namespaced_tool_name(t) if "__" not in t else t for t in removed]
-    offered = production_catalog(spec["home"], removed_tools=removed_ns)
+    offered = _offered_catalog(spec, messages)
 
     metadata = {
         "candidate_id": spec["candidate_id"],
