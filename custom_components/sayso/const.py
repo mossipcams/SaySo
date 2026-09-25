@@ -29,16 +29,16 @@ LLAMA_CPP_PACKAGE = "llama-cpp-python"
 LLAMA_CPP_MIN_VERSION = "0.3.33"
 LLAMA_CPP_WHEEL_INDEX = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 
-# Default weights: the SaySo Gauntlet v1 fine-tune, published as a GitHub
-# Release asset because every useful quant exceeds GitHub's 100 MB file limit.
+# Default weights: the manually accepted SaySo LFM v5b eval champion, published
+# as a release asset because every useful quant exceeds GitHub's 100 MB file limit.
 # Swap these three together to ship a new model; scripts/publish_model.sh
 # uploads the asset and rewrites them in one step.
 DEFAULT_MODEL_URL = (
-    "https://github.com/mossipcams/SaySo/releases/download/model-v1/"
-    "SaySo-Gauntlet-v1-Q8_0.gguf"
+    "https://github.com/mossipcams/SaySo/releases/download/model-v2/"
+    "SaySo-LFM-v5b-F16.gguf"
 )
-DEFAULT_MODEL_FILENAME = "SaySo-Gauntlet-v1-Q8_0.gguf"
-DEFAULT_MODEL_SHA256: str | None = "229c805d85e7ef807bf895d91bf653079ec1eff7ee8d18618baefd6cb4e536f1"
+DEFAULT_MODEL_FILENAME = "SaySo-LFM-v5b-F16.gguf"
+DEFAULT_MODEL_SHA256: str | None = "7d4dff1cc6730f1494a3172b4ad8247566ff73dd5b25867be05283927e0b439e"
 
 MODEL_STORAGE_SUBDIR = "sayso/models"
 
