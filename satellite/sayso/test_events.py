@@ -267,7 +267,7 @@ def test_wakeup_flushes_preroll_after_streaming_starts(
     protocol.wakeup(satellite, wake_word)  # type: ignore[attr-defined]
 
     assert streaming_order == ["start", "audio"]
-    assert handle_audio_calls == [bytes(2048)]
+    assert handle_audio_calls == [bytes(38400)]
     assert timers[0][0] == pytest.approx(1.2)
 
     timers[0][1]()

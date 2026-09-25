@@ -10,10 +10,10 @@ handed to Home Assistant, at the single point where it leaves the satellite, so 
 captured WAV is byte-identical to what Faster Whisper received. It is not a
 re-recording and not a re-derivation.
 
-Each command capture begins with one 64 ms silent PCM primer. The satellite
-holds microphone audio in the wake ring for 1.2 seconds after sending that
-primer so Home Assistant can initialize its external VAD; the saved WAV
-includes the primer and the buffered audio.
+Each command capture begins with 1.2 seconds of silent PCM. This advances
+Home Assistant's external VAD through its observed startup delay while the
+satellite holds microphone audio in the wake ring; after the same 1.2-second
+guard, the saved WAV continues with buffered microphone audio.
 
 ## Where the tap is
 
@@ -21,7 +21,8 @@ includes the primer and the buffered audio.
 `satellite/sayso/process_audio.py`) -> WebRTC AGC/NS (fixed config) -> wake hook
 -> `satellite.handle_audio` -> Home Assistant.
 
-The primer uses the same `handle_audio` tap before the wake ring is flushed.
+The silence pre-roll uses the same `handle_audio` tap before the wake ring is
+flushed.
 
 The tap wraps `handle_audio` in `satellite/sayso/events.py`. Recording happens
 immediately before the send, so nothing between the tap and Home Assistant can
