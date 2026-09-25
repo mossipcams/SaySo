@@ -19,28 +19,61 @@
     }
   },
   "eval": {
-    "source": "latest recorded production-scorer smoke result: eval-v5 20260924T121617Z-cc6426ac, step-2400 checkpoint",
+    "source": "accepted SaySo champion v5b; llama.cpp endpoint scorer run 20260925T174759Z-5ceb6471",
+    "champion": {
+      "name": "SaySo LFM v5b",
+      "run_id": "v5b-20260925-adopted",
+      "promotion_mode": "manual_override",
+      "checkpoint": "/srv/llm/lfm/runs/sayso-lfm-v5-full/final",
+      "gguf": "/srv/llm/data/llama.cpp/models/sayso-lfm-v5b-f16.gguf",
+      "gguf_sha256": "7d4dff1cc6730f1494a3172b4ad8247566ff73dd5b25867be05283927e0b439e",
+      "promotion_suite": {
+        "passed": 73,
+        "total": 120,
+        "overall_pass_rate": 0.6083,
+        "summary": "/srv/llm/data/sayso/evals/results/20260925T174759Z-5ceb6471/summary.json"
+      },
+      "smoke_suite": {
+        "passed": 17,
+        "total": 24,
+        "overall_pass_rate": 0.7083,
+        "summary": "/srv/llm/data/sayso/evals/results/20260925T181039Z-8ae231b2/summary.json"
+      },
+      "previous_champion": {
+        "name": "v3-semantic-early-20260908 step-5000",
+        "passed": 31,
+        "total": 120,
+        "overall_pass_rate": 0.2583,
+        "summary": "/srv/llm/data/sayso/evals/results/20260925T172615Z-a7492f7f/summary.json"
+      },
+      "same_case_hash": "58b5892320175371677f393f4b562906f77aa49d7e39851b6744ac6ed992b5c9",
+      "same_suite_hash": "1c13634d2192a74caa6e2553b6afd8672a66a14ffdbd941ed9f279f3f2341017",
+      "validation_passed": false,
+      "canary_passed": false,
+      "final_eval_gate_passed": false,
+      "false_action_rate": 0.6,
+      "previous_champion_false_action_rate": 0.2
+    },
     "smoke": {
-      "overall_pass_rate": 0.4583,
+      "overall_pass_rate": 0.7083,
       "category_pass_rate": {
-        "ordinary": 0.5,
-        "light_fan_settings": 0.5,
-        "climate": 0.5,
-        "media": 0.5,
+        "ordinary": 1.0,
+        "light_fan_settings": 1.0,
+        "climate": 1.0,
+        "media": 1.0,
         "timers": 1.0,
         "routines_vacuum": 0.5,
-        "status": 0.0,
-        "aliases": 0.5,
+        "status": 1.0,
+        "aliases": 0.0,
         "multi_action": 1.0,
-        "exclusion": 0.0,
-        "ambiguity": 0.0,
-        "unavailable": 1.0
+        "exclusion": 0.5,
+        "ambiguity": 0.3333,
+        "unavailable": 0.5
       },
       "tool_validity": 0.9583,
       "flags": {
         "action_on_ambiguity": 1,
-        "status_state_change": 1,
-        "excluded_entity_affected": 1
+        "tool_call_on_unavailable": 1
       }
     },
     "max_drop": 0.12

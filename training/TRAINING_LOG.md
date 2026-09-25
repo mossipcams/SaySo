@@ -735,3 +735,33 @@ checked; legacy start/stop scripts and ROCm state mirror were retired. State
 tracks both wrapper and worker so a dead wrapper cannot free a live worker.
 Interrupted/failed LFM commands restart Unsloth before releasing the GPU.
 Studio is exploration-only. These checks ran sleep/no-op commands, not training.
+
+## SaySo evaluation champion: v5b — 2026-09-25
+
+SaySo LFM v5b (`v5b-20260925-adopted`) is the accepted evaluation champion by
+explicit manual override. The override was based on the same locked 120-case
+promotion suite: v5b scored 73/120 (60.83%) versus 31/120 (25.83%) for the
+previous eval champion, `v3-semantic-early-20260908` step 5,000. The case,
+suite, and production-contract hashes match between these endpoint runs.
+
+This run did not pass the normal promotion gates. Dataset validation failed
+(2,980 invalid rows, 4.295% duplicates against a 1% limit, 0.422% conflicting
+examples against a 0.1% limit, and missing pinned core tools); the canary was
+not run. The final evaluation scored 60.83% against a 70% overall threshold and
+failed category and safety gates. In particular, false-action rate rose to
+60% from the prior champion's 20%, ambiguity accuracy was 20% versus 60%, and
+unavailable-entity accuracy was 50% versus 90%. The scorer recorded 7 actions on
+ambiguous requests, 5 calls on unavailable tools, and 2 excluded-entity effects.
+
+The served GGUF is
+`/srv/llm/data/llama.cpp/models/sayso-lfm-v5b-f16.gguf`, SHA-256
+`7d4dff1cc6730f1494a3172b4ad8247566ff73dd5b25867be05283927e0b439e`. Its
+promotion-suite summary is `/srv/llm/data/sayso/evals/results/20260925T174759Z-5ceb6471/summary.json`;
+the 24-case smoke summary is
+`/srv/llm/data/sayso/evals/results/20260925T181039Z-8ae231b2/summary.json`
+(17/24, with the smoke safety gates still failing). The VM's local promotion
+record marks this as a manual override and keeps validation, canary, and final
+gate results false. `training/configs/training_baseline.json` records v5b as
+the current SaySo champion and captures its measured smoke behavior; promotion
+thresholds are unchanged. The general llama.cpp serving-model selection is a
+separate host setting.
