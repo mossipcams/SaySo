@@ -1,24 +1,41 @@
-# SaySo model training design
+# SaySo model training plan
 
-This document retains the model, data-contract, and runtime-safety design
-constraints plus the historical LLaMA-Factory proposal. It is not the operator
-guide for current training. Use the [local training lifecycle](SAYSO_TRAINING_LIFECYCLE.md)
-for commands and gates, [training/README.md](../training/README.md) for host and
-generator notes, and [training/TRAINING_LOG.md](../training/TRAINING_LOG.md)
-for run history and scores.
+**Scope:** the stable design and constraints for `LFM2.5-230M-Base` supervised
+full-parameter fine-tuning with **LLaMA-Factory and ROCm PyTorch** on one planned
+24 GB AMD GPU. Wake-word training has its own
+[plan](SAYSO_WAKE_WORD_TRAINING_PLAN.md).
+Rules that outlive any one run belong here. For LFM, what ran, what it
+scored, and which checkpoint is promoted belong in
+[training/TRAINING_LOG.md](../training/TRAINING_LOG.md); commands and active
+config belong in [training/README.md](../training/README.md).
 
-The active trainer is full-parameter Unsloth training of
-`LiquidAI/LFM2.5-230M-Base` on the `llm` VM. The existing SaySo contract remains
-binding: Home Assistant owns entities, schemas, permissions, execution, and the
-voice pipeline; llama.cpp hosts inference only. The current checkpoint
-promotion sequence is separate from artifact publishing or deployment.
+SaySo trains `LiquidAI/LFM2.5-230M-Base` to select and emit Home Assistant tools in
+the same OpenAI-compatible shape used by the integration. Home Assistant still
+owns the entities, schemas, permissions, execution, and final voice pipeline.
+llama.cpp only hosts inference.
 
-**Historical stack proposal:** LLaMA-Factory was evaluated on the 24 GB Radeon
-RX 7900 XTX, then replaced by Unsloth. LLaMA-Factory recipes and settings below
-are design history, not active configuration. The active trainer settings live
-in `training/scripts/train_unsloth_full.py`; the local promotion flow is
-specified in the lifecycle guide. Wake-word training remains a separate
-[LiveKit pipeline](../training/wake/README.md).
+**Host change: 2026-09-23.** The 24 GB GPU exists: `ssh llm`, Radeon RX 7900
+XTX, ROCm 7.2.4 ([host facts](../training/README.md#training-host-observed-2026-09-23)).
+LLaMA-Factory ran the HIP smoke there, then was replaced: **the LFM trainer is
+Unsloth** (`unsloth` container on the host). Every LLaMA-Factory reference below
+is the plan as reviewed, not the tool in use. The data contract (derived
+Base-template view, completion-only loss, full SFT from Base) is
+trainer-independent and still binding. Wake-word training is a separate
+LiveKit pipeline ([training/wake/README.md](../training/wake/README.md)).
+
+**Planning revision: 2026-09-22.** The next LFM run updates all parameters from
+fresh Base using LLaMA-Factory's full SFT path and ROCm PyTorch. This supersedes
+both the earlier rsLoRA design and the proposed standalone TRL trainer. The
+24 GB AMD GPU is a planning assumption; its exact model, OS, and ROCm version
+remain to be recorded at implementation preflight.
+The existing host was inspected read-only; its facts are recorded in
+[training/README.md](../training/README.md#retired-host-192168140).
+No generation, training, deployment, or runtime change is part of this planning
+update. The execution plan below must be reviewed before implementation.
+
+Keep the Base checkpoint and use LLaMA-Factory for training. Instruct,
+FunctionGemma, the old Axolotl configs, and host TRL launchers remain historical.
+None is a ready-to-run recipe for this full-parameter ROCm run.
 
 ## 1. Training contract
 
@@ -103,8 +120,6 @@ multi-call/exclusion/alias coverage and label consistency, in addition to unique
 request counts. Never regenerate a running job's pinned input in place.
 
 ## 3. Format and trainer
-
-The render/loss invariants below apply to the current Unsloth trainer. Tooling-specific LLaMA-Factory details are historical.
 
 ### Dataset view and serving-format parity
 
@@ -339,7 +354,7 @@ to:
 ## 6. Non-goals
 
 - model bake-offs (Instruct LFM, FunctionGemma, Alexa+)
-- Axolotl, distributed training, and a larger model for this run
+- Axolotl, adapter training, distributed training, and a larger model for this run
 - fine-tuning on ChatML `<tool_call>` labels
 - long autonomous chains
 - replacing Home Assistant validation with model trust
@@ -382,8 +397,8 @@ Area scenarios are a **sibling family**, not a cross-cut inside primary families
 When `cross_cutting.area` is enabled, area minimums are subtracted from
 `count`, the remaining slots are drawn from primary-family allocations, and each
 accepted area row is tagged `family="area"`. An area row is not also counted as
-`ordinary`, `status`, or `exclusion`. In the historical v3 recipe, “ordinary
-40%” was 40% of `(count − area_total)`, not 40% of the full corpus.
+`ordinary`, `status`, or `exclusion`. Production “ordinary 40%” is 40% of
+`(count − area_total)`, not 40% of the full corpus.
 
 ### Cross-cutting rates (grounding and discrimination)
 
@@ -392,22 +407,20 @@ rows. `enforce_rate_gate` in `rates.py` compares achieved share against the
 reachable ceiling (`grounding_available_share` /
 `discrimination_available_share`), not the raw recipe value when capacity is lower.
 
-The historical v3 recipe set `grounding.rate: 0.0`; active v5 sets it to `0.08`.
-Promotion failures had been clarify/status/exclusion/unavailable, so v3 did not
-spend rows on grounding until the catalogue and gate could support it.
+Production v3 sets `grounding.rate: 0.0` deliberately: promotion failures were
+clarify/status/exclusion/unavailable, not grounding delivery. Re-enable only when
+the catalogue and gate can support a nonzero share.
 
 `discrimination.rate` is capped at the measured delivery ceiling
 (`DISCRIMINATION_DELIVERY_CEILING = 0.02` in `scenarios/discrimination.py`).
-The historical v3 recipe requested `0.02`; active v5 requests `0.015`.
+The production recipe requests `0.02` so the gate does not silently accept a 4%
+request against a 2% ceiling.
 
 ## Implementation map
 
 | Concern | Location |
 |---|---|
-| Local candidate/promotion workflow | `./sayso`; [lifecycle guide](SAYSO_TRAINING_LIFECYCLE.md) |
-| Static dataset preflight | `scripts/preflight.py`, `training/configs/preflight.yaml`, `training/configs/training_baseline.json` |
-| Unsloth full trainer and checkpoint scoring | `training/scripts/train_unsloth_full.py`, `training/scripts/eval_checkpoint_cpu.py`, shared `evals/` runner/scorer |
-| Canonical generator and recipes | `training/generators/{cli,config,pipeline,planning,rendering,validation,manifest}.py`, `training/configs/generation/` |
+| Canonical generator CLI and recipes | `python -m generators.cli --config training/configs/generation/{production,smoke}.yaml`, `training/generators/{cli,config,pipeline,planning,rendering,validation,manifest}.py`, `training/configs/generation/` |
 | Dataset build entry points | `training/generators/cli.py`, `training/scripts/generate_balanced_test_data.py` |
 | Scenario facts and area families | `training/generators/scenarios/`, `training/generators/grounding.py` |
 | Coverage accounting and audit | `training/generators/coverage.py`, `training/generators/planning.py`, `training/generators/audit.py` |
@@ -419,22 +432,23 @@ The historical v3 recipe requested `0.02`; active v5 requests `0.015`.
 | LFM adapter | `training/adapters/lfm.py` |
 | Schema validation | `training/adapters/schema.py` |
 | Historical TRL adapter recipe | `training/configs/lfm25-230m-synthetic-v3-40k-trl.yml` |
-| Historical LLaMA-Factory recipes | `training/configs/lfm25-230m-full-24gb-rocm-llamafactory*.yml` (not active) |
-| Rendered training view | `training/adapters/lfm.py`, `training/scripts/export_llamafactory_view.py`; consumed by Unsloth |
+| Planned full-parameter ROCm recipe | `training/configs/lfm25-230m-full-24gb-rocm-llamafactory.yml` (not implemented) |
+| Planned trainer view and registration | `training/adapters/lfm.py`; derived prompt/completion files and `dataset_info.json` in the immutable run bundle |
 | Evaluation | `evals/` |
 | Pinned contract | `schemas/sayso-tool-schema-v2.json` (§1; v1 is a historical artifact) |
 | Run history and scores | `training/TRAINING_LOG.md` |
 
-Operational commands belong in [the training lifecycle guide](SAYSO_TRAINING_LIFECYCLE.md).
-Update this document only when the training design or its safety boundary changes.
+Operational commands belong in `training/README.md`. Update this document only
+when the training design or its safety boundary changes.
 
-## Historical corpus and full fine-tuning proposal (2026-09-22)
+## Next corpus and full fine-tuning execution plan
 
-This proposal records the defect analysis that informed later generator work. Its
-LLaMA-Factory commands, settings, quotas, and implementation sequence are not the
-active workflow; use the lifecycle guide and current training recipe for runs.
-Keep the model at 230M parameters; use available VRAM for full optimization and
-realistic contexts, not automatic corpus or model growth.
+**Status:** planning only, reviewed against repository `7f60a01`, GitHub issues,
+and the existing training host on 2026-09-22; updated for the user's chosen
+LLaMA-Factory/ROCm stack. The proposed settings and quotas
+below require implementation and validation before a run. Keep the model at
+230M parameters; use the additional VRAM for full optimization and realistic
+contexts, not automatic corpus or model growth.
 
 ### Defects that determine the data
 
@@ -449,10 +463,9 @@ realistic contexts, not automatic corpus or model growth.
 
 The existing handoff records 96.3% verbatim target naming in Run 013 and 91.4%
 in the subsequent gauntlet corpus. Those are historical measurements, not an
-audit of a new corpus. When this proposal was written, v3 disabled grounding
-and requested 2% discrimination. The later v5 recipe enables grounding at 8%
-and requests 1.5% discrimination. Merely increasing a rate cannot create valid
-sibling entities or new contrast scenarios; scenario diversity must be built.
+audit of a new corpus. The current recipe still disables grounding and requests
+only 2% discrimination. Merely increasing that rate cannot create valid sibling
+entities or new contrast scenarios. Build the missing scenario diversity first.
 
 The September 17 generator handoff is also historical: the current code already
 checks family outcomes and includes positive GetDateTime generation. Reuse those

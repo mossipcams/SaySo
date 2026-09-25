@@ -1,9 +1,5 @@
 # Aggressive SFT corpus — every knob
 
-> Historical rejected proposal. Its allocations and cross-cut rates are not the
-> active `full_sft_v5.yaml` recipe. Use the
-> [SaySo training lifecycle](SAYSO_TRAINING_LIFECYCLE.md) for current commands.
-
 First-turn-only v4 is rejected. The previous mix that left paraphrase off, grounding
 at 20%, real-home at 10%, and “labels conservative” is also rejected. **Aggressive
 means every axis:** families, graphs, noise, homes, history, tools, context

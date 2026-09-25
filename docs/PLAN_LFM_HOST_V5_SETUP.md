@@ -1,9 +1,5 @@
 # v5 full SFT on 192.168.1.76 (LlamaFactory + 7900 XTX)
 
-> Historical setup record. LLaMA-Factory launch instructions below are retired;
-> current candidate validation, canary, training, and promotion commands live in
-> [the SaySo training lifecycle guide](SAYSO_TRAINING_LIFECYCLE.md).
-
 > **Status 2026-09-23 (evening): LlamaFactory removed from the host.** The
 > `llm-rocm` container and image are gone, replaced by Unsloth Studio
 > (`unsloth` container, UI `:8002`). `/srv/llm/scripts/llm train rocm` no longer

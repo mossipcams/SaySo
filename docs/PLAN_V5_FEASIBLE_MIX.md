@@ -1,10 +1,5 @@
 # v5 feasible mix — follow_up, correction, grounding on
 
-> Design record for the current `full_sft_v5.yaml` recipe. The generation,
-> preflight, canary, training, and promotion procedure is now in the
-> [SaySo training lifecycle guide](SAYSO_TRAINING_LIFECYCLE.md); the old scope
-> statements below describe the planning task, not current run instructions.
-
 Implement the mix that fits the current catalogues. Not the “every knob at 11”
 40k recipe in `docs/PLAN_AGGRESSIVE_SFT_CORPUS.md`. No 40k generate. No
 training launch. No eval/runtime edits. No HA entity rename/add. Do not cut
