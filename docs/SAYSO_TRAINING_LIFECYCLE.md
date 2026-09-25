@@ -47,8 +47,8 @@ configured tolerance.
 
 `./sayso promote-dataset` succeeds only when validation and canary both passed
 for the unchanged dataset. It writes the local promoted-dataset record, including
-the run ID, dataset and rendered-data hashes, source commit, recipe, and canary
-metrics.
+the run ID, dataset and rendered-data hashes, generation commit, recipe, and
+canary metrics.
 
 `./sayso train` reads that explicit promotion record, checks the source and
 rendered-data hashes, stages the exact rendered dataset, and launches full
@@ -64,9 +64,9 @@ multi-action, status, and basic tool selection behavior. A failure clears the
 final-eval pass state.
 
 `./sayso promote-model` writes the latest model-promotion record only after final
-evaluation passes. Promotion records model and dataset run IDs, source commit,
-recipe, checkpoint path, and scorer metrics. It does not publish or deploy the
-checkpoint.
+evaluation passes. Promotion records model and dataset run IDs, generation
+commit, recipe, checkpoint path, and scorer metrics. It does not publish or
+deploy the checkpoint.
 
 ## Local records and baselines
 

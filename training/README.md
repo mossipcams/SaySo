@@ -162,9 +162,11 @@ anything because nothing enforced them; do not read them as evidence that earlie
 corpora were short. A row whose count had to fall back to the estimate is now
 flagged `metadata._token_length_estimated`.
 
-The v3 build writes the canonical JSONL and the TRL render in one pass and
-records `render_rows` in the manifest; it must equal `accepted`. Never hand-filter
-the render — dropping rows there shrinks the train set silently.
+The historical v3 build wrote canonical JSONL and its TRL render in one pass
+and recorded `render_rows` in the manifest; it had to equal `accepted`. Current
+training derives its rendered view after preflight through the lifecycle
+workflow. Never hand-filter a rendered view — dropping rows shrinks the train
+set silently.
 
 ## Mixing in a real home
 
