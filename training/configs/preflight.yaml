@@ -1,0 +1,59 @@
+dataset: training/datasets/sayso_full_sft_v5_20260922.jsonl
+baseline: training/configs/training_baseline.json
+critical_fixtures:
+  - schemas/sayso-tool-schema-v2.json
+  - training/fixtures/ha_assist_tools.json
+  - evals/cases/realistic_v3.jsonl
+  - evals/cases/regressions.jsonl
+  - evals/suites/smoke.yaml
+  - evals/suites/promotion.yaml
+requirements:
+  minimum_rows: 30000
+  minimum_positive_by_capability:
+    media_players: 500
+  minimum_positive_by_tool:
+    climate__HassClimateSetTemperature: 100
+    fan__HassFanSetSpeed: 100
+    intent__HassCancelAllTimers: 100
+    intent__HassCancelTimer: 100
+    intent__HassDecreaseTimer: 100
+    intent__HassIncreaseTimer: 100
+    intent__HassPauseTimer: 100
+    intent__HassStartTimer: 100
+    intent__HassTimerStatus: 100
+    intent__HassTurnOff: 100
+    intent__HassTurnOn: 100
+    intent__HassUnpauseTimer: 100
+    light__HassLightSet: 100
+    llm__GetDateTime: 300
+    media_player__HassMediaNext: 100
+    media_player__HassMediaPause: 200
+    media_player__HassMediaPlayerMute: 100
+    media_player__HassMediaPlayerUnmute: 100
+    media_player__HassMediaPrevious: 100
+    media_player__HassMediaSearchAndPlay: 100
+    media_player__HassMediaUnpause: 100
+    media_player__HassSetVolume: 200
+    media_player__HassSetVolumeRelative: 100
+    homeassistant__GetLiveContext: 1000
+    vacuum__HassVacuumCleanArea: 100
+    vacuum__HassVacuumReturnToBase: 100
+    vacuum__HassVacuumStart: 100
+  minimum_family_examples:
+    clarify: 500
+    unavailable: 500
+    multi_action: 800
+    status: 1000
+  minimum_category_examples:
+    ambiguity: 500
+  required_positive_tools:
+    - intent__HassTurnOn
+limits:
+  max_negative_ratio_by_capability:
+    media_players: 0.8
+  max_negative_ratio_by_tool:
+    media_player__HassMediaPause: 0.8
+    media_player__HassSetVolume: 0.8
+  max_duplicate_rate: 0.01
+  max_conflict_rate: 0.001
+  max_distribution_shift: 0.08

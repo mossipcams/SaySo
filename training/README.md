@@ -1,19 +1,19 @@
 # SaySo language model training
 
-Current commands, the active config, and what each eval set is for.
+Start with the [local training lifecycle](../docs/SAYSO_TRAINING_LIFECYCLE.md) for
+the supported candidate-to-model-promotion workflow. This page records VM setup
+and generator design/history.
 
-- Stable design and constraints: [docs/SAYSO_LFM_TRAINING_PLAN.md](../docs/SAYSO_LFM_TRAINING_PLAN.md)
-- What actually ran and what it scored: [TRAINING_LOG.md](TRAINING_LOG.md)
+- Stable model design and constraints: [docs/SAYSO_LFM_TRAINING_PLAN.md](../docs/SAYSO_LFM_TRAINING_PLAN.md)
+- Run history and scores: [TRAINING_LOG.md](TRAINING_LOG.md)
 
 This directory holds dataset preparation and historical training assets for
-`LFM2.5-230M-Base`. v5 is a **full-parameter** fine-tune on the 24 GB AMD
+`LFM2.5-230M-Base`. The active v5 path is a **full-parameter** fine-tune on the 24 GB AMD
 host (`ssh llm`, see [Training host](#training-host-observed-2026-09-23)).
-The trainer is **Unsloth** (it replaced LLaMA-Factory on 2026-09-23). The
-checked-in `*-llamafactory*.yml` recipes and LLaMA-Factory smoke results below
-are history; the Unsloth recipe is not written yet. Canonical JSONL
-stays OpenAI-shaped on disk; training consumes a derived prompt/completion
-view rendered with the Base `chat_template.jinja`.
-Axolotl, FunctionGemma, and rsLoRA YAML are historical, not the v5 path.
+The active trainer is [Unsloth](scripts/train_unsloth_full.py), invoked by the
+local promotion command. Canonical JSONL stays OpenAI-shaped on disk; training
+consumes a derived prompt/completion view rendered with the Base chat template.
+Older trainer recipes and smoke results are historical, not the v5 path.
 
 SaySo has two models with separate pipelines: this one (LFM, Unsloth) and the
 wake word (LiveKit), which has its own guide:
@@ -36,7 +36,7 @@ docker group yes. The VM has no GitHub credentials.
 | Training UI | Unsloth Studio container `unsloth` (`unsloth/unsloth-rocm:studio`), UI on host `:8002` (login required). Compose `/srv/llm/services/unsloth/`. Mounts only `/srv/llm/lfm` (rw), `data/lfm/datasets` (ro), `data/sayso` (ro) under `/workspace/host/`; shared SSD `hf-cache/` and SSD `services/unsloth/studio/`; `restart: unless-stopped` |
 | LLM serving | vLLM container `vllm`, Qwen3.8-27B-INT4 on `:8000` at 0.98 GPU memory (vLLM v0.30.0, 64k context). Compose `/srv/llm/serve/vllm/docker-compose.yml`, never autostarts. `/srv/llm/bin/gpu serve` / `stop` |
 | GPU sharing | vLLM, Unsloth, and LiveKit share one XTX. Every training run starts through `/srv/llm/bin/gpu train lfm|wake` (stops vLLM, holds the GPU, releases on exit); `gpu serve` / `gpu stop` / `gpu status` for vLLM. Source: `scripts/llm-host/gpu`. Runs started by hand in the Studio UI bypass the lock, so only explore there while `gpu status` shows `idle`. |
-| Removed 2026-09-23 | LLaMA-Factory and its `llm-rocm` / `llm-cuda` containers and images. The old launchers are removed; retired setup helpers are archived under `data/archive/task3-retired/`. |
+| Retired 2026-09-23 | Earlier trainer containers and launchers were removed; setup helpers are archived under `data/archive/task3-retired/`. |
 | Migrated history | The retired NVIDIA host's `/srv/models`, `/srv/datasets`, `/srv/training-runs` are now `/srv/llm/data/lfm/legacy-140/{models,datasets,training-runs}` (HDD), cleaned 2026-09-23 (see `TRAINING_LOG.md` "Host cleanup"). Champion markers: `legacy-140/CHAMPION.md`. Paths in `TRAINING_LOG.md` and handoffs use the old prefix. |
 
 ### Retired host (`192.168.1.140`)
@@ -54,11 +54,10 @@ custom Liger loss patch**, with checkpoints every 50 steps. Their headers record
 Pascal memory/speed limitations behind those choices. The launcher applies both
 patches in-process before TRL; a plain CLI invocation is not equivalent.
 
-The proposed ROCm recipe used LLaMA-Factory `finetuning_type: full`, native SDPA,
-standard AdamW, and BF16 autocast only after validation on the chosen AMD card.
-The old Pascal patches are historical. The model plan defines the native LFM
-rendered data view, template-parity checks, and longest-row memory/update gate;
-the built-in `lfm2` template is not assumed equivalent to SaySo serving.
+An earlier ROCm proposal called for full-parameter training, native SDPA,
+standard AdamW, and BF16 autocast after validation on the chosen AMD card. The
+old Pascal patches are historical. Current formatting and loss constraints are
+summarized in the model training design.
 
 Axolotl is not used. `training/scripts/train.py`, `train_lfm.py`, and
 `configs/detect_gpu.py` are dead Axolotl launchers. `training/requirements.txt`
@@ -77,96 +76,29 @@ python3 -m venv .venv
 HIP_VISIBLE_DEVICES= HF_HOME=/srv/llm/hf-cache .venv/bin/python -m pytest tests -q
 ```
 
-## Historical checked-in adapter config
+## Normal training workflow
 
-| | |
-|---|---|
-| Checked-in recipe | `training/configs/lfm25-230m-synthetic-v3-40k-trl.yml` |
-| Historical host copy | `/srv/training-runs/sayso-lfm-v3-40k.yml` — absent at the 2026-09-22 inspection |
-| Historical launcher | `/srv/training-runs/run-v3-40k-train.sh` — absent at the 2026-09-22 inspection |
-| Settings | from Base, rsLoRA rank 32 / alpha 32, `all-linear`, FP16 (no BF16, no flash-attn), microbatch 1, accum 16, lr 2e-4 cosine, assistant-only loss, 2 epochs, `save_strategy: epoch` |
+Follow the [training lifecycle guide](../docs/SAYSO_TRAINING_LIFECYCLE.md).
+Run it from this checkout on the `llm` VM. For a cheap dataset iteration, use
+`python scripts/preflight.py`; use `./sayso` for the gated promotion and training
+flow. `./train.sh` is only a guarded shortcut for `./sayso train`.
 
-The observed later launchers guard the row count and run a 12-step smoke before
-starting training. Their existence does not establish a safe full-SFT launch.
+## Generator design notes
 
-## Pipeline commands
-
-These describe the existing generator. The production recipe is still v3,
-with a 5,120-token budget, grounding disabled, 2% requested discrimination,
-and synthetic-only data. It does not yet implement the new corpus plan.
-
-The canonical generator CLI accepts only `--config` (YAML recipe under
-`training/configs/generation/`) and `--dry-run` (generate in memory, no writes).
-Mixing knobs — real-home rate, grounding/discrimination shares, area
-distribution, STT noise — live in the recipe, not on the command line.
-
-| Step | Command |
-|------|---------|
-| Generator smoke (recipe self-test) | `cd training && python -m generators.cli --config configs/generation/smoke.yaml` |
-| Generator smoke (dry-run, no files) | `cd training && python -m generators.cli --config configs/generation/smoke.yaml --dry-run` |
-| Build production corpus (40k recipe) | `cd training && python -m generators.cli --config configs/generation/production.yaml` |
-| Build the v4 full-SFT corpus (40k recipe) | `cd training && python -m generators.cli --config configs/generation/full_sft_v4.yaml` |
-| Generate balanced held-out test set | `python training/scripts/generate_balanced_test_data.py` |
-| Split 80/10/10 | `python training/scripts/split_dataset.py INPUT.jsonl --out-dir training/datasets` |
-| Fetch the real Home Assistant home | `HA_URL=... HA_TOKEN=... python training/scripts/fetch_ha_home.py --out training/fixtures/real_home.json` |
-| Detect GPU | `python training/scripts/detect_gpu.py` |
-| Export GGUF | `python training/scripts/export_gguf.py --checkpoint PATH --dry-run` |
-| Verify llama.cpp | `python training/scripts/verify_llamacpp.py --dry-run` |
-| Export LlamaFactory view (local) | `cd training && python scripts/export_llamafactory_view.py datasets/INPUT.jsonl -o datasets/OUT_rendered.jsonl --dataset-name sayso_v5_rendered --dataset-info-out datasets/dataset_info.fragment.json` |
-
-## v5 full SFT on the ROCm host (`ssh llm`)
-
-Host layout (outside git):
-
-| Path | Role |
-|---|---|
-| `/srv/llm/lfm/models/LFM2.5-230M-Base` | Base weights (SSD) |
-| `/srv/llm/data/lfm/datasets/sayso_full_sft_v5.jsonl` | Canonical corpus (HDD; not generated yet) |
-| `/srv/llm/data/lfm/datasets/sayso_full_sft_v5_rendered.jsonl` | Derived prompt/completion view (HDD; not generated yet) |
-| `/srv/llm/data/lfm/datasets/dataset_info.json` | LLaMA-Factory registry (history); holds `sayso_v5_rendered_smoke` |
-| `training/configs/lfm25-230m-full-24gb-rocm-llamafactory*.yml`, `training/configs/history/` | LLaMA-Factory recipes (history; they name the pre-reorg paths) |
-| `/srv/llm/lfm/runs/llamafactory-smoke/` | LLaMA-Factory HIP smoke trainer logs + `rocm-train.log` (weights deleted) |
-
-Generate the corpus on the VM, not the Mac, from `/srv/llm/sayso/training`,
-with the XTX hidden (`HIP_VISIBLE_DEVICES=`), using `training/.venv` (Quick start).
+Use the [training lifecycle guide](../docs/SAYSO_TRAINING_LIFECYCLE.md) for
+current generation, validation, training, and evaluation commands. The corpus
+and sampler notes below preserve design decisions and historical measurements;
+they are not alternate training launch instructions. For a recipe self-test:
 
 ```bash
-cd training
-python -m generators.cli --config configs/generation/full_sft_v5.yaml
-python scripts/export_llamafactory_view.py datasets/sayso_full_sft_v5.jsonl \
-  -o datasets/sayso_full_sft_v5_rendered.jsonl \
-  --dataset-name sayso_v5_rendered \
-  --dataset-info-out datasets/dataset_info.sayso_v5_rendered.json
+cd training && .venv/bin/python -m generators.cli --config configs/generation/smoke.yaml
 ```
 
-The rendered view is plain alpaca `instruction`/`output` JSONL, so it is not
-tied to LLaMA-Factory. Training it in Unsloth Studio needs a new recipe with
-the same contract (`docs/PLAN_LFM_HOST_V5_SETUP.md`): full SFT from Base,
-completion-only loss, `cutoff_len` 8192, lr `2e-5`, batch 1 / accum 32, bf16.
-That recipe is not written.
+### Corpus v4 — historical defect-driven recipe
 
-Every real training run goes through the GPU lock, so vLLM is stopped first
-and the GPU is released when the run exits:
 
-```bash
-ssh llm '/srv/llm/bin/gpu train lfm --serve-after <command run inside the unsloth container>'
-ssh llm /srv/llm/bin/gpu status
-```
-
-The Unsloth Studio UI can't be forced through the lock. Use it for exploring
-only, and only while `gpu status` shows `idle`.
-
-Repo verification:
-
-```bash
-cd training && .venv/bin/python -m pytest tests/test_llamafactory_view.py tests/test_lfm_config.py adapters/test_lfm.py -q
-```
-
-## Corpus v4 — the defect-driven full-SFT recipe
-
-`configs/generation/full_sft_v4.yaml` is the recipe for the next full-parameter
-run. It differs from `production.yaml` in four ways, each traced to an open
-model defect rather than to a tuning preference.
+`configs/generation/full_sft_v4.yaml` predates v5. Its changes from
+`production.yaml` addressed the defects below and informed the current v5 recipe.
 
 | Knob | v3 production | v4 | Defect |
 |---|---|---|---|
@@ -227,9 +159,11 @@ anything because nothing enforced them; do not read them as evidence that earlie
 corpora were short. A row whose count had to fall back to the estimate is now
 flagged `metadata._token_length_estimated`.
 
-The v3 build writes the canonical JSONL and the TRL render in one pass and
-records `render_rows` in the manifest; it must equal `accepted`. Never hand-filter
-the render — dropping rows there shrinks the train set silently.
+The historical v3 build wrote canonical JSONL and its TRL render in one pass
+and recorded `render_rows` in the manifest; it had to equal `accepted`. Current
+training derives its rendered view after preflight through the lifecycle
+workflow. Never hand-filter a rendered view — dropping rows shrinks the train
+set silently.
 
 ## Mixing in a real home
 
@@ -262,19 +196,18 @@ Dot reports no `TURN_ON`, and `media_player.living_room_tv` reports no
 operation (`capability_registry.entity_supports`), so the corpus never labels a
 call Home Assistant would refuse.
 
+Refresh a snapshot for deliberate recipe work with:
+
 ```bash
-# refresh the snapshot (required before a real-home recipe)
 HA_URL=http://homeassistant.local:8123 HA_TOKEN=... \
   python training/scripts/fetch_ha_home.py --out training/fixtures/real_home.json \
   --require-entity media_player.living_room_tv
-
-# point real_home.path and real_home.rate in the recipe YAML, then build
-cd training && python -m generators.cli --config configs/generation/production.yaml
 ```
 
-Production defaults to `generation.synthetic_only: true` and `real_home.rate: 0.0`.
-Set `synthetic_only: false`, a snapshot path, and a nonzero `real_home.rate` in
-the recipe to mix a live home in deliberately.
+The legacy `production.yaml` recipe is synthetic-only. Active full training uses
+`full_sft_v5.yaml`, which configures a 10% real-home mix. Use `./sayso generate`
+to build a training candidate; do not build a full training corpus through an
+ad hoc generator command.
 
 `generators.real_home` holds every fifth entity of each capability out of
 training (`split="holdout"`, a capability with one entity stays in train). Those
@@ -346,9 +279,9 @@ label from the graph and the pinned contract before any wording is applied.
 Families also vary aliases, domains and supported actions, and cover individual
 and area targeting, genuine ambiguity, and presence/absence pairs.
 
-`grounding.rate` in the recipe sets the share (production v3 uses `0.0` deliberately;
-see `docs/SAYSO_LFM_TRAINING_PLAN.md`). A run large enough to fit every required family
-fails closed if one is missing. Held-out grounding cases live
+`grounding.rate` sets the share. The v3 recipe kept it at `0.0`; the active v5
+recipe enables grounding at `0.08`. A run large enough to fit every required
+family fails closed if one is missing. Held-out grounding cases live
 in `evals/cases/regressions.jsonl` (tag `grounding`) — the exact Living Room +
 `media_player.living_room_tv` → `intent__HassTurnOn(name="TV", domain=["media_player"])`
 regression plus variations with different names, ids, areas and distractors.
@@ -372,8 +305,10 @@ improving means the benchmark is being overfit.
 
 ## Scoring
 
-All model eval goes through `python -m evals.cli run` and the in-memory adapter
-for training checkpoints. Serve the checkpoint with `llama-server --jinja`.
+All eval results use the shared `evals.runner` and `evals.scorer`. Use the
+endpoint CLI below for a running server; the checkpoint evaluator in the
+[training lifecycle](../docs/SAYSO_TRAINING_LIFECYCLE.md) calls the same runner
+and scorer directly.
 
 ```bash
 python -m evals.cli run --suite smoke --adapter endpoint --server http://127.0.0.1:8080
@@ -381,24 +316,17 @@ python -m evals.cli run --suite promotion --adapter endpoint --server http://127
 python -m evals.cli run --tag grounding --adapter endpoint --server http://127.0.0.1:8080
 ```
 
-Training-time:
-
-```python
-from evals.adapters import InMemoryAdapter
-from evals.cases import select_cases
-from evals.runner import evaluate, write_run
-
-results = evaluate(select_cases(suite="smoke"), InMemoryAdapter(predict))
-```
+Checkpoint evaluation uses `InMemoryAdapter` through the same runner and
+scorer; its smoke and promotion gates are part of the lifecycle guide.
 
 ## Dataset views
 
 - **canonical**: OpenAI-compatible envelope with JSON-string `function.arguments`
 - **historical TRL render**: dict `function.arguments` for `apply_chat_template` only
-- **LlamaFactory view**: native LFM prompt/completion pairs (`instruction` /
+- **Rendered training view**: prompt/completion pairs (`instruction` /
   `output`), one per `train_on_turn: true` assistant message; built by
-  `adapters/lfm.py` and `scripts/export_llamafactory_view.py` with
-  `template: empty` on the host trainer
+  `adapters/lfm.py` and consumed by
+  the Unsloth trainer
 
 ## Layout
 
@@ -406,7 +334,7 @@ results = evaluate(select_cases(suite="smoke"), InMemoryAdapter(predict))
 training/
   adapters/          Schema validation and LFM helpers
   artifacts/         Checkpoints, eval outputs (gitignored)
-  configs/           Axolotl history + `lfm25-230m-full-24gb-rocm-llamafactory*.yml`
+  configs/           historical training recipes
   datasets/          Generated JSONL (gitignored)
   fixtures/          Test fixtures
   generators/        Canonical synthetic generation package and only CLI
@@ -414,22 +342,15 @@ training/
   tests/             Unit tests (no model downloads)
 ```
 
-## GPU and tokenizer preflight
+## Active trainer safeguards
 
-On the future AMD machine, record `rocminfo`/AMD SMI inventory and require both
-nonempty `torch.version.hip` and `torch.cuda.is_available()`; ROCm uses those
-PyTorch API names. Validate the chosen GPU/OS/ROCm combination and a real LFM
-forward/backward pass. Audit the existing GPU detection script before treating
-its NVIDIA-oriented recommendations as applicable to ROCm.
-The historical 8 GiB setup needed the host patches above for long rows; its
-earlier FP16/SDPA limits are not measurements for a 24 GB GPU.
-
-Count tokens using the pinned tokenizer/template, including schemas and every
-turn. Require identical expected/prepared row counts, complete supervised spans,
-and zero truncation. LLaMA-Factory's `cutoff_len` can truncate examples; compare
-its actual prepared tokens with the native render instead of relying on row
-counts alone. Training must fail preflight if the tokenizer or assistant-loss
-masks cannot be verified.
+The current Unsloth entry point starts from Base with full-parameter training,
+an 8,192-token limit, BF16, batch size 1, gradient accumulation 32, and
+completion-only labels. It checks ROCm availability, rejects rows beyond the
+context limit or with no supervised completion, and requires promotion metadata
+plus a matching rendered-data hash for full training. Static dataset checks and
+the guarded promotion sequence are documented in the
+[training lifecycle guide](../docs/SAYSO_TRAINING_LIFECYCLE.md).
 
 ### GPU reservation and cancellation
 

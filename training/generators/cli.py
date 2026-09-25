@@ -29,6 +29,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Generate in memory only; do not write output files",
     )
+    parser.add_argument("--output", type=Path, help="Override recipe output path")
+    parser.add_argument("--manifest", type=Path, help="Override recipe manifest path")
     args = parser.parse_args(argv)
 
     config_path = args.config
@@ -40,6 +42,10 @@ def main(argv: list[str] | None = None) -> int:
             config_path = REPO_ROOT / config_path
 
     config = GeneratorConfig.from_yaml(config_path, repo_root=REPO_ROOT)
+    if args.output:
+        config.output_path = args.output.resolve()
+    if args.manifest:
+        config.manifest_path = args.manifest.resolve()
 
     if config.real_home_path and not config.synthetic_only:
         from generators.real_home import TESTABLE_EXPOSURE_SOURCES, require_exposure_source

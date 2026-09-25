@@ -1,0 +1,48 @@
+{
+  "dataset": {
+    "accepted_rows": 40000,
+    "family_shares": {
+      "absence": 0.028,
+      "aliases": 0.047,
+      "clarify": 0.075,
+      "correction": 0.056,
+      "datetime": 0.01,
+      "exclusion": 0.047,
+      "follow_up": 0.121,
+      "junk": 0.056,
+      "multi_action": 0.056,
+      "ordinary": 0.205,
+      "settings": 0.075,
+      "status": 0.093,
+      "unavailable": 0.037,
+      "unsupported": 0.037
+    }
+  },
+  "eval": {
+    "source": "latest recorded production-scorer smoke result: eval-v5 20260924T121617Z-cc6426ac, step-2400 checkpoint",
+    "smoke": {
+      "overall_pass_rate": 0.4583,
+      "category_pass_rate": {
+        "ordinary": 0.5,
+        "light_fan_settings": 0.5,
+        "climate": 0.5,
+        "media": 0.5,
+        "timers": 1.0,
+        "routines_vacuum": 0.5,
+        "status": 0.0,
+        "aliases": 0.5,
+        "multi_action": 1.0,
+        "exclusion": 0.0,
+        "ambiguity": 0.0,
+        "unavailable": 1.0
+      },
+      "tool_validity": 0.9583,
+      "flags": {
+        "action_on_ambiguity": 1,
+        "status_state_change": 1,
+        "excluded_entity_affected": 1
+      }
+    },
+    "max_drop": 0.12
+  }
+}
