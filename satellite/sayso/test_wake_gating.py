@@ -29,6 +29,8 @@ def _install(monkeypatch: pytest.MonkeyPatch, wake_hook, *, gate_ms: float = 0.0
     events.LVAEvent = _LVAEvent  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "aioesphomeapi.model", model)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.events", events)
+    # Tests that need warm-up completion replace this with a controllable timer.
+    monkeypatch.setattr("satellite.sayso.events.threading.Timer", Mock())
 
     protocol = type(
         "VoiceSatelliteProtocol",
@@ -59,6 +61,7 @@ def _satellite(**overrides):
         duck=Mock(),
         _emit=Mock(),
         _start_audio_streaming=Mock(),
+        handle_audio=Mock(),
     )
     base.update(overrides)
     return SimpleNamespace(**base)
@@ -144,7 +147,19 @@ def test_flush_preroll_runs_at_the_true_boundary_only(monkeypatch) -> None:
     protocol = _install(monkeypatch, hook)
 
     satellite = _satellite()
-    satellite.handle_audio = Mock()
+    timers: list[tuple[float, object]] = []
+
+    class _Timer:
+        def __init__(self, interval, fn):
+            timers.append((interval, fn))
+            self.daemon = False
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
+    buffered_audio = b"\x07\x00" * 8000
+    hook.feed_pcm(SimpleNamespace(satellite=None), buffered_audio)
     opened: list[str] = []
 
     def _record(phrase: str) -> None:
@@ -156,8 +171,14 @@ def test_flush_preroll_runs_at_the_true_boundary_only(monkeypatch) -> None:
 
     protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))  # type: ignore[attr-defined]
     assert opened == ["SaySo"]
-    # Nothing captured before the open was forwarded yet; the flush owns it.
-    satellite.handle_audio.assert_not_called()
+    # The primer starts HA's VAD; command audio stays buffered until warm-up ends.
+    satellite.handle_audio.assert_called_once_with(bytes(2048), None)
+    assert timers[0][0] == pytest.approx(1.2)
+
+    timers[0][1]()
+
+    assert satellite.handle_audio.call_count == 2
+    assert satellite.handle_audio.call_args_list[1].args == (buffered_audio, None)
 
 
 def test_deferred_open_is_cancelled_when_pipeline_tears_down(monkeypatch) -> None:
