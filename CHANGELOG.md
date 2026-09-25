@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/mossipcams/SaySo/compare/1.11.0...1.12.0) (2026-09-25)
+
+
+### Features
+
+* **model:** set v5b champion as default weights ([5c47c3b](https://github.com/mossipcams/SaySo/commit/5c47c3b9555c440d83cec2762392f339fbc34372))
+
 ## [1.11.0](https://github.com/mossipcams/SaySo/compare/1.10.0...1.11.0) (2026-09-25)
 
 
