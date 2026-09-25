@@ -11,11 +11,9 @@ This directory holds dataset preparation and historical training assets for
 `LFM2.5-230M-Base`. The active v5 path is a **full-parameter** fine-tune on the 24 GB AMD
 host (`ssh llm`, see [Training host](#training-host-observed-2026-09-23)).
 The active trainer is [Unsloth](scripts/train_unsloth_full.py), invoked by the
-local promotion command. Checked-in `*-llamafactory*.yml` recipes and their
-smoke results are historical. Canonical JSONL stays OpenAI-shaped on disk;
-training consumes a derived prompt/completion view rendered with the Base chat
-template.
-Axolotl, FunctionGemma, and rsLoRA YAML are historical, not the v5 path.
+local promotion command. Canonical JSONL stays OpenAI-shaped on disk; training
+consumes a derived prompt/completion view rendered with the Base chat template.
+Older trainer recipes and smoke results are historical, not the v5 path.
 
 SaySo has two models with separate pipelines: this one (LFM, Unsloth) and the
 wake word (LiveKit), which has its own guide:
@@ -38,7 +36,7 @@ docker group yes. The VM has no GitHub credentials.
 | Training UI | Unsloth Studio container `unsloth` (`unsloth/unsloth-rocm:studio`), UI on host `:8002` (login required). Compose `/srv/llm/services/unsloth/`. Mounts only `/srv/llm/lfm` (rw), `data/lfm/datasets` (ro), `data/sayso` (ro) under `/workspace/host/`; shared SSD `hf-cache/` and SSD `services/unsloth/studio/`; `restart: unless-stopped` |
 | LLM serving | vLLM container `vllm`, Qwen3.8-27B-INT4 on `:8000` at 0.98 GPU memory (vLLM v0.30.0, 64k context). Compose `/srv/llm/serve/vllm/docker-compose.yml`, never autostarts. `/srv/llm/bin/gpu serve` / `stop` |
 | GPU sharing | vLLM, Unsloth, and LiveKit share one XTX. Every training run starts through `/srv/llm/bin/gpu train lfm|wake` (stops vLLM, holds the GPU, releases on exit); `gpu serve` / `gpu stop` / `gpu status` for vLLM. Source: `scripts/llm-host/gpu`. Runs started by hand in the Studio UI bypass the lock, so only explore there while `gpu status` shows `idle`. |
-| Removed 2026-09-23 | LLaMA-Factory and its `llm-rocm` / `llm-cuda` containers and images. The old launchers are removed; retired setup helpers are archived under `data/archive/task3-retired/`. |
+| Retired 2026-09-23 | Earlier trainer containers and launchers were removed; setup helpers are archived under `data/archive/task3-retired/`. |
 | Migrated history | The retired NVIDIA host's `/srv/models`, `/srv/datasets`, `/srv/training-runs` are now `/srv/llm/data/lfm/legacy-140/{models,datasets,training-runs}` (HDD), cleaned 2026-09-23 (see `TRAINING_LOG.md` "Host cleanup"). Champion markers: `legacy-140/CHAMPION.md`. Paths in `TRAINING_LOG.md` and handoffs use the old prefix. |
 
 ### Retired host (`192.168.1.140`)
@@ -56,11 +54,10 @@ custom Liger loss patch**, with checkpoints every 50 steps. Their headers record
 Pascal memory/speed limitations behind those choices. The launcher applies both
 patches in-process before TRL; a plain CLI invocation is not equivalent.
 
-The proposed ROCm recipe used LLaMA-Factory `finetuning_type: full`, native SDPA,
-standard AdamW, and BF16 autocast only after validation on the chosen AMD card.
-The old Pascal patches are historical. The model plan defines the native LFM
-rendered data view, template-parity checks, and longest-row memory/update gate;
-the built-in `lfm2` template is not assumed equivalent to SaySo serving.
+An earlier ROCm proposal called for full-parameter training, native SDPA,
+standard AdamW, and BF16 autocast after validation on the chosen AMD card. The
+old Pascal patches are historical. Current formatting and loss constraints are
+summarized in the model training design.
 
 Axolotl is not used. `training/scripts/train.py`, `train_lfm.py`, and
 `configs/detect_gpu.py` are dead Axolotl launchers. `training/requirements.txt`
@@ -328,7 +325,7 @@ scorer; its smoke and promotion gates are part of the lifecycle guide.
 - **historical TRL render**: dict `function.arguments` for `apply_chat_template` only
 - **Rendered training view**: prompt/completion pairs (`instruction` /
   `output`), one per `train_on_turn: true` assistant message; built by
-  `adapters/lfm.py` and `scripts/export_llamafactory_view.py` and consumed by
+  `adapters/lfm.py` and consumed by
   the Unsloth trainer
 
 ## Layout
@@ -337,7 +334,7 @@ scorer; its smoke and promotion gates are part of the lifecycle guide.
 training/
   adapters/          Schema validation and LFM helpers
   artifacts/         Checkpoints, eval outputs (gitignored)
-  configs/           Axolotl history + `lfm25-230m-full-24gb-rocm-llamafactory*.yml`
+  configs/           historical training recipes
   datasets/          Generated JSONL (gitignored)
   fixtures/          Test fixtures
   generators/        Canonical synthetic generation package and only CLI

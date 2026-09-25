@@ -45,4 +45,4 @@ cd training && .venv/bin/python -m pytest \
   -q
 ```
 
-Do not launch 40k generate or LlamaFactory train in this pass.
+Do not launch a 40k generation or training run in this pass.
