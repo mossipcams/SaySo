@@ -31,6 +31,8 @@ def _install_test_handlers(monkeypatch: pytest.MonkeyPatch, sounds: SoundsCfg, w
     events.LVAEvent = _LVAEvent  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "aioesphomeapi.model", model)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.events", events)
+    # Warm-up timers are driven explicitly in tests that exercise their callback.
+    monkeypatch.setattr("satellite.sayso.events.threading.Timer", Mock())
 
     from satellite.sayso.events import install_voice_handlers
 
@@ -107,6 +109,7 @@ def _install_test_handlers_with_miner(
     events.LVAEvent = _LVAEvent  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "aioesphomeapi.model", model)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.events", events)
+    monkeypatch.setattr("satellite.sayso.events.threading.Timer", Mock())
 
     from satellite.sayso.events import install_voice_handlers
 
@@ -151,6 +154,7 @@ def test_accepted_wake_outcome_published_without_stt_capture(
         duck=Mock(),
         _emit=Mock(),
         _start_audio_streaming=Mock(),
+        handle_audio=Mock(),
     )
     wake_word = SimpleNamespace(wake_word="SaySo")
 
@@ -180,6 +184,7 @@ def test_wakeup_suspends_external_wake_hook(
         duck=Mock(),
         _emit=Mock(),
         _start_audio_streaming=Mock(),
+        handle_audio=Mock(),
     )
     wake_word = SimpleNamespace(wake_word="SaySo")
 
@@ -228,6 +233,17 @@ def test_wakeup_flushes_preroll_after_streaming_starts(
 
     streaming_order: list[str] = []
     handle_audio_calls: list[bytes] = []
+    timers: list[tuple[float, object]] = []
+
+    class _Timer:
+        def __init__(self, interval, fn):
+            timers.append((interval, fn))
+            self.daemon = False
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
 
     def _start_streaming(_phrase: str) -> None:
         streaming_order.append("start")
@@ -251,8 +267,14 @@ def test_wakeup_flushes_preroll_after_streaming_starts(
     protocol.wakeup(satellite, wake_word)  # type: ignore[attr-defined]
 
     assert streaming_order == ["start", "audio"]
-    assert len(handle_audio_calls) == 1
-    flushed = np.frombuffer(handle_audio_calls[0], dtype="<i2")
+    assert handle_audio_calls == [bytes(2048)]
+    assert timers[0][0] == pytest.approx(1.2)
+
+    timers[0][1]()
+
+    assert streaming_order == ["start", "audio", "audio"]
+    assert len(handle_audio_calls) == 2
+    flushed = np.frombuffer(handle_audio_calls[1], dtype="<i2")
     assert flushed.size == 8000
     assert np.all(flushed == 7)
     assert not np.any(flushed == 0)
