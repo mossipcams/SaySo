@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+"""Local candidate, validation, canary, and model promotion commands."""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+PYTHON = Path(os.environ.get("PYTHON", ROOT / "training/.venv/bin/python"))
+STATE = ROOT / "training/runs/promotion"
+CANDIDATES = ROOT / "training/datasets/candidates"
+GPU_LOCK = os.environ.get("GPU_LOCK", "/srv/llm/bin/gpu")
+BASE_MODEL = os.environ.get("BASE_MODEL", "/srv/llm/lfm/models/LFM2.5-230M-Base")
+DATASET_DIR = Path(os.environ.get("DATASET_DIR", "/srv/llm/data/lfm/datasets"))
+HOST = "/workspace/host"
+os.environ.setdefault("HF_HOME", "/srv/llm/hf-cache")
+
+
+def run(command: list[str], *, cwd: Path = ROOT) -> None:
+    print("+", " ".join(map(str, command)), flush=True)
+    subprocess.run(command, cwd=cwd, check=True)
+
+
+def digest(path: Path) -> str:
+    result = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            result.update(chunk)
+    return result.hexdigest()
+
+
+def git_commit() -> str:
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+
+
+def save(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(path.suffix + ".tmp")
+    temp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    temp.replace(path)
+
+
+def load(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def current() -> dict:
+    pointer = STATE / "current.json"
+    if not pointer.is_file():
+        raise SystemExit("No candidate run. Start with ./sayso generate")
+    record = load(STATE / f"{load(pointer)['run_id']}.json")
+    if not Path(record["dataset_path"]).is_file():
+        raise SystemExit(f"Candidate dataset is missing: {record['dataset_path']}")
+    return record
+
+
+def write_current(record: dict) -> None:
+    save(STATE / f"{record['run_id']}.json", record)
+    save(STATE / "current.json", {"run_id": record["run_id"]})
+
+
+def ensure_vm() -> None:
+    if not PYTHON.is_file():
+        raise SystemExit(f"Missing Python environment: {PYTHON}")
+    if not Path(GPU_LOCK).is_file() or not os.access(GPU_LOCK, os.X_OK):
+        raise SystemExit(f"Missing VM GPU lock: {GPU_LOCK}; run these commands on the llm VM")
+
+
+def render_and_stage(record: dict) -> str:
+    rendered = Path(record["rendered_path"])
+    run([str(PYTHON), str(ROOT / "training/scripts/export_llamafactory_view.py"), record["dataset_path"],
+         "--output", str(rendered), "--dataset-name", f"sayso_{record['run_id']}",
+         "--dataset-info-out", str(rendered.with_suffix(".info.json")), "--model", BASE_MODEL])
+    DATASET_DIR.mkdir(parents=True, exist_ok=True)
+    staged = DATASET_DIR / rendered.name
+    shutil.copy2(rendered, staged)
+    record["rendered_sha256"] = digest(rendered)
+    record["staged_data"] = f"{HOST}/datasets/{staged.name}"
+    return record["staged_data"]
+
+
+def eval_checkpoint(checkpoint: str, out_name: str, suite: str) -> tuple[bool, dict]:
+    shutil.rmtree(STATE / out_name, ignore_errors=True)
+    out = f"{HOST}/sayso/training/runs/promotion/{out_name}"
+    cmd = ["docker", "exec", "-e", "CUDA_VISIBLE_DEVICES=", "-e", "HIP_VISIBLE_DEVICES=",
+           "-w", f"{HOST}/sayso", "unsloth", "python",
+           f"{HOST}/sayso/training/scripts/eval_checkpoint_cpu.py", checkpoint,
+           "--suite", suite, "--out", out]
+    if suite == "smoke":
+        for tag in ("recipe-lock", "gold", "shadow", "grounding"):
+            cmd.extend(("--tag", tag))
+    result = subprocess.run(cmd, cwd=ROOT)
+    summaries: dict[str, dict] = {}
+    for summary_path in (STATE / out_name).glob("*/summary.json"):
+        try:
+            metadata = load(summary_path.parent / "metadata.json")
+            if metadata.get("checkpoint") == checkpoint:
+                summaries[metadata.get("gate_label", summary_path.parent.name)] = load(summary_path)
+        except (OSError, json.JSONDecodeError):
+            continue
+    return result.returncode == 0, summaries
+
+
+def cmd_generate(_: argparse.Namespace) -> None:
+    if not PYTHON.is_file():
+        raise SystemExit(f"Missing Python environment: {PYTHON}")
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+    CANDIDATES.mkdir(parents=True, exist_ok=True)
+    dataset = CANDIDATES / f"{run_id}.jsonl"
+    manifest = CANDIDATES / f"{run_id}.manifest.json"
+    run([str(PYTHON), "-m", "generators.cli", "--config", "configs/generation/full_sft_v5.yaml",
+         "--output", str(dataset), "--manifest", str(manifest)], cwd=ROOT / "training")
+    record = {"run_id": run_id, "dataset_path": str(dataset), "manifest_path": str(manifest),
+              "rendered_path": str(CANDIDATES / f"{run_id}.rendered.jsonl"), "git_commit": git_commit(),
+              "config": "training/configs/generation/full_sft_v5.yaml",
+              "config_sha256": digest(ROOT / "training/configs/generation/full_sft_v5.yaml"),
+              "created_at": datetime.now(timezone.utc).isoformat(),
+              "dataset_sha256": digest(dataset), "validated": False, "canary_passed": False,
+              "trained": False, "final_eval_passed": False}
+    write_current(record)
+    print(f"Candidate created: {run_id}\nDataset: {dataset}")
+
+
+def cmd_validate(_: argparse.Namespace) -> None:
+    record = current()
+    if digest(Path(record["dataset_path"])) != record["dataset_sha256"]:
+        raise SystemExit("Candidate changed since generation; generate a fresh run before validation")
+    record.update(validated=False, canary_passed=False)
+    write_current(record)
+    run([str(PYTHON), str(ROOT / "scripts/preflight.py"), record["dataset_path"]])
+    record["validated"] = True
+    record["validated_sha256"] = record["dataset_sha256"]
+    write_current(record)
+
+
+def cmd_canary(_: argparse.Namespace) -> None:
+    record = current()
+    if not record.get("validated") or record.get("validated_sha256") != digest(Path(record["dataset_path"])):
+        raise SystemExit("Candidate must pass ./sayso validate after its last change")
+    ensure_vm()
+    record["canary_passed"] = False
+    write_current(record)
+    data = render_and_stage(record)
+    run_id = record["run_id"]
+    out = f"{HOST}/lfm/runs/sayso-promotion/{run_id}-canary"
+    checkpoint = f"{out}/final"
+    run([GPU_LOCK, "train", "lfm", "python", f"{HOST}/sayso/training/scripts/train_unsloth_full.py",
+         "--data", data, "--canary", "--out", out])
+    passed, metrics = eval_checkpoint(checkpoint, f"{run_id}-canary-eval", "smoke")
+    record.update(rendered_sha256=digest(Path(record["rendered_path"])), canary_checkpoint=checkpoint,
+                  canary_metrics=metrics, canary_passed=passed)
+    write_current(record)
+    if not passed:
+        raise SystemExit("Canary evaluation failed; dataset remains a candidate")
+
+
+def cmd_promote_dataset(_: argparse.Namespace) -> None:
+    record = current()
+    if not record.get("validated") or record.get("validated_sha256") != digest(Path(record["dataset_path"])):
+        raise SystemExit("Dataset promotion requires passing validation for the unchanged candidate")
+    if not record.get("canary_passed"):
+        raise SystemExit("Dataset promotion requires a passing canary evaluation")
+    promotion = {"promoted": True, "validation_passed": True, "canary_passed": True,
+                 "run_id": record["run_id"], "dataset_path": record["dataset_path"],
+                 "dataset_sha256": record["dataset_sha256"], "rendered_sha256": record["rendered_sha256"],
+                 "staged_data": record["staged_data"], "git_commit": record["git_commit"],
+                 "config": record["config"], "canary_metrics": record["canary_metrics"],
+                 "promoted_at": datetime.now(timezone.utc).isoformat()}
+    save(STATE / "promoted_dataset.json", promotion)
+    record["dataset_promoted"] = True
+    write_current(record)
+    print(f"Promoted dataset: {record['run_id']}")
+
+
+def cmd_train(_: argparse.Namespace) -> None:
+    promotion_path = STATE / "promoted_dataset.json"
+    if not promotion_path.is_file():
+        raise SystemExit("Full training blocked: explicitly promote a validated, canary-passing dataset first")
+    promotion = load(promotion_path)
+    if not all(promotion.get(key) for key in ("promoted", "validation_passed", "canary_passed")):
+        raise SystemExit("Full training blocked: promotion record is invalid")
+    record_path = STATE / f"{promotion['run_id']}.json"
+    record = load(record_path)
+    if promotion["dataset_sha256"] != digest(Path(record["dataset_path"])):
+        raise SystemExit("Full training blocked: promoted dataset changed after promotion")
+    ensure_vm()
+    data = render_and_stage(record)
+    if digest(Path(record["rendered_path"])) != promotion["rendered_sha256"]:
+        raise SystemExit("Rendered dataset changed after promotion; promote the dataset again")
+    out = f"{HOST}/lfm/runs/sayso-promotion/{record['run_id']}-full"
+    record.update(trained=False, final_eval_passed=False)
+    write_current(record)
+    run([GPU_LOCK, "train", "lfm", "python", f"{HOST}/sayso/training/scripts/train_unsloth_full.py",
+         "--data", data, "--out", out, "--promotion-record", f"{HOST}/sayso/training/runs/promotion/promoted_dataset.json"])
+    record.update(trained=True, checkpoint=f"{out}/final", full_output=out, final_eval_passed=False)
+    write_current(record)
+
+
+def cmd_eval(_: argparse.Namespace) -> None:
+    record = current()
+    if not record.get("trained"):
+        raise SystemExit("Final eval requires a completed full training run")
+    ensure_vm()
+    record["final_eval_passed"] = False
+    write_current(record)
+    passed, metrics = eval_checkpoint(record["checkpoint"], f"{record['run_id']}-final-eval", "promotion")
+    record.update(final_metrics=metrics, final_eval_passed=passed)
+    write_current(record)
+    if not passed:
+        raise SystemExit("Final promotion-suite evaluation failed; model was not promoted")
+
+
+def cmd_promote_model(_: argparse.Namespace) -> None:
+    record = current()
+    if not record.get("final_eval_passed"):
+        raise SystemExit("Model promotion requires a passing final evaluation")
+    save(STATE / "promoted_model.json", {"promoted": True, "run_id": record["run_id"],
+         "checkpoint": record["checkpoint"], "dataset_run_id": record["run_id"],
+         "dataset_sha256": record["dataset_sha256"], "git_commit": record["git_commit"],
+         "config": record["config"], "eval_metrics": record["final_metrics"],
+         "promoted_at": datetime.now(timezone.utc).isoformat()})
+    print(f"Promoted model: {record['checkpoint']}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    for name, handler in (("generate", cmd_generate), ("validate", cmd_validate), ("canary", cmd_canary),
+                          ("promote-dataset", cmd_promote_dataset), ("train", cmd_train),
+                          ("eval", cmd_eval), ("promote-model", cmd_promote_model)):
+        sub.add_parser(name)
+    args = parser.parse_args()
+    {"generate": cmd_generate, "validate": cmd_validate, "canary": cmd_canary,
+     "promote-dataset": cmd_promote_dataset, "train": cmd_train,
+     "eval": cmd_eval, "promote-model": cmd_promote_model}[args.command](args)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(exc.returncode or 1)

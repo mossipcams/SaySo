@@ -1,8 +1,11 @@
 # Generated datasets live here (gitignored except this README).
 
-Do not commit large generated JSONL files.
+Do not commit generated JSONL files. For SaySo training, use the
+[candidate-to-promotion lifecycle](../../docs/SAYSO_TRAINING_LIFECYCLE.md):
+`./sayso generate` writes each corpus under `candidates/`, and full training
+accepts only the dataset recorded by `./sayso promote-dataset`.
 
-Typical local outputs:
+Older and development outputs may also be present:
 
 - `sayso_train_first_10000.jsonl` — deterministic 10k train
 - `sayso_train_supplement.jsonl` — corrective 500–800 rows
@@ -12,8 +15,7 @@ Typical local outputs:
 
 Canonical model-eval cases live in `evals/cases/`, not here.
 
-Generators:
+Other data utilities (not the full-training entry point):
 
-- `cd training && python -m generators.cli --config configs/generation/production.yaml`
 - `python training/scripts/generate_balanced_test_data.py`
 - `python training/scripts/split_dataset.py`

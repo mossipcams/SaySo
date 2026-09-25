@@ -18,11 +18,14 @@ promotion` is the locked original 120 realistic cases (10 per category).
 Diagnostic flags (`--category`, `--tag`, `--case-id`) filter the same
 cases; they are not a third runner.
 
-Training-time smoke uses `evals.adapters.InMemoryAdapter` through
-`evals.runner.evaluate`. Validation loss remains a trainer metric.
+Training-time checkpoint eval uses `evals.adapters.InMemoryAdapter` through the
+same runner and scorer. The canary/final gates and their promotion lifecycle are
+documented in [SaySo's training lifecycle](../docs/SAYSO_TRAINING_LIFECYCLE.md).
+Validation loss remains a trainer metric.
 
-Each run writes `evals/results/<run-id>/` (`metadata.json`, `summary.json`,
-`outcomes.jsonl`, `raw/`). Historical scores keep the
+Endpoint CLI runs write `evals/results/<run-id>/` (`metadata.json`,
+`summary.json`, `outcomes.jsonl`, `raw/`). Training checkpoints use the local
+promotion state directory described in the lifecycle guide. Historical scores keep the
 `production_contract_fingerprint` recorded at that run.
 
 Do not train on case IDs or utterances from `evals/cases/`. `evals/archive/`

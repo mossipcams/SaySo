@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
-"""Full SFT of LFM2.5-230M-Base on the rendered v5 view, inside the unsloth container.
-
-Plan: docs/PLAN_LFM_V5_UNSLOTH_TRAIN.md. Launch through the GPU lock:
-  /srv/llm/bin/gpu train lfm --serve-after python /workspace/host/sayso/training/scripts/train_unsloth_full.py ...
-"""
+"""Full SFT of LFM2.5-230M-Base on SaySo's rendered v5 dataset."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 
-from unsloth import FastModel  # must import before transformers
-
+from unsloth import FastModel  # import before transformers
 import torch
 from datasets import Dataset
 from transformers import DataCollatorForSeq2Seq, Trainer, TrainingArguments
@@ -22,21 +18,40 @@ HOST = "/workspace/host"
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--model", default=f"{HOST}/lfm/models/LFM2.5-230M-Base")
-    p.add_argument("--data", default=f"{HOST}/datasets/sayso_full_sft_v5_20260922_rendered.jsonl")
-    p.add_argument("--out", default=f"{HOST}/lfm/runs/sayso-lfm-v5-full")
-    p.add_argument("--cutoff", type=int, default=8192)
-    p.add_argument("--epochs", type=float, default=2)
-    p.add_argument("--lr", type=float, default=2e-5)
-    p.add_argument("--accum", type=int, default=32)
-    p.add_argument("--max-steps", type=int, default=-1, help="smoke: train on the longest rows only")
-    args = p.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--model", default=f"{HOST}/lfm/models/LFM2.5-230M-Base")
+    parser.add_argument("--data", default=f"{HOST}/datasets/sayso_full_sft_v5_20260922_rendered.jsonl")
+    parser.add_argument("--out")
+    parser.add_argument("--cutoff", type=int, default=8192)
+    parser.add_argument("--epochs", type=float, default=2)
+    parser.add_argument("--lr", type=float, default=2e-5)
+    parser.add_argument("--accum", type=int, default=32)
+    parser.add_argument("--max-steps", type=int, default=-1)
+    parser.add_argument("--canary", action="store_true", help="Run 250 production-config optimizer steps")
+    parser.add_argument("--promotion-record", help="Required promotion metadata for full training")
+    args = parser.parse_args()
+    if args.canary:
+        args.max_steps = 250
+    elif not args.promotion_record:
+        parser.error("full training requires --promotion-record from ./sayso promote-dataset")
+    else:
+        with open(args.promotion_record, encoding="utf-8") as handle:
+            promotion = json.load(handle)
+        digest = hashlib.sha256()
+        with open(args.data, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if (not promotion.get("promoted") or not promotion.get("validation_passed")
+                or not promotion.get("canary_passed")
+                or digest.hexdigest() != promotion.get("rendered_sha256")):
+            parser.error("full training blocked: data does not match the explicitly promoted dataset")
+    args.out = args.out or (
+        f"{HOST}/lfm/runs/sayso-lfm-v5-canary" if args.canary else f"{HOST}/lfm/runs/sayso-lfm-v5-full"
+    )
 
     print(f"torch {torch.__version__} hip={torch.version.hip} device={torch.cuda.get_device_name(0)}")
     if not torch.version.hip or not torch.cuda.is_available():
         sys.exit("no HIP device")
-
     model, tokenizer = FastModel.from_pretrained(
         args.model,
         max_seq_length=args.cutoff,
@@ -46,7 +61,6 @@ def main() -> int:
     )
 
     def encode(row):
-        # The instruction is the full Base-template render, <|startoftext|> included.
         prompt = tokenizer(row["instruction"], add_special_tokens=False)["input_ids"]
         completion = tokenizer(row["output"], add_special_tokens=False)["input_ids"]
         return {
@@ -68,25 +82,23 @@ def main() -> int:
     # The HF cache keys on the generator and its kwargs, not the file: without the
     # size/mtime stamp a regenerated corpus at the same path reuses the old rows.
     stat = os.stat(args.data)
-    ds = Dataset.from_generator(rows, gen_kwargs={"path": args.data, "stamp": f"{stat.st_size}:{stat.st_mtime_ns}"})
-    ds = ds.map(encode, remove_columns=ds.column_names, num_proc=6)
-
-    # Zero truncation: a row over the cutoff fails the run, it is never clipped.
-    lengths = ds["length"]
-    too_long = sum(n > args.cutoff for n in lengths)
-    empty = sum(n == 0 for n in ds["supervised"])
-    print(f"rows={len(ds)} max_tokens={max(lengths)} supervised_tokens={sum(ds['supervised'])} "
-          f"over_cutoff={too_long} empty_completion={empty}")
+    dataset = Dataset.from_generator(
+        rows, gen_kwargs={"path": args.data, "stamp": f"{stat.st_size}:{stat.st_mtime_ns}"}
+    )
+    dataset = dataset.map(encode, remove_columns=dataset.column_names, num_proc=6)
+    lengths = dataset["length"]
+    too_long = sum(length > args.cutoff for length in lengths)
+    empty = sum(count == 0 for count in dataset["supervised"])
+    print(
+        f"rows={len(dataset)} max_tokens={max(lengths)} "
+        f"supervised_tokens={sum(dataset['supervised'])} over_cutoff={too_long} empty_completion={empty}"
+    )
     if too_long or empty:
         sys.exit("preflight failed")
-
-    if args.max_steps > 0:
-        ds = ds.sort("length", reverse=True).select(range(min(len(ds), args.max_steps * args.accum)))
-    ds = ds.remove_columns(["length", "supervised"])
-
+    dataset = dataset.remove_columns(["length", "supervised"])
     trainer = Trainer(
         model=model,
-        train_dataset=ds,
+        train_dataset=dataset,
         data_collator=DataCollatorForSeq2Seq(tokenizer, padding=True),
         args=TrainingArguments(
             output_dir=args.out,
