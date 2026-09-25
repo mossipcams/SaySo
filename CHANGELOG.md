@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.10.0](https://github.com/mossipcams/SaySo/compare/1.9.0...1.10.0) (2026-09-25)
+
+
+### Features
+
+* **training:** gate full runs on local promotion ([298e3cf](https://github.com/mossipcams/SaySo/commit/298e3cf52e1195af71c75bfe3bee90c2c4258a4c))
+* **training:** per-pipeline VM layout with one GPU lock ([cc38014](https://github.com/mossipcams/SaySo/commit/cc3801417a54106ca2636ded9b7b8ec9bbdf6dbb))
+* **training:** v5 full-SFT corpus generator and LLaMA-Factory view ([7c4690a](https://github.com/mossipcams/SaySo/commit/7c4690a4934ed71396b4fb0ac4fa4bb631263aad))
+* **wake:** ship recorded sessions to the train VM corpus ([a900f76](https://github.com/mossipcams/SaySo/commit/a900f764b4568816f20bad494505deda38757771))
+
+
+### Documentation
+
+* drop planning files from PR ([8db4b3c](https://github.com/mossipcams/SaySo/commit/8db4b3c51d0e4c05a63174e10256d2ff8d533a56))
+* exclude planning notes from PR ([438d24a](https://github.com/mossipcams/SaySo/commit/438d24ad50607a9c8484f471bc77873d8cb8cb3f))
+* remove retired trainer references ([9a9b08c](https://github.com/mossipcams/SaySo/commit/9a9b08cdb2c368a76b368deddc319773195499e7))
+* **training:** clarify historical corpus notes ([e287f3f](https://github.com/mossipcams/SaySo/commit/e287f3f1a02d0278ad3de95bc71e526affeb4166))
+* **training:** consolidate lifecycle guidance ([cdf136d](https://github.com/mossipcams/SaySo/commit/cdf136d1b46d1dd777655c1d03d8add1bf12e974))
+* **training:** split the training plan into LFM and wake-word plans ([9793ff8](https://github.com/mossipcams/SaySo/commit/9793ff871609892934c48bdd6dfff6c651c92c75))
+
 ## [1.9.0](https://github.com/mossipcams/SaySo/compare/1.8.0...1.9.0) (2026-09-22)
 
 
