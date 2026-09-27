@@ -222,8 +222,8 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append("audio.output_device is empty; run sayso-satellite devices")
     if cfg.wake_word.provider != "livekit":
         errors.append("wake_word.provider must be 'livekit'")
-    if cfg.wake_word.phrase != "SaySo":
-        errors.append("wake_word.phrase must be exactly 'SaySo'")
+    if not cfg.wake_word.phrase.strip():
+        errors.append("wake_word.phrase is empty")
     if not (0.0 < cfg.wake_word.threshold < 1.0):
         errors.append("wake_word.threshold must be between 0 and 1 exclusive")
     if cfg.wake_word.refractory_seconds < 0:

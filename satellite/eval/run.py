@@ -71,6 +71,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fail on missing/skipped required cases; use production refractory",
     )
     parser.add_argument(
+        "--promotion-only",
+        action="store_true",
+        help="Evaluate only cases marked promotion_required in cases.json",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -112,6 +117,7 @@ def main(argv: list[str] | None = None) -> int:
         threshold=threshold,
         refractory_seconds=refractory_seconds,
         strict=args.strict,
+        promotion_only=args.promotion_only,
         hardware=_detect_hardware(),
     )
     text = json.dumps(report, indent=2, sort_keys=True)

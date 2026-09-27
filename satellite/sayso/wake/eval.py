@@ -56,6 +56,7 @@ class WakeEvalCase:
     category: str
     audio: str
     expect_detection: bool
+    promotion_required: bool = True
     command_transcript: Optional[str] = None
     expected_transcript: Optional[str] = None
     transcript_fixture: Optional[str] = None
@@ -99,6 +100,7 @@ def _parse_case(raw: dict[str, Any]) -> WakeEvalCase:
         category=category,
         audio=str(raw["audio"]),
         expect_detection=bool(raw.get("expect_detection", False)),
+        promotion_required=bool(raw.get("promotion_required", True)),
         command_transcript=raw.get("command_transcript"),
         expected_transcript=raw.get("expected_transcript"),
         transcript_fixture=raw.get("transcript_fixture"),
@@ -346,6 +348,7 @@ def run_wake_eval(
     threshold: float = 0.65,
     refractory_seconds: float = 0.0,
     strict: bool = False,
+    promotion_only: bool = False,
     hardware: str = "unknown",
 ) -> dict[str, Any]:
     cases_path = eval_root / "cases.json"
@@ -365,12 +368,19 @@ def run_wake_eval(
                 "background_duration_seconds": 0.0,
             },
             "strict": strict,
+            "promotion_only": promotion_only,
+            "threshold": threshold,
             "hardware": hardware,
             "results": [],
             "note": f"missing case manifest: {cases_path}",
         }
 
     case_set = load_wake_cases(cases_path)
+    if promotion_only:
+        case_set = WakeEvalCaseSet(
+            version=case_set.version,
+            cases=tuple(case for case in case_set.cases if case.promotion_required),
+        )
     provider = LiveKitWakeWordProvider(
         model_path=model_path,
         phrase=phrase,
@@ -401,6 +411,8 @@ def run_wake_eval(
     return {
         "version": case_set.version,
         "strict": strict,
+        "promotion_only": promotion_only,
+        "threshold": threshold,
         "hardware": hardware,
         "refractory_seconds": refractory_seconds,
         "summary": summary,

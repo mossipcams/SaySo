@@ -343,6 +343,20 @@ def test_late_detection_does_not_qualify(tmp_path: Path, monkeypatch: pytest.Mon
     assert result.status != "qualified"
 
 
+def test_real_mode_missing_eval_manifest_blocks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    result = _run_fixture(
+        tmp_path,
+        monkeypatch,
+        stub_mode=False,
+        teacher=wake_train.StubTeacher(),
+        trainer=wake_train.StubTrainer(),
+    )
+    assert result.status == "blocked"
+    assert result.bundle_dir is None
+    assert "cases.json" in (result.reason or "")
+    assert not (tmp_path / "work" / "_stub_eval").exists()
+
+
 def test_interruption_rejected_without_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     result = _run_fixture(tmp_path, monkeypatch, interrupt_after="snapshot")
     assert result.status == "rejected"
