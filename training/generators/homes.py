@@ -146,6 +146,58 @@ _KIND_MAP: dict[str, str] = {
 }
 
 
+# Informal household nickname aliases, keyed by the lowercase role suffix of
+# the entity name. A share of alias rows uses these so the model learns to
+# resolve a nickname ("telly") to the canonical device name. Never add the
+# eval nicknames "prep lights", "sofa lamp", "my bedside light".
+_NICKNAMES: dict[str, tuple[str, ...]] = {
+    "ceiling lights": ("big lights", "overhead lights", "main lights"),
+    "ceiling light": ("big light", "overhead light", "main light"),
+    "counter lights": ("worktop lights", "cooking lights"),
+    "bedside lamp": ("night lamp", "nightstand lamp"),
+    "floor lamp": ("corner lamp", "standing lamp"),
+    "reading lamp": ("book lamp", "chair lamp"),
+    "desk lamp": ("work lamp", "study lamp"),
+    "table lamp": ("side lamp",),
+    "tv": ("telly", "big screen"),
+    "television": ("telly", "big screen"),
+    "speaker": ("music speaker",),
+    "ceiling fan": ("overhead fan",),
+    "desk fan": ("cooling fan",),
+    "floor fan": ("cooling fan",),
+    "tower fan": ("cooling fan",),
+    "kettle plug": ("kettle",),
+    "coffee maker plug": ("coffee machine",),
+    "charger plug": ("phone charger",),
+}
+_NICKNAME_KEYS = sorted(_NICKNAMES, key=len, reverse=True)
+
+
+def _nickname_alias(
+    name: str, owners: tuple[str, ...], nickname_rng: random.Random, used: set[str]
+) -> str | None:
+    """One household nickname alias for ``name``, or None when it gets none.
+
+    Nicknames are aliases only, never names. Owner-named fixtures get the
+    possessive form ("my ceiling light") instead of the pool nickname.
+    """
+    lowered = name.casefold()
+    for key in _NICKNAME_KEYS:
+        if not lowered.endswith(key):
+            continue
+        if nickname_rng.random() >= 0.5:
+            return None
+        if any(lowered.startswith(owner.casefold()) for owner in owners):
+            candidates = (f"my {key}",)
+        else:
+            candidates = _NICKNAMES[key]
+        for candidate in candidates:
+            if candidate.casefold() not in used:
+                return candidate
+        return None
+    return None
+
+
 def _slug(name: str) -> str:
     return "".join(char.casefold() if char.isalnum() else "_" for char in name).strip("_")
 
@@ -348,6 +400,11 @@ def generate_home(
                      "Upstairs" if "Bedroom" in area or area == "Attic" else "Main Floor") for area in rooms}
     taken: set[str] = set()
     owners = tuple(rng.sample(_OWNERS, 2))
+    # Nickname draws use a side stream seeded per home: consuming the main rng
+    # here would shift every downstream draw and re-roll the acceptance
+    # cadence of seed-pinned runs (e.g. the grounding coverage gate).
+    nickname_rng = random.Random(f"nicknames:{index}:{size}")
+    used_nicknames: set[str] = set()
     for slot, capability in enumerate(capabilities):
         area = rng.choice(device_areas(capability, rooms))
         name = _random_entity_name(
@@ -370,6 +427,10 @@ def generate_home(
                            lambda match: synonyms[match[0].lower()], name, flags=re.I)
             if alias.casefold() != name.casefold():
                 aliases.append(alias)
+        nickname = _nickname_alias(name, owners, nickname_rng, used_nicknames)
+        if nickname:
+            aliases.append(nickname)
+            used_nicknames.add(nickname.casefold())
         entities.append(make_entity(name=name, capability=capability, area=area,
                                     floor=floors[area], rng=rng, aliases=aliases))
 

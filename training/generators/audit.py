@@ -12,6 +12,13 @@ from generators.coverage import ABSENCE, bare_tool_name, classify_row, expected_
 from generators.validation import check_quality_eval_overlap
 
 
+def _shares_long_word(name: str, alias: str) -> bool:
+    """True when the canonical name and the alias share a word of 3+ letters."""
+    name_words = {word for word in re.findall(r"[a-z]+", name.lower()) if len(word) >= 3}
+    alias_words = {word for word in re.findall(r"[a-z]+", alias.lower()) if len(word) >= 3}
+    return bool(name_words & alias_words)
+
+
 def audit_rows(
     rows,
     *,
@@ -43,6 +50,7 @@ def audit_rows(
     by_targeting = Counter()
     by_tool = Counter()
     by_domain = Counter()
+    by_withheld_tool = Counter()
     negatives_by_reason = Counter()
     real_home_rows = 0
     get_datetime_positive = 0
@@ -63,6 +71,8 @@ def audit_rows(
         else:
             negatives_by_reason[facets["no_action_reason"] or facets["outcome"]] += 1
         meta = row.get("metadata", {})
+        for tool in meta.get("unavailable_tools", []):
+            by_withheld_tool[tool] += 1
         row_id = meta.get("candidate_id")
         if not row_id or row_id in seen:
             raise ValueError(f"missing or duplicate candidate ID: {row_id}")
@@ -118,8 +128,17 @@ def audit_rows(
         counts["tool_calls"] += len(calls)
         counts["multi_call_rows"] += len(calls) > 1
         counts["exclusion_rows"] += bool(excluded)
+        counts["exclusion_same_area"] += bool(excluded and meta.get("exclusion_scope"))
+        counts["exclusion_named_list"] += bool(excluded and not meta.get("exclusion_scope"))
         counts["alias_rows"] += meta.get("category") != "ambiguity" and any(alias.lower() in user.lower() and name.lower() not in user.lower()
                                     for name, alias in meta.get("spoken_targets", {}).items())
+        # Nickname rows: the spoken alias shares no 3+ letter word with the
+        # canonical name, i.e. the row is only solvable by learning the
+        # household nickname, not by word overlap.
+        counts["nickname_alias_rows"] += meta.get("category") != "ambiguity" and any(
+            alias.lower() in user.lower() and not _shares_long_word(name, alias)
+            for name, alias in meta.get("spoken_targets", {}).items()
+        )
         counts["conversational_rows"] += bool(re.search(r"\b(?:please|could you|can you)\b", user, re.I))
     if expected_count is not None and counts["rows"] != expected_count:
         raise ValueError(f"expected {expected_count} rows, got {counts['rows']}")
@@ -178,6 +197,7 @@ def audit_rows(
             "by_outcome": dict(sorted(by_outcome.items())),
             "by_targeting": dict(sorted(by_targeting.items())),
             "by_tool": dict(sorted(by_tool.items())),
+            "by_withheld_tool": dict(sorted(by_withheld_tool.items())),
             "negatives_by_reason": dict(sorted(negatives_by_reason.items())),
             "absence_rate": round(absence_rate, 4),
             "positive_by_tool": dict(sorted(positive_by_tool.items())),

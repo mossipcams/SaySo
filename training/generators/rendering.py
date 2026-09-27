@@ -11,6 +11,7 @@ from typing import Any
 
 from generators.capability_registry import operation_spec
 from generators.context import area_context_for, system_prompt
+from generators.planning import CORE_TOOL_NAMES
 from generators.tools import namespaced_tool_name, production_catalog, script_tools
 
 
@@ -69,7 +70,14 @@ def _decoy_removals(spec: dict[str, Any], messages: list[dict[str, Any]]) -> lis
         needed.add(namespaced_tool_name(op.tool_name))
     for call in (spec["expected"].get("requested") or {}).get("calls") or []:
         needed.add(namespaced_tool_name(call["name"]))
-    candidates = [t["function"]["name"] for t in production_catalog(spec["home"]) if t["function"]["name"] not in needed]
+    # Home Assistant always offers the core tools, so withholding one would
+    # teach a catalog shape that never happens.
+    core = {namespaced_tool_name(name) for name in CORE_TOOL_NAMES}
+    candidates = [
+        t["function"]["name"]
+        for t in production_catalog(spec["home"])
+        if t["function"]["name"] not in needed and t["function"]["name"] not in core
+    ]
     return rng.sample(candidates, min(len(candidates), rng.choice((1, 1, 2))))
 
 
@@ -445,6 +453,7 @@ def render_example(spec: dict[str, Any]) -> dict[str, Any]:
         "stt_corruption": spec.get("stt_corruption"),
         "paraphrase_source": spec.get("paraphrase_source"),
         "excluded_names": spec.get("excluded_names", []),
+        "exclusion_scope": spec.get("exclusion_scope"),
         "spoken_targets": spec.get("spoken_targets", {}),
         "no_action_reason": spec["expected"].get("response"),
         "unavailable": spec["expected"].get("unavailable"),
