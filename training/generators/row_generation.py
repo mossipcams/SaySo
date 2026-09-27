@@ -8,7 +8,7 @@ import copy
 import random
 from typing import Any
 
-from generators.capability_registry import CAPABILITIES
+from generators.capability_registry import CAPABILITIES, operation_spec
 from generators.config import GeneratorConfig
 from generators.deduplication import DuplicateTracker, pair_hash
 from generators.grounding import pick_variant
@@ -21,7 +21,7 @@ from generators.scenarios.discrimination import (
     call_carries_value,
     pick_discriminating_description,
 )
-from generators.planning import REAL_HOME_EXCLUDED_FAMILIES
+from generators.planning import CORE_TOOL_NAMES, REAL_HOME_EXCLUDED_FAMILIES
 from generators.scenarios.unavailable import unique_no_action_hint
 from generators.stt_noise import apply_log_stt_noise, apply_stt_noise
 from generators.utterances import (
@@ -104,6 +104,12 @@ def casing_kind(has_calls: bool) -> str:
     return "call" if has_calls else "no_call"
 
 
+def _withholds_core_tool(capability: str, operation: str) -> bool:
+    """True when the requested operation's gold would withhold a core tool."""
+    op = operation_spec(capability, operation)
+    return bool(op and op.tool_name and op.tool_name in CORE_TOOL_NAMES)
+
+
 def _balanced_upper(casing_counts: dict[str, Counter[str]] | None, spec: dict[str, Any]) -> bool | None:
     """Force the minority casing once a label kind drifts two rows off balance.
 
@@ -128,6 +134,7 @@ def generate_row(
     excluded: set[str],
     dup_tracker: DuplicateTracker,
     attempt: int = 0,
+    retry: int = 0,
     stt_remaining: int = 0,
     stt_log_remaining: int = 0,
     rows_remaining: int = 1,
@@ -203,6 +210,15 @@ def generate_row(
     else:
         cap = CAPABILITIES[capability]
         robustness = slot.get("robustness") or pick_robustness(rng, 0.85)
+        # The unsupported/unavailable golds withhold the requested tool from the
+        # catalog. Home Assistant always offers the core tools, so withholding
+        # one would teach a catalog shape that never happens; keep the ordinary
+        # call instead. (Family slots never hit this: planning._eligible_operations
+        # already keeps core tools out of the withholdable sets.)
+        if robustness in {"unsupported", "unavailable"} and _withholds_core_tool(
+            capability, operation
+        ):
+            robustness = "ordinary"
         if (
             not slot.get("family")
             and attempt % 125 == 0
@@ -213,6 +229,19 @@ def generate_row(
             robustness = "exclusion"
         targeting = pick_targeting(cap, rng, robustness)
         if robustness == "large_home":
+            home_size = max(home_size, 64)
+        # Under an explicit entity cap the mix is constrained and the audit's
+        # exclusion floor must survive: exclusion gold needs 2+ calls, but a
+        # small home may hold only one supporting device, so give non-family
+        # exclusion rows a home large enough to carry the multi-call gold
+        # (family slots already guarantee the graph via
+        # configure_family_scenario). Without a cap, rejections are part of
+        # the natural mix and the seeded sequence is left untouched.
+        if (
+            robustness == "exclusion"
+            and not family
+            and config.real_home_entity_cap > 0
+        ):
             home_size = max(home_size, 64)
         inject_missing = family not in {"absence", "unsupported"}
         select_real_home = (
@@ -247,7 +276,9 @@ def generate_row(
 
     scenario = build_scenario(
         index=scenario_index,
-        seed=config.seed ^ (attempt << 16),
+        # retry only salts the scenario seed: a real-home retry must draw a
+        # fresh scenario, but the exclusion cadence stays on `attempt`.
+        seed=config.seed ^ (attempt << 16) ^ (retry << 24),
         capability=capability,
         operation=operation,
         home_size=home_size,
@@ -312,6 +343,15 @@ def generate_row(
         if entity is None:
             return None, "family_mismatch"
         spec["expected"] = expected_action(entity, operation, rng)
+        if spec.get("hint_call"):
+            # The gold value must equal the value spoken in the ambiguous first
+            # turn; reuse the hint call's value arguments on the gold call.
+            hint_args = spec["hint_call"].get("arguments") or {}
+            gold_args = spec["expected"]["calls"][0]["arguments"]
+            for key, value in hint_args.items():
+                if key in {"name", "area", "floor", "domain", "device_class"} or key not in gold_args:
+                    continue
+                gold_args[key] = value
         spec["follow_up_clarify_candidates"] = follow_up_clarify_candidates
         spec["follow_up_reply"] = _follow_up_reply(chosen, rng)
         # First user turn is ambiguous; gold name appears only after the follow-up.

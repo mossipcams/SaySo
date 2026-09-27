@@ -37,6 +37,12 @@ REAL_HOME_EXCLUDED_FAMILIES = frozenset({
     "absence",
 })
 
+# Bare names of the tools Home Assistant always offers (tools.py
+# ``_ALWAYS_OFFERED_NAMESPACES``). A row withholding one of these teaches a
+# catalog shape that never happens in production, so neither decoy removals nor
+# the unavailable family may withhold them.
+CORE_TOOL_NAMES = frozenset({"GetDateTime", "GetLiveContext", "HassTurnOn", "HassTurnOff"})
+
 FAMILY_ROBUSTNESS: dict[str, str] = {
     "datetime": "datetime",
     "ordinary": "ordinary",
@@ -63,6 +69,26 @@ SETTINGS_OPERATIONS = frozenset({
     "set_volume",
     "set_position",
 })
+
+# Clarify/follow_up rows that ask for a value, not just on/off/status: v5b
+# answered "dim the reading light to 30 percent" with HassLightSet despite two
+# candidates, because the ambiguity only ever covered on/off/status.
+AMBIGUOUS_SETTINGS = (
+    ("lights", "set_brightness"),
+    ("lights", "set_color"),
+    ("lights", "set_color_temperature"),
+    ("media_players", "volume_set"),
+    ("fans", "set_speed"),
+    ("climate", "set_temperature"),
+)
+AMBIGUOUS_SETTINGS_SHARE = 0.5
+
+# Operations whose missing tool invites a sibling-tool substitution: v5b called
+# the nearest offered tool (volume on a light, LightSet for fan speed/thermostat)
+# instead of refusing. open/close are excluded: their tool is the core
+# HassTurnOn/HassTurnOff, which production never withholds.
+SUBSTITUTION_PRONE_OPERATIONS = AMBIGUOUS_SETTINGS
+SUBSTITUTION_PRONE_SHARE = 0.5
 
 
 @dataclass
@@ -129,7 +155,16 @@ def datetime_slot(index: int, *, home_size: int = 16) -> GenerationSlot:
     )
 
 
-def _pick_capability_operation(family: str, rng: random.Random) -> tuple[str, str, int]:
+_ALIASES_COMBINATIONS = tuple(
+    (cap, op)
+    for cap in ("lights", "fans", "switches", "media_players")
+    for op in ("turn_on", "turn_off")
+)
+
+
+def _pick_capability_operation(
+    family: str, rng: random.Random, aliases_rng: random.Random | None = None
+) -> tuple[str, str, int]:
     """Pick a (capability, operation, tier) suitable for ``family``."""
     if family == "datetime":
         return "datetime", "query_time", 0
@@ -153,6 +188,9 @@ def _pick_capability_operation(family: str, rng: random.Random) -> tuple[str, st
         cap_name = rng.choice(["lights", "switches", "fans", "covers"])
         operation = rng.choice(["turn_on", "turn_off", "open", "close"])
         return cap_name, operation, CAPABILITIES[cap_name].tier
+    if family in {"clarify", "follow_up"} and rng.random() < AMBIGUOUS_SETTINGS_SHARE:
+        cap_name, operation = rng.choice(AMBIGUOUS_SETTINGS)
+        return cap_name, operation, CAPABILITIES[cap_name].tier
     if family == "clarify":
         cap_name = rng.choice(["lights", "fans", "switches", "media_players"])
         operation = rng.choice(["turn_on", "turn_off", "query_state"])
@@ -172,7 +210,12 @@ def _pick_capability_operation(family: str, rng: random.Random) -> tuple[str, st
         # attempts colliding on duplicate_semantic_id and still fell short --
         # and the corpus only ever taught "the thermostat tool is missing",
         # never the same refusal for a light, a vacuum, or a media player.
-        cap_name, operation = rng.choice(_WITHHOLDABLE_OPERATIONS)
+        # Half the draws target substitution-prone ops so the refusal lands
+        # exactly where the model actually substituted a sibling tool.
+        if rng.random() < SUBSTITUTION_PRONE_SHARE:
+            cap_name, operation = rng.choice(SUBSTITUTION_PRONE_OPERATIONS)
+        else:
+            cap_name, operation = rng.choice(_WITHHOLDABLE_OPERATIONS)
         return cap_name, operation, CAPABILITIES[cap_name].tier
     if family == "absence":
         return rng.choice(["lights", "fans", "media_players"]), "turn_on", 1
@@ -182,7 +225,14 @@ def _pick_capability_operation(family: str, rng: random.Random) -> tuple[str, st
         cap_name, operation = rng.choice(_UNDERPOWERED_OPERATIONS)
         return cap_name, operation, CAPABILITIES[cap_name].tier
     if family == "aliases":
-        return rng.choice(["lights", "fans", "switches"]), "turn_on", 1
+        # Widen the draw to the v5b alias failure shapes: media_players targets
+        # (Sofa TV, twice) and turn_off operations, not only lights x turn_on.
+        # The legacy draw stays on the main stream (result discarded) so
+        # seed-pinned runs keep their acceptance cadence; the widened shape is
+        # drawn from a per-run side stream.
+        rng.choice(["lights", "fans", "switches"])
+        cap_name, operation = (aliases_rng or rng).choice(_ALIASES_COMBINATIONS)
+        return cap_name, operation, CAPABILITIES[cap_name].tier
     if family == "junk":
         # The graph is irrelevant -- a junk transcript names no device. Borrow the
         # clarify shape so the row still renders against a real home and catalog.
@@ -224,9 +274,12 @@ def _eligible_operations() -> tuple[tuple[tuple[str, str], ...], tuple[tuple[str
     """(withholdable, underpowered) capability/operation pairs for refusal families.
 
     ``withholdable`` is anything Home Assistant supplies a tool for, so the
-    recipe can remove that tool. ``underpowered`` additionally needs the device
-    template to carry a feature the operation does not require, so an entity
-    that genuinely lacks the capability can be built.
+    recipe can remove that tool — except the always-offered ``CORE_TOOL_NAMES``,
+    which production HA never withholds. ``underpowered`` additionally needs the
+    device template to carry a feature the operation does not require, so an
+    entity that genuinely lacks the capability can be built; it keeps the core
+    tools, because the unsupported family withholds nothing — it builds a
+    device that genuinely cannot do the thing.
     """
     from generators.capability_registry import SupportLevel, required_features
     from generators.homes import _ENTITY_TEMPLATES
@@ -238,7 +291,10 @@ def _eligible_operations() -> tuple[tuple[tuple[str, str], ...], tuple[tuple[str
         for op in cap.operations:
             if not op.tool_name or op.support != SupportLevel.SUPPORTED:
                 continue
-            withholdable.append((cap_name, op.name))
+            if op.tool_name not in CORE_TOOL_NAMES:
+                # HA always offers the core tools; withholding one teaches a
+                # catalog shape that never happens.
+                withholdable.append((cap_name, op.name))
             if not template:
                 continue
             needed = set(required_features(cap_name, op.name))
@@ -396,6 +452,9 @@ def build_plan(
     if datetime_required:
         requested = {**requested, "datetime": datetime_required}
     rng = random.Random(seed)
+    # Side stream for the widened aliases draw: consuming the main rng here
+    # would shift every downstream draw and re-roll seed-pinned runs.
+    aliases_rng = random.Random(f"aliases:{seed}")
     slots: list[GenerationSlot] = []
     index = 0
     for family, family_count in requested.items():
@@ -405,7 +464,7 @@ def build_plan(
                 slots.append(datetime_slot(index))
                 index += 1
                 continue
-            cap, operation, tier = _pick_capability_operation(family, rng)
+            cap, operation, tier = _pick_capability_operation(family, rng, aliases_rng)
             home_size = sample_home_size(HOME_SIZE_WEIGHTS, rng)
             if family in {"exclusion", "multi_action"}:
                 home_size = max(home_size, 64)

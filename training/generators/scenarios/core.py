@@ -19,6 +19,7 @@ from generators.capability_registry import (
     trainable_operations,
 )
 from generators.gold import gold_from_scenario, target_names_from_expected
+from generators.tools import namespaced_tool_name
 from generators.utterances import _plural
 from generators.homes import (
     _ENTITY_TEMPLATES,
@@ -126,6 +127,27 @@ def _ensure_supporting_in_area(
         )
 
 
+def _usable_aliases(entity: dict[str, Any], home: dict[str, Any]) -> list[str]:
+    """Aliases that resolve to exactly one entity in ``home``.
+
+    A usable alias is neither the canonical name nor any other entity's name
+    or alias; alias rows speak one of these and must land on the canonical
+    name.
+    """
+    other_names = {
+        name.casefold()
+        for other in home["entities"]
+        if other is not entity
+        for name in [other["name"], *other.get("aliases", [])]
+    }
+    return [
+        alias
+        for alias in entity.get("aliases", [])
+        if alias.casefold() != entity["name"].casefold()
+        and alias.casefold() not in other_names
+    ]
+
+
 def _slug(name: str) -> str:
     return "".join(char.casefold() if char.isalnum() else "_" for char in name).strip("_")
 
@@ -164,6 +186,45 @@ def configure_family_scenario(
             return "individual", "unavailable", request_intent, removed_tools
         if op and op.tool_name:
             removed_tools = [op.tool_name]
+        # v5b called the nearest offered tool (volume on a light, LightSet for
+        # fan speed/thermostat) instead of refusing, so the sibling tools it
+        # substituted to must be offered as temptations. Size-16 homes have no
+        # media_player at all, so inject the missing sibling in the sayso area
+        # unless it is the very tool being withheld.
+        withheld = {namespaced_tool_name(tool) for tool in removed_tools}
+        for sibling_capability, sibling_tool in (
+            ("lights", "light__HassLightSet"),
+            ("media_players", "media_player__HassSetVolume"),
+        ):
+            if sibling_tool in withheld:
+                continue
+            if any(
+                entity["capability"] == sibling_capability for entity in home["entities"]
+            ):
+                continue
+            areas, floors = home_areas(home)
+            floor = floors.get(area, "Main Floor")
+            owners = tuple(home.get("owners") or ())
+            taken = {e["entity_id"].split(".", 1)[1] for e in home["entities"]}
+            name = _random_entity_name(
+                sibling_capability,
+                area,
+                0,
+                index,
+                rng,
+                taken=taken,
+                **({"owners": owners} if owners else {}),
+            )
+            home["entities"].append(
+                make_entity(
+                    name=name,
+                    capability=sibling_capability,
+                    area=area,
+                    floor=floor,
+                    rng=rng,
+                    features=_ENTITY_TEMPLATES[sibling_capability][2],
+                )
+            )
         return "individual", "unavailable", request_intent, removed_tools
 
     if family in {"multi_action", "exclusion"}:
@@ -243,6 +304,17 @@ def pick_target(
     if usage is None:
         return rotated[0]
     return min(rotated, key=lambda entity: usage[entity["name"]])
+
+
+def _near_miss_score(entity: dict[str, Any], in_area: list[dict[str, Any]]) -> int:
+    """How much the entity's name reads like its neighbours: the maximum count
+    of shared lowercase name tokens with any other in-area entity."""
+    tokens = set(entity["name"].lower().split())
+    return max(
+        (len(tokens & set(other["name"].lower().split()))
+         for other in in_area if other is not entity),
+        default=0,
+    )
 
 
 def build_scenario(
@@ -348,6 +420,12 @@ def build_scenario(
             home["entities"].append(injected)
             cap_entities = [injected]
     remove_canonical_alias_collisions(home["entities"])
+    if robustness == "alias_distractor":
+        # Prefer targets that already carry a usable alias; the row speaks the
+        # alias and gold resolves it to the canonical name.
+        usable = [entity for entity in cap_entities if _usable_aliases(entity, home)]
+        if usable:
+            cap_entities = usable
     target_entity = pick_target(cap_entities, index, target_usage) if cap_entities else None
     scenario: dict[str, Any] = {
         "scenario_index": index,
@@ -381,12 +459,16 @@ def build_scenario(
         in_area = [e for e in cap_entities if e["area"] == home["sayso_entity_area"]]
         if len(in_area) >= 3 and rng.random() < 0.6:
             # "turn off the kitchen lights, but leave X alone": every other in-area device.
-            kept = rng.choice(in_area)
+            # The model must resolve a named sibling against the area-wide set, so
+            # the excluded device should read most like its neighbours.
+            top = max(_near_miss_score(entity, in_area) for entity in in_area)
+            kept = rng.choice([e for e in in_area if _near_miss_score(e, in_area) == top])
             scenario["target_entities"] = [e for e in in_area if e is not kept]
             scenario["excluded_names"] = [kept["name"]]
             scenario["exclusion_scope"] = f"the {kept['area'].lower()} {_plural(kept['domain'])}"
             scenario["spoken_targets"] = {e["name"]: scenario["exclusion_scope"] for e in scenario["target_entities"]}
         else:
+            # Deliberate contrast: a named list, possibly cross-area, with no area scope.
             scenario["target_entities"] = cap_entities[:2]
             scenario["excluded_names"] = [cap_entities[2]["name"]] if len(cap_entities) > 2 else []
     if robustness == "multi_action" and len(cap_entities) >= 2:
@@ -397,14 +479,48 @@ def build_scenario(
         scenario["targeting"] = "multiple"
     scenario["expected"] = gold_from_scenario(scenario, rng)
     if robustness == "alias_distractor" and target_entity:
+        # The model must resolve the spoken alias against a near-miss sibling
+        # in the same area; inject one when the home has none.
+        siblings = [
+            entity
+            for entity in home["entities"]
+            if entity is not target_entity
+            and entity["domain"] == target_entity["domain"]
+            and entity["area"] == target_entity["area"]
+        ]
+        if not siblings:
+            floors = home_areas(home)[1]
+            floor = floors.get(target_entity["area"], "Main Floor")
+            owners = tuple(home.get("owners") or ())
+            in_area = [
+                entity
+                for entity in home["entities"]
+                if entity["domain"] == target_entity["domain"]
+                and entity["area"] == target_entity["area"]
+            ]
+            taken = {e["entity_id"].split(".", 1)[1] for e in home["entities"]}
+            name = _random_entity_name(
+                capability,
+                target_entity["area"],
+                len(in_area),
+                index,
+                rng,
+                taken=taken,
+                **({"owners": owners} if owners else {}),
+            )
+            home["entities"].append(
+                make_entity(
+                    name=name,
+                    capability=capability,
+                    area=target_entity["area"],
+                    floor=floor,
+                    rng=rng,
+                    features=_ENTITY_TEMPLATES[capability][2],
+                )
+            )
+            remove_canonical_alias_collisions(home["entities"])
         # Use only an unambiguous HA alias; retain the canonical name in labels.
-        other_names = {
-            name.casefold() for entity in home["entities"] if entity is not target_entity
-            for name in [entity["name"], *entity.get("aliases", [])]
-        }
-        aliases = [alias for alias in target_entity.get("aliases", [])
-                   if alias.casefold() != target_entity["name"].casefold()
-                   and alias.casefold() not in other_names]
+        aliases = _usable_aliases(target_entity, home)
         if aliases:
             scenario["spoken_targets"] = {target_entity["name"]: rng.choice(aliases)}
     scenario["semantic_id"] = semantic_id(scenario)

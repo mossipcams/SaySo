@@ -44,6 +44,8 @@ def unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
         spec["linguistics"] = [{"source": "sayso_fallback", "intent": f"{capability}.{operation}"}]
         return template.format(name=entity["name"] if entity else "it")
     call = build_call_for_operation(entity, capability, operation, rng, area=area)
+    # Stash the phrased request's call so follow-up gold can reuse its value.
+    spec["hint_call"] = call
     return request_seed_from_spec({
         "expected": {"kind": "action", "calls": [call]},
         "target_names": [entity["name"]] if entity else [""],

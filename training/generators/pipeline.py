@@ -25,6 +25,7 @@ from generators.grounding import (
 from generators.paraphrase import load_paraphraser
 from generators.coverage import bare_tool_name, row_calls
 from generators.planning import (
+    CORE_TOOL_NAMES,
     REAL_HOME_EXCLUDED_FAMILIES,
     AllocationPlan,
     FamilyTracker,
@@ -33,6 +34,7 @@ from generators.planning import (
     datetime_slot,
     discrimination_capable_slot,
 )
+from generators.tools import namespaced_tool_name
 from generators.rates import (
     discrimination_available_share,
     enforce_rate_gate,
@@ -44,7 +46,9 @@ from generators.sampling import QuotaTracker
 from generators.stats import empty_stats, finalize_stats, record_accept, record_reject
 
 
-_REAL_HOME_FALLBACK_REASONS = frozenset({"family_mismatch", "duplicate_semantic_id", "exact_duplicate_utterance"})
+# A rejected real-home attempt is retried as real-home this many times (fresh
+# attempt seed each) before the mix is redrawn on the next pass.
+REAL_HOME_RETRY_LIMIT = 4
 
 
 def _discrimination_recipe_slot(
@@ -171,6 +175,79 @@ def _effective_grounding_rate(config: GeneratorConfig) -> float:
     return config.grounding_rate
 
 
+# Pinned core tools every scale run must teach (planning.CORE_TOOL_NAMES);
+# tiny test runs can't hold every core tool, so the gate only requires them at
+# count >= 100.
+_HYGIENE_CORE_TOOLS = [namespaced_tool_name(name) for name in sorted(CORE_TOOL_NAMES)]
+# GetDateTime is the one core tool a run may deliberately not teach: its
+# requirement follows the run's own coverage config (get_datetime_positive_min).
+_HYGIENE_DATETIME_TOOL = namespaced_tool_name("GetDateTime")
+
+
+def enforce_hygiene(
+    rows: list[dict[str, Any]], count: int, *, require_datetime: bool = True
+) -> dict[str, Any]:
+    """Fail-closed dataset hygiene gate.
+
+    Runs scripts/preflight.inspect_dataset over the generated rows with the
+    limits from training/configs/preflight.yaml and raises on any error
+    (invalid rows, duplicate/conflict rate over limit, missing core tools).
+    ``require_datetime`` mirrors the run's coverage config: it is False when
+    get_datetime_positive_min is 0, so a run with no datetime supervision is
+    not forced to teach llm__GetDateTime.
+    """
+    import importlib.util
+
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[2]
+    limits = yaml.safe_load(
+        (repo_root / "training" / "configs" / "preflight.yaml").read_text(encoding="utf-8")
+    )["limits"]
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
+    ) as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+        path = Path(handle.name)
+    try:
+        # scripts/ is not a package; load preflight by file path.
+        spec = importlib.util.spec_from_file_location("sayso_preflight", repo_root / "scripts" / "preflight.py")
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(module)
+        report, errors = module.inspect_dataset(
+            path,
+            {
+                "limits": {
+                    "max_duplicate_rate": limits["max_duplicate_rate"],
+                    "max_conflict_rate": limits["max_conflict_rate"],
+                },
+                "requirements": {
+                    "minimum_rows": 0,
+                    "required_positive_tools": (
+                        [tool for tool in _HYGIENE_CORE_TOOLS if tool != _HYGIENE_DATETIME_TOOL]
+                        if count >= 100
+                        else []
+                    )
+                    + ([_HYGIENE_DATETIME_TOOL] if require_datetime else []),
+                },
+            },
+            {},
+        )
+    finally:
+        path.unlink(missing_ok=True)
+    if errors:
+        raise RuntimeError(f"dataset hygiene gate failed: {errors[:10]}")
+    return {
+        "invalid_rows": report["invalid_rows"],
+        "invalid_calls": report["invalid_calls"],
+        "duplicate_rate": round(report["duplicate_rate"], 5),
+        "conflict_rate": round(report["conflict_rate"], 5),
+        "contaminated": report["contaminated"],
+    }
+
+
 def run_generation(config: GeneratorConfig) -> dict[str, Any]:
     """Generate accepted training rows up to config.count.
 
@@ -178,6 +255,9 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
     the same generate → label → wording → validate → duplicate loop.
     """
     result = _run_generation(config)
+    result["stats"]["hygiene"] = enforce_hygiene(
+        result["rows"], config.count, require_datetime=config.get_datetime_positive_min > 0
+    )
     area_path = result.get("area_distribution_path")
     if area_path:
         from generators.scenarios import area as area_scenarios
@@ -391,17 +471,52 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
                 if quota is None:
                     discrimination_index = forced["index"]
         row, reason = None, None
-        real_home_attempts = (
-            (True, False) if real_home_selected is True else (real_home_selected,)
+        # Cadence attempts (row_generation's attempt % 125 trigger) carry the
+        # audit's exclusion floor. Under an explicit real-home entity cap,
+        # rejections are common, so a rejected trigger-eligible cadence row is
+        # redrawn (forked rng, fresh scenario) instead of losing the floor row;
+        # without a cap, rejections are part of the natural mix and redrawing
+        # would shift the seeded sequence.
+        exclusion_cadence = (
+            config.real_home_entity_cap > 0
+            and attempts % 125 == 0
+            and not slot.get("family")
+            and slot["capability"] in {"lights", "switches", "fans", "covers"}
+            and slot["operation"] in {"turn_on", "turn_off", "open", "close"}
         )
-        for real_sel in real_home_attempts:
+        real_home_retries = 0
+        while True:
+            # A rejected real-home attempt is retried as real-home, never
+            # silently downgraded to synthetic: the balancer owns the real-home
+            # count, and a synthetic fallback would undercount it. Retries draw
+            # from a fork so the main stream (and the exclusion cadence on
+            # `attempts`) is undisturbed; the fork is seeded per (attempt, retry)
+            # so each retry is a fresh, reproducible scenario. Cadence retries
+            # keep their original selection: a real-home exclusion can be
+            # structurally impossible (one supporting device) and would burn
+            # every retry.
+            if exclusion_cadence:
+                real_sel = real_home_selected
+            else:
+                real_sel = True if real_home_retries else real_home_selected
+            row_rng = (
+                random.Random(
+                    (config.seed ^ (attempts * 7919) ^ (real_home_retries * 104729))
+                    & 0xFFFFFFFF
+                )
+                if real_home_retries
+                else rng
+            )
             row, reason = generate_row(
                 slot,
                 config,
-                rng,
+                row_rng,
                 excluded=excluded,
                 dup_tracker=dup_tracker,
+                # attempt drives the exclusion cadence; retry only salts the
+                # scenario seed so a rejected real-home row is redrawn fresh.
                 attempt=attempts,
+                retry=real_home_retries,
                 stt_remaining=max(
                     0,
                     stt_target - (stats["stt_corrupted"] - stats["stt_log_corrupted"]),
@@ -430,12 +545,15 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             )
             if row is not None:
                 break
-            # A saturated real home (21 entities) keeps producing duplicates. Once
-            # the tail forces every row onto it, fall back to a synthetic home
-            # instead of spinning to max_attempts; otherwise just redraw.
-            if real_sel is False or not (
-                reason == "family_mismatch" or (real_home_forced and reason in _REAL_HOME_FALLBACK_REASONS)
-            ):
+            if real_home_selected is not True and not exclusion_cadence:
+                break
+            # A saturated real home (21 entities) keeps producing duplicates,
+            # and a capped entity keeps tripping real_home_entity_cap. Once
+            # retries are exhausted, redraw the mix on the next pass instead of
+            # spinning to max_attempts; a forced tail simply keeps redrawing
+            # real-home until the mix is met.
+            real_home_retries += 1
+            if real_home_retries >= REAL_HOME_RETRY_LIMIT:
                 break
         attempts += 1
         # Consume the plan slot this row came from (family draw or discrimination).
