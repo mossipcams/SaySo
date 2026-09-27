@@ -109,6 +109,19 @@ LiveKit **before** the verifier veto.
 Counts are wavs in the directory root (2026-09-21). Many folders are leftover
 experiments and must not be treated as “more data = better.”
 
+### New train VM sets (2026-09-26)
+
+Under `/srv/llm/data/wake/data/`:
+
+- `negative_tv_20260926`: 104 hard negatives from the Pi satellite wake-mining
+  spool (detection class, `sayso-voicev1.onnx`): TV/speech confusables, empty/SFX,
+  and 2 phrase-exact TV negatives. Per-clip `manifest.json` records transcripts,
+  phonetic spans, and sha256. Clips prior to 2026-09-22 (last Tuesday) were removed per user instruction on 2026-09-26.
+- `positive_mined_20260926`: 63 auto-labelled suggested positives from Whisper
+  `small.en` transcripts; **human verification required before use as training positives**.
+
+Phonetic analysis report: `/srv/llm/data/wake/data/REPORT_tv_20260926.md`.
+
 ### In living2 (classifier)
 
 | Set | n | Role |

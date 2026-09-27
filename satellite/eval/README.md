@@ -4,7 +4,7 @@ Recorded-audio evaluation replaces the silence-only ONNX load check as the prima
 
 ## Bootstrap blocker (part 3 gate)
 
-`satellite/eval/audio/` has **no trusted fixtures**. All five cases in `cases.json` skip in default mode and **fail** in `--strict` mode. Part 3 (unattended training) cannot start until trusted seed, calibration, and independent eval recordings are collected on the target hardware. See `manifest.json`, `baseline.json`, and `splits.json`.
+`satellite/eval/audio/` holds **silent30**, the current 30-positive candidate evaluation set recorded 2026-09-25 on the Pi's eMeet. Their masters are read-only at `llm:/srv/llm/data/wake/eval/silent30/`. Cases read `audio/silent30_leadin/`, which adds 1.5 s of real room tone so the 2 s window has lead-in (see its `derivation.json`), and the audio is not tracked in Git. This set shares speaker, room, mic, and session with the 60-take training set; preserve that lineage caveat when interpreting results. The five unrecorded diagnostic cases remain in full eval reports but are marked `promotion_required: false`. `--strict --promotion-only` omits those five absent cases and enforces all 30 silent30 eval cases. Each candidate is evaluated at its own LiveKit validation `optimal_threshold`; this does not change the deployed threshold. The baseline remains blocked until calibration data and independent negative/background recordings are collected on target hardware. See `manifest.json`, `baseline.json`, and `splits.json`.
 
 Do not fabricate evaluation WAVs.
 
@@ -48,11 +48,21 @@ python3 satellite/eval/run.py --model /path/to/sayso.onnx
 sayso-satellite test-wake-word
 ```
 
-Strict baseline mode (missing/skipped cases fail; production refractory from config):
+Full strict diagnostic mode (all missing/skipped cases fail):
 
 ```bash
 python3 satellite/eval/run.py --strict --model /path/to/sayso.onnx
 ```
+
+Promotion-candidate smoke gate (uses only cases marked `promotion_required: true`):
+
+```bash
+python3 -m satellite.eval.run --strict --promotion-only --model /path/to/sayso.onnx
+```
+
+Pass `--threshold` with the candidate's LiveKit validation
+`optimal_threshold`; the experiment runner does this automatically and records
+the applied threshold in both the report and result metadata.
 
 ## Tests
 

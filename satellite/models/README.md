@@ -8,10 +8,21 @@ Place this LiveKit-exported Sayso classifier on the satellite:
 
 It detects the spoken phrase "Sayso" only. The generate-first model runs
 **single-stage LiveKit** by default — omit `wake_word.verifier`. Do not use the
-trainer `optimal_threshold` (~0.05). Do not substitute hey_livekit, hey_jarvis,
+generic trainer threshold (~0.05). Do not substitute hey_livekit, hey_jarvis,
 or another model.
 
-Shipped on the Pi today: living2 (`b840f51f312abcd5b205e1fc1e32b2ed`) at
+## SaySo Voicev1 champion (pass 2)
+
+- Artifact: `/opt/sayso-satellite/models/sayso-voicev1.onnx`
+- SHA-256: `f1313f031ae5c05867f4d716c9e47a0c459e0c6b586400335cce5ae8e72d2199`
+- Selected threshold: **0.22** (pass-2 LiveKit validation `optimal_threshold`)
+- Pi eval: **24/30** silent30 positive cases detected at 0.22; six missed.
+
+Voicev1 is active on the Pi at threshold `0.22`; `sayso-satellite.service` was
+verified active after the config switch and restart. The previous model and
+config are backed up at `/home/pi/sayso-voicev1-rollback-20260926/`.
+
+Previously shipped on the Pi: living2 (`b840f51f312abcd5b205e1fc1e32b2ed`) at
 threshold **0.28** with legacy `sayso-verifier.npz`
 (`0c632e778ca263e51c92d9ca95f451af`). That mel artifact is **not** a phrase
 check for the generate-first export; the satellite ignores it and stays

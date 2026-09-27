@@ -46,7 +46,8 @@ Use colocated checks; do not edit files under `tests/`.
   and rollback bundles, unique inputs, and pinned datasets.
 - Locate trusted training seed, calibration, and independent evaluation audio,
   including real confusions, positive distance/noise cases, and representative
-  background recordings. All five local wake fixtures are currently absent;
+  background recordings. The five local diagnostic fixtures are currently absent
+  and excluded from promotion-only evaluation;
   remote assets remain uninspected. If trusted data is missing, arrange one-time
   collection and independent labeling. Capture work can proceed, but the
   training experiment cannot start without seed data and a usable baseline.
@@ -134,8 +135,9 @@ and a reproducible evaluation of the current model.
    clips and score telemetry cannot replace representative evaluation audio.
    Reconcile model README/config drift against the pinned trainer; retain one
    active LiveKit recipe and archive obsolete wake configs/run summaries.
-4. Add strict mode to the existing evaluator: empty/missing/skipped required
-   cases fail, model state resets per recording, and activation events use
+4. Keep strict mode on the existing evaluator: empty/missing/skipped required
+   cases fail, while promotion-only mode omits cases marked non-required. Model
+   state resets per recording, and activation events use
    audio sample time and production cooldown. Report background duration and
    label timing results by their actual hardware. Preserve default developer
    behavior. On the corrected audio path, evaluate the current model at its

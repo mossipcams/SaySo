@@ -90,20 +90,22 @@ def extract_context_pcm(
 
 
 def collect_session_activations(
-    session: RecordingSession,
+    session: RecordingSession | None,
     provider: LiveKitWakeWordProvider,
     *,
     config: ReplayConfig | None = None,
     predict: Optional[Callable[..., object]] = None,
+    pcm: bytes | None = None,
 ) -> tuple[tuple[int, ...], list[float], float, bool]:
-    """Scan one session with production hop/lag; return activation sample indices."""
+    """Scan one session (or raw 16 kHz s16le ``pcm``) with production hop/lag; return activation sample indices."""
     cfg = config or ReplayConfig()
     if cfg.sample_rate != SAMPLE_RATE:
         raise ValueError(f"replay requires {SAMPLE_RATE} Hz audio")
     if cfg.window_samples != WINDOW_SAMPLES or cfg.hop_samples != HOP_SAMPLES:
         raise ValueError("replay window/hop must match production livekit constants")
 
-    pcm = read_session_pcm(session)
+    if pcm is None:
+        pcm = read_session_pcm(session)
     samples = np.frombuffer(pcm, dtype="<i2")
     buffer = WakeAudioBuffer(cfg.window_samples, cfg.hop_samples)
     provider.reset()

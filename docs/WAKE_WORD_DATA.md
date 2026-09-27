@@ -26,6 +26,13 @@ ambient clip in `/tmp`. `satellite/eval/audio/` contains `.gitkeep` and nothing
 else, so all five cases in `satellite/eval/cases.json` — including
 `negative_natural_say_so` and `negative_tv_conversation` — skip silently.
 
+Current promotion handling keeps the five absent cases for diagnostics but marks
+them `promotion_required: false`; the candidate runner uses `--promotion-only`.
+All 30 `silent30` clips are the current positive evaluation set. Their shared
+speaker/session lineage is recorded in `splits.json`; calibration plus negative
+and representative background recordings are still required to unblock baseline
+promotion.
+
 The satellite never retained detection audio. Its own log says so:
 `Wake phrase detected ... (no audio retained)`. Worse for diagnosis,
 `flush_preroll()` hands STT only `[detection_index - wake_skip_ms, end)`, and

@@ -1303,12 +1303,16 @@ def run_pipeline(
             return PipelineResult(run_key=run_key, status="rejected", bundle_dir=None, reason="interrupted")
 
         eval_target = eval_root_override or eval_root
-        if stub_mode and eval_root_override is None:
+        has_cases = eval_target.joinpath("cases.json").is_file()
+        if stub_mode and (eval_root_override is None or not has_cases):
+            # Synthetic fixtures are a stub-mode smoke test, never real eval evidence.
             eval_target = work_dir / "_stub_eval"
             _make_fixture_eval(eval_target, late_detection=False)
-        if not eval_target.joinpath("cases.json").is_file():
-            eval_target = work_dir / "_stub_eval"
-            _make_fixture_eval(eval_target, late_detection=False)
+        elif not has_cases:
+            # Not a final status: restoring the real eval set lets the same run key proceed.
+            reason = f"real eval manifest missing: {eval_target / 'cases.json'}"
+            _write_run_state(run_dir, {"run_key": run_key, "status": "blocked", "reason": reason})
+            return PipelineResult(run_key=run_key, status="blocked", bundle_dir=None, reason=reason)
 
         if eval_runner is not None:
             eval_report = eval_runner(train_output.model_path, eval_target, train_output.threshold)
@@ -1451,7 +1455,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"status={result.status} run_key={result.run_key}")
     if result.bundle_dir:
         print(f"bundle={result.bundle_dir}")
-    if result.status in {"rejected", "insufficient_evidence"}:
+    if result.status in {"rejected", "insufficient_evidence", "blocked"}:
         return 1
     return 0
 
