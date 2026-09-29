@@ -1,7 +1,7 @@
 name: llama
 services:
   llama:
-    image: sayso/llama.cpp:308883b-vulkan
+    image: sayso/llama.cpp:d280808-vulkan
     build:
       context: /srv/llm/data/llama.cpp/source
       dockerfile: .devops/vulkan.Dockerfile
