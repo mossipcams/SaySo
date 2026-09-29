@@ -378,3 +378,13 @@ rows under 10%.
 
 Verify: `training/tests/test_v6_eval_fixes.py` and the smoke dry-run still pass;
 rerun `./sayso generate` on the VM to 40,000 rows, then `./sayso validate`.
+
+## Running the v6 cycle beside the VM checkout (2026-09-29)
+
+The container's `/workspace/host/sayso` is `/srv/llm/data/sayso`, which holds
+another session's unpushed llm-host serving work, so it can't be switched to
+this branch. Scope: `sayso` reads `SAYSO_CONTAINER_ROOT` (default
+`/workspace/host/sayso`) for the in-container repo path. The v6 checkout is a
+worktree at `/srv/llm/lfm/sayso-v6` (container: `/workspace/host/lfm/sayso-v6`),
+and canary/train/eval run from it. Verify: canary eval results land under
+`/srv/llm/lfm/runs/sayso-promotion/`, and the trainer reads the v6 promotion record.

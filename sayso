@@ -23,6 +23,8 @@ DATASET_DIR = Path(os.environ.get("DATASET_DIR", "/srv/llm/data/lfm/datasets"))
 # Host path of the container's writable {HOST}/lfm/runs/sayso-promotion mount.
 EVAL_RESULTS = Path(os.environ.get("EVAL_RESULTS", "/srv/llm/lfm/runs/sayso-promotion"))
 HOST = "/workspace/host"
+# In-container path of this checkout; override when running from a second worktree.
+CONTAINER_ROOT = os.environ.get("SAYSO_CONTAINER_ROOT", f"{HOST}/sayso")
 os.environ.setdefault("HF_HOME", "/srv/llm/hf-cache")
 
 
@@ -100,8 +102,8 @@ def eval_checkpoint(checkpoint: str, out_name: str, suite: str) -> tuple[bool, d
     out = f"{HOST}/lfm/runs/sayso-promotion/{out_name}"
     results = EVAL_RESULTS / out_name
     cmd = ["docker", "exec", "-e", "CUDA_VISIBLE_DEVICES=", "-e", "HIP_VISIBLE_DEVICES=",
-           "-w", f"{HOST}/sayso", "unsloth", "python",
-           f"{HOST}/sayso/training/scripts/eval_checkpoint_cpu.py", checkpoint,
+           "-w", CONTAINER_ROOT, "unsloth", "python",
+           f"{CONTAINER_ROOT}/training/scripts/eval_checkpoint_cpu.py", checkpoint,
            "--suite", suite, "--out", out]
     if suite == "smoke":
         for tag in ("recipe-lock", "gold", "shadow", "grounding"):
@@ -161,7 +163,7 @@ def cmd_canary(_: argparse.Namespace) -> None:
     run_id = record["run_id"]
     out = f"{HOST}/lfm/runs/sayso-promotion/{run_id}-canary"
     checkpoint = f"{out}/final"
-    run([GPU_LOCK, "train", "lfm", "python", f"{HOST}/sayso/training/scripts/train_unsloth_full.py",
+    run([GPU_LOCK, "train", "lfm", "python", f"{CONTAINER_ROOT}/training/scripts/train_unsloth_full.py",
          "--data", data, "--canary", "--out", out])
     passed, metrics = eval_checkpoint(checkpoint, f"{run_id}-canary-eval", "smoke")
     record.update(rendered_sha256=digest(Path(record["rendered_path"])), canary_checkpoint=checkpoint,
@@ -207,8 +209,8 @@ def cmd_train(_: argparse.Namespace) -> None:
     out = f"{HOST}/lfm/runs/sayso-promotion/{record['run_id']}-full"
     record.update(trained=False, final_eval_passed=False)
     write_current(record)
-    run([GPU_LOCK, "train", "lfm", "python", f"{HOST}/sayso/training/scripts/train_unsloth_full.py",
-         "--data", data, "--out", out, "--promotion-record", f"{HOST}/sayso/training/runs/promotion/promoted_dataset.json"])
+    run([GPU_LOCK, "train", "lfm", "python", f"{CONTAINER_ROOT}/training/scripts/train_unsloth_full.py",
+         "--data", data, "--out", out, "--promotion-record", f"{CONTAINER_ROOT}/training/runs/promotion/promoted_dataset.json"])
     record.update(trained=True, checkpoint=f"{out}/final", full_output=out, final_eval_passed=False)
     write_current(record)
 
