@@ -1,4 +1,3 @@
-"""Audit canonical or TRL JSONL before training: python -m generators.audit FILE."""
 
 import argparse
 from collections import Counter
@@ -13,7 +12,6 @@ from generators.validation import check_quality_eval_overlap
 
 
 def _shares_long_word(name: str, alias: str) -> bool:
-    """True when the canonical name and the alias share a word of 3+ letters."""
     name_words = {word for word in re.findall(r"[a-z]+", name.lower()) if len(word) >= 3}
     alias_words = {word for word in re.findall(r"[a-z]+", alias.lower()) if len(word) >= 3}
     return bool(name_words & alias_words)
@@ -30,14 +28,6 @@ def audit_rows(
     get_datetime_positive_min=0,
     allowed_operation_shortfall=0,
 ):
-    """Audit accepted rows on what they actually label, not on their metadata.
-
-    ``required_operations`` is the set of ``(tier, capability, operation)`` buckets
-    the run planned positive supervision for; each must reach
-    ``min_positive_per_operation`` rows that really call its tool, and every tool
-    those buckets map to must reach ``min_positive_per_tool``. ``max_absence_rate``
-    caps how much of the corpus may be an "there is no such device" answer.
-    """
     counts = Counter()
     casing = {"call": Counter(), "no_call": Counter()}
     seen = set()
@@ -95,7 +85,6 @@ def audit_rows(
             get_datetime_positive += 1
             positive_by_tool["GetDateTime"] += 1
         schemas = tool_schema_map(row["tools"])
-        # Rows carry production names; registry and metadata name tools bare.
         offered_bare = {bare_tool_name(name) for name in schemas}
         final = messages[-1].get("content", "")
         if not calls and meta.get("capability") == "timers":
@@ -132,9 +121,6 @@ def audit_rows(
         counts["exclusion_named_list"] += bool(excluded and not meta.get("exclusion_scope"))
         counts["alias_rows"] += meta.get("category") != "ambiguity" and any(alias.lower() in user.lower() and name.lower() not in user.lower()
                                     for name, alias in meta.get("spoken_targets", {}).items())
-        # Nickname rows: the spoken alias shares no 3+ letter word with the
-        # canonical name, i.e. the row is only solvable by learning the
-        # household nickname, not by word overlap.
         counts["nickname_alias_rows"] += meta.get("category") != "ambiguity" and any(
             alias.lower() in user.lower() and not _shares_long_word(name, alias)
             for name, alias in meta.get("spoken_targets", {}).items()
@@ -163,8 +149,6 @@ def audit_rows(
             for (_tier, capability, operation) in required_operations
             if (tool := expected_tool(capability, operation)) and tool != SCRIPT_ACTION_TOOL
         }
-        # Script tools are named per home; their positive rows are counted under
-        # the placeholder, so check that separately.
         if any(cap == "scripts" and op == "run" for _t, cap, op in required_operations):
             required_tools.add(SCRIPT_ACTION_TOOL)
         for tool in sorted(required_tools):

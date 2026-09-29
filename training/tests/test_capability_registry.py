@@ -1,4 +1,3 @@
-"""Tests for capability registry."""
 
 from __future__ import annotations
 

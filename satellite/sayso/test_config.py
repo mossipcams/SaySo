@@ -115,12 +115,10 @@ def test_load_config_reads_native_capture_profile(tmp_path: Path) -> None:
     assert cfg.audio.aec_gate_ms == 150
     assert cfg.audio.stt_capture_dir == tmp_path / "stt"
     assert cfg.audio.stt_capture_enabled is True
-    # Noise suppression stays off by default: measure gain before suppressing.
     assert cfg.audio.noise_suppression == 0
 
 
 def test_audio_defaults_preserve_legacy_configs(tmp_path: Path) -> None:
-    """A config predating the audio profile must still load with safe defaults."""
     sound = Path(__file__).parents[1] / "sounds" / "wake.wav"
     model = tmp_path / "wake.onnx"
     model.write_bytes(b"onnx")

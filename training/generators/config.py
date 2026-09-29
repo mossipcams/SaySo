@@ -1,4 +1,3 @@
-"""YAML recipe loader and generator configuration."""
 
 from __future__ import annotations
 
@@ -14,11 +13,6 @@ from generators.planning import PRIMARY_FAMILIES
 
 DEFAULT_TRAIN_COUNT = 40_000
 DEFAULT_SEED = 20260905
-# The training context every recipe declares. Until the token gate was repaired
-# this number enforced nothing: count_row_tokens raised on tool-call rows and
-# returned 2 on the rest, so no corpus was ever length-checked. Measured
-# properly, production-shaped rows run to ~6.6k tokens, so the old 5,120 default
-# would now silently delete half the distribution rather than catch an overflow.
 DEFAULT_TOKEN_BUDGET = 8192
 DEFAULT_STT_RATE = 0.15
 DEFAULT_MAX_ATTEMPTS_MULTIPLIER = 20
@@ -32,7 +26,6 @@ def default_allocations() -> dict[str, float]:
 
 @dataclass
 class GeneratorConfig:
-    """Versioned recipe-backed configuration for synthetic dataset generation."""
 
     count: int = DEFAULT_TRAIN_COUNT
     seed: int = DEFAULT_SEED
@@ -63,7 +56,6 @@ class GeneratorConfig:
     area_distribution_path: Path | None = None
     min_positive_per_operation: int = 1
     min_positive_per_tool: int = 1
-    # The recipe's own row count: coverage floors are authored for it.
     recipe_count: int = 0
     max_absence_rate: float = 0.10
     get_datetime_positive_min: int = 1
@@ -94,8 +86,6 @@ class GeneratorConfig:
             )
 
     def scaled_floor(self, floor: int) -> int:
-        """A coverage floor scaled to this run: recipes author floors for their own
-        count, and a smaller run (tests, smoke builds) cannot hold them in full."""
         if floor > 0 and self.recipe_count and 0 < self.count < self.recipe_count:
             return max(1, floor * self.count // self.recipe_count)
         return floor

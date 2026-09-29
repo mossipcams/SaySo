@@ -1,4 +1,3 @@
-"""Label helpers — rendering lives in generators.rendering."""
 
 from __future__ import annotations
 

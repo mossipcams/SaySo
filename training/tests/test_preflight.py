@@ -1,4 +1,3 @@
-"""Synthetic checks for the fast corpus gate."""
 
 from __future__ import annotations
 
@@ -8,8 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-from preflight import inspect_dataset  # noqa: E402
-from adapters.schema import v2_openai_tools  # noqa: E402
+from preflight import inspect_dataset
+from adapters.schema import v2_openai_tools
 
 
 def _row(*, positive: bool = True, family: str = "ordinary", utterance: str = "Pause the TV") -> dict:

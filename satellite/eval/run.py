@@ -1,4 +1,3 @@
-"""Run recorded-audio wake-word evaluation."""
 
 from __future__ import annotations
 
@@ -25,7 +24,6 @@ def _detect_hardware() -> str:
 
 
 def _load_wake_defaults() -> tuple[float, float]:
-    """Return (threshold, refractory_seconds) from satellite config when available."""
     try:
         from satellite.sayso.config import load_config
 

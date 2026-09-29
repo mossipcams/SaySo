@@ -1,4 +1,3 @@
-"""Non-blocking wake inference worker with a single-slot latest window queue."""
 
 from __future__ import annotations
 
@@ -16,11 +15,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _accepts_sample_index(predict: Callable[..., Optional[Detection]]) -> bool:
-    """Whether ``predict`` accepts a ``sample_index`` keyword.
-
-    Checked once by signature instead of by catching TypeError around the call,
-    which would also swallow a genuine TypeError raised inside predict.
-    """
     try:
         params = signature(predict).parameters
     except (TypeError, ValueError):
@@ -31,12 +25,6 @@ def _accepts_sample_index(predict: Callable[..., Optional[Detection]]) -> bool:
 
 
 class LatestWindowQueue:
-    """Drop stale windows; keep only the newest pending inference job.
-
-    Each job carries the absolute capture sample index at which its window
-    ends, so a detection can be anchored to the capture timeline even though
-    inference runs off-thread and may complete one hop later.
-    """
 
     def __init__(self) -> None:
         self._queue: queue.Queue[tuple[np.ndarray, int | None]] = queue.Queue(maxsize=1)

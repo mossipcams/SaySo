@@ -1,4 +1,3 @@
-"""Tests for leakage-resistant dataset splitting."""
 
 from __future__ import annotations
 
@@ -46,7 +45,6 @@ def test_split_assigns_whole_families(tmp_path: Path) -> None:
     val = (out_dir / "sayso_val.jsonl").read_text(encoding="utf-8").strip().splitlines()
     test = (out_dir / "sayso_test.jsonl").read_text(encoding="utf-8").strip().splitlines()
     assert len(train) + len(val) + len(test) == len(records)
-    # Same template+phrasing+seed must not appear in multiple splits
     def families(lines: list[str]) -> set[str]:
         result = set()
         for line in lines:

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Verify GGUF model returns structured tool_calls via llama-server."""
 
 from __future__ import annotations
 
@@ -13,7 +12,7 @@ REPO = ROOT.parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(ROOT))
 
-from sayso_contract import completion  # noqa: E402
+from sayso_contract import completion
 
 
 def main() -> int:

@@ -1,4 +1,3 @@
-"""Tests for hypothesis strategies (test-only, not production sampling)."""
 
 from __future__ import annotations
 

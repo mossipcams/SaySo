@@ -1,4 +1,3 @@
-"""Case loading, suite manifests, and schema validation."""
 
 from __future__ import annotations
 
@@ -29,7 +28,7 @@ RESPONSE_TYPES = frozenset({"action", "status", "clarification", "refusal"})
 
 
 class CaseError(ValueError):
-    """A case file, suite, or home fixture is invalid."""
+    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +59,7 @@ class Case:
 def _load_yaml(path: Path) -> Any:
     try:
         import yaml
-    except ImportError as err:  # pragma: no cover - HA and training hosts ship PyYAML
+    except ImportError as err:
         raise CaseError(f"PyYAML is required to load {path}") from err
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
@@ -121,7 +120,6 @@ def _read_jsonl(path: Path) -> list[Case]:
 
 @lru_cache(maxsize=1)
 def load_all_cases() -> tuple[Case, ...]:
-    """Every active case. Archive/ is never scanned."""
     cases: list[Case] = []
     seen: dict[str, str] = {}
     for name in _CASE_FILES:
@@ -194,7 +192,6 @@ def select_cases(
     tag: str | None = None,
     case_id: str | None = None,
 ) -> list[Case]:
-    """Diagnostic evaluation is filtering, not a third runner."""
     if case_id:
         try:
             return [case_index()[case_id]]
@@ -249,7 +246,6 @@ def normalize_utterance(text: str) -> str:
 
 
 def excluded_train_utterances() -> set[str]:
-    """Every active eval utterance. Do not train on these."""
     return {case.utterance for case in load_all_cases()}
 
 

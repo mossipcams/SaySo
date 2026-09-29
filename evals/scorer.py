@@ -1,4 +1,3 @@
-"""One expected-behavior scorer for every SaySo model eval."""
 
 from __future__ import annotations
 
@@ -17,8 +16,6 @@ from evals.outcomes import (
     Turn,
 )
 
-# Deliberately narrow. A clarification is a question that asks the user to pick;
-# a refusal says the thing cannot be done. Both are covered by tests.
 _CLARIFICATION_CUES = re.compile(
     r"\b(which|did you mean|do you mean|could you specify|can you specify|please specify|clarify)\b",
     re.I,
@@ -54,8 +51,6 @@ def is_action_call(call: dict[str, Any]) -> bool:
 
 
 def _affects(call: dict[str, Any], entity: dict[str, Any]) -> bool:
-    """Whether an action call could change ``entity``: by name, or by an area
-    (and optional domain) that covers it."""
     if not is_action_call(call):
         return False
     arguments = call.get("arguments") if isinstance(call.get("arguments"), dict) else {}
@@ -147,8 +142,6 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
     refuse = [r for r in results if expected_type[r.case_id] == "refusal"]
     outcomes = Counter(r.outcome.value for r in results)
     flags = Counter(flag for r in results for flag in r.flags)
-    # A gate, not a formality: an unparseable completion must never score as a
-    # successful abstention, whatever changes in classify().
     flags["malformed_treated_as_abstention"] = sum(
         r.passed and r.outcome == Outcome.MALFORMED_OUTPUT for r in results
     )
@@ -179,10 +172,6 @@ def check_gates(
     *,
     expected_count: int | None = None,
 ) -> list[str]:
-    """Every promotion gate the summary fails. Empty means promotable.
-
-    Incomplete runs — missing cases or infrastructure errors — cannot pass.
-    """
     failures = []
     if expected_count is not None and summary["total"] != expected_count:
         failures.append(f"incomplete run: scored {summary['total']} of {expected_count} cases")

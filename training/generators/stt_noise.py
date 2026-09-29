@@ -1,4 +1,3 @@
-"""STT noise transformations with protected slots."""
 
 from __future__ import annotations
 
@@ -37,8 +36,6 @@ for tens_idx, tens_word in enumerate(_TENS[2:], start=2):
     for ones_idx, ones_word in enumerate(_ONES[1:10], start=1):
         _WORD_TO_INT[f"{tens_word} {ones_word}"] = tens_idx * 10 + ones_idx
 
-# Whisper substitutions observed on the live SaySo pipeline (librarian TV) plus
-# the household's reported living→ribbon class. Keys are what STT wrote.
 _ASR_TOKEN_MAP = {
     "lite": "light",
     "van": "fan",
@@ -86,7 +83,6 @@ def _stem(token: str) -> str:
 
 
 def fold_stt_text(text: str) -> str:
-    """Collapse log-style STT spelling so gold can still see the intended name."""
     folded = text.casefold()
     folded = re.sub(r"\blibrarian\b", "living room", folded)
     folded = re.sub(r"\bribbon\b", "living", folded)
@@ -97,7 +93,6 @@ def fold_stt_text(text: str) -> str:
 
 
 def utterance_contains_target(text: str, name: str) -> bool:
-    """Whether ``text`` still refers to registry name ``name`` after STT-style splits."""
     folded = fold_stt_text(text)
     canonical = fold_stt_text(name)
     if not canonical:
@@ -171,7 +166,6 @@ def apply_log_stt_noise(
     *,
     target_names: list[str] | None = None,
 ) -> tuple[str, str | None]:
-    """Apply one live-Whisper-shaped corruption. Gold must stay canonical."""
     candidates: list[tuple[str, str]] = []
     if _LIVING_ROOM.search(utterance):
         candidates.append((_LIVING_ROOM.sub("ribbon room", utterance, count=1), "log_living_ribbon"))
@@ -179,7 +173,7 @@ def apply_log_stt_noise(
     dropped = _FILLER.sub("", utterance, count=1)
     if dropped != utterance:
         candidates.append((dropped, "log_dropped_filler"))
-    order = list(_CORRUPTIONS[:9])  # homophones / TV / name splits, not numbers
+    order = list(_CORRUPTIONS[:9])
     rng.shuffle(order)
     for pattern, replacement, kind in order:
         corrupted = pattern.sub(replacement if callable(replacement) else replacement, utterance, count=1)
@@ -209,7 +203,6 @@ def apply_stt_noise(
     target_names: list[str] | None = None,
     force_transform: bool = False,
 ) -> tuple[str, str | None]:
-    """Return corrupted utterance and corruption kind, protecting action words."""
     order = list(_CORRUPTIONS)
     rng.shuffle(order)
     for pattern, replacement, kind in order:
@@ -218,7 +211,6 @@ def apply_stt_noise(
             continue
         if not _protected(utterance, corrupted, target_names):
             continue
-        # A dropped word must not leave a double space the model can key on.
         return " ".join(corrupted.split()), kind
     if force_transform and utterance:
         changed = utterance.replace(" the ", " ", 1).strip()

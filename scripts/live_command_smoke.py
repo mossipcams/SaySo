@@ -1,20 +1,3 @@
-"""Live end-to-end smoke test for every SaySo command family.
-
-Drives the production SaySo conversation agent through Home Assistant's own REST
-API and then reads back the SaySo trace for each turn, so a PASS means Home
-Assistant really resolved and executed a tool call, not just that llama.cpp
-returned text.
-
-    HA_URL=http://192.168.1.35:8123 HA_TOKEN=... \
-      python scripts/live_command_smoke.py
-
-The SaySo agent entity is discovered from ``/api/states`` when ``SAYSO_AGENT`` is
-unset. Real entity names come from the same call, so control commands target
-devices that exist in the home. Families whose domain is absent are reported as
-SKIP with a reason.
-
-The token is read from the environment and never printed, logged, or written.
-"""
 
 from __future__ import annotations
 
@@ -33,22 +16,15 @@ DEFAULT_AGENT = "conversation.home_assistant"
 _TRANSIENT_STATES = {"unavailable", "unknown", "none", ""}
 
 
-# --------------------------------------------------------------------------- #
-# Command matrix: one row per HA LLM tool a SaySo home can reach.
-# --------------------------------------------------------------------------- #
 
 
 @dataclass(frozen=True, slots=True)
 class Command:
-    """One live command: what to say and which tool it should exercise."""
 
     tool: str
     utterance: str
-    # Entity domain(s) to source a real target name from. None = no target.
     target_domains: tuple[str, ...] = ()
-    # Domain that must be present in the home for the command to apply.
     requires: str | None = None
-    # Area template placeholder rather than an entity name.
     needs_area: bool = False
 
 
@@ -172,15 +148,12 @@ MATRIX: tuple[Command, ...] = (
     Command("HassCancelAllTimers", "Cancel all my timers"),
 )
 
-# Tools that must produce a tool call; a plain spoken answer is a failure.
 ACTION_TOOLS = frozenset(
     name for name in (c.tool for c in MATRIX) if name.startswith("Hass")
 )
 
-# Query tools the model must call rather than answer from its own priors.
 REQUIRE_TOOL_TOOLS = ACTION_TOOLS | {"GetDateTime", "GetLiveContext"}
 
-# Assist timer tools create/affect timers without resolving an entity target.
 NO_TARGET_TOOLS = frozenset(
     {
         "HassStartTimer",
@@ -194,8 +167,6 @@ NO_TARGET_TOOLS = frozenset(
     }
 )
 
-# Vendor/diagnostic names that are technically controllable but are not what a
-# person means by "turn on the light". Preferred targets are ranked after these.
 _DIAGNOSTIC_TOKENS = (
     "apollo",
     "msr",
@@ -226,7 +197,6 @@ _DIAGNOSTIC_TOKENS = (
 
 
 def _name_rank(name: str) -> tuple[int, int, str]:
-    """Rank a candidate target: plain short names before vendor/diagnostic ones."""
     folded = name.casefold()
     suspect = int(any(token in folded for token in _DIAGNOSTIC_TOKENS))
     return (suspect, len(name), name.casefold())
@@ -238,13 +208,9 @@ _AREAS_TEMPLATE = (
 )
 
 
-# --------------------------------------------------------------------------- #
-# Home Assistant REST client
-# --------------------------------------------------------------------------- #
 
 
 class HomeAssistantClient:
-    """Minimal REST client. The token lives only in this object's memory."""
 
     def __init__(self, base_url: str, token: str, *, timeout: float = 60.0) -> None:
         self.base_url = base_url.rstrip("/")
@@ -268,7 +234,7 @@ class HomeAssistantClient:
             method=method,
         )
         try:
-            with urllib.request.urlopen(  # noqa: S310 - operator-supplied URL
+            with urllib.request.urlopen(
                 request, timeout=self.timeout
             ) as response:
                 raw = response.read()
@@ -316,17 +282,9 @@ class HomeAssistantClient:
         return response if isinstance(response, dict) else {"summary": None, "events": []}
 
 
-# --------------------------------------------------------------------------- #
-# Pure helpers (unit-tested without a network)
-# --------------------------------------------------------------------------- #
 
 
 def unwrap_service_response(result: Any) -> dict[str, Any]:
-    """Unwrap Home Assistant's ``service_response`` envelope.
-
-    ``POST /api/services/<domain>/<service>?return_response`` returns
-    ``{"changed_states": [...], "service_response": {...}}``.
-    """
     if not isinstance(result, dict):
         return {}
     inner = result.get("service_response")
@@ -334,7 +292,6 @@ def unwrap_service_response(result: Any) -> dict[str, Any]:
 
 
 def discover_agent(states: list[dict[str, Any]]) -> str:
-    """Return the SaySo conversation entity id from a states list."""
     agents = [
         state["entity_id"]
         for state in states
@@ -354,11 +311,6 @@ def discover_agent(states: list[dict[str, Any]]) -> str:
 
 
 def targets_by_domain(states: list[dict[str, Any]]) -> dict[str, list[str]]:
-    """Group friendly names by entity domain, best target first.
-
-    Unavailable/unknown entities are dropped and vendor/diagnostic names are
-    ranked after plain user-facing ones (see ``_name_rank``).
-    """
     grouped: dict[str, list[str]] = {}
     for state in states:
         entity_id = str(state.get("entity_id", ""))
@@ -379,7 +331,6 @@ def build_utterance(
     targets: dict[str, list[str]],
     areas: list[str],
 ) -> str | None:
-    """Return the concrete utterance, or None when the home cannot run it."""
     if command.requires is not None and command.requires not in targets:
         return None
     replacements: dict[str, str] = {}
@@ -403,7 +354,6 @@ def build_utterance(
 
 
 def speech_from_response(payload: dict[str, Any] | None) -> str:
-    """Extract the spoken text from a conversation/process response."""
     if not isinstance(payload, dict):
         return ""
     response = payload.get("response")
@@ -419,11 +369,6 @@ def speech_from_response(payload: dict[str, Any] | None) -> str:
 
 
 def base_tool_name(tool: str | None) -> str:
-    """Strip Home Assistant's ``<namespace>__`` prefix from a tool name.
-
-    The runtime LLM API exposes tools as ``media_player__HassTurnOn`` and the
-    model may echo that form; compare against the base ``HassTurnOn`` name.
-    """
     if not tool:
         return ""
     return tool.rsplit("__", 1)[-1]
@@ -436,12 +381,6 @@ def classify(
     trace: dict[str, Any] | None,
     lenient: bool = False,
 ) -> tuple[str, str]:
-    """Return ``(status, detail)`` for one command turn.
-
-    ``status`` is one of ``PASS`` / ``FAIL``. SKIP is decided before the turn.
-    By default the trace must show the expected tool, exactly (namespace aside).
-    ``lenient`` accepts a successful wrong tool (useful for exploration only).
-    """
     spoken = speech_from_response(response)
     response_type = ""
     if isinstance(response, dict) and isinstance(response.get("response"), dict):
@@ -482,9 +421,6 @@ def classify(
     return "PASS", detail
 
 
-# --------------------------------------------------------------------------- #
-# Runner
-# --------------------------------------------------------------------------- #
 
 
 @dataclass
@@ -504,7 +440,6 @@ def wait_for_trace(
     *,
     timeout: float = 8.0,
 ) -> dict[str, Any]:
-    """Poll list_traces for a trace newer than ``before_id``, then fetch it."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         traces = client.list_traces(limit=3)
@@ -524,7 +459,6 @@ def run_command(
     *,
     strict: bool,
 ) -> RunResult:
-    """Run one command and attach its trace."""
     before = client.list_traces(limit=1)
     before_id = str(before[0]["trace_id"]) if before and before[0].get("trace_id") else None
     try:
@@ -552,7 +486,6 @@ def run_matrix(
     *,
     strict: bool,
 ) -> list[RunResult]:
-    """Exercise every command family the home can support."""
     states = client.states()
     targets = targets_by_domain(states)
     areas = client.areas()
@@ -579,7 +512,6 @@ def run_matrix(
 
 
 def print_summary(results: list[RunResult]) -> int:
-    """Print the PASS/FAIL/SKIP table and return a process exit code."""
     counts = {"PASS": 0, "FAIL": 0, "SKIP": 0}
     for result in results:
         counts[result.status] = counts.get(result.status, 0) + 1

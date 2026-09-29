@@ -1,4 +1,3 @@
-"""Focused checks for compiled tool envelope validation."""
 
 from __future__ import annotations
 
@@ -57,14 +56,12 @@ def enable_custom_integrations(
     hass: HomeAssistant,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Allow Home Assistant to discover this repository's custom components."""
     monkeypatch.setattr(custom_components, "__path__", [CUSTOM_COMPONENTS_PATH])
     hass.data.pop(DATA_CUSTOM_COMPONENTS, None)
 
 
 @pytest.fixture(autouse=True)
 async def setup_required_integrations(hass: HomeAssistant) -> None:
-    """Load Home Assistant integrations required by SaySo tests."""
     assert await async_setup_component(hass, "homeassistant", {})
     assert await async_setup_component(hass, "llm", {})
     assert await async_setup_component(hass, "conversation", {})
@@ -79,7 +76,6 @@ def _reset_compile_cache() -> None:
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    """Patch llama.cpp connectivity checks during SaySo setup."""
     with patch.object(
         LlamaCppClient,
         "list_models",
@@ -106,7 +102,6 @@ def _speech(result: conversation.ConversationResult) -> str:
 
 
 def test_validate_rejects_duplicate_function_names() -> None:
-    """Duplicate function.name values fail before transport."""
     tools = [_valid_tool("SameName"), _valid_tool("SameName")]
 
     with pytest.raises(SaySoInvalidToolEnvelopeError, match="Duplicate function name"):
@@ -123,7 +118,6 @@ def test_validate_rejects_duplicate_function_names() -> None:
     ],
 )
 def test_validate_rejects_invalid_function_names(name: str, pattern: str) -> None:
-    """Names outside the OpenAI-compatible rule are rejected."""
     with pytest.raises(SaySoInvalidToolEnvelopeError, match=pattern):
         validate_compiled_tool_envelope([_valid_tool(name)])
 
@@ -137,7 +131,6 @@ def test_validate_rejects_invalid_function_names(name: str, pattern: str) -> Non
     ],
 )
 def test_validate_rejects_non_object_parameter_roots(parameters: Any) -> None:
-    """Parameter roots must be JSON object schemas."""
     tool = _valid_tool()
     tool["function"]["parameters"] = parameters
 
@@ -156,13 +149,11 @@ def test_validate_rejects_non_object_parameter_roots(parameters: Any) -> None:
     ],
 )
 def test_validate_rejects_malformed_function_wrappers(tool: dict[str, Any]) -> None:
-    """Malformed outer function wrappers are rejected."""
     with pytest.raises(SaySoInvalidToolEnvelopeError):
         validate_compiled_tool_envelope([tool])
 
 
 def test_validate_rejects_non_json_serializable_values() -> None:
-    """Non-JSON-serializable compiled values fail before transport."""
     tool = _valid_tool()
     tool["function"]["parameters"]["properties"]["mode"] = {1, 2, 3}
 
@@ -186,7 +177,6 @@ class _RoutingTestFan(FanEntity):
 
 @pytest.fixture
 async def representative_ha_tools(hass: HomeAssistant) -> list[llm.Tool]:
-    """Load representative Home Assistant 2026.8.3 assist tools."""
     assert await async_setup_component(hass, "intent", {})
     setup_test_component_platform(hass, "light", [_RoutingTestLight()])
     setup_test_component_platform(hass, "fan", [_RoutingTestFan()])
@@ -208,7 +198,6 @@ async def representative_ha_tools(hass: HomeAssistant) -> list[llm.Tool]:
 def test_representative_ha_tools_compile_with_valid_envelope(
     representative_ha_tools: list[llm.Tool],
 ) -> None:
-    """Representative Home Assistant 2026.8.3 tools still compile unchanged."""
     compiled = compile_tools(representative_ha_tools)
 
     validate_compiled_tool_envelope(compiled)
@@ -222,7 +211,6 @@ async def test_compile_llm_tools_validates_envelope(
     hass: HomeAssistant,
     representative_ha_tools: list[llm.Tool],
 ) -> None:
-    """compile_llm_tools returns a validated compiled schema."""
     llm_context = llm.LLMContext(
         platform="conversation",
         context=None,
@@ -242,7 +230,6 @@ async def test_invalid_tool_envelope_returns_action_failed(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Envelope compile failures return ERROR_ACTION_FAILED, not model unavailable."""
     entry = await _create_entry(hass)
 
     with patch(

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Export trained checkpoint to GGUF via llama.cpp convert scripts."""
 
 from __future__ import annotations
 

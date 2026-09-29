@@ -1,8 +1,3 @@
-"""Generate the locked SaySo tool-schema reference artifact.
-
-Accepts a JSON payload from the controlled reference setup and writes one
-canonical artifact. Stdlib only; fingerprint logic mirrors schema.py.
-"""
 
 from __future__ import annotations
 
@@ -26,7 +21,6 @@ REQUIRED_PAYLOAD_KEYS = (
 
 
 def canonicalize_schema(node: Any) -> Any:
-    """Recursively sort mapping keys and required arrays for stable serialization."""
     if isinstance(node, list):
         return [canonicalize_schema(item) for item in node]
 
@@ -44,13 +38,11 @@ def canonicalize_schema(node: Any) -> Any:
 
 
 def canonicalize_compiled_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Canonicalize compiled tools and sort them by function name."""
     canonical_tools = [canonicalize_schema(tool) for tool in tools]
     return sorted(canonical_tools, key=lambda tool: tool["function"]["name"])
 
 
 def emit_canonical_json(tools: list[dict[str, Any]]) -> bytes:
-    """Emit byte-identical canonical JSON for compiled tools."""
     canonical_tools = canonicalize_compiled_tools(tools)
     return json.dumps(
         canonical_tools,
@@ -60,18 +52,15 @@ def emit_canonical_json(tools: list[dict[str, Any]]) -> bytes:
 
 
 def schema_fingerprint(tools: list[dict[str, Any]]) -> str:
-    """Return the SHA-256 fingerprint of the canonical compiled-tool JSON."""
     digest = hashlib.sha256(emit_canonical_json(tools)).hexdigest()
     return f"sha256:{digest}"
 
 
 def is_locked_artifact_path(path: Path) -> bool:
-    """Return True when ``path`` is the immutable v1 locked artifact location."""
     return path.name == LOCKED_ARTIFACT_NAME and path.parent.name == LOCKED_ARTIFACT_DIR
 
 
 def build_artifact(payload: dict[str, Any]) -> bytes:
-    """Build canonical artifact bytes from a controlled reference payload."""
     missing = [key for key in REQUIRED_PAYLOAD_KEYS if key not in payload]
     if missing:
         raise ValueError(f"Payload missing required keys: {', '.join(missing)}")
@@ -98,7 +87,6 @@ def build_artifact(payload: dict[str, Any]) -> bytes:
 
 
 def write_artifact(output: Path, artifact_bytes: bytes) -> None:
-    """Write artifact bytes, refusing to overwrite a locked artifact."""
     if output.exists() and is_locked_artifact_path(output):
         raise SystemExit(
             f"Refusing to overwrite locked artifact at {output}. "
@@ -109,7 +97,6 @@ def write_artifact(output: Path, artifact_bytes: bytes) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the CLI parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--input",
@@ -127,7 +114,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI entry point."""
     parser = build_parser()
     args = parser.parse_args(argv)
 

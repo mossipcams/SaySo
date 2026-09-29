@@ -1,4 +1,3 @@
-"""Tests for scripts/check_pr_title.py."""
 
 from __future__ import annotations
 
@@ -7,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import check_pr_title  # noqa: E402
+import check_pr_title
 
 
 def test_rejects_add_prefix_title() -> None:

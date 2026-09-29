@@ -1,4 +1,3 @@
-"""Realistic promotion cases: one production contract, explicit outcomes, enforced gates."""
 
 from __future__ import annotations
 
@@ -92,7 +91,7 @@ def test_spoken_aliases_exist_in_the_household() -> None:
 
 def test_eval_prompt_is_the_production_renderer_applied_to_the_ha_prompt() -> None:
     with training_path():
-        from generators.context import serialize_context  # noqa: PLC0415
+        from generators.context import serialize_context
 
     for case in PROMOTION:
         home = load_home(case.household)
@@ -112,7 +111,7 @@ class _Tool(llm.Tool):
         self.parameters = parameters
         self.description = description
 
-    async def async_call(self, hass, tool_input, llm_context):  # pragma: no cover
+    async def async_call(self, hass, tool_input, llm_context):
         return {}
 
 

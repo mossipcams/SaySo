@@ -1,4 +1,3 @@
-"""Colocated tests for wake eval scoring and synthetic audio harness."""
 
 from __future__ import annotations
 

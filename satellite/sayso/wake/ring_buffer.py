@@ -1,4 +1,3 @@
-"""Preallocated int16 ring buffer for wake-word windows."""
 
 from __future__ import annotations
 

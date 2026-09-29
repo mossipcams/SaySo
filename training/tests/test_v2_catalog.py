@@ -1,4 +1,3 @@
-"""Regression tests for device-type-tiered v2 schema alignment."""
 
 from __future__ import annotations
 

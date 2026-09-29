@@ -1,4 +1,3 @@
-"""Explicit mpv playback handling for the SaySo satellite overlay."""
 
 from __future__ import annotations
 
@@ -32,7 +31,6 @@ def classify_end_file_reason(reason: int) -> PlaybackOutcome:
 
 
 def configure_pulse_mpv() -> None:
-    """Use PulseAudio for mpv without rewriting end-file semantics."""
     from linux_voice_assistant.player import libmpv
 
     original_mpv = libmpv.mpv.MPV
@@ -46,7 +44,6 @@ def configure_pulse_mpv() -> None:
 
 
 def install_playback_recovery() -> None:
-    """Recover pipeline state on real mpv errors without masking them as success."""
     from linux_voice_assistant.player import libmpv
 
     original_end_file: Callable[..., None] = libmpv.LibMpvPlayer._on_end_file
@@ -70,7 +67,6 @@ def install_playback_recovery() -> None:
 
 
 def play_sound(path: str, device: str, timeout: float = 15.0) -> int:
-    """Play a local file and return 0 on success, 1 on failure or timeout."""
     configure_pulse_mpv()
     install_playback_recovery()
 

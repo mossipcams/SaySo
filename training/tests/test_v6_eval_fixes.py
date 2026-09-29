@@ -1,4 +1,3 @@
-"""Tests for the v6 generator eval fixes (Fix 5: fail-closed dataset hygiene gate)."""
 
 from __future__ import annotations
 
@@ -50,7 +49,6 @@ def _core_tool_names() -> set[str]:
 
 
 def test_no_smoke_row_lacks_a_core_tool(smoke_result) -> None:
-    """Home Assistant always offers the core tools, so every row must too."""
     core = _core_tool_names()
     for row in smoke_result["rows"]:
         offered = {t["function"]["name"] for t in row["tools"]}
@@ -58,7 +56,6 @@ def test_no_smoke_row_lacks_a_core_tool(smoke_result) -> None:
 
 
 def test_withholdable_operations_never_map_to_core_tools() -> None:
-    """Unavailable rows withhold the operation's tool; a core tool is never withheld."""
     from generators.capability_registry import operation_spec
     from generators.planning import CORE_TOOL_NAMES, _WITHHOLDABLE_OPERATIONS
 
@@ -89,11 +86,9 @@ def test_decoy_removals_never_withhold_core_tools() -> None:
         assert not withheld & core, f"decoy withheld core tools {withheld & core}"
 
 
-# --- Task 5a: real-home retries must not shift the attempt cadence -----------
 
 
 def _exclusion_slot() -> dict:
-    """A non-family lights/turn_on slot that hits the exclusion trigger at attempt 0."""
     return {
         "capability": "lights",
         "operation": "turn_on",
@@ -120,14 +115,12 @@ def _generate_row(attempt: int, retry: int):
 
 
 def test_retry_preserves_exclusion_cadence() -> None:
-    """A real-home retry keeps the exclusion trigger on the loop's attempt counter."""
     row, reason = _generate_row(attempt=0, retry=1)
     assert reason is None, reason
     assert row["metadata"]["category"] == "exclusion"
 
 
 def test_retry_draws_a_fresh_scenario() -> None:
-    """A retry must not repeat the rejected scenario, so it gets a fresh seed."""
     base, base_reason = _generate_row(attempt=0, retry=0)
     retried, retry_reason = _generate_row(attempt=0, retry=1)
     assert base_reason is None, base_reason
@@ -135,16 +128,9 @@ def test_retry_draws_a_fresh_scenario() -> None:
     assert base["messages"][1]["content"] != retried["messages"][1]["content"]
 
 
-# --- Task 5a round 2: capped real-home runs keep the exclusion floor ---------
 
 
 def test_capped_run_keeps_the_exclusion_floor() -> None:
-    """Cap rejections must not eat the audit's >= 0.5% exclusion floor.
-
-    A saturated real home rejects most real-home rows with
-    ``real_home_entity_cap``; the cadence attempts (attempt % 125) that carry
-    the exclusion floor must be redrawn instead of lost to those rejections.
-    """
     result = run_generation(
         GeneratorConfig(
             count=1500,
@@ -159,7 +145,6 @@ def test_capped_run_keeps_the_exclusion_floor() -> None:
     assert audit["exclusion_rows"] >= 0.005 * audit["rows"]
 
 
-# --- Task 5b: hygiene datetime requirement and underpowered core-tool ops ----
 
 
 def _row_calls_tool(row: dict, tool: str) -> bool:
@@ -171,18 +156,14 @@ def _row_calls_tool(row: dict, tool: str) -> bool:
 
 
 def test_hygiene_datetime_requirement_follows_coverage_config(smoke_result) -> None:
-    """A run with no datetime supervision must not be forced to teach GetDateTime."""
     rows = [row for row in smoke_result["rows"] if not _row_calls_tool(row, "llm__GetDateTime")]
     assert rows
-    # With zero GetDateTime positives the default gate still fails...
     with pytest.raises(RuntimeError, match="llm__GetDateTime"):
         enforce_hygiene(rows, len(rows))
-    # ...but a run configured with get_datetime_positive_min=0 is exempt.
     enforce_hygiene(rows, len(rows), require_datetime=False)
 
 
 def test_underpowered_operations_keep_core_tool_ops() -> None:
-    """The unsupported family builds an incapable device, so core-tool ops stay eligible."""
     from generators.capability_registry import operation_spec
     from generators.planning import (
         CORE_TOOL_NAMES,
@@ -199,7 +180,6 @@ def test_underpowered_operations_keep_core_tool_ops() -> None:
     assert not tools(_WITHHOLDABLE_OPERATIONS) & CORE_TOOL_NAMES
 
 
-# --- Task 5c: real-home repeats must not escape the exact-duplicate gate ----
 
 
 def _real_home(entities: list[dict]) -> dict:
@@ -207,15 +187,8 @@ def _real_home(entities: list[dict]) -> dict:
 
 
 def test_duplicate_tracker_rejects_real_home_repeat_despite_injected_entities() -> None:
-    """Injected entities mutate the home's entity list per row. The tracker must
-    key on the stable home identity, so the same (utterance, home) is rejected
-    after the first occurrence even when the entity lists differ. Otherwise the
-    real home emits the same generic utterance with different gold (v5b's
-    0.42% conflicts) and the hygiene gate fails."""
     tracker = DuplicateTracker(near_limit=3)
     base = {"utterance": "switch off the hallway light", "home": _real_home([]), "semantic_id": "a"}
-    # A later real-home row reuses the utterance but carries different injected
-    # entities (build_scenario appends per row), so the entity lists differ.
     injected = {
         "utterance": "switch off the hallway light",
         "home": _real_home(
@@ -229,8 +202,6 @@ def test_duplicate_tracker_rejects_real_home_repeat_despite_injected_entities() 
 
 
 def test_duplicate_tracker_still_distinguishes_different_homes() -> None:
-    """Keying on the home identity must not collapse distinct homes: the same
-    utterance in a different home is a new pair, not a duplicate."""
     tracker = DuplicateTracker(near_limit=3)
     first = {"utterance": "switch off the hallway light", "home": _real_home([]), "semantic_id": "a"}
     other = {
@@ -242,12 +213,9 @@ def test_duplicate_tracker_still_distinguishes_different_homes() -> None:
     assert tracker.would_reject(other) is None
 
 
-# --- Task 1a: nickname aliases, aliases draw, and the audit count ------------
 
 
 def test_nickname_aliases_appear_in_generated_homes() -> None:
-    """generate_home draws informal nickname aliases; none is an eval nickname,
-    and nicknames are aliases only, never entity names."""
     import random
 
     from generators.homes import _NICKNAMES, generate_home
@@ -269,9 +237,6 @@ def test_nickname_aliases_appear_in_generated_homes() -> None:
 
 
 def test_alias_distractor_rows_resolve_alias_to_canonical_with_sibling() -> None:
-    """Alias rows speak an alias that is not the canonical name, gold still
-    calls the canonical name, and the home always carries a same-domain,
-    same-area near-miss sibling of the target so the model must disambiguate."""
     from generators.planning import _ALIASES_COMBINATIONS
     from generators.scenarios.core import build_scenario
 
@@ -316,8 +281,6 @@ def test_alias_distractor_rows_resolve_alias_to_canonical_with_sibling() -> None
 
 
 def test_aliases_slots_cover_media_players_and_turn_off() -> None:
-    """The aliases family draw must reach the v5b failure shapes: media_players
-    targets and turn_off operations, not only lights x turn_on."""
     from generators.planning import build_plan
 
     plan = build_plan(200, seed=1, allocations={"aliases": 1.0})
@@ -330,7 +293,6 @@ def test_aliases_slots_cover_media_players_and_turn_off() -> None:
     assert {"turn_on", "turn_off"} <= operations
 
 
-# --- Fix 2: settings-request ambiguity for clarify/follow_up ----------------
 
 
 def _settings_slot(family: str, capability: str, operation: str, index: int) -> dict:
@@ -346,9 +308,6 @@ def _settings_slot(family: str, capability: str, operation: str, index: int) -> 
 
 
 def test_clarify_follow_up_draw_ambiguous_settings_operations() -> None:
-    """v5b answered "dim the reading light to 30 percent" with HassLightSet
-    despite two candidates, because clarify only covered on/off/status. About
-    half of clarify/follow_up rows must draw a settings operation instead."""
     import random
 
     from generators.planning import AMBIGUOUS_SETTINGS, _pick_capability_operation
@@ -364,8 +323,6 @@ def test_clarify_follow_up_draw_ambiguous_settings_operations() -> None:
 
 
 def test_clarify_settings_rows_clarify_with_candidates() -> None:
-    """Settings-op clarify rows stay a clarification turn: no tool call, and the
-    question names the real candidates."""
     import random
     import re
 
@@ -403,8 +360,6 @@ def test_clarify_settings_rows_clarify_with_candidates() -> None:
 
 
 def test_follow_up_settings_gold_reuses_spoken_value() -> None:
-    """The follow-up gold reuses the value spoken in the ambiguous first turn,
-    so the value arguments of the gold call appear in that utterance."""
     import json
     import random
 
@@ -448,7 +403,6 @@ def test_follow_up_settings_gold_reuses_spoken_value() -> None:
     assert checked >= 10, f"only {checked} follow_up settings rows were accepted"
 
 
-# --- Fix 3: withheld-tool refusal with sibling tools offered -----------------
 
 
 def _offered_tools(row: dict) -> set[str]:
@@ -463,9 +417,6 @@ def _unavailable_rows(smoke_result: dict) -> list[dict]:
 
 
 def test_unavailable_rows_withhold_only_the_requested_tool(smoke_result) -> None:
-    """Unavailable rows withhold exactly the requested op's tool, and the
-    sibling tools v5b substituted to (light__HassLightSet,
-    media_player__HassSetVolume) are offered as temptations unless withheld."""
     from generators.planning import CORE_TOOL_NAMES
     from generators.tools import namespaced_tool_name
 
@@ -490,8 +441,6 @@ def test_unavailable_rows_withhold_only_the_requested_tool(smoke_result) -> None
 
 
 def test_non_refusal_rows_offer_the_requested_tool(smoke_result) -> None:
-    """The refusal contrast only works while non-unavailable rows never withhold
-    the requested operation's tool (decoy removals stay off it)."""
     from generators.coverage import expected_tool
     from generators.tools import namespaced_tool_name
 
@@ -520,8 +469,6 @@ def test_non_refusal_rows_offer_the_requested_tool(smoke_result) -> None:
 
 
 def test_audit_reports_by_withheld_tool(smoke_result) -> None:
-    """The quality audit reports the withheld-tool distribution so
-    substitution-prone pairs are covered."""
     report = smoke_result["stats"]["quality_audit"]
     assert "by_withheld_tool" in report
     assert report["by_withheld_tool"], (
@@ -529,13 +476,9 @@ def test_audit_reports_by_withheld_tool(smoke_result) -> None:
     )
 
 
-# --- Fix 4: near-miss exclusion picks, scope metadata, and audit counts -----
 
 
 def test_exclusion_rows_prefer_near_miss_same_area_siblings() -> None:
-    """Same-area exclusion rows must exclude the in-area device that reads most
-    like its neighbours: same area and domain as every target, never in gold,
-    and the max name-token-overlap score among in-area entities."""
     from generators.scenarios.core import _near_miss_score, build_scenario
 
     checked = 0
@@ -571,8 +514,6 @@ def test_exclusion_rows_prefer_near_miss_same_area_siblings() -> None:
 
 
 def test_smoke_audit_counts_exclusion_scopes(smoke_result) -> None:
-    """The audit splits exclusion rows into same-area scope vs named-list
-    contrast, and every exclusion row lands in exactly one bucket."""
     audit = smoke_result["stats"]["quality_audit"]
     assert audit["exclusion_same_area"] >= 1
     assert audit["exclusion_same_area"] + audit["exclusion_named_list"] == audit["exclusion_rows"]

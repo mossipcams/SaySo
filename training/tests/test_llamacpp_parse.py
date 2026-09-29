@@ -1,4 +1,3 @@
-"""Tests for production llama.cpp completion parsing."""
 
 from __future__ import annotations
 

@@ -1,13 +1,3 @@
-"""Minimal Home Assistant websocket client for the two facts REST cannot give.
-
-``/api/states`` and ``/api/template`` carry neither *which entities are exposed to
-Assist* nor *their aliases*, and both decide what a training snapshot may contain:
-an entity Assist cannot see must never appear in the corpus, and an alias is how a
-household actually names a device. Both live behind ``/api/websocket``.
-
-stdlib only -- a client-side RFC 6455 text channel is about eighty lines, which is
-cheaper than adding a websocket dependency to the training venv.
-"""
 
 from __future__ import annotations
 
@@ -24,7 +14,6 @@ _TEXT, _BINARY, _CLOSE, _PING, _PONG = 0x1, 0x2, 0x8, 0x9, 0xA
 
 
 def encode_frame(payload: bytes, opcode: int = _TEXT) -> bytes:
-    """One masked client frame. Clients must mask; servers must not."""
     mask = os.urandom(4)
     length = len(payload)
     header = bytes([0x80 | opcode])
@@ -38,7 +27,6 @@ def encode_frame(payload: bytes, opcode: int = _TEXT) -> bytes:
 
 
 def decode_frame(stream) -> tuple[bool, int, bytes]:
-    """Read one frame from a buffered reader: (fin, opcode, payload)."""
     head = stream.read(2)
     if len(head) < 2:
         raise ConnectionError("websocket closed while reading a frame header")
@@ -58,7 +46,6 @@ def decode_frame(stream) -> tuple[bool, int, bytes]:
 
 
 class HomeAssistantWebSocket:
-    """Authenticated request/response channel. Not a subscription client."""
 
     def __init__(self, base_url: str, token: str, *, timeout: float = 30.0) -> None:
         parsed = urlparse(base_url.rstrip("/"))
@@ -137,7 +124,6 @@ class HomeAssistantWebSocket:
                 return json.loads(buffer.decode())
 
     def command(self, message: dict[str, Any]) -> Any:
-        """Send one command and return its ``result``, raising on failure."""
         request_id = self._next_id
         self._next_id += 1
         self._send({**message, "id": request_id})
@@ -151,11 +137,6 @@ class HomeAssistantWebSocket:
 
 
 def fetch_assist_registry(base_url: str, token: str) -> dict[str, Any]:
-    """Assist exposure and aliases, keyed by entity id.
-
-    ``expose_entity/list`` is authoritative for exposure; aliases live on the
-    individual registry entry, so they are fetched only for exposed entities.
-    """
     with HomeAssistantWebSocket(base_url, token) as client:
         exposure = client.command({"type": "homeassistant/expose_entity/list"}) or {}
         exposed_map = exposure.get("exposed_entities", exposure)
@@ -171,7 +152,7 @@ def fetch_assist_registry(base_url: str, token: str) -> dict[str, Any]:
                     {"type": "config/entity_registry/get", "entity_id": entity_id}
                 )
             except RuntimeError:
-                continue  # entity exists in state machine but not in the registry
+                continue
             if entry and entry.get("aliases"):
                 aliases[entity_id] = list(entry["aliases"])
     return {"exposed": exposed, "aliases": aliases}

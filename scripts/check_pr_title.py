@@ -1,4 +1,3 @@
-"""Validate pull request titles against Conventional Commits."""
 
 from __future__ import annotations
 
@@ -23,7 +22,6 @@ ALLOWED_TYPES = frozenset(
     }
 )
 
-# type(scope)!: description — scope allows word chars, dots, dashes, slashes.
 _PR_TITLE_RE = re.compile(
     r"^(?P<type>[a-z]+)"
     r"(?:\((?P<scope>[\w./-]+)\))?"
@@ -34,7 +32,6 @@ _PR_TITLE_RE = re.compile(
 
 
 def validate_title(title: str) -> tuple[bool, str]:
-    """Return (ok, error_message)."""
     stripped = title.strip()
     if not stripped:
         return False, "PR title must not be empty."

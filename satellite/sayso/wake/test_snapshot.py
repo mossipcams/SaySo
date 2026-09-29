@@ -1,4 +1,3 @@
-"""Colocated tests for wake corpus session-level snapshots."""
 
 from __future__ import annotations
 

@@ -1,4 +1,3 @@
-"""JSON Schema validation for tool arguments."""
 
 from __future__ import annotations
 

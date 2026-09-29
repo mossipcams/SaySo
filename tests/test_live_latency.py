@@ -1,4 +1,3 @@
-"""Live llama.cpp latency measurement. Not a second eval runner."""
 
 from __future__ import annotations
 

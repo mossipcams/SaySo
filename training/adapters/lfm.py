@@ -1,4 +1,3 @@
-"""LFM2.5-230M training helpers using SaySo's OpenAI tool envelope."""
 
 from __future__ import annotations
 
@@ -22,12 +21,10 @@ _LOCAL_TOKENIZER_DIR = _TRAINING_ROOT / "artifacts" / "lfm-base-tokenizer"
 
 
 def lfm_tool_catalog() -> list[dict[str, Any]]:
-    """Canonical v1 tools for LFM training examples."""
     return v1_openai_tools()
 
 
 def prepare_lfm_example(example: TrainingExample) -> TrainingExample:
-    """Ensure a converted example uses the locked v1 catalog and runtime envelope."""
     assert_tools_subset_of_v1(example.tools)
     for message in example.messages:
         if message.get("role") != "assistant":
@@ -54,7 +51,6 @@ def prepare_lfm_example(example: TrainingExample) -> TrainingExample:
 
 
 def lfm_jsonl_line(example: TrainingExample) -> str:
-    """Serialize one LFM training record (SaySo runtime envelope, not ChatML tool-call labels)."""
     prepared = prepare_lfm_example(example)
     line = prepared.to_jsonl_line(view="lfm")
     if contains_chatml_tool_call_markers(line):
@@ -63,19 +59,16 @@ def lfm_jsonl_line(example: TrainingExample) -> str:
 
 
 def forbidden_chatml_tool_call_patterns() -> frozenset[str]:
-    """Markers that must never appear in LFM fine-tuning labels."""
     return CHATML_TOOL_CALL_MARKERS
 
 
 def validate_lfm_config_text(config_text: str) -> None:
-    """Reject Axolotl configs that embed ChatML tool-call rendering."""
     for marker in CHATML_TOOL_CALL_MARKERS:
         if marker in config_text:
             raise ValueError(f"LFM config must not render ChatML tool-call labels ({marker})")
 
 
 def _call_with_parsed_arguments(call: dict[str, Any]) -> dict[str, Any]:
-    """Copy of ``call`` with JSON-string ``arguments`` parsed for the chat template."""
     function = call.get("function")
     if not isinstance(function, dict) or not isinstance(function.get("arguments"), str):
         return call
@@ -87,7 +80,6 @@ def _call_with_parsed_arguments(call: dict[str, Any]) -> dict[str, Any]:
 
 
 def default_chat_template_model() -> str:
-    """Prefer the checked-in Base tokenizer when present (offline tests)."""
     if (_LOCAL_TOKENIZER_DIR / "tokenizer.json").is_file():
         return str(_LOCAL_TOKENIZER_DIR)
     return LFM_BASE_TRAINING_MODEL
@@ -137,7 +129,6 @@ def render_supervised_turn(
     *,
     model_name: str | None = None,
 ) -> dict[str, str]:
-    """Render one alpaca instruction/output pair for a supervised assistant turn."""
     messages = row.get("messages") or []
     message = messages[supervised_index]
     if message.get("role") != "assistant" or not message.get("train_on_turn"):
@@ -175,7 +166,6 @@ def expand_canonical_row_to_views(
     model_name: str | None = None,
     source_row_index: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Expand one canonical row into one derived view per supervised assistant turn."""
     views: list[dict[str, Any]] = []
     for index, message in enumerate(row.get("messages") or []):
         if message.get("role") != "assistant" or not message.get("train_on_turn"):
@@ -196,7 +186,6 @@ def dataset_info_fragment(
     dataset_name: str,
     file_name: str,
 ) -> dict[str, dict[str, Any]]:
-    """Build one LlamaFactory ``dataset_info.json`` entry (alpaca instruction/output)."""
     return {
         dataset_name: {
             "file_name": file_name,
@@ -210,7 +199,6 @@ def dataset_info_fragment(
 
 
 def validate_llamafactory_full_config(cfg: dict[str, Any]) -> None:
-    """Fail closed on LoRA/quantization/ChatML markers in the v5 full recipe."""
     if cfg.get("finetuning_type") != "full":
         raise ValueError("v5 recipe must use finetuning_type: full")
     for key in ("lora", "quantization_bit", "adapter_name_or_path"):

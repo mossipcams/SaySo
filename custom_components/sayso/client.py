@@ -1,4 +1,3 @@
-"""Async llama.cpp OpenAI-compatible HTTP client."""
 
 from __future__ import annotations
 
@@ -18,8 +17,7 @@ from .const import (
     DEFAULT_TIMEOUT,
     MODELS_PATH,
 )
-# Re-exported: the parsing half of this module lives in .completion.
-from .completion import (  # noqa: F401
+from .completion import (
     ChatCompletionResult,
     ToolCall,
     parse_choice_message,
@@ -37,7 +35,6 @@ from .exceptions import (
 
 
 def normalize_base_url(base_url: str) -> str:
-    """Normalize a llama.cpp base URL and ensure a single /v1 suffix."""
     url = base_url.strip().rstrip("/")
     while url.endswith("/v1/v1"):
         url = url[:-3]
@@ -47,7 +44,6 @@ def normalize_base_url(base_url: str) -> str:
 
 
 def serialize_chat_completions_payload(payload: dict[str, Any]) -> bytes:
-    """Serialize the chat-completions payload using aiohttp-compatible JSON."""
     return json.dumps(payload, ensure_ascii=True).encode("utf-8")
 
 
@@ -59,7 +55,6 @@ def build_chat_completions_payload(
     temperature: float = DEFAULT_TEMPERATURE,
     max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
 ) -> dict[str, Any]:
-    """Build the production chat-completions payload sent to llama.cpp."""
     payload: dict[str, Any] = {
         "model": model,
         "messages": messages,
@@ -80,7 +75,6 @@ def _format_llama_error(error: Any) -> str:
 
 
 def _raise_for_status(response: ClientResponse) -> None:
-    """Translate llama.cpp's HTTP status into a SaySo error."""
     if response.status in {401, 403}:
         raise SaySoAuthError("llama.cpp rejected the API key")
     if response.status >= 400:
@@ -88,7 +82,6 @@ def _raise_for_status(response: ClientResponse) -> None:
 
 
 async def _read_json_body(response: ClientResponse) -> dict[str, Any]:
-    """Decode a llama.cpp JSON envelope, surfacing its own ``error`` field."""
     try:
         body = await response.json(content_type=None)
     except (json.JSONDecodeError, aiohttp.ContentTypeError, ValueError) as err:
@@ -101,7 +94,6 @@ async def _read_json_body(response: ClientResponse) -> dict[str, Any]:
 
 
 class LlamaCppClient:
-    """Transport-only client for llama.cpp chat completions."""
 
     def __init__(
         self,
@@ -125,28 +117,23 @@ class LlamaCppClient:
         api_key: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
     ) -> LlamaCppClient:
-        """Create a client using Home Assistant's shared aiohttp session."""
         return cls(
             async_get_clientsession(hass), base_url, api_key=api_key, timeout=timeout
         )
 
     @property
     def base_url(self) -> str:
-        """Normalized llama.cpp base URL."""
         return self._base_url
 
     @property
     def chat_completions_url(self) -> str:
-        """Full URL for chat completions."""
         return f"{self._base_url}{CHAT_COMPLETIONS_PATH}"
 
     @property
     def models_url(self) -> str:
-        """Full URL for the models listing endpoint."""
         return f"{self._base_url}{MODELS_PATH}"
 
     def _request_kwargs(self) -> dict[str, Any]:
-        """Auth and timeout applied identically to every request."""
         return {
             "headers": (
                 {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
@@ -159,11 +146,6 @@ class LlamaCppClient:
         open_request: Callable[[], Any],
         handle: Callable[[ClientResponse], Awaitable[T]],
     ) -> T:
-        """Run one request, translating transport failures into SaySo errors.
-
-        The request is opened inside the ``try`` so a session that fails at
-        connect time is reported the same way as one that fails mid-response.
-        """
         try:
             async with open_request() as response:
                 _raise_for_status(response)
@@ -174,14 +156,12 @@ class LlamaCppClient:
             raise SaySoConnectionError("llama.cpp is unreachable") from err
 
     async def list_models(self) -> list[str]:
-        """Return model identifiers advertised by llama.cpp."""
         return await self._send(
             lambda: self._session.get(self.models_url, **self._request_kwargs()),
             _parse_models,
         )
 
     async def validate_model(self, model: str) -> None:
-        """Ensure the configured model is available on llama.cpp."""
         if model not in await self.list_models():
             raise SaySoModelNotFoundError(f"Model {model!r} is not available")
 
@@ -194,7 +174,6 @@ class LlamaCppClient:
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     ) -> ChatCompletionResult:
-        """Request a single chat completion from llama.cpp."""
         payload = build_chat_completions_payload(
             messages,
             model=model,
@@ -230,7 +209,6 @@ class LlamaCppClient:
         )
 
     async def probe_ttft_ms(self, payload: dict[str, Any]) -> float:
-        """Measure time-to-first-token using an eval-only streaming probe."""
         started_at = time.perf_counter()
 
         async def first_token(response: ClientResponse) -> float:
@@ -262,7 +240,6 @@ class LlamaCppClient:
 
 
 async def _parse_models(response: ClientResponse) -> list[str]:
-    """Read the ``/v1/models`` listing, rejecting anything unusable."""
     body = await _read_json_body(response)
     data = body.get("data")
     invalid = SaySoInvalidResponseError("llama.cpp returned invalid models list")
@@ -282,7 +259,6 @@ async def _parse_models(response: ClientResponse) -> list[str]:
 
 
 def _sse_event_has_generated_token(event: Any) -> bool:
-    """Return whether one stream event carries the first real output token."""
     choices = event.get("choices") if isinstance(event, dict) else None
     choice = choices[0] if isinstance(choices, list) and choices else None
     delta = choice.get("delta") if isinstance(choice, dict) else None

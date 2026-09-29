@@ -1,13 +1,3 @@
-"""Paired scenarios where the request is fixed and the entity graph moves.
-
-The failure this addresses is a model that answers "turn on the living room media
-player" from the wording alone. Each family below holds the request constant and
-changes one thing about the home -- the target's name, its id, its aliases, its
-area, its domain, or the actions it supports -- so the correct answer changes with
-it. Nothing here hard-codes an expected call: every variant is handed to
-``build_scenario``/``gold_from_scenario``, which derive the label from the graph
-and the pinned tool contract. Wording is applied afterwards, as for any other row.
-"""
 
 from __future__ import annotations
 
@@ -48,7 +38,6 @@ def entity(
 
 
 def home(home_id: str, entities: list[dict[str, Any]], *, sayso_entity_area: str) -> dict[str, Any]:
-    """A home dict in the shape ``generate_home`` returns."""
     floors = {}
     for item in entities:
         floors.setdefault(item["area"], item.get("floor") or "Main Floor")
@@ -81,9 +70,6 @@ def variant(
     rng_index: int | None = None,
     request_intent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """One member of a family. ``phrasing_seed`` is the family, not the member, so
-    every member renders the same request and only the label moves.
-    """
     return {
         "family": f"{prefix}_{label}",
         "phrasing_seed": prefix,
@@ -99,8 +85,6 @@ def variant(
     }
 
 
-# Distractors that must not steal the target: other domains in the same room, and
-# the same domain in another room.
 def _distractors(area: str, elsewhere: str) -> list[dict[str, Any]]:
     return [
         entity("Floor Lamp", "lights", area),
@@ -121,12 +105,6 @@ def media_presence_family(
     entity_id: str,
     aliases: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """One request ("turn on the <area> media player"), four entity graphs.
-
-    present -> the one eligible player; renamed -> the same device under a new
-    name; moved -> no eligible player in the area at all; distractors -> the same
-    answer as `present` with lights, switches and another player added.
-    """
     features = ("on", "off", "play", "pause", "volume", "volume_step", "mute", "next", "previous")
 
     def player(name: str, in_area: str) -> dict[str, Any]:
@@ -165,7 +143,6 @@ def _screen(name: str, area: str, *, aliases: list[str] | None = None,
 
 
 def _speaker(name: str, area: str) -> dict[str, Any]:
-    """A same-domain, same-area distractor that cannot be the requested screen."""
     return entity(name, "media_players", area, device_class="speaker",
                   features=("on", "off", "play", "pause", "volume", "volume_step", "mute"))
 
@@ -181,36 +158,7 @@ def named_device_family(
     utterance: str,
     from_elsewhere: bool = False,
 ) -> list[dict[str, Any]]:
-    """One fixed request against a device whose *name* and *area* are separate.
-
-    This is the shape issue #52 failed on: `media_player.living_room_tv` is named
-    "TV" and lives in "Living Room", so neither "turn on the TV" nor "turn on the
-    living room TV" contains the entity's full canonical name plus its room. The
-    request is held fixed and only the home moves:
-
-    ``bare``        the device named exactly ``device`` in ``area``;
-    ``room_named``  the same device renamed to "<area> <device>", so the canonical
-                    name now contains the room -- the answer must not change;
-    ``aliased``     canonical name is something else entirely and ``device`` is
-                    only an alias;
-    ``speaker``     a same-area, same-domain speaker distractor whose *name*
-                    carries the room ("<area> Media Player"). This is the exact
-                    trap the deployed model fell into, answering
-                    ``name="Living Room Media Player"`` for "turn off the living
-                    room TV";
-    ``absent``      no screen anywhere, but other media players are present, so
-                    absence is real and is not "no media players at all";
-    ``ambiguous``   two eligible screens in the room, so one short question is
-                    the only correct answer;
-    ``irrelevant``  ``bare`` plus unrelated lights and a switch elsewhere; the
-                    expected action must be identical to ``bare``.
-
-    ``from_elsewhere`` puts the satellite in another room, so the room named in
-    the request has to override the satellite's default area.
-    """
     satellite_area = elsewhere if from_elsewhere else area
-    # The structured intent behind the fixed wording. ``area`` is stated whenever
-    # the request names a room, so an explicit room overrides the satellite's.
     names_room = area.casefold() in utterance.casefold()
     common = dict(
         prefix=prefix, capability="media_players", operation=operation,
@@ -256,7 +204,6 @@ def named_device_family(
 
 
 def ambiguity_family(*, prefix: str, area: str, names: tuple[str, str]) -> list[dict[str, Any]]:
-    """One eligible light -> act on it; two -> genuine ambiguity, ask which."""
     first, second = names
     common = dict(
         prefix=prefix, capability="lights", operation="turn_on",
@@ -273,7 +220,6 @@ def ambiguity_family(*, prefix: str, area: str, names: tuple[str, str]) -> list[
 
 
 def domain_family(*, prefix: str, area: str, fan_name: str, light_name: str) -> list[dict[str, Any]]:
-    """The same room with a fan, and without one: the domain decides the answer."""
     common = dict(
         prefix=prefix, capability="fans", operation="turn_on",
         targeting="area", robustness="ambiguity", area=area,
@@ -294,7 +240,6 @@ def domain_family(*, prefix: str, area: str, fan_name: str, light_name: str) -> 
 
 
 def supported_action_family(*, prefix: str, area: str, name: str) -> list[dict[str, Any]]:
-    """Same device, same request: one build supports volume, the other does not."""
     common = dict(
         prefix=prefix, capability="media_players", operation="volume_set",
         targeting="area", robustness="ambiguity", area=area, rng_index=0,
@@ -317,13 +262,6 @@ def supported_action_family(*, prefix: str, area: str, name: str) -> list[dict[s
 
 
 def alias_family(*, prefix: str, area: str, name: str, alias: str) -> list[dict[str, Any]]:
-    """The alias, not the canonical name, is what the request will use.
-
-    ``rng_index=0`` pins the target to the aliased entity. Without it
-    ``pick_target`` rotates on the caller's row index, so roughly half of these
-    rows targeted the *distractor* ("Ceiling Light") and taught nothing about
-    aliases while still being counted and labelled as alias grounding rows.
-    """
     return [
         variant(
             prefix=prefix, label="alias", capability="lights", operation="turn_on",
@@ -336,7 +274,6 @@ def alias_family(*, prefix: str, area: str, name: str, alias: str) -> list[dict[
 
 
 def canonical_variants() -> list[dict[str, Any]]:
-    """The hand-written contrast set: one site, names/ids/areas held out of eval."""
     variants: list[dict[str, Any]] = []
     variants += media_presence_family(
         prefix="ground_media_a",
@@ -367,19 +304,11 @@ def canonical_variants() -> list[dict[str, Any]]:
     variants += alias_family(
         prefix="ground_alias", area="Music Room", name="Practice Lamp", alias="rehearsal light"
     )
-    # Issue #52. Canonical, so `required_training_variants` forces every contrast
-    # to land: at 2.8% grounding the site rotation delivered 12 rows at n=4000 and
-    # the `speaker` and `irrelevant` contrasts -- the two that carry the actual
-    # defect -- landed zero times. A sampling rate is not coverage.
     variants += named_device_family(
         prefix="ground_named",
         area="Loft",
         elsewhere="Cellar",
         device="Television",
-        # turn_off, not turn_on: a required grounding family outranks the
-        # real-home draw for its (capability, operation) pair, and real-home
-        # mixing needs media_players/turn_on. `media_presence_family` already
-        # claims turn_on, so a second required turn_on family starved it.
         entity_id="media_player.loft_television",
         operation="turn_off",
         utterance="Turn off the television",
@@ -387,26 +316,12 @@ def canonical_variants() -> list[dict[str, Any]]:
     return variants
 
 
-# Areas the canonical set and the eval set already occupy. A site reusing one
-# would either collide with a held-out eval prompt (the area is what the media
-# and ambiguity families say out loud) or duplicate a canonical scenario.
 _RESERVED_AREAS: frozenset[str] = frozenset({
-    # canonical (above)
     "Den", "Attic", "Sunroom", "Workshop", "Craft Room", "Pantry", "Landing", "Music Room",
     "Loft", "Cellar",
-    # evals/cases/regressions.jsonl grounding variants
     "Living Room", "Bedroom", "Office", "Basement", "Kitchen", "Bathroom", "Porch",
 })
 
-# Device words per site, rotated so neighbouring sites do not read alike. Drawn
-# from the same vocabulary the synthetic homes use (homes._ROLES), so a grounding
-# row looks like the rest of the corpus.
-#
-# Bare "TV" is held out the way `_RESERVED_AREAS` holds out Living Room. The
-# named-device families say the device word on its own ("Turn on the tv"), which
-# carries no area, so a site drawing "TV" reproduces the frozen issue #52 eval
-# prompt verbatim. "OLED TV" and "Streaming TV" keep the token in training
-# without colliding.
 _RESERVED_DEVICE_WORDS = frozenset({"TV"})
 _SITE_SCREENS = tuple(
     word for word in ("TV", "Television", "OLED TV", "Streaming TV", "Display", "Projector")
@@ -424,15 +339,6 @@ def _slug(text: str) -> str:
 
 
 def site_variants(index: int, area: str, elsewhere: str) -> list[dict[str, Any]]:
-    """The whole contrast set instantiated at one more area, with fresh names.
-
-    Every variant is one fixed scenario, and ``DuplicateTracker`` caps rows per
-    scenario at ``near_duplicate_limit`` (8). A single-site catalogue therefore
-    has a hard ceiling of ~15*8 grounding rows *no matter how large the corpus
-    is* -- which is exactly why the 40k v1 corpus shipped 136 grounding rows
-    against a 1120-row request, and why 2k looked healthy at 2.4%. Sites are the
-    capacity knob: ceiling = variants * near_duplicate_limit.
-    """
     tag = f"s{index:02d}"
     screen = _SITE_SCREENS[index % len(_SITE_SCREENS)]
     lamp_a = _SITE_LAMPS[index % len(_SITE_LAMPS)]
@@ -465,18 +371,10 @@ def site_variants(index: int, area: str, elsewhere: str) -> list[dict[str, Any]]
         name=f"{area} {lamp_b}",
         alias=_SITE_ALIASES[index % len(_SITE_ALIASES)],
     )
-    # Issue #52: name and area stored separately. Three wordings of one request --
-    # bare device noun, room-qualified, and room-as-prepositional-phrase -- plus
-    # both polarities and a satellite standing in another room.
-    # One wording per site, rotated. All three at every site would triple the
-    # grounding catalogue's share of (media_players, turn_on) slots and starve the
-    # real-home TV rows that need the same pair -- caught by
-    # test_mixing_produces_positive_tv_rows_for_its_supported_operations.
     lowered = area.casefold()
     wording, operation, away = (
         ("bare", "turn_on", False),
         ("room", "turn_off", False),
-        # The satellite sits in `elsewhere`, so "in the <area>" must beat its default.
         ("away", "turn_on", True),
     )[index % 3]
     utterance = {
@@ -494,7 +392,6 @@ def site_variants(index: int, area: str, elsewhere: str) -> list[dict[str, Any]]
 
 
 def _sites() -> list[tuple[str, str]]:
-    """(area, elsewhere) pairs, one per extra instantiation of the contrast set."""
     from generators.homes import _AREAS
 
     areas = [area for area in _AREAS if area not in _RESERVED_AREAS]
@@ -510,30 +407,11 @@ def _catalogue() -> tuple[dict[str, Any], ...]:
 
 
 def training_variants() -> list[dict[str, Any]]:
-    """Grounding variants safe to train on: names, ids and areas held out of eval.
-
-    Cached and shared: every consumer deep-copies the home before building a
-    scenario, so handing out the same dicts is safe and saves rebuilding a few
-    hundred homes on every slot.
-    """
     return list(_catalogue())
 
 
 def required_training_variants() -> list[dict[str, Any]]:
-    """One complete contrast set; every other site is extra diversity.
-
-    Kept to the canonical site so the "every contrast family must land" gate
-    stays reachable on small runs. The extra sites carry no gate: they exist to
-    lift the per-scenario duplicate ceiling, not to add contrast categories.
-    """
     canonical = {variant["family"] for variant in canonical_variants()}
-    # The named family's refusal contrasts (`absent`, `ambiguous`) are not
-    # required. Every refusal family competes for a bucket's small negative
-    # allowance, and requiring two more exhausted it: a 1500-row mixed run failed
-    # closed on `quota_negative_full` after 30k attempts. They stay in the
-    # catalogue and land through the site rotation; the positive contrasts --
-    # `speaker` and `irrelevant`, which carry the actual issue #52 defect -- are
-    # the ones the gate must force.
     return [
         variant for variant in training_variants()
         if variant["family"] in canonical
@@ -543,11 +421,6 @@ def required_training_variants() -> list[dict[str, Any]]:
 
 
 def build_spec(variant: dict[str, Any], *, seed: int = 20260910, index: int = 0) -> dict[str, Any]:
-    """Scenario -> spec for one variant, with the label derived from the graph.
-
-    Deliberately the same order the pipeline uses: build the entity graph, let
-    ``gold_from_scenario`` decide the answer, and only then choose wording.
-    """
     import copy
 
     from generators.labels import scenario_to_spec
@@ -590,7 +463,6 @@ def _requested_names(spec: dict[str, Any]) -> list[str]:
 
 
 def build_row(variant: dict[str, Any], *, seed: int = 20260910, index: int = 0) -> dict[str, Any]:
-    """A rendered row in the production prompt/context format and tool schema."""
     from generators.labels import render_example
 
     spec = build_spec(variant, seed=seed, index=index)
@@ -602,7 +474,6 @@ def build_row(variant: dict[str, Any], *, seed: int = 20260910, index: int = 0) 
 def pick_variant(
     capability: str, operation: str, index: int, *, variants: list[dict[str, Any]] | None = None
 ) -> dict[str, Any] | None:
-    """Deterministically choose a grounding variant for a quota slot, or None."""
     pool = [
         variant
         for variant in (variants if variants is not None else training_variants())
@@ -613,19 +484,13 @@ def pick_variant(
     return pool[index % len(pool)]
 
 
-# Requiring every grounding contrast family needs slack, not parity.
 GROUNDING_FAMILY_SLACK = 2
 
-# Recipe families that can host a grounding row unchanged: the variant's gold
-# alone decides the family (action -> ordinary, area_unavailable -> absence, ...).
-# follow_up/correction/junk rewrite the gold after the fact; aliases/settings
-# would lose their own contract; multi_action/area never match one variant.
 GROUNDING_CARRIER_FAMILIES = frozenset({"ordinary", "absence", "unsupported", "clarify"})
 
 
 @lru_cache(maxsize=None)
 def carrier_variants(family: str) -> tuple[dict[str, Any], ...]:
-    """Training variants whose graph-derived gold satisfies ``family``."""
     if family not in GROUNDING_CARRIER_FAMILIES:
         return ()
     from generators.gold import gold_matches_family
@@ -640,12 +505,6 @@ def carrier_variants(family: str) -> tuple[dict[str, Any], ...]:
 def pick_carrier_variant(
     slot: dict[str, Any], rng: random.Random, missing: Any = ()
 ) -> dict[str, Any] | None:
-    """Variant for a carrier slot: missing families first, then the slot's own pair.
-
-    A slot the plan marked for grounding draws from the whole family pool: the
-    overlay replaces its operation anyway, and pinning it to its own pair kept
-    re-drawing the few same-pair variants past the duplicate limit.
-    """
     pool = list(carrier_variants(slot.get("family") or ""))
     pool = [v for v in pool if v["family"] in missing] or pool
     if slot.get("grounding"):
@@ -666,19 +525,16 @@ def grounding_pairs() -> frozenset[tuple[str, str]]:
 
 
 def slot_can_carry_grounding(slot: dict[str, Any] | None) -> bool:
-    """True when a recipe slot can overlay a grounding variant without a family steal."""
     if not slot or slot.get("area_scenario"):
         return False
     return bool(carrier_variants(slot.get("family") or ""))
 
 
 def grounding_capacity(config: Any) -> int:
-    """Most grounding rows the catalogue can ever produce at any corpus size."""
     return len(training_variants()) * config.near_duplicate_limit
 
 
 def slot_ceiling(config: Any, pairs: set[tuple[str, str]]) -> float:
-    """Share of the quota plan landing on ``pairs``, net of real-home mixing."""
     from generators.sampling import build_quota_plan
 
     plan = build_quota_plan(config.count, config.seed, config.tier_proportions)
@@ -692,13 +548,11 @@ def slot_ceiling(config: Any, pairs: set[tuple[str, str]]) -> float:
 
 
 def grounding_available_share(config: Any) -> float:
-    """Share of accepted rows that can realistically be grounding rows."""
     catalogue_share = grounding_capacity(config) / max(config.count, 1)
     return min(slot_ceiling(config, grounding_pairs()), catalogue_share)
 
 
 def grounding_capable_slot(quota: Any, rng: random.Random) -> dict[str, Any] | None:
-    """Take a quota slot whose (capability, operation) has a grounding variant."""
     pairs = sorted(
         {(variant["capability"], variant["operation"]) for variant in required_training_variants()}
     )

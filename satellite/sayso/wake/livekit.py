@@ -1,9 +1,3 @@
-"""LiveKit ONNX wake-word provider.
-
-Uses livekit.wakeword.WakeWordModel.predict() only. Does not use
-WakeWordListener (that would open a second capture stream) and does not
-install or call OpenWakeWord.
-"""
 
 from __future__ import annotations
 
@@ -23,8 +17,8 @@ from .verifier import WakeVerifier, load_wake_verifier
 _LOGGER = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
-WINDOW_SAMPLES = SAMPLE_RATE * 2  # LiveKit predict wants ~2s
-HOP_SAMPLES = 2560  # 160 ms
+WINDOW_SAMPLES = SAMPLE_RATE * 2
+HOP_SAMPLES = 2560
 
 
 class LiveKitWakeWordProvider:
@@ -133,8 +127,6 @@ class LiveKitWakeWordProvider:
     def reset(self) -> None:
         self._last_fire_sample = None
         self._last_fire_time = None
-        # Audio is discontinuous after a rearm; cached embeddings describe the
-        # pre-rearm stream and must not survive into the next window.
         if self._scorer is not None:
             self._scorer.reset()
 
@@ -186,10 +178,6 @@ class LiveKitWakeWordProvider:
             self._last_score_log = now
             self._max_score_window = 0.0
 
-        # Mine before every early return below. Near-misses that never fire sit
-        # closest to the decision boundary and are the most valuable negatives;
-        # refractory-suppressed windows are real events too. Gating this on the
-        # detect threshold would capture only what we already knew about.
         if self._miner is not None:
             self._miner.offer(score, window, sample_index=sample_index)
 
@@ -239,7 +227,6 @@ class LiveKitWakeWordProvider:
         )
 
     def process_pcm(self, pcm_s16le: bytes, sample_rate: int = 16000) -> Optional[Detection]:
-        """Synchronous helper retained for tests and diagnostics."""
         if sample_rate != SAMPLE_RATE or not pcm_s16le:
             return None
         buffer = WakeAudioBuffer(WINDOW_SAMPLES, HOP_SAMPLES)

@@ -1,4 +1,3 @@
-"""Focused checks for active schema identity during domain routing."""
 
 from __future__ import annotations
 
@@ -18,7 +17,6 @@ from custom_components.sayso.schema import (
 
 
 class _FakeDomainTool(llm.Tool):
-    """Minimal HA tool with optional domain restriction."""
 
     def __init__(
         self,
@@ -52,7 +50,6 @@ def _complete_schema(*tools: llm.Tool) -> CompiledToolSchema:
 
 
 def test_confident_light_route_returns_subset_with_own_fingerprint() -> None:
-    """Filtered routing yields fewer tools and a fingerprint of its exact bytes."""
     source_tools = [
         _FakeDomainTool(name="always_on"),
         _FakeDomainTool(
@@ -87,7 +84,6 @@ def test_confident_light_route_returns_subset_with_own_fingerprint() -> None:
 
 
 def test_uncertain_route_returns_complete_schema_unchanged() -> None:
-    """Unknown routing must return the same complete CompiledToolSchema object."""
     source_tools = [
         _FakeDomainTool(name="tool_a"),
         _FakeDomainTool(

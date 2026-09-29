@@ -1,4 +1,3 @@
-"""Tests for scenario generation."""
 
 from __future__ import annotations
 

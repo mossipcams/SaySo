@@ -1,12 +1,3 @@
-"""Where a request comes from and which area it is about.
-
-The model reads this block in every turn, and the training generator and the
-offline eval render it through the same functions, so a satellite in the
-kitchen looks identical in a training row, an eval case, and a live request.
-
-Pure: no Home Assistant imports. The conversation agent supplies the satellite
-area and the area registry; everything else is decided here.
-"""
 
 from __future__ import annotations
 
@@ -19,8 +10,6 @@ AreaSource = Literal["explicit", "multiple", "satellite", "none"]
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
-# Home Assistant's Assist API adds one of these sentences itself. SaySo replaces
-# them with the structured block below so there is exactly one area format.
 _LEGACY_AREA_LINES = (
     re.compile(
         r"^You are in area .+ and all generic commands like 'turn on the lights'"
@@ -36,7 +25,6 @@ _LEGACY_AREA_LINES = (
 
 @dataclass(frozen=True, slots=True)
 class AreaContext:
-    """The requesting satellite's area and the area the request targets."""
 
     satellite_area: str | None
     target_area: str | None
@@ -55,10 +43,6 @@ def _tokens(text: str) -> list[str]:
 
 
 def named_areas(utterance: str, areas: Mapping[str, Iterable[str]]) -> list[str]:
-    """Canonical areas the utterance names, by name or alias, in spoken order.
-
-    Longest phrases win, so "living room" is not also read as a "room" alias.
-    """
     words = _tokens(utterance)
     phrases = sorted(
         (
@@ -90,7 +74,6 @@ def build_area_context(
     areas: Mapping[str, Iterable[str]],
     satellite_area: str | None,
 ) -> AreaContext:
-    """An explicitly named area overrides the satellite's; otherwise it applies."""
     named = named_areas(utterance, areas)
     if len(named) == 1:
         return AreaContext(satellite_area, named[0], "explicit")
@@ -102,7 +85,6 @@ def build_area_context(
 
 
 def render_area_context(context: AreaContext) -> str:
-    """The block the model reads. ``none`` stands for an absent value."""
     return "\n".join(
         [
             "Area context:",
@@ -114,7 +96,6 @@ def render_area_context(context: AreaContext) -> str:
 
 
 def render_system_prompt(system_prompt: str, context: AreaContext) -> str:
-    """Drop legacy area sentences and append the structured area block."""
     lines = [
         line
         for line in system_prompt.split("\n")
@@ -126,7 +107,6 @@ def render_system_prompt(system_prompt: str, context: AreaContext) -> str:
 def apply_area_context(
     messages: list[dict[str, Any]], context: AreaContext
 ) -> list[dict[str, Any]]:
-    """Return messages whose system prompt carries the area block."""
     if messages and messages[0].get("role") == "system":
         first = {
             **messages[0],

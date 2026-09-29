@@ -1,15 +1,3 @@
-"""Conversation platform for SaySo.
-
-One user turn runs here: build context, pick a tool schema, ask llama.cpp, and
-loop over the tool calls it proposes until there is text to speak. Everything
-the loop *decides* about untrusted model output lives in :mod:`.boundary`;
-everything it *sends* to the model lives in :mod:`.transcript`.
-
-A turn carries the same six things everywhere — who asked, the chat log, the
-trace, the two compiled schemas and whether the one correction has been spent —
-so it is one ``_Turn`` object rather than six parameters threaded through every
-call.
-"""
 
 from __future__ import annotations
 
@@ -89,13 +77,11 @@ async def async_setup_entry(
     config_entry: SaySoConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up the SaySo conversation entity."""
     async_add_entities([SaySoConversationEntity(config_entry)])
 
 
 @dataclass(slots=True)
 class _Turn:
-    """One user turn, and the four ways it can end."""
 
     entry_id: str
     agent_id: str
@@ -111,7 +97,6 @@ class _Turn:
 
     @property
     def messages(self) -> list[dict[str, Any]]:
-        """The conversation so far, in llama.cpp's message shape."""
         messages = _chat_log_to_messages(self.chat_log.content)
         if self.area_context is None:
             return messages
@@ -124,7 +109,6 @@ class _Turn:
         stage: Stage | str = Stage.SAYSO_REQUEST,
         error_type: ErrorType = ErrorType.UNKNOWN,
     ) -> conversation.ConversationResult:
-        """End the turn with a spoken error, failing the trace at ``stage``."""
         return _error_result(
             self.user_input,
             self.chat_log,
@@ -135,7 +119,6 @@ class _Turn:
         )
 
     def text(self, content: str | None) -> conversation.ConversationResult:
-        """End the turn with a spoken answer."""
         with self.trace.stage(Stage.RESPONSE) as span:
             self.chat_log.async_add_assistant_content_without_tools(
                 conversation.AssistantContent(agent_id=self.agent_id, content=content)
@@ -153,7 +136,6 @@ class _Turn:
         ha_error: str | None = None,
         speech: str = ERROR_ACTION_FAILED,
     ) -> conversation.ConversationResult:
-        """End the turn at the model boundary, counting the failure."""
         record_boundary(
             self.entry_id,
             code,
@@ -167,7 +149,6 @@ class _Turn:
             ha_error=ha_error,
             trace=self.trace,
         )
-        # ``record_boundary`` already failed the trace at the right stage.
         return _error_result(self.user_input, self.chat_log, speech)
 
     def model_failure(
@@ -177,12 +158,6 @@ class _Turn:
         *,
         log_label: str = "llama.cpp",
     ) -> conversation.ConversationResult:
-        """Map a llama.cpp failure to a spoken error.
-
-        A timeout is the only one worth a boundary counter: it says llama.cpp
-        was reachable but too slow, which is a different operational problem
-        from it being down or answering nonsense.
-        """
         if isinstance(err, SaySoTimeoutError):
             return self.boundary_failure(
                 BoundaryFailureCode.REQUEST_TIMEOUT,
@@ -211,7 +186,6 @@ class _Turn:
         tools: tuple[dict[str, Any], ...] | list[dict[str, Any]] | None,
         correction: bool = False,
     ) -> ChatCompletionResult:
-        """Run one traced llama.cpp completion."""
         trace, runtime = self.trace, self.runtime
         span = trace.open(
             Stage.INFERENCE,
@@ -241,7 +215,6 @@ class _Turn:
         tool_map: dict[str, llm.Tool],
         span: Any,
     ) -> tuple[bool, str | None]:
-        """Run one validated batch through Home Assistant, in model order."""
         content = conversation.AssistantContent(
             agent_id=self.agent_id,
             content=None,
@@ -267,7 +240,6 @@ class _Turn:
             elif resolved_target is None:
                 resolved_target = first_target(result.tool_result)
         if resolved_target is not None:
-            # Home Assistant's own resolution beats the name the model asked for.
             span.metadata["target"] = resolved_target
         return batch_failed, ha_error
 
@@ -276,14 +248,12 @@ class SaySoConversationEntity(
     conversation.ConversationEntity,
     conversation.AbstractConversationAgent,
 ):
-    """SaySo conversation agent backed by llama.cpp."""
 
     _attr_has_entity_name = True
     _attr_name = None
     _attr_supported_features = conversation.ConversationEntityFeature.CONTROL
 
     def __init__(self, entry: SaySoConfigEntry) -> None:
-        """Initialize the conversation entity."""
         self._entry = entry
         self._attr_unique_id = entry.entry_id
         self._attr_device_info = dr.DeviceInfo(
@@ -295,24 +265,20 @@ class SaySoConversationEntity(
 
     @property
     def _runtime(self) -> SaySoRuntimeData:
-        """Return runtime data for the config entry."""
         return self._entry.runtime_data
 
     @property
     @override
     def supported_languages(self) -> list[str] | Literal["*"]:
-        """Return supported languages."""
         return MATCH_ALL
 
     @override
     async def async_added_to_hass(self) -> None:
-        """Register as the conversation agent for this config entry."""
         await super().async_added_to_hass()
         conversation.async_set_agent(self.hass, self._entry, self)
 
     @override
     async def async_will_remove_from_hass(self) -> None:
-        """Unregister the conversation agent."""
         conversation.async_unset_agent(self.hass, self._entry)
         await super().async_will_remove_from_hass()
 
@@ -322,7 +288,6 @@ class SaySoConversationEntity(
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
-        """Handle a user message with llama.cpp, tracing the whole turn."""
         trace = self._runtime.tracer.async_start(user_input.context, user_input.text)
         turn = _Turn(
             entry_id=self._entry.entry_id,
@@ -343,7 +308,6 @@ class SaySoConversationEntity(
             self._runtime.tracer.async_finish(trace)
 
     async def _async_answer(self, turn: _Turn) -> conversation.ConversationResult:
-        """Provide context, route to a schema, and ask llama.cpp once."""
         chat_log, trace = turn.chat_log, turn.trace
         llm_context = turn.user_input.as_llm_context(DOMAIN)
 
@@ -424,7 +388,6 @@ class SaySoConversationEntity(
     async def _async_run_tool_calls(
         self, turn: _Turn, tool_calls: list[ToolCall]
     ) -> conversation.ConversationResult:
-        """Execute tool calls sequentially until final text or iteration limit."""
         chat_log, trace = turn.chat_log, turn.trace
         if chat_log.llm_api is None:
             return turn.error(
@@ -433,9 +396,6 @@ class SaySoConversationEntity(
                 error_type=ErrorType.UNAVAILABLE_TOOL,
             )
 
-        # Every tool Home Assistant currently exposes, versus the subset the
-        # model was actually shown. A name in the first but not the second is a
-        # routing miss and is recoverable; a name in neither never executes.
         available_tools = build_tool_availability_names(chat_log.llm_api.tools)
         offered_tools = (
             {tool["function"]["name"] for tool in turn.active_schema.tools}
@@ -463,9 +423,6 @@ class SaySoConversationEntity(
                     BoundaryFailureCode.UNAVAILABLE_TOOL, phase
                 )
 
-            # A tool the active subset hid and an argument Home Assistant
-            # rejects are the same failure — the model saw the wrong contract —
-            # so they report identically and share one correction budget.
             misses = [call for call in current if call.name not in offered_tools]
             contract_failures = _contract_failures(
                 current, compiled_tools, turn.exposed_domains
@@ -490,8 +447,6 @@ class SaySoConversationEntity(
                     )
 
                 phase = BoundaryPhase.CORRECTION
-                # Close tool parsing before the correction request so correction
-                # latency lands in the inference stage, not in tool_parse_ms.
                 trace.close(parse_span, success=False)
                 try:
                     corrected = await turn.complete(
@@ -574,7 +529,6 @@ class SaySoConversationEntity(
 def _tools_of(
     schema: CompiledToolSchema | None,
 ) -> tuple[dict[str, Any], ...] | None:
-    """Return a compiled schema's tools, or nothing when there is no schema."""
     return schema.tools if schema is not None else None
 
 
@@ -582,7 +536,6 @@ def _satellite_area_name(
     hass: HomeAssistant,
     user_input: conversation.ConversationInput,
 ) -> str | None:
-    """Return the area of the requesting device or satellite, when it has one."""
     device_reg = dr.async_get(hass)
     device_ids = [user_input.device_id]
     satellite_id = getattr(user_input, "satellite_id", None)
@@ -607,13 +560,6 @@ def _contract_failures(
     compiled_tools: dict[str, Any],
     exposed_domains: frozenset[str],
 ) -> list[tuple[ToolCall, ToolArgumentValidationError]]:
-    """Calls the compiled contract rejects, shaped for the correction path.
-
-    The offline eval runs the same ``check_tool_call``. Unavailable names fail
-    before this, so every violation here is a schema mismatch or a bad value.
-    An empty ``exposed_domains`` skips the domain check: with nothing exposed
-    Home Assistant offers no device tools to misuse.
-    """
     if not compiled_tools:
         return []
     failures = []
@@ -636,7 +582,6 @@ def _contract_failures(
 
 
 def _is_action_tool(tool: llm.Tool) -> bool:
-    """Return whether a tool mutates Home Assistant state."""
     source = _unwrap_source_tool(tool)
     return isinstance(source, (llm.ActionTool, llm.IntentTool)) and not _is_query_tool(
         source
@@ -652,7 +597,6 @@ def _error_result(
     stage: Stage | str = Stage.SAYSO_REQUEST,
     error_type: ErrorType = ErrorType.UNKNOWN,
 ) -> conversation.ConversationResult:
-    """Build a short spoken error result, finalizing the trace against ``stage``."""
     if trace is not None:
         trace.fail(stage, error_type, speech)
     intent_response = intent.IntentResponse(language=user_input.language)

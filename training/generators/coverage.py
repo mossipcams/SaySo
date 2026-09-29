@@ -1,10 +1,3 @@
-"""What supervision an accepted row actually carries.
-
-Quota accounting and the dataset audit both need the same answer to one question:
-does this row teach the operation its metadata claims? Metadata alone cannot say
-so -- a refusal tagged ``media_players``/``turn_on`` carries exactly that metadata
-and teaches the opposite. Everything here reads the rendered row instead.
-"""
 
 from __future__ import annotations
 
@@ -14,7 +7,6 @@ from typing import Any
 from generators.capability_registry import CAPABILITIES, SCRIPT_ACTION_TOOL
 from generators.tools import _operation_tool
 
-# Outcomes a row can carry. Exactly one applies.
 ACTION = "action"
 STATUS = "status"
 CLARIFY = "clarify"
@@ -36,7 +28,6 @@ _NO_ACTION_OUTCOMES = {
 
 
 def row_calls(row: dict[str, Any]) -> list[dict[str, Any]]:
-    """Assistant tool calls as ``{"name", "arguments"}`` with arguments parsed."""
     calls: list[dict[str, Any]] = []
     for message in row.get("messages", []):
         for call in message.get("tool_calls") or []:
@@ -52,22 +43,10 @@ def row_calls(row: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def bare_tool_name(name: str | None) -> str:
-    """Strip the Home Assistant 2026.9 namespace from a tool name.
-
-    ``intent__HassTurnOn`` and ``HassTurnOn`` are the same tool rendered under two
-    contracts, so coverage must count them as one. Comparing raw names made every
-    namespaced row fail its positive quota and get rejected, which silently held
-    the namespaced share at a third of the requested rate.
-    """
     return (name or "").rsplit("__", 1)[-1]
 
 
 def row_script_tools(row: dict[str, Any]) -> set[str]:
-    """Per-home script tools offered to this row (named after the script, not Hass*).
-
-    A script tool keeps its bare object id under both contracts: Home Assistant's
-    ``ScriptTool`` overrides the ``domain__action`` name.
-    """
     return {
         tool["function"]["name"]
         for tool in row.get("tools") or []
@@ -76,11 +55,6 @@ def row_script_tools(row: dict[str, Any]) -> set[str]:
 
 
 def expected_tool(capability: str, operation: str) -> str | None:
-    """Tool name a positive row for this operation must call.
-
-    Scripts are their own tools, so their real names are per home;
-    ``SCRIPT_ACTION_TOOL`` stands in and is resolved against the row's tool list.
-    """
     if capability == "scripts" and operation == "run":
         return SCRIPT_ACTION_TOOL
     try:
@@ -90,7 +64,6 @@ def expected_tool(capability: str, operation: str) -> str | None:
 
 
 def _domain_matches(call: dict[str, Any], capability: str) -> bool:
-    """The call must land on this capability's domain, not merely name its tool."""
     cap = CAPABILITIES[capability]
     arguments = call["arguments"]
     domain = arguments.get("domain")
@@ -101,8 +74,6 @@ def _domain_matches(call: dict[str, Any], capability: str) -> bool:
     device_class = arguments.get("device_class")
     if device_class:
         return bool(cap.device_class and cap.device_class in device_class)
-    # Remaining tools are single-domain by contract (timers, vacuum, climate,
-    # media, volume), so matching the tool already fixed the domain.
     return True
 
 
@@ -126,11 +97,6 @@ def _target_matches_expected(row: dict[str, Any], call: dict[str, Any]) -> bool:
 
 
 def classify_row(row: dict[str, Any]) -> dict[str, Any]:
-    """Return the supervision facets of one accepted row.
-
-    ``positive`` is true only when the assistant turn calls the tool the claimed
-    operation maps to, on the claimed domain, against an actual target.
-    """
     meta = row.get("metadata") or {}
     capability = meta.get("capability")
     operation = meta.get("operation")

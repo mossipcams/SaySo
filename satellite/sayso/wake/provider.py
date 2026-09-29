@@ -8,11 +8,6 @@ from .detection import Detection
 
 
 class WakeWordProvider(Protocol):
-    """Pluggable on-device wake-word detector.
-
-    Implementations must consume PCM from the existing capture loop and
-    must not open the microphone themselves.
-    """
 
     def start(self) -> None:
         ...
@@ -21,27 +16,27 @@ class WakeWordProvider(Protocol):
         ...
 
     def suspend(self) -> None:
-        """Pause detection (TTS / half-duplex)."""
+        pass
 
     def resume(self) -> None:
         ...
 
     def reset(self) -> None:
-        """Clear detector state after playback or errors."""
+        pass
 
     def process_pcm(self, pcm_s16le: bytes, sample_rate: int = 16000) -> Optional[Detection]:
-        """Feed 16-bit little-endian mono PCM. Return a detection or None."""
+        pass
 
     def predict_window(
         self,
         window: np.ndarray,
         sample_index: int | None = None,
     ) -> Optional[Detection]:
-        """Score one fixed hop/window buffer from the external wake hook."""
+        pass
 
     def shutdown(self) -> None:
         ...
 
     @property
     def available(self) -> bool:
-        """False if the model is missing/invalid (fail closed)."""
+        pass

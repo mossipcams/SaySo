@@ -1,4 +1,3 @@
-"""Main deterministic generation pipeline."""
 
 from __future__ import annotations
 
@@ -46,20 +45,12 @@ from generators.sampling import QuotaTracker
 from generators.stats import empty_stats, finalize_stats, record_accept, record_reject
 
 
-# A rejected real-home attempt is retried as real-home this many times (fresh
-# attempt seed each) before the mix is redrawn on the next pass.
 REAL_HOME_RETRY_LIMIT = 4
 
 
 def _discrimination_recipe_slot(
     plan: AllocationPlan, tracker: FamilyTracker, rng: random.Random, closed: set[int]
 ) -> dict[str, Any] | None:
-    """A random open on/off slot for a description-based row.
-
-    Discrimination needs one individual call with no value. Always forcing the
-    first needed slot in plan order retried the same slot, which fails whenever
-    it is a reserved media/timer slot or a grounding carrier.
-    """
     from generators.planning import SURPLUS_OPERATIONS
 
     candidates = [
@@ -72,10 +63,6 @@ def _discrimination_recipe_slot(
 
 
 def _recipe_required_operations(config: GeneratorConfig) -> set[tuple[int, str, str]]:
-    """Every covered action a recipe run must teach; without this the recipe's
-    min_positive_per_tool / min_positive_per_operation were never checked."""
-    # Enforced at full size only; a smaller run of the same recipe reserves its
-    # scaled floors best-effort (planning._reserve_tool_floors) without failing.
     if config.count < config.recipe_count or (config.min_positive_per_tool <= 1 and config.min_positive_per_operation <= 1):
         return set()
     from generators.capability_registry import CAPABILITIES, covered_tool_names, trainable_operations
@@ -116,19 +103,12 @@ def _slot_still_needed(slot: GenerationSlot, tracker: FamilyTracker, plan: Alloc
     return tracker.accepted_family.get(slot.family, 0) < need
 
 
-# A slot that keeps failing is given up after this many attempts so one
-# infeasible (capability, operation) cannot stall its family.
 SLOT_MAX_FAILURES = 50
 
 
 def _pick_family_slot(
     plan: AllocationPlan, tracker: FamilyTracker, rng: random.Random, closed: set[int] = frozenset()
 ) -> GenerationSlot:
-    """Pick an unused slot of a family still short of its allocation.
-
-    Slots are consumed when they yield a row. Drawing with replacement let easy
-    operations fill each family and starved the hard ones the plan reserved.
-    """
     needed = [slot for slot in plan.slots if _slot_still_needed(slot, tracker, plan)]
     if not needed:
         raise RuntimeError("family tracker has no remaining shortfall slots")
@@ -155,7 +135,6 @@ def _slot_to_dict(slot: GenerationSlot) -> dict[str, Any]:
 
 
 def _feasible_area_distribution(config: GeneratorConfig) -> Path | None:
-    """Return the area distribution path only when every listed scenario gets >= 1 row."""
     path = config.area_distribution_path
     if path is None or not path.is_file():
         return None
@@ -169,33 +148,18 @@ def _feasible_area_distribution(config: GeneratorConfig) -> Path | None:
 
 
 def _effective_grounding_rate(config: GeneratorConfig) -> float:
-    """Real-home mixing without a recipe must not force grounding families."""
     if config.real_home_path and config.real_home_rate and not config.recipe_path:
         return 0.0
     return config.grounding_rate
 
 
-# Pinned core tools every scale run must teach (planning.CORE_TOOL_NAMES);
-# tiny test runs can't hold every core tool, so the gate only requires them at
-# count >= 100.
 _HYGIENE_CORE_TOOLS = [namespaced_tool_name(name) for name in sorted(CORE_TOOL_NAMES)]
-# GetDateTime is the one core tool a run may deliberately not teach: its
-# requirement follows the run's own coverage config (get_datetime_positive_min).
 _HYGIENE_DATETIME_TOOL = namespaced_tool_name("GetDateTime")
 
 
 def enforce_hygiene(
     rows: list[dict[str, Any]], count: int, *, require_datetime: bool = True
 ) -> dict[str, Any]:
-    """Fail-closed dataset hygiene gate.
-
-    Runs scripts/preflight.inspect_dataset over the generated rows with the
-    limits from training/configs/preflight.yaml and raises on any error
-    (invalid rows, duplicate/conflict rate over limit, missing core tools).
-    ``require_datetime`` mirrors the run's coverage config: it is False when
-    get_datetime_positive_min is 0, so a run with no datetime supervision is
-    not forced to teach llm__GetDateTime.
-    """
     import importlib.util
 
     import yaml
@@ -211,7 +175,6 @@ def enforce_hygiene(
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
         path = Path(handle.name)
     try:
-        # scripts/ is not a package; load preflight by file path.
         spec = importlib.util.spec_from_file_location("sayso_preflight", repo_root / "scripts" / "preflight.py")
         module = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
@@ -249,11 +212,6 @@ def enforce_hygiene(
 
 
 def run_generation(config: GeneratorConfig) -> dict[str, Any]:
-    """Generate accepted training rows up to config.count.
-
-    Recipe-backed runs use family allocations (including area scenarios) through
-    the same generate → label → wording → validate → duplicate loop.
-    """
     result = _run_generation(config)
     result["stats"]["hygiene"] = enforce_hygiene(
         result["rows"], config.count, require_datetime=config.get_datetime_positive_min > 0
@@ -276,17 +234,12 @@ def run_generation(config: GeneratorConfig) -> dict[str, Any]:
         allocation_summary=result["stats"].get("quota", {}),
         tokenizer_model=config.tokenizer_model,
         rejections=result["stats"].get("rejection_reasons", {}),
-        # Deliberately empty: only rows the cheap character bound could not clear
-        # carry ``_token_length``, so collecting just those would report the
-        # longest tail of the corpus as if it were the whole distribution.
-        # build_manifest walks every accepted row, reusing cached counts.
         token_lengths=[],
     )
     return result
 
 
 def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
-    """Generate every row through one acceptance loop."""
     rng = random.Random(config.seed)
     grounding_rate = _effective_grounding_rate(config)
     grounding_target = int(round(config.count * grounding_rate))
@@ -429,13 +382,8 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
         if grounding_rate > 0 and grounding_deficit > 0:
             rate_hit = rng.random() < min(1.0, grounding_deficit / rows_remaining)
             if quota is not None:
-                # Quota runs have no family slots to starve; keep the v2 latch.
                 want_grounding = bool(grounding_missing) or rate_hit
             elif carrier:
-                # Recipe: the plan marked which carrier slots overlay a variant
-                # (planning._mark_grounding_slots); the variant's gold fits the
-                # slot's family, so no family is stolen from. Missing catalogue
-                # families also take half the compatible carriers.
                 variant = pick_carrier_variant(slot, rng, grounding_missing)
                 forced = variant is not None and variant["family"] in grounding_missing
                 want_grounding = variant is not None and (
@@ -471,12 +419,6 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
                 if quota is None:
                     discrimination_index = forced["index"]
         row, reason = None, None
-        # Cadence attempts (row_generation's attempt % 125 trigger) carry the
-        # audit's exclusion floor. Under an explicit real-home entity cap,
-        # rejections are common, so a rejected trigger-eligible cadence row is
-        # redrawn (forked rng, fresh scenario) instead of losing the floor row;
-        # without a cap, rejections are part of the natural mix and redrawing
-        # would shift the seeded sequence.
         exclusion_cadence = (
             config.real_home_entity_cap > 0
             and attempts % 125 == 0
@@ -486,15 +428,6 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
         )
         real_home_retries = 0
         while True:
-            # A rejected real-home attempt is retried as real-home, never
-            # silently downgraded to synthetic: the balancer owns the real-home
-            # count, and a synthetic fallback would undercount it. Retries draw
-            # from a fork so the main stream (and the exclusion cadence on
-            # `attempts`) is undisturbed; the fork is seeded per (attempt, retry)
-            # so each retry is a fresh, reproducible scenario. Cadence retries
-            # keep their original selection: a real-home exclusion can be
-            # structurally impossible (one supporting device) and would burn
-            # every retry.
             if exclusion_cadence:
                 real_sel = real_home_selected
             else:
@@ -513,8 +446,6 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
                 row_rng,
                 excluded=excluded,
                 dup_tracker=dup_tracker,
-                # attempt drives the exclusion cadence; retry only salts the
-                # scenario seed so a rejected real-home row is redrawn fresh.
                 attempt=attempts,
                 retry=real_home_retries,
                 stt_remaining=max(
@@ -536,8 +467,6 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
                     if want_grounding and grounding_missing
                     else None
                 ),
-                # Recipe runs: the pipeline alone decides grounding; no extra
-                # random overlay on follow_up/clarify/refusal slots.
                 grounding_rate=(
                     grounding_rate if quota is not None or want_grounding else 0.0
                 ),
@@ -547,16 +476,10 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
                 break
             if real_home_selected is not True and not exclusion_cadence:
                 break
-            # A saturated real home (21 entities) keeps producing duplicates,
-            # and a capped entity keeps tripping real_home_entity_cap. Once
-            # retries are exhausted, redraw the mix on the next pass instead of
-            # spinning to max_attempts; a forced tail simply keeps redrawing
-            # real-home until the mix is met.
             real_home_retries += 1
             if real_home_retries >= REAL_HOME_RETRY_LIMIT:
                 break
         attempts += 1
-        # Consume the plan slot this row came from (family draw or discrimination).
         plan_index = discrimination_index if discrimination_index is not None else (
             family_slot.index if family_slot is not None else None
         )
@@ -729,7 +652,6 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def run_build(config: GeneratorConfig) -> dict[str, Any]:
-    """Generate into a temporary directory and publish both artifacts atomically."""
     tmp = Path(tempfile.mkdtemp(prefix="sayso_gen_"))
     try:
         result = run_generation(config)

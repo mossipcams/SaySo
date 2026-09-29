@@ -1,4 +1,3 @@
-"""Tests for HA tool schema compilation."""
 
 from __future__ import annotations
 
@@ -30,14 +29,12 @@ from custom_components.sayso.schema import (
 
 @pytest.fixture(autouse=True)
 def _reset_schema_compile_cache() -> None:
-    """Isolate compile cache between schema tests."""
     clear_compile_cache()
     yield
     clear_compile_cache()
 
 
 class _FakeTool(llm.Tool):
-    """Minimal HA tool for schema compilation tests."""
 
     def __init__(
         self,
@@ -88,7 +85,6 @@ def _rich_parameters_schema() -> vol.Schema:
 
 
 def test_normalize_schema_removes_redundant_text() -> None:
-    """Empty descriptions, $schema, and duplicate titles are stripped."""
     noisy = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -175,7 +171,6 @@ def test_normalize_schema_removes_redundant_text() -> None:
 
 
 def test_compile_parameters_applies_schema_normalization(monkeypatch: Any) -> None:
-    """The compiler strips redundant metadata from converted schemas."""
     noisy = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -210,7 +205,6 @@ def test_compile_parameters_applies_schema_normalization(monkeypatch: Any) -> No
 
 
 def test_compile_tools_sanitizes_unsupported_convert_nodes(monkeypatch: Any) -> None:
-    """UNSUPPORTED nodes from convert() do not break compile_tools JSON emission."""
     schema_with_unsupported = {
         "type": "object",
         "properties": {
@@ -233,7 +227,6 @@ def test_compile_tools_sanitizes_unsupported_convert_nodes(monkeypatch: Any) -> 
 
 
 def test_compile_tool_strips_duplicate_function_title(monkeypatch: Any) -> None:
-    """Function-level titles matching the tool name are removed."""
     noisy = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -253,7 +246,6 @@ def test_compile_tool_strips_duplicate_function_title(monkeypatch: Any) -> None:
 
 
 def test_compile_parameters_preserves_executable_constraints() -> None:
-    """Executable HA constraints survive voluptuous_openapi compilation."""
     parameters = compile_parameters(
         _rich_parameters_schema(),
         custom_serializer=_custom_string_serializer,
@@ -297,7 +289,6 @@ def test_compile_parameters_preserves_executable_constraints() -> None:
 
 
 def test_compile_tool_matches_llama_cpp_function_shape() -> None:
-    """Compiled tools match the OpenAI function shape sent to llama.cpp."""
     compiled = compile_tool(
         _FakeTool(),
         custom_serializer=_custom_string_serializer,
@@ -317,7 +308,6 @@ def test_compile_tool_matches_llama_cpp_function_shape() -> None:
 
 
 def _schema_with_reordered_keys() -> vol.Schema:
-    """Same fields as _rich_parameters_schema() but declared in a different order."""
     return vol.Schema(
         {
             vol.Optional("started_at"): vol.All(
@@ -340,7 +330,6 @@ def _schema_with_reordered_keys() -> vol.Schema:
 
 
 def test_canonical_schema_is_order_independent() -> None:
-    """Semantically identical tools produce identical canonical JSON and fingerprints."""
     alpha = _FakeTool(name="AlphaTool")
     beta = _FakeTool(name="BetaTool", description="Second tool.")
     reordered = _FakeTool(
@@ -415,7 +404,6 @@ def test_canonical_schema_is_order_independent() -> None:
 
 
 def test_canonicalize_schema_sorts_keys_and_required() -> None:
-    """Canonicalization sorts mapping keys and required arrays."""
     scrambled = {
         "type": "object",
         "required": ["mode", "name"],
@@ -434,7 +422,6 @@ def test_canonicalize_schema_sorts_keys_and_required() -> None:
 
 
 def test_compile_tools_returns_canonical_name_order_and_shape() -> None:
-    """compile_tools returns canonical OpenAI function entries sorted by name."""
     alpha = _FakeTool(name="AlphaTool")
     beta = _FakeTool(name="BetaTool", description="Second tool.")
 
@@ -453,7 +440,6 @@ def test_compile_tools_returns_canonical_name_order_and_shape() -> None:
 
 
 def test_compile_tools_caches_identical_canonical_input(monkeypatch: Any) -> None:
-    """Identical tool definitions compile once and reuse the cached object."""
     build_calls = 0
     original_build = _build_compiled_tools_from_source
 
@@ -477,7 +463,6 @@ def test_compile_tools_caches_identical_canonical_input(monkeypatch: Any) -> Non
 
 
 def test_compile_tools_rebuilds_when_description_changes(monkeypatch: Any) -> None:
-    """A changed tool description invalidates the compile cache."""
     build_calls = 0
     original_build = _build_compiled_tools_from_source
 
@@ -505,7 +490,6 @@ def test_compile_tools_rebuilds_when_description_changes(monkeypatch: Any) -> No
 
 
 def test_build_tool_map_indexes_tools_by_name() -> None:
-    """build_tool_map returns a complete-name lookup table."""
     alpha = _FakeTool(name="AlphaTool")
     beta = _FakeTool(name="BetaTool")
 
@@ -517,7 +501,6 @@ def test_build_tool_map_indexes_tools_by_name() -> None:
 
 
 def test_build_tool_map_never_resolves_bare_names_to_namespaced_tools() -> None:
-    """HA 2026.9 offers intent__HassTurnOn; a bare HassTurnOn must not resolve."""
     inner = _FakeTool(name="HassTurnOn")
     namespaced = llm.NamespacedTool("intent", inner)
 
@@ -528,7 +511,6 @@ def test_build_tool_map_never_resolves_bare_names_to_namespaced_tools() -> None:
 
 
 def test_build_tool_map_keeps_each_exact_name() -> None:
-    """Two tools whose names share a suffix stay two distinct exact entries."""
     alias_source = _FakeTool(name="custom__HassTurnOn")
     exact = _FakeTool(name="HassTurnOn")
 
@@ -539,7 +521,6 @@ def test_build_tool_map_keeps_each_exact_name() -> None:
 
 
 def test_validate_tool_arguments_normalizes_coerced_values() -> None:
-    """Valid arguments are normalized by the HA Voluptuous schema."""
     tool = _FakeTool()
 
     normalized, error = validate_tool_arguments(
@@ -562,7 +543,6 @@ def test_validate_tool_arguments_normalizes_coerced_values() -> None:
 
 
 def test_validate_tool_arguments_reports_missing_required_fields() -> None:
-    """Missing required fields are classified as schema mismatch."""
     tool = _FakeTool()
 
     normalized, error = validate_tool_arguments(
@@ -578,7 +558,6 @@ def test_validate_tool_arguments_reports_missing_required_fields() -> None:
 
 
 def test_validate_tool_arguments_reports_unexpected_fields() -> None:
-    """Unexpected top-level fields are classified as schema mismatch."""
     tool = _FakeTool()
 
     normalized, error = validate_tool_arguments(
@@ -629,7 +608,6 @@ def test_validate_tool_arguments_reports_invalid_values(
     arguments: dict[str, Any],
     message_fragment: str,
 ) -> None:
-    """Type, enum, range, and nested failures are invalid arguments."""
     tool = _FakeTool()
 
     normalized, error = validate_tool_arguments(tool, arguments)
@@ -641,7 +619,6 @@ def test_validate_tool_arguments_reports_invalid_values(
 
 
 def test_compile_tools_rebuilds_when_constraint_changes(monkeypatch: Any) -> None:
-    """A changed executable constraint invalidates the compile cache."""
     build_calls = 0
     original_build = _build_compiled_tools_from_source
 
@@ -680,7 +657,6 @@ def test_compile_tools_rebuilds_when_constraint_changes(monkeypatch: Any) -> Non
 
 
 def test_extract_tool_routing_metadata_reads_explicit_domain_constraints() -> None:
-    """Declared vol.In domain constraints are extracted without name inference."""
     class _DomainRestrictedTool(llm.Tool):
         name = "FanSpeed"
         description = "Set a fan speed."

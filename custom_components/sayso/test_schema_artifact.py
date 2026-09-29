@@ -1,4 +1,3 @@
-"""Focused checks for the locked sayso-tool-schema reference artifact generator."""
 
 from __future__ import annotations
 
@@ -65,7 +64,6 @@ def _run_generator(*, payload_path: Path, output_path: Path) -> subprocess.Compl
 def test_generator_produces_byte_identical_output_from_same_payload(
     tmp_path: Path,
 ) -> None:
-    """Generating twice from the same payload yields byte-identical artifacts."""
     payload_path = tmp_path / "payload.json"
     payload_path.write_text(json.dumps(_sample_payload()), encoding="utf-8")
 
@@ -83,7 +81,6 @@ def test_generator_produces_byte_identical_output_from_same_payload(
 def test_embedded_fingerprint_matches_production_schema_fingerprint(
     tmp_path: Path,
 ) -> None:
-    """The artifact fingerprint matches production schema_fingerprint(tools)."""
     payload_path = tmp_path / "payload.json"
     payload_path.write_text(json.dumps(_sample_payload()), encoding="utf-8")
     output_path = tmp_path / "artifact.json"
@@ -97,7 +94,6 @@ def test_embedded_fingerprint_matches_production_schema_fingerprint(
 
 
 def test_generator_refuses_to_overwrite_locked_artifact(tmp_path: Path) -> None:
-    """The locked v1 artifact path cannot be overwritten once it exists."""
     payload_path = tmp_path / "payload.json"
     payload_path.write_text(json.dumps(_sample_payload()), encoding="utf-8")
 
@@ -113,13 +109,11 @@ def test_generator_refuses_to_overwrite_locked_artifact(tmp_path: Path) -> None:
 
 
 def test_locked_artifact_fingerprint_matches_production() -> None:
-    """The checked-in lock artifact fingerprint matches production schema_fingerprint."""
     artifact = json.loads(LOCKED_ARTIFACT.read_text(encoding="utf-8"))
     assert artifact["schema_fingerprint"] == schema_fingerprint(artifact["tools"])
 
 
 def test_locked_artifact_regenerates_byte_identically(tmp_path: Path) -> None:
-    """Regenerating from the locked artifact fields yields byte-identical output."""
     artifact = json.loads(LOCKED_ARTIFACT.read_text(encoding="utf-8"))
     payload = {
         "home_assistant_version": artifact["home_assistant_version"],

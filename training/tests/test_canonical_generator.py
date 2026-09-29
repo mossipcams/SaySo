@@ -1,4 +1,3 @@
-"""Focused tests for canonical generator defects (independent scenarios)."""
 
 from __future__ import annotations
 
@@ -42,8 +41,6 @@ def test_yaml_config_loads() -> None:
     cfg = GeneratorConfig.from_yaml(SMOKE_CONFIG, repo_root=REPO)
     assert cfg.count == 120
     assert abs(sum(cfg.allocations.values()) - 1.0) < 0.02
-    # 7168, not the old 5120: until count_row_tokens was repaired the budget
-    # gated nothing, and production-shaped rows measure p50 ~5.4k / max ~6.6k.
     assert cfg.token_budget == 7168
 
 

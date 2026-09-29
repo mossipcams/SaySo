@@ -1,4 +1,3 @@
-"""Tests for the SaySo inference backends."""
 
 from __future__ import annotations
 
@@ -33,7 +32,6 @@ def _completion(message: dict[str, Any], **extra: Any) -> dict[str, Any]:
 
 
 class TestExtractToolCalls:
-    """LFM2 emits tool calls as text; SaySo must recover them itself."""
 
     def test_marker_wrapped_call(self) -> None:
         text, calls = extract_tool_calls(
@@ -54,12 +52,10 @@ class TestExtractToolCalls:
         assert calls == []
 
     def test_apostrophe_names_survive(self) -> None:
-        """The bug that llama-server's structured tool_calls hits."""
         _text, calls = extract_tool_calls("[HassTurnOn(name='O'Malley's lamp')]")
         assert calls[0].arguments["name"] == "O'Malley's lamp"
 
     def test_double_quoted_arguments(self) -> None:
-        """What LFM2.5 actually emits at inference time."""
         _text, calls = extract_tool_calls('[HassTurnOn(name="kitchen lights")]')
         assert calls[0].arguments == {"name": "kitchen lights"}
 
@@ -103,7 +99,6 @@ class TestExtractToolCalls:
         assert calls[0].id != calls[1].id
 
     def test_malformed_call_fails_closed(self) -> None:
-        """A half-understood action must never reach Home Assistant."""
         with pytest.raises(SaySoInvalidResponseError):
             extract_tool_calls("<|tool_call_start|>[HassTurnOn(name=<|tool_call_end|>")
 
@@ -112,7 +107,6 @@ class TestExtractToolCalls:
 
 
 class TestParseEmbeddedResult:
-    """llama-cpp-python output maps onto the shared ChatCompletionResult."""
 
     def test_text_response(self) -> None:
         result = _parse_embedded_result(
@@ -184,7 +178,6 @@ class TestParseEmbeddedResult:
 
 
 class TestEmbeddedEngine:
-    """Lifecycle and error mapping, without loading a real model."""
 
     async def test_completion_before_start_raises(self) -> None:
         engine = EmbeddedEngine(Path("/nonexistent.gguf"))
@@ -200,7 +193,6 @@ class TestEmbeddedEngine:
         )
         with pytest.raises(SaySoModelLoadError):
             await engine.async_start()
-        # The worker must not survive a failed load.
         assert engine._executor is None
 
     async def test_shutdown_is_idempotent(self) -> None:
@@ -261,7 +253,6 @@ class TestEmbeddedEngine:
         finally:
             await engine.async_shutdown()
         assert result.tool_calls[0].arguments == {"name": "lamp"}
-        # Tools must reach llama.cpp, or the model cannot call anything.
         assert llm.create_chat_completion.call_args.kwargs["tools"]
 
     async def test_inference_runs_off_the_event_loop(
@@ -297,7 +288,6 @@ class TestEmbeddedEngine:
     async def test_tool_call_json_strings_converted_for_template(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Correction turns replay assistant tool_calls with JSON-string arguments."""
         engine = EmbeddedEngine(Path("/model.gguf"))
         llm = MagicMock()
         llm.create_chat_completion.return_value = _completion({"content": "ok"})
@@ -392,7 +382,6 @@ class TestEmbeddedEngine:
 
 
 class TestMessagesForEmbeddedTemplate:
-    """Unit coverage for the embedded-only message normalization helper."""
 
     def test_json_string_arguments_become_dicts(self) -> None:
         messages = [
@@ -412,7 +401,6 @@ class TestMessagesForEmbeddedTemplate:
         assert normalized[0]["tool_calls"][0]["function"]["arguments"] == {
             "name": "lamp"
         }
-        # Input transcript envelope stays JSON-string.
         assert messages[0]["tool_calls"][0]["function"]["arguments"] == (
             '{"name": "lamp"}'
         )
@@ -442,7 +430,6 @@ class TestMessagesForEmbeddedTemplate:
 
 
 class TestExternalEngine:
-    """The fallback backend still delegates to the HTTP client."""
 
     async def test_delegates_to_client(self) -> None:
         client = MagicMock()
@@ -463,7 +450,6 @@ class TestExternalEngine:
         assert ExternalEngine(MagicMock(), "abc").model_name == "abc"
 
     async def test_messages_keep_json_string_tool_arguments(self) -> None:
-        """HTTP transcript envelope must not be rewritten on the external path."""
         client = MagicMock()
         client.chat_completion = AsyncMock(
             return_value=ChatCompletionResult(content="ok", tool_calls=[])
@@ -493,7 +479,6 @@ class TestExternalEngine:
 
 
 class TestModelStore:
-    """Weights are never loaded unverified."""
 
     async def test_existing_file_with_matching_checksum_is_reused(
         self, hass: Any
@@ -544,7 +529,6 @@ class TestModelStore:
 
 
 class TestEntryBackend:
-    """Entries created before embedded inference existed keep working."""
 
     def test_explicit_embedded(self) -> None:
         entry = SimpleNamespace(data={"backend": BACKEND_EMBEDDED})

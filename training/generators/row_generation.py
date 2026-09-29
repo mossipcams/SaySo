@@ -1,4 +1,3 @@
-"""Build one candidate training row from a generation slot."""
 
 from __future__ import annotations
 
@@ -49,12 +48,6 @@ def _datetime_utterance(rng: random.Random, index: int) -> str:
     return rng.choice(_DATETIME_UTTERANCES)
 
 
-# Non-command transcripts: false wakes, far-field TV audio, and half-heard
-# speech. Live traces (issues #96, #97) show the model answering these with
-# out-of-schema tool calls or malformed output, because the corpus never showed
-# it one. Every fragment here is deliberately unactionable -- no device plus
-# verb pair. A near-miss command like "turn on the living room TV" belongs in
-# the ordinary families; putting it here would train the refusals of issue #39.
 _JUNK_HEADS = (
     "but you're being", "and then he said", "i'll translate", "we were talking",
     "she said something about", "it was just", "they're going to", "i think it was",
@@ -77,11 +70,6 @@ def _follow_up_reply(chosen: str, rng: random.Random) -> str:
 
 
 def _junk_utterance(rng: random.Random, index: int) -> str:
-    """A transcript with no actionable request, shaped like real STT output.
-
-    Cased like every other family (half sentence-cased): all-lowercase junk let
-    casing alone predict the no-call label.
-    """
     text = _junk_text(rng)
     return text[:1].upper() + text[1:] if rng.random() < 0.5 else text
 
@@ -105,17 +93,11 @@ def casing_kind(has_calls: bool) -> str:
 
 
 def _withholds_core_tool(capability: str, operation: str) -> bool:
-    """True when the requested operation's gold would withhold a core tool."""
     op = operation_spec(capability, operation)
     return bool(op and op.tool_name and op.tool_name in CORE_TOOL_NAMES)
 
 
 def _balanced_upper(casing_counts: dict[str, Counter[str]] | None, spec: dict[str, Any]) -> bool | None:
-    """Force the minority casing once a label kind drifts two rows off balance.
-
-    Independent coin flips let casing correlate with the call/no-call label in
-    small runs (the audit's label-dependent-casing gate); ``None`` keeps it random.
-    """
     if casing_counts is None:
         return None
     counts = casing_counts[casing_kind(bool((spec.get("expected") or {}).get("calls")))]
@@ -210,11 +192,6 @@ def generate_row(
     else:
         cap = CAPABILITIES[capability]
         robustness = slot.get("robustness") or pick_robustness(rng, 0.85)
-        # The unsupported/unavailable golds withhold the requested tool from the
-        # catalog. Home Assistant always offers the core tools, so withholding
-        # one would teach a catalog shape that never happens; keep the ordinary
-        # call instead. (Family slots never hit this: planning._eligible_operations
-        # already keeps core tools out of the withholdable sets.)
         if robustness in {"unsupported", "unavailable"} and _withholds_core_tool(
             capability, operation
         ):
@@ -230,13 +207,6 @@ def generate_row(
         targeting = pick_targeting(cap, rng, robustness)
         if robustness == "large_home":
             home_size = max(home_size, 64)
-        # Under an explicit entity cap the mix is constrained and the audit's
-        # exclusion floor must survive: exclusion gold needs 2+ calls, but a
-        # small home may hold only one supporting device, so give non-family
-        # exclusion rows a home large enough to carry the multi-call gold
-        # (family slots already guarantee the graph via
-        # configure_family_scenario). Without a cap, rejections are part of
-        # the natural mix and the seeded sequence is left untouched.
         if (
             robustness == "exclusion"
             and not family
@@ -276,8 +246,6 @@ def generate_row(
 
     scenario = build_scenario(
         index=scenario_index,
-        # retry only salts the scenario seed: a real-home retry must draw a
-        # fresh scenario, but the exclusion cadence stays on `attempt`.
         seed=config.seed ^ (attempt << 16) ^ (retry << 24),
         capability=capability,
         operation=operation,
@@ -291,7 +259,6 @@ def generate_row(
         target_usage=real_home_usage if real_home_row else None,
         family=family,
         bare_name_rate=config.bare_name_rate,
-        # Same scenario build_spec audits; without it named variants mislabel.
         request_intent=variant.get("request_intent") if variant else None,
     )
     if grounding_family:
@@ -344,8 +311,6 @@ def generate_row(
             return None, "family_mismatch"
         spec["expected"] = expected_action(entity, operation, rng)
         if spec.get("hint_call"):
-            # The gold value must equal the value spoken in the ambiguous first
-            # turn; reuse the hint call's value arguments on the gold call.
             hint_args = spec["hint_call"].get("arguments") or {}
             gold_args = spec["expected"]["calls"][0]["arguments"]
             for key, value in hint_args.items():
@@ -354,7 +319,6 @@ def generate_row(
                 gold_args[key] = value
         spec["follow_up_clarify_candidates"] = follow_up_clarify_candidates
         spec["follow_up_reply"] = _follow_up_reply(chosen, rng)
-        # First user turn is ambiguous; gold name appears only after the follow-up.
         spec["target_names"] = target_names_from_expected(spec["expected"])
         spec["_follow_up_gold_targets"] = spec["target_names"]
         spec["target_names"] = []
@@ -389,13 +353,10 @@ def generate_row(
         return None, "quality_eval_overlap"
 
     if family != "junk":
-        # finalize_ wraps utterances in "can you ... for me?" politeness. On a
-        # junk transcript that produces a request shape the STT never emits.
         spec["utterance"] = finalize_training_utterance(
             spec["utterance"], rng, upper=_balanced_upper(casing_counts, spec)
         )
 
-    # Log-shaped STT after phrasing so dropped articles/fillers are not put back.
     if family != "junk" and rows_remaining > 0:
         if stt_log_remaining > 0 and rng.random() < stt_log_remaining / rows_remaining:
             corrupted, kind = apply_log_stt_noise(

@@ -1,4 +1,3 @@
-"""Quality-eval cases now live in the canonical evals package."""
 
 from __future__ import annotations
 
@@ -10,9 +9,9 @@ REPO = ROOT.parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(ROOT))
 
-from adapters.schema import ALLOWED_HASS_TOOLS  # noqa: E402
-from evals.cases import cases_with_tag  # noqa: E402
-from evals.runner import render_case  # noqa: E402
+from adapters.schema import ALLOWED_HASS_TOOLS
+from evals.cases import cases_with_tag
+from evals.runner import render_case
 
 
 def test_gold_tool_names_are_schema_v2_or_offered_script_tools() -> None:

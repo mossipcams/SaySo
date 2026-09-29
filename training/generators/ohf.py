@@ -1,9 +1,3 @@
-"""Seeded English phrasing from pinned OHF intents, bound to exact call slots.
-
-Unsupported slot combinations return None for the existing explicit renderer.
-Hassil parses the upstream syntax; this adapter samples one AST path without
-enumerating the grammar's Cartesian product or parsing user/device names.
-"""
 from functools import lru_cache
 import json
 from pathlib import Path
@@ -21,8 +15,6 @@ def _grammar():
     entries = []
     for block in data["blocks"]:
         for sentence in block["sentences"]:
-            # Bare names are ambiguous training requests; suffixed light names
-            # require upstream entity-name stripping, which we do not perform.
             if sentence == "[<the>] {name}" or "{name} <light>" in sentence:
                 continue
             expression = parse_sentence(sentence).expression
@@ -60,7 +52,6 @@ def _sample(node, values, rules, rng, used):
 
 
 def _article(match):
-    """Agree a/an with the following word as spoken (8, 11, 18, 80s, hour)."""
     head = match[2].lower()
     if head[:1].isdigit():
         vowel = re.match(r"(?:8|11|18|8\d)(?!\d)", head) is not None
@@ -76,7 +67,6 @@ def _one(value):
 
 
 def render_call(call: dict, target: str, seed="", provenance: list | None = None) -> str | None:
-    """Render only when every supplied semantic argument is represented."""
     intent = call["name"]
     args = dict(call.get("arguments") or {})
     domain = _one(args.pop("domain", None))
@@ -94,7 +84,6 @@ def render_call(call: dict, target: str, seed="", provenance: list | None = None
             args["device_class"] = device_class
     if args.get("name") and target and "Timer" not in intent:
         args["name"] = target
-    # Named-only call specs may supply the resolved name separately.
     if target and not args.get("name") and not (args.get("area") or args.get("floor")) and "Timer" not in intent:
         args["name"] = target
     args = {key: value for key, value in args.items() if value is not None}
@@ -118,8 +107,6 @@ def render_call(call: dict, target: str, seed="", provenance: list | None = None
         values = {}
         for ref in refs:
             value = args[ref.slot_name]
-            # These lists map linguistic labels to numbers; numeric binding
-            # would produce invalid wording (e.g. '35 brightness level').
             if ref.list_name in {"brightness_level", "color_temperature_names", "timer_half"}:
                 break
             if ref.list_name in {"volume_step_up", "volume_step_down"}:
@@ -153,18 +140,13 @@ def render_call(call: dict, target: str, seed="", provenance: list | None = None
                 protected[key] = f"SAYSOSLOT{index}TOKEN"
         text = " ".join(_sample(expression, protected, rules, rng, used).split())
         if used == set(args) and text:
-            # Recognition also permits fragments such as "lamp on". Keep
-            # complete imperatives so polite framing remains grammatical.
             starts = {"HassTurnOn": r"^(turn|switch|open|lock)\b",
                       "HassTurnOff": r"^(turn|switch|close|unlock)\b"}
-            # Scenes carry their own verbs, but "[activate] {name}" and the bare
-            # "{name} on" fragment are recognition-only and leave no verb at all.
             if intent in starts and not re.match(
                 r"^(activate|turn|switch|change|transition|bring|run|start|set)\b"
                 if domain in {"scene", "script"} else starts[intent], text, re.I
             ):
                 continue
-            # "change to scene the kitchen lights" is parser word order, not speech.
             if re.search(r"\bto scene\b", text, re.I):
                 continue
             if intent == "HassLightSet" and not args.get("name"):
@@ -180,8 +162,6 @@ def render_call(call: dict, target: str, seed="", provenance: list | None = None
                 if not re.match(r"^(set|change|turn|adjust|make|dim|brighten|increase|decrease)\b", text):
                     continue
                 if any(key in args for key in ("brightness", "temperature", "volume_level", "percentage", "color")):
-                    # "set X to blue" and "make X blue" are both grammatical;
-                    # "set X blue" and "make X to blue" are not.
                     if (" to " in text) == bool(re.match(r"^make\b", text)):
                         continue
                 if "brightness" in args or "percentage" in args:
@@ -197,25 +177,18 @@ def render_call(call: dict, target: str, seed="", provenance: list | None = None
                 r"^(next|skip|go)\b", text, re.I
             ):
                 continue
-            # Upstream recognition accepts optional plural suffixes; generation
-            # chooses the grammatical singular/plural for explicit durations.
             def duration(match):
                 adjective = re.match(r"\s+timer\b", text[match.end():])
                 return match[1] + ("-" if adjective else " ") + match[3] + ("" if adjective or match[1] == "1" else "s")
 
             text = re.sub(r"\b(\d+)([ -])(hour|minute|second)s?\b", duration, text)
-            # Recognition tolerates a dropped preposition ("temperature {name}");
-            # generation needs the full "temperature of {name}".
             if re.search(r"\b(temperature|brightness|colou?r|speed|volume|level) (?:the |my |our )?SAYSOSLOT", text):
                 continue
-            # Countable timer nouns need a determiner ("create a 5-minute timer").
             if intent == "HassStartTimer" and not re.search(r"\b(a|an)\b", text):
                 continue
             for marker, literal in literals.items():
                 if re.match(r"^(the|my|our)\b", literal, re.I) or re.search(r"['’]s\b", literal):
                     text = re.sub(r"\b(?:the|my|our) " + marker, marker, text)
-            # A name carrying its own determiner after <all> ("each and every our
-            # lamp") needs more than dropping one word, so resample instead.
             if any(re.search(r"\b(?:the|my|our|every|each|all) " + marker, text)
                    for marker, literal in literals.items()
                    if re.match(r"^(the|my|our)\b", literal, re.I)):

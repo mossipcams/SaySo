@@ -1,4 +1,3 @@
-"""Milestone 0: the exact PCM sent to Home Assistant must be retained."""
 
 from __future__ import annotations
 
@@ -95,14 +94,11 @@ def test_sidecar_records_the_processing_chain(tmp_path: Path) -> None:
     assert meta["auto_gain"] == 0
     assert meta["transcript"] == "hello"
     assert meta["samples"] == 1600
-    # Level metrics are the point of the sidecar: measure, do not guess.
     assert meta["peak"] == 1000
-    # -30 dBFS is a healthy speech level for a full-scale digital signal.
     assert -40.0 < meta["rms_dbfs"] < -20.0
 
 
 def test_recorder_never_blocks_the_audio_thread(tmp_path: Path) -> None:
-    """A tiny queue must drop old work, not stall the caller or lose the newest."""
     recorder = SttAudioRecorder(tmp_path, sample_rate=16000, max_pending=1)
     recorder.start()
     try:
@@ -114,8 +110,6 @@ def test_recorder_never_blocks_the_audio_thread(tmp_path: Path) -> None:
     finally:
         recorder.stop()
 
-    # The newest command is always retained; older ones may be dropped under
-    # backpressure rather than blocking capture.
     last = tmp_path / "commands" / "run-4.wav"
     assert last.is_file(), "newest command must survive queue backpressure"
 
@@ -151,7 +145,6 @@ def test_disabled_recorder_is_a_noop(tmp_path: Path) -> None:
 
 
 def test_sidecar_native_clip_count_is_clipped_blocks_not_samples(tmp_path: Path) -> None:
-    """native_clip_count tallies clipped capture blocks (bursts), not PCM samples."""
     tally = NativeClipTally(count=3)
     recorder = SttAudioRecorder(
         tmp_path,
@@ -162,7 +155,6 @@ def test_sidecar_native_clip_count_is_clipped_blocks_not_samples(tmp_path: Path)
     recorder.start()
     try:
         recorder.begin_command("run-native-clip")
-        # Each increment is one clipped block event, independent of block byte length.
         tally.count += 2
         recorder.tap(np.zeros(1600, dtype="<i2").tobytes())
         path = recorder.end_command("run-native-clip", transcript="hello")

@@ -1,11 +1,3 @@
-"""SaySo's pure contract modules, importable without Home Assistant.
-
-The integration package's ``__init__`` imports Home Assistant, which the
-training host's Python cannot install. The modules below import nothing from
-Home Assistant, so this loads them from ``custom_components/sayso`` under a
-package that skips that ``__init__``. It is the same source the integration
-runs, not a copy.
-"""
 
 from __future__ import annotations
 

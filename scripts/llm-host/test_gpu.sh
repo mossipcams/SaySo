@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
-# Self-check for gpu with vLLM stubbed out: never touches docker or the real GPU state.
-# Run on the llm VM (needs flock): bash scripts/llm-host/test_gpu.sh
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
 cat > "$tmp/bin/docker" <<'DOCKER'
-#!/usr/bin/env bash
 case $1 in
   exec) shift 2; exec "$@" ;;
   restart) echo restart >> "$GPU_RUN_DIR/docker.log"; exit "${GPU_TEST_RESTART_RC:-0}" ;;
@@ -31,14 +28,13 @@ gpu train lfm true 2>/dev/null && fail "second train must refuse"
 wait $t
 [[ $(gpu status) == "state: idle"* ]] || fail "idle after train"
 
-echo "train:wake 999999" > "$tmp/gpu.state"             # dead pid
+echo "train:wake 999999" > "$tmp/gpu.state"
 gpu serve || fail "dead train pid must count as idle"
 
 gpu train wake --serve-after false 2>/dev/null && fail "failing cmd must fail"
 [[ $(cat "$tmp/gpu.state") == serve ]] || fail "--serve-after must restart vLLM even when the run fails"
 
 grep -q down "$tmp/vllm.log" || fail "train must stop vLLM"
-# Cancellation must reap the worker before releasing the state.
 "$here/gpu" train wake sleep 30 & t=$!
 for _ in {1..100}; do
   read -r state owner worker < "$tmp/gpu.state"
@@ -54,7 +50,6 @@ rc=0; wait "$t" || rc=$?
 kill -0 "$worker" 2>/dev/null && fail "cancelled worker survived"
 [[ $(gpu status) == "state: idle"* ]] || fail "idle after cancellation"
 
-# A hard-killed wrapper must not release a live worker's reservation.
 "$here/gpu" train wake sleep 30 & t=$!
 for _ in {1..100}; do
   read -r state owner worker < "$tmp/gpu.state"
@@ -72,7 +67,6 @@ for _ in {1..100}; do
 done
 [[ $(gpu status) == "state: idle"* ]] || fail "idle after orphan exits"
 
-# A dead group leader does not mean its descendants have stopped.
 "$here/gpu" train wake sh -c 'sleep 30 & echo $! > "$1"; wait' sh "$tmp/descendant" & t=$!
 for _ in {1..100}; do
   read -r state owner worker < "$tmp/gpu.state"
@@ -94,7 +88,6 @@ for _ in {1..100}; do
 done
 [[ $(gpu status) == "state: idle"* ]] || fail "idle only after descendants stop"
 
-# Dead Docker clients cannot prove the container command has stopped.
 for action in serve stop train; do
   before=$(wc -l < "$tmp/docker.log" 2>/dev/null || echo 0)
   echo "train:lfm 2147483647 2147483646" > "$tmp/gpu.state"

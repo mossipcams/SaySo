@@ -1,8 +1,3 @@
-"""Drive SaySo's real EmbeddedEngine against a real GGUF inside the HA image.
-
-Run by scripts/verify_embedded_backend.sh. This is the check that caught the
-parser only handling single-quoted arguments while LFM2.5 emits double quotes.
-"""
 
 import asyncio
 import glob
@@ -73,7 +68,6 @@ async def main() -> int:
         await engine.async_shutdown()
         print("\nengine shut down cleanly")
 
-    # The engine must survive shutdown without leaving a usable handle behind.
     try:
         await engine.async_chat_completion([{"role": "user", "content": "hi"}])
         print("FAIL: engine still served a request after shutdown")
@@ -81,7 +75,6 @@ async def main() -> int:
     except Exception as err:
         print(f"post-shutdown request correctly refused: {type(err).__name__}")
 
-    # Parser sanity against the exact text llama.cpp produced above.
     text, calls = extract_tool_calls("[HassTurnOn(name='O'Malley's lamp')]")
     assert calls[0].arguments["name"] == "O'Malley's lamp", calls
     print("apostrophe-safe parse OK")

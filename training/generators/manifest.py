@@ -1,4 +1,3 @@
-"""Dataset manifest construction and reconciliation."""
 
 from __future__ import annotations
 
@@ -50,7 +49,6 @@ def build_manifest(
     rejections: dict[str, int],
     token_lengths: list[int],
 ) -> dict[str, Any]:
-    """Manifest that reconciles with the written dataset."""
     outcome_counts = Counter()
     contrast_counts = Counter()
     tool_counts = Counter()
@@ -66,10 +64,6 @@ def build_manifest(
         if area_ctx.get("target_area_source"):
             area_sources[area_ctx["target_area_source"]] += 1
 
-    # Every accepted row, measured exactly once. Validation only tokenizes the
-    # rows its cheap character bound could not clear, so mixing cached and
-    # missing counts is normal -- taking only the cached ones would report the
-    # longest tail of the corpus as if it were the whole distribution.
     lengths = list(token_lengths or [])
     if not lengths:
         for row in rows:
@@ -79,7 +73,7 @@ def build_manifest(
                 continue
             try:
                 lengths.append(count_row_tokens(row, model_name=tokenizer_model))
-            except Exception:  # noqa: BLE001
+            except Exception:
                 lengths.append(0)
 
     sorted_lengths = sorted(lengths) if lengths else [0]
@@ -128,7 +122,6 @@ def _reconcile_totals(manifest: dict[str, Any], rows: list[dict[str, Any]]) -> N
     alloc = manifest["allocations"]
     achieved = alloc.get("achieved_family", {})
     if achieved and sum(achieved.values()) + sum(alloc.get("achieved_area", {}).values()) != len(rows):
-        # Area rows are included in slots; family+area may overlap metadata
         pass
 
 

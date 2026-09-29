@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Batch wake-word training: ingest -> select -> snapshot -> train -> evaluate -> save.
-
-Conservative auto-labeling, immutable snapshots, run-key idempotency, and local
-candidate bundles. Default tests use stub teacher/trainer paths (no LiveKit,
-Faster Whisper, or CUDA). Scheduling stays disabled while baseline/seed gates fail.
-"""
 
 from __future__ import annotations
 
@@ -32,19 +26,19 @@ if str(_SATELLITE_ROOT) not in sys.path:
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from sayso.wake.eval import (  # noqa: E402
+from sayso.wake.eval import (
     run_wake_eval,
     write_synthetic_wav,
 )
 from sayso.wake.livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
-from sayso.wake.snapshot import (  # noqa: E402
+from sayso.wake.snapshot import (
     CorpusExample,
     derive_training_examples,
     ensure_session_splits,
     holdout_sessions,
     load_session_splits,
 )
-from scripts.wake_mine_report import load as load_spool_records  # noqa: E402
+from scripts.wake_mine_report import load as load_spool_records
 
 TEACHER_POLICY_VERSION = "conservative-v1"
 LABEL_POLICY_VERSION = "conservative-v1"
@@ -126,7 +120,6 @@ class Trainer(Protocol):
 
 
 class StubTeacher:
-    """Deterministic conservative teacher for hermetic tests."""
 
     version = "stub-v1"
 
@@ -226,7 +219,6 @@ def _wake_phrase_detected(text: str) -> bool:
 
 
 class FasterWhisperTeacher:
-    """Conservative ASR teacher with word timestamps; never emits positives."""
 
     version = "faster-whisper-v1"
 
@@ -912,7 +904,6 @@ def _load_livekit_threshold(config_path: Path) -> tuple[float, dict[str, Any]]:
 
 
 class LiveKitTrainer:
-    """Pinned livekit-wakeword 0.2.1 train/export against snapshot clip layout."""
 
     version = FRONTEND_VERSION
 
@@ -1305,11 +1296,9 @@ def run_pipeline(
         eval_target = eval_root_override or eval_root
         has_cases = eval_target.joinpath("cases.json").is_file()
         if stub_mode and (eval_root_override is None or not has_cases):
-            # Synthetic fixtures are a stub-mode smoke test, never real eval evidence.
             eval_target = work_dir / "_stub_eval"
             _make_fixture_eval(eval_target, late_detection=False)
         elif not has_cases:
-            # Not a final status: restoring the real eval set lets the same run key proceed.
             reason = f"real eval manifest missing: {eval_target / 'cases.json'}"
             _write_run_state(run_dir, {"run_key": run_key, "status": "blocked", "reason": reason})
             return PipelineResult(run_key=run_key, status="blocked", bundle_dir=None, reason=reason)

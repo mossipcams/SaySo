@@ -1,4 +1,3 @@
-"""Linguistic validation must retain action values, including STT number words."""
 
 import pytest
 

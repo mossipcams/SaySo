@@ -1,4 +1,3 @@
-"""Recipe feasibility, family allocations, and generation slot planning."""
 
 from __future__ import annotations
 
@@ -26,9 +25,6 @@ PRIMARY_FAMILIES = (
     "aliases",
 )
 
-# Families that teach catalog gaps, absence refusals, or non-command transcripts,
-# not real-home names. The real-home balancer must never steer these slots onto
-# ``real_home_train``.
 REAL_HOME_EXCLUDED_FAMILIES = frozenset({
     "unavailable",
     "unsupported",
@@ -37,10 +33,6 @@ REAL_HOME_EXCLUDED_FAMILIES = frozenset({
     "absence",
 })
 
-# Bare names of the tools Home Assistant always offers (tools.py
-# ``_ALWAYS_OFFERED_NAMESPACES``). A row withholding one of these teaches a
-# catalog shape that never happens in production, so neither decoy removals nor
-# the unavailable family may withhold them.
 CORE_TOOL_NAMES = frozenset({"GetDateTime", "GetLiveContext", "HassTurnOn", "HassTurnOff"})
 
 FAMILY_ROBUSTNESS: dict[str, str] = {
@@ -70,9 +62,6 @@ SETTINGS_OPERATIONS = frozenset({
     "set_position",
 })
 
-# Clarify/follow_up rows that ask for a value, not just on/off/status: v5b
-# answered "dim the reading light to 30 percent" with HassLightSet despite two
-# candidates, because the ambiguity only ever covered on/off/status.
 AMBIGUOUS_SETTINGS = (
     ("lights", "set_brightness"),
     ("lights", "set_color"),
@@ -83,17 +72,12 @@ AMBIGUOUS_SETTINGS = (
 )
 AMBIGUOUS_SETTINGS_SHARE = 0.5
 
-# Operations whose missing tool invites a sibling-tool substitution: v5b called
-# the nearest offered tool (volume on a light, LightSet for fan speed/thermostat)
-# instead of refusing. open/close are excluded: their tool is the core
-# HassTurnOn/HassTurnOff, which production never withholds.
 SUBSTITUTION_PRONE_OPERATIONS = AMBIGUOUS_SETTINGS
 SUBSTITUTION_PRONE_SHARE = 0.5
 
 
 @dataclass
 class GenerationSlot:
-    """One accepted-row target in the main generation loop."""
 
     index: int
     family: str
@@ -109,7 +93,6 @@ class GenerationSlot:
 
 @dataclass
 class AllocationPlan:
-    """Requested vs planned row counts per family."""
 
     count: int
     requested: dict[str, int]
@@ -143,7 +126,6 @@ def _distribute_shares(count: int, shares: dict[str, float]) -> dict[str, int]:
 
 
 def datetime_slot(index: int, *, home_size: int = 16) -> GenerationSlot:
-    """One GetDateTime supervision slot (no entity graph)."""
     return GenerationSlot(
         index=index,
         family="datetime",
@@ -165,7 +147,6 @@ _ALIASES_COMBINATIONS = tuple(
 def _pick_capability_operation(
     family: str, rng: random.Random, aliases_rng: random.Random | None = None
 ) -> tuple[str, str, int]:
-    """Pick a (capability, operation, tier) suitable for ``family``."""
     if family == "datetime":
         return "datetime", "query_time", 0
     if family == "status":
@@ -204,14 +185,6 @@ def _pick_capability_operation(
         operation = rng.choice(["turn_on", "turn_off"])
         return cap_name, operation, CAPABILITIES[cap_name].tier
     if family == "unavailable":
-        # Any operation whose tool Home Assistant can withhold, not just the
-        # thermostat. Pinned to climate/set_temperature this family had one
-        # semantic identity to draw from, so a 40k allocation spent 95% of its
-        # attempts colliding on duplicate_semantic_id and still fell short --
-        # and the corpus only ever taught "the thermostat tool is missing",
-        # never the same refusal for a light, a vacuum, or a media player.
-        # Half the draws target substitution-prone ops so the refusal lands
-        # exactly where the model actually substituted a sibling tool.
         if rng.random() < SUBSTITUTION_PRONE_SHARE:
             cap_name, operation = rng.choice(SUBSTITUTION_PRONE_OPERATIONS)
         else:
@@ -220,30 +193,15 @@ def _pick_capability_operation(
     if family == "absence":
         return rng.choice(["lights", "fans", "media_players"]), "turn_on", 1
     if family == "unsupported":
-        # Same widening as ``unavailable``: a device that cannot do the thing is
-        # not only ever a media player.
         cap_name, operation = rng.choice(_UNDERPOWERED_OPERATIONS)
         return cap_name, operation, CAPABILITIES[cap_name].tier
     if family == "aliases":
-        # Widen the draw to the v5b alias failure shapes: media_players targets
-        # (Sofa TV, twice) and turn_off operations, not only lights x turn_on.
-        # The legacy draw stays on the main stream (result discarded) so
-        # seed-pinned runs keep their acceptance cadence; the widened shape is
-        # drawn from a per-run side stream.
         rng.choice(["lights", "fans", "switches"])
         cap_name, operation = (aliases_rng or rng).choice(_ALIASES_COMBINATIONS)
         return cap_name, operation, CAPABILITIES[cap_name].tier
     if family == "junk":
-        # The graph is irrelevant -- a junk transcript names no device. Borrow the
-        # clarify shape so the row still renders against a real home and catalog.
         cap_name = rng.choice(["lights", "fans", "switches", "media_players"])
         return cap_name, "turn_on", CAPABILITIES[cap_name].tier
-    # ordinary
-    # Only draw tiers that actually contain an actionable capability. A
-    # tier whose capabilities are all settings/query-only (tier 3 today)
-    # has no action ops, so an ordinary slot could never be satisfied —
-    # and the pre-fix code crashed on it (rng.choice over an empty list).
-    # Keep TIER_PROPORTIONS relative weighting among eligible tiers.
     eligible_tiers = sorted(
         tier
         for tier in TIER_PROPORTIONS
@@ -254,15 +212,12 @@ def _pick_capability_operation(
         weights=[TIER_PROPORTIONS[t] for t in eligible_tiers],
         k=1,
     )[0]
-    # Only capabilities with an action to take: a slot whose only op is query_state
-    # (status gold) can never satisfy ordinary/aliases, and gets re-picked forever.
     tier_caps = [name for name, cap in CAPABILITIES.items() if cap.tier == tier and _action_ops(cap)]
     cap_name = rng.choice(tier_caps)
     return cap_name, rng.choice(_action_ops(CAPABILITIES[cap_name])), tier
 
 
 def _action_ops(cap: Any) -> list[str]:
-    """Tool-backed operations whose gold is an action: no settings, no state queries."""
     return [
         op.name
         for op in cap.operations
@@ -271,16 +226,6 @@ def _action_ops(cap: Any) -> list[str]:
 
 
 def _eligible_operations() -> tuple[tuple[tuple[str, str], ...], tuple[tuple[str, str], ...]]:
-    """(withholdable, underpowered) capability/operation pairs for refusal families.
-
-    ``withholdable`` is anything Home Assistant supplies a tool for, so the
-    recipe can remove that tool — except the always-offered ``CORE_TOOL_NAMES``,
-    which production HA never withholds. ``underpowered`` additionally needs the
-    device template to carry a feature the operation does not require, so an
-    entity that genuinely lacks the capability can be built; it keeps the core
-    tools, because the unsupported family withholds nothing — it builds a
-    device that genuinely cannot do the thing.
-    """
     from generators.capability_registry import SupportLevel, required_features
     from generators.homes import _ENTITY_TEMPLATES
 
@@ -292,8 +237,6 @@ def _eligible_operations() -> tuple[tuple[tuple[str, str], ...], tuple[tuple[str
             if not op.tool_name or op.support != SupportLevel.SUPPORTED:
                 continue
             if op.tool_name not in CORE_TOOL_NAMES:
-                # HA always offers the core tools; withholding one teaches a
-                # catalog shape that never happens.
                 withholdable.append((cap_name, op.name))
             if not template:
                 continue
@@ -320,7 +263,6 @@ def _refusal_identity_ceiling(
     *,
     near_duplicate_limit: int,
 ) -> dict[str, int]:
-    """Max rows per refusal family if every attempt used the real home fixture."""
     from generators.capability_registry import entities_supporting, operation_spec
     from generators.real_home import load_real_home
 
@@ -351,7 +293,6 @@ def _eligible_real_home_slots(
     family_counts: dict[str, int],
     area_required: dict[str, int],
 ) -> int:
-    """Rows whose family may be drawn from the real home when balancing the mix."""
     eligible = sum(
         count
         for family, count in family_counts.items()
@@ -373,7 +314,6 @@ def verify_feasible(
     real_home_rate: float = 0.0,
     refusal_on_synthetic_only: bool = True,
 ) -> None:
-    """Fail before generation when quotas cannot be met."""
     family_counts = _distribute_shares(count, allocations)
     if area_required:
         area_total = sum(area_required.values())
@@ -429,7 +369,6 @@ def build_plan(
     min_positive_per_tool: int = 0,
     min_positive_per_operation: int = 0,
 ) -> AllocationPlan:
-    """Build shuffled generation slots from a versioned recipe."""
     area_required = _area_required_counts(area_distribution_path, count)
     area_total = sum(area_required.values())
     primary_count = count - area_total - datetime_required
@@ -452,8 +391,6 @@ def build_plan(
     if datetime_required:
         requested = {**requested, "datetime": datetime_required}
     rng = random.Random(seed)
-    # Side stream for the widened aliases draw: consuming the main rng here
-    # would shift every downstream draw and re-roll seed-pinned runs.
     aliases_rng = random.Random(f"aliases:{seed}")
     slots: list[GenerationSlot] = []
     index = 0
@@ -509,17 +446,11 @@ def build_plan(
     return AllocationPlan(count=count, requested=requested, slots=slots, area_required=area_required)
 
 
-# Reserve this multiple of the floor: slots are drawn per family, and harder
-# operations (feature-gated media) accept at a lower rate than the donors.
 _FLOOR_HEADROOM = 1.05
-# Grounding marks: discrimination rows and abandoned slots also fill a family.
 _GROUNDING_HEADROOM = 1.25
-# Plentiful tools that donate slots: on/off for ordinary ops, LightSet for settings.
 _DONORS = {"ordinary": frozenset({"HassTurnOn", "HassTurnOff"}), "settings": frozenset({"HassLightSet"})}
 
 
-# Operations every family already supplies in the thousands: the only slots that
-# grounding overlays and discrimination rows may take over.
 SURPLUS_OPERATIONS = frozenset(
     (capability, operation)
     for capability in ("lights", "switches", "fans", "media_players")
@@ -530,13 +461,6 @@ SURPLUS_OPERATIONS = frozenset(
 def _reserve_tool_floors(
     slots: list[GenerationSlot], tool_floor: int, rng: random.Random, op_floor: int = 0
 ) -> None:
-    """Give every covered operation and tool enough ordinary/settings slots.
-
-    The uniform tier draw left media, timer and vacuum tools at 18-68 positive
-    rows in a 40k corpus while the recipe asked for 200. Settings operations
-    only render in the settings family, so each family donates its own slots,
-    and a donor only gives while its own operation stays above the op floor.
-    """
     from collections import Counter
 
     from generators.coverage import expected_tool
@@ -562,8 +486,6 @@ def _reserve_tool_floors(
     need_op, need_tool = int(op_floor * _FLOOR_HEADROOM), int(tool_floor * _FLOOR_HEADROOM)
 
     def move(family: str, target: tuple[str, str, int]) -> bool:
-        # Best effort: a run too small to hold every floor reserves what it can;
-        # the audit still fails closed on the scaled floor.
         pool = donors[family]
         while pool:
             slot = pool.pop()
@@ -595,14 +517,6 @@ def _reserve_tool_floors(
 def _mark_grounding_slots(
     slots: list[GenerationSlot], count: int, rate: float, near_limit: int, rng: random.Random
 ) -> None:
-    """Pick exactly which carrier slots overlay a grounding variant.
-
-    Each carrier family gets a share proportional to its variant capacity
-    (ordinary holds most of the catalogue). A pooled per-attempt probability let
-    ordinary fill first and the small families saturate on duplicates, so the
-    zero-slack rate gate failed. Plain on/off slots go first, keeping the slots
-    reserved for tool floors on their own operation.
-    """
     import math
 
     from generators.coverage import expected_tool
@@ -617,19 +531,13 @@ def _mark_grounding_slots(
     for family, cap in sorted(capacity.items()):
         pool = [s for s in slots if s.family == family]
         if family == "ordinary":
-            # Only surplus on/off slots: an overlay replaces the slot's operation,
-            # so a reserved media/timer/lock slot would lose its floor row.
             pool = [s for s in pool if (s.capability, s.operation) in SURPLUS_OPERATIONS]
         rng.shuffle(pool)
-        # Headroom: discrimination rows and abandoned slots also fill a family's
-        # quota, so not every marked slot is drawn. The pipeline stops overlaying
-        # once the total target is met, so extra marks cannot overshoot it.
         for slot in pool[: min(cap, math.ceil(target * cap / total * _GROUNDING_HEADROOM))]:
             slot.grounding = True
 
 
 class FamilyTracker:
-    """Track accepted rows against family and area allocations."""
 
     def __init__(self, plan: AllocationPlan) -> None:
         self.plan = plan
@@ -686,7 +594,6 @@ class FamilyTracker:
 
 
 def discrimination_available_share(config: Any) -> float:
-    """Share of accepted rows that can realistically be description-based rows."""
     from generators.scenarios.discrimination import DISCRIMINATION_DELIVERY_CEILING
 
     share = DISCRIMINATION_DELIVERY_CEILING
@@ -696,7 +603,6 @@ def discrimination_available_share(config: Any) -> float:
 
 
 def discrimination_capable_slot(quota: Any, rng: random.Random) -> dict[str, Any] | None:
-    """Take a quota slot that can host a description-based row."""
     from generators.scenarios.discrimination import DISCRIMINATION_CAPABILITIES
 
     keys = sorted(

@@ -1,4 +1,3 @@
-"""Pytest fixtures for SaySo tests."""
 
 from __future__ import annotations
 
@@ -25,14 +24,12 @@ CUSTOM_COMPONENTS_PATH = str(REPO_ROOT / "custom_components")
 def enable_custom_integrations(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Allow Home Assistant to discover this repository's custom components."""
     monkeypatch.setattr(custom_components, "__path__", [CUSTOM_COMPONENTS_PATH])
     hass.data.pop(DATA_CUSTOM_COMPONENTS, None)
 
 
 @pytest.fixture(autouse=True)
 async def setup_required_integrations(hass: HomeAssistant) -> None:
-    """Load Home Assistant integrations required by SaySo tests."""
     assert await async_setup_component(hass, "homeassistant", {})
     assert await async_setup_component(hass, "llm", {})
     assert await async_setup_component(hass, "conversation", {})
@@ -40,7 +37,6 @@ async def setup_required_integrations(hass: HomeAssistant) -> None:
 
 @pytest.fixture
 def mock_session() -> aiohttp.ClientSession:
-    """Provide a mock aiohttp session for HTTP-boundary tests."""
     session = MagicMock(spec=aiohttp.ClientSession)
     session.post = MagicMock()
     return session
@@ -48,7 +44,6 @@ def mock_session() -> aiohttp.ClientSession:
 
 @pytest.fixture
 def llama_client(mock_session: aiohttp.ClientSession) -> LlamaCppClient:
-    """Provide a LlamaCppClient backed by a mock session."""
     return LlamaCppClient(
         mock_session,
         "http://127.0.0.1:8080/v1",
@@ -61,7 +56,6 @@ def llama_client(mock_session: aiohttp.ClientSession) -> LlamaCppClient:
 def configure_post(
     mock_session: aiohttp.ClientSession,
 ) -> Callable[..., AsyncMock]:
-    """Configure mock_session.post to return a context-managed response."""
 
     def _configure(
         *,
@@ -106,5 +100,4 @@ def configure_post(
 async def hass(
     hass: HomeAssistant,
 ) -> AsyncGenerator[HomeAssistant, None]:
-    """Expose Home Assistant for tests that need from_hass()."""
     yield hass

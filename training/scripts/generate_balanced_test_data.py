@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Generate a held-out synthetic test set via the canonical generator."""
 
 from __future__ import annotations
 

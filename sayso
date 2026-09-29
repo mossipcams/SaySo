@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Local candidate, validation, canary, and model promotion commands."""
 from __future__ import annotations
 
 import argparse
@@ -20,7 +19,6 @@ CANDIDATES = ROOT / "training/datasets/candidates"
 GPU_LOCK = os.environ.get("GPU_LOCK", "/srv/llm/bin/gpu")
 BASE_MODEL = os.environ.get("BASE_MODEL", "/srv/llm/lfm/models/LFM2.5-230M-Base")
 DATASET_DIR = Path(os.environ.get("DATASET_DIR", "/srv/llm/data/lfm/datasets"))
-# Host path of the container's writable {HOST}/lfm/runs/sayso-promotion mount.
 EVAL_RESULTS = Path(os.environ.get("EVAL_RESULTS", "/srv/llm/lfm/runs/sayso-promotion"))
 HOST = "/workspace/host"
 os.environ.setdefault("HF_HOME", "/srv/llm/hf-cache")
@@ -93,9 +91,6 @@ def render_and_stage(record: dict) -> str:
 
 
 def eval_checkpoint(checkpoint: str, out_name: str, suite: str) -> tuple[bool, dict]:
-    # The repo is mounted read-only in the container, so results go under the
-    # writable runs mount. A fresh directory per eval: the container writes as
-    # root, so the host cannot clear an old one, and stale summaries would mix in.
     out_name = f"{out_name}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
     out = f"{HOST}/lfm/runs/sayso-promotion/{out_name}"
     results = EVAL_RESULTS / out_name

@@ -1,11 +1,3 @@
-"""Locate the wake phrase end with the classifier instead of an energy proxy.
-
-A mined clip is the exact 2 s window that fired, ending at detection_index.
-Cut k ms off the tail and pad the front with silence to keep the window 2 s,
-then re-score. While the cut removes only post-phrase audio the score holds;
-once it eats into the phrase the score collapses. The largest k that holds is
-the detection lag.
-"""
 import glob, json, os, sys, wave
 import numpy as np
 sys.path.insert(0, "/opt/sayso-satellite")

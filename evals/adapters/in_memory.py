@@ -1,4 +1,3 @@
-"""Model invocation only: a callable that returns a completion body."""
 
 from __future__ import annotations
 
@@ -7,7 +6,6 @@ from typing import Any
 
 
 class InMemoryAdapter:
-    """Training-checkpoint evaluation. ``complete`` is a local predict function."""
 
     name = "in_memory"
 

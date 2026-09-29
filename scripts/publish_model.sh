@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Publish a SaySo GGUF as a GitHub Release asset and repoint the integration at it.
-#
-# Weights cannot live in the repo: every useful quant is over GitHub's 100 MB
-# file limit, and HACS re-downloads the integration directory on every update.
-# Release assets allow 2 GB and stay out of git history.
-#
-# Run this on the machine that holds the model (the training box):
-#
-#   scripts/publish_model.sh /srv/models/sayso-lfm25-230m-q4_k_m.gguf
-#   scripts/publish_model.sh <model.gguf> [tag]          # default tag: model-v1
-#   scripts/publish_model.sh <model.gguf> --dry-run      # show what would happen
-#
-# TITLE="SaySo Gauntlet v1" sets the release title (default: "SaySo model <tag>").
-#
-# Then commit the const.py change it makes.
 
 set -euo pipefail
 
@@ -27,7 +12,6 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONST="$REPO_ROOT/custom_components/sayso/const.py"
 
 if [ -z "$MODEL" ]; then
-  # Print the header comment block and stop at the first line that is not one.
   awk 'NR==1 {next} /^#/ {sub(/^# ?/, ""); print; next} {exit}' "${BASH_SOURCE[0]}"
   exit 2
 fi
@@ -37,8 +21,6 @@ if [ ! -f "$MODEL" ]; then
   exit 1
 fi
 
-# A truncated or wrong-format file would fail at load time on every user's box,
-# after a few hundred megabytes of download. Check the magic bytes here instead.
 if [ "$(head -c 4 "$MODEL")" != "GGUF" ]; then
   echo "error: $MODEL is not a GGUF file (bad magic bytes)" >&2
   exit 1
@@ -67,9 +49,6 @@ else
     echo "==> release $TAG exists, uploading asset"
   else
     echo "==> creating release $TAG"
-    # A separate tag from release-please's version tags: the model and the
-    # integration are versioned independently, so a patch bump does not mean
-    # re-uploading hundreds of megabytes.
     gh release create "$TAG" \
       --title "${TITLE:-SaySo model ${TAG#model-}}" \
       --notes "${NOTES:-GGUF weights for the SaySo conversation agent. Downloaded automatically on first setup.}" \

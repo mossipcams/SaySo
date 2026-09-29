@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Generate short local notification tones (no speech)."""
 from __future__ import annotations
 
 import math

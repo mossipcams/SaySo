@@ -1,4 +1,3 @@
-"""Tests for the non-blocking wake inference worker."""
 
 from __future__ import annotations
 
@@ -14,7 +13,7 @@ def test_latest_window_queue_replaces_stale_window() -> None:
     queue = LatestWindowQueue()
     queue.offer(np.array([1], dtype=np.int16))
     queue.offer(np.array([2], dtype=np.int16))
-    assert queue.take(timeout=0.1)[0] == 2  # type: ignore[index]
+    assert queue.take(timeout=0.1)[0] == 2
 
 
 def test_worker_runs_predict_off_capture_thread() -> None:

@@ -1,4 +1,3 @@
-"""Tests for end-to-end SaySo interaction tracing."""
 
 from __future__ import annotations
 
@@ -48,7 +47,6 @@ PIPELINE_ID = "pipeline-1"
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    """Patch llama.cpp connectivity checks during setup."""
     with patch.object(
         LlamaCppClient, "list_models", new=AsyncMock(return_value=[MODEL_ID])
     ), patch.object(
@@ -58,7 +56,6 @@ def mock_llama_client() -> Any:
 
 
 class _TracedLight(LightEntity):
-    """Light used to exercise real Home Assistant action execution."""
 
     _attr_name = "Kitchen"
     _attr_unique_id = "traced_kitchen"
@@ -83,7 +80,6 @@ class _TracedLight(LightEntity):
 
 @pytest.fixture
 async def traced_light(hass: HomeAssistant) -> None:
-    """Register a light so HassTurnOn executes for real."""
     setup_test_component_platform(hass, "light", [_TracedLight()])
     assert await async_setup_component(hass, "light", {"light": {"platform": "test"}})
     assert await async_setup_component(hass, "intent", {})
@@ -91,7 +87,6 @@ async def traced_light(hass: HomeAssistant) -> None:
 
 
 def _event(event_type: str, offset_ms: int, base: datetime, data: Any = None) -> Any:
-    """Build a stand-in for one assist_pipeline PipelineEvent."""
     return SimpleNamespace(
         type=event_type,
         data=data,
@@ -106,7 +101,6 @@ def _install_pipeline_run(
     run_id: str = "run-1",
     events: list[Any] | None = None,
 ) -> Any:
-    """Install a pipeline run shaped like assist_pipeline's own bookkeeping."""
     run = SimpleNamespace(
         id=run_id,
         context=context,
@@ -128,7 +122,6 @@ def _install_pipeline_run(
 
 
 def _voice_events(base: datetime) -> list[Any]:
-    """A realistic pipeline event history up to the point SaySo is invoked."""
     return [
         _event("run-start", 0, base),
         _event("wake_word-end", 5, base, {"wake_word_output": {}}),
@@ -150,11 +143,9 @@ def _stored_stages(record: dict[str, Any]) -> list[str]:
     return [event["stage"] for event in record["events"]]
 
 
-# --- Trace identity -------------------------------------------------------
 
 
 async def test_home_assistant_adopts_the_pipeline_run_id(hass: HomeAssistant) -> None:
-    """The canonical trace id is Home Assistant's own end-to-end run id."""
     context = Context()
     _install_pipeline_run(hass, context, run_id="01PIPELINERUN")
     recorder = TraceRecorder(hass, TraceStore(hass))
@@ -166,17 +157,15 @@ async def test_home_assistant_adopts_the_pipeline_run_id(hass: HomeAssistant) ->
 
 
 async def test_home_assistant_generates_a_fallback_id(hass: HomeAssistant) -> None:
-    """A text-only request with no pipeline run still gets one trace id."""
     recorder = TraceRecorder(hass, TraceStore(hass))
 
     trace = recorder.async_start(Context(), "turn on the light")
 
     assert trace.trace_id
-    assert len(trace.trace_id) == 26  # ULID
+    assert len(trace.trace_id) == 26
 
 
 async def test_unrelated_pipeline_run_is_not_adopted(hass: HomeAssistant) -> None:
-    """Runs are matched by context identity, never by recency."""
     _install_pipeline_run(hass, Context(), run_id="someone-elses-run")
     recorder = TraceRecorder(hass, TraceStore(hass))
 
@@ -186,11 +175,6 @@ async def test_unrelated_pipeline_run_is_not_adopted(hass: HomeAssistant) -> Non
 
 
 async def test_assist_pipeline_lookup_contract() -> None:
-    """Guard the assist_pipeline internals the canonical trace id depends on.
-
-    If Home Assistant renames these, tracing silently degrades to local ids.
-    This test makes that a loud CI failure instead.
-    """
     import dataclasses
     from unittest.mock import MagicMock
 
@@ -210,7 +194,6 @@ async def test_assist_pipeline_lookup_contract() -> None:
     }
     assert {"type", "data", "timestamp"} <= event_fields
 
-    # The event type strings SaySo matches on.
     types = ha_pipeline.PipelineEventType
     assert [
         types.RUN_START,
@@ -240,31 +223,25 @@ async def test_assist_pipeline_lookup_contract() -> None:
 async def test_missing_pipeline_component_degrades_quietly(
     hass: HomeAssistant,
 ) -> None:
-    """No assist_pipeline data must not raise into the voice path."""
     hass.data.pop(KEY_ASSIST_PIPELINE, None)
 
     assert async_find_pipeline_run(hass, Context()) is None
 
 
-# --- Home Assistant pipeline stages ---------------------------------------
 
 
 async def test_stt_timing_separates_transport_from_transcription() -> None:
-    """Audio transport and STT inference must not be conflated."""
     base = datetime(2026, 9, 10, 13, 15, 41, tzinfo=UTC)
     trace = TraceContext(trace_id="t")
 
     replay_pipeline_events(trace, _voice_events(base))
 
-    # stt-start -> stt-vad-end is capture and transport.
     assert trace.stage_ms[Stage.AUDIO_UPLOAD] == 890
-    # stt-vad-end -> stt-end is what the STT engine actually did.
     assert trace.stage_ms[Stage.STT] == 238
     assert trace.utterance == "turn on the kitchen light"
 
 
 async def test_stt_replay_records_speech_and_wake_instants() -> None:
-    """Wake and VAD boundaries are point events, not fabricated spans."""
     base = datetime(2026, 9, 10, 13, 15, 41, tzinfo=UTC)
     trace = TraceContext(trace_id="t")
 
@@ -277,7 +254,6 @@ async def test_stt_replay_records_speech_and_wake_instants() -> None:
 
 
 async def test_replayed_stages_keep_home_assistant_timestamps() -> None:
-    """Persisted timestamps must be when the stage ran, not when it was replayed."""
     base = datetime(2026, 9, 10, 13, 15, 41, tzinfo=UTC)
     trace = TraceContext(trace_id="t")
 
@@ -294,7 +270,6 @@ async def test_replayed_stages_keep_home_assistant_timestamps() -> None:
 
 
 async def test_stt_replay_without_vad_does_not_invent_a_split() -> None:
-    """No VAD boundary means no invented audio_upload stage."""
     base = datetime(2026, 9, 10, 13, 15, 41, tzinfo=UTC)
     trace = TraceContext(trace_id="t")
 
@@ -312,7 +287,6 @@ async def test_stt_replay_without_vad_does_not_invent_a_split() -> None:
 
 
 async def test_stt_failure_finalizes_the_trace() -> None:
-    """An empty transcript is an STT failure, recorded against the STT stage."""
     base = datetime(2026, 9, 10, 13, 15, 41, tzinfo=UTC)
     trace = TraceContext(trace_id="t")
 
@@ -330,14 +304,12 @@ async def test_stt_failure_finalizes_the_trace() -> None:
     assert trace.success is False
     assert trace.error_stage == Stage.STT
     assert trace.error_type == ErrorType.STT_FAILED
-    # Timings collected before the failure are preserved.
     assert trace.summary()["audio_upload_ms"] == 790
 
 
 async def test_tts_timing_is_measured_where_home_assistant_synthesizes(
     hass: HomeAssistant,
 ) -> None:
-    """TTS stages come from the pipeline, and the run end closes the trace."""
     context = Context()
     run = _install_pipeline_run(hass, context)
     store = TraceStore(hass)
@@ -347,7 +319,6 @@ async def test_tts_timing_is_measured_where_home_assistant_synthesizes(
     trace = recorder.async_start(context, "turn on the light")
     recorder.async_finish(trace)
 
-    # Not persisted yet: Home Assistant has not synthesized speech.
     assert store.get(trace.trace_id) is None
 
     run.event_callback(_event("tts-start", 0, base))
@@ -362,7 +333,6 @@ async def test_tts_timing_is_measured_where_home_assistant_synthesizes(
 
 
 async def test_tts_failure_finalizes_the_same_trace(hass: HomeAssistant) -> None:
-    """A pipeline TTS error fails the trace it belongs to."""
     context = Context()
     run = _install_pipeline_run(hass, context)
     store = TraceStore(hass)
@@ -384,7 +354,6 @@ async def test_tts_failure_finalizes_the_same_trace(hass: HomeAssistant) -> None
 
 
 async def test_pipeline_observer_never_swallows_events(hass: HomeAssistant) -> None:
-    """The wrapped callback still forwards every event downstream."""
     context = Context()
     run = _install_pipeline_run(hass, context)
     seen: list[str] = []
@@ -397,14 +366,12 @@ async def test_pipeline_observer_never_swallows_events(hass: HomeAssistant) -> N
     run.event_callback(_event("run-end", 1, base))
 
     assert seen == ["tts-start", "run-end"]
-    # The observer detaches itself once the run ends.
     assert run.event_callback is not None
     run.event_callback(_event("tts-start", 2, base))
     assert seen == ["tts-start", "run-end", "tts-start"]
 
 
 async def test_pipeline_run_that_never_ends_is_persisted(hass: HomeAssistant) -> None:
-    """A stalled pipeline must not strand its trace forever."""
     from homeassistant.util import dt as dt_util
     from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
@@ -428,7 +395,6 @@ async def test_pipeline_run_that_never_ends_is_persisted(hass: HomeAssistant) ->
     assert store.get(trace.trace_id) is not None
 
 
-# --- SaySo stages through a real conversation turn ------------------------
 
 
 async def test_one_trace_id_through_the_whole_home_assistant_request(
@@ -436,7 +402,6 @@ async def test_one_trace_id_through_the_whole_home_assistant_request(
     mock_llama_client: None,
     traced_light: None,
 ) -> None:
-    """Every stage of one interaction carries the same, unchanged trace id."""
     entry = await _create_entry(hass)
     context = Context()
     run = _install_pipeline_run(
@@ -482,7 +447,6 @@ async def test_integration_trace_is_chronological(
     mock_llama_client: None,
     traced_light: None,
 ) -> None:
-    """One request produces the expected ordered trace with one trace id."""
     entry = await _create_entry(hass)
     context = Context()
     run = _install_pipeline_run(
@@ -555,9 +519,7 @@ async def test_integration_trace_is_chronological(
     for measured in ("stt_ms", "context_ms", "model_ms", "tool_parse_ms", "ha_ms",
                      "response_ms", "tts_ms", "total_ms"):
         assert summary[measured] is not None, measured
-    # SaySo executes Home Assistant intent tools, which expose no service name.
     assert summary["service"] is None
-    # Playback happens on the satellite and is not observable here.
     assert summary["playback_ms"] is None
 
 
@@ -566,7 +528,6 @@ async def test_inference_and_tool_parse_are_measured_separately(
     mock_llama_client: None,
     traced_light: None,
 ) -> None:
-    """Context, inference and tool parsing keep their own measurements."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -595,14 +556,13 @@ async def test_inference_and_tool_parse_are_measured_separately(
     assert summary["model_ms"] is not None
     assert summary["tool_parse_ms"] is not None
     assert summary["ha_ms"] is not None
-    assert summary["model_ms"] != summary["tool_parse_ms"] or True  # kept distinct
+    assert summary["model_ms"] != summary["tool_parse_ms"] or True
 
 
 async def test_successful_interaction_finalization(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """A plain text turn finalizes and persists immediately."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -624,7 +584,6 @@ async def test_model_failure_records_the_inference_stage(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """A model timeout fails the trace at the inference stage."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -638,7 +597,6 @@ async def test_model_failure_records_the_inference_stage(
     assert summary["success"] is False
     assert summary["error_stage"] == Stage.INFERENCE
     assert summary["error_type"] == ErrorType.MODEL_TIMEOUT
-    # Everything measured before the failure survives.
     assert summary["context_ms"] is not None
 
 
@@ -646,7 +604,6 @@ async def test_model_unavailable_records_the_inference_stage(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """A connection failure is classified distinctly from a timeout."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -666,7 +623,6 @@ async def test_tool_parsing_failure_records_the_tool_parse_stage(
     mock_llama_client: None,
     traced_light: None,
 ) -> None:
-    """An unavailable tool fails the trace at tool parsing, before execution."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -695,7 +651,6 @@ async def test_home_assistant_action_failure_records_the_action_stage(
     mock_llama_client: None,
     traced_light: None,
 ) -> None:
-    """A tool execution exception fails the trace at the action stage."""
     entry = await _create_entry(hass)
 
     from homeassistant.exceptions import HomeAssistantError
@@ -732,7 +687,6 @@ async def test_tracing_failure_does_not_break_the_request(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Persistence errors are logged, not turned into voice failures."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -757,7 +711,6 @@ async def test_trace_start_failure_does_not_break_the_request(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """A broken pipeline lookup still yields a usable trace and a spoken reply."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -780,7 +733,6 @@ async def test_concurrent_interactions_keep_independent_trace_state(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Two simultaneous voice interactions never share trace state."""
     entry = await _create_entry(hass)
     first_context = Context()
     second_context = Context()
@@ -822,7 +774,6 @@ async def test_concurrent_interactions_keep_independent_trace_state(
     assert {event["trace_id"] for event in second_record["events"]} == {"01SECONDRUN"}
 
 
-# --- Persistence, retention and privacy -----------------------------------
 
 
 def _finished_trace(trace_id: str, *, started_at: datetime, success: bool = True) -> TraceContext:
@@ -836,7 +787,6 @@ def _finished_trace(trace_id: str, *, started_at: datetime, success: bool = True
 
 
 async def test_retention_drops_traces_past_the_age_limit(hass: HomeAssistant) -> None:
-    """Age-based retention prunes off the request path, at save time."""
     store = TraceStore(hass, retention_days=30)
     now = datetime.now(tz=UTC)
     store.async_record(_finished_trace("old", started_at=now - timedelta(days=31)))
@@ -849,7 +799,6 @@ async def test_retention_drops_traces_past_the_age_limit(hass: HomeAssistant) ->
 
 
 async def test_retention_caps_the_interaction_count(hass: HomeAssistant) -> None:
-    """The interaction cap applies on append, so memory stays bounded."""
     store = TraceStore(hass, max_interactions=3)
     now = datetime.now(tz=UTC)
     for index in range(5):
@@ -861,7 +810,6 @@ async def test_retention_caps_the_interaction_count(hass: HomeAssistant) -> None
 
 
 async def test_utterance_persistence_can_be_disabled(hass: HomeAssistant) -> None:
-    """Disabling utterances keeps every other field intact."""
     store = TraceStore(hass, store_utterances=False)
     trace = _finished_trace(
         "private", started_at=datetime.now(tz=UTC), success=False
@@ -884,7 +832,6 @@ async def test_utterance_persistence_can_be_disabled(hass: HomeAssistant) -> Non
 
 
 async def test_query_filters_failures_and_time_range(hass: HomeAssistant) -> None:
-    """Retrieval supports the filters the analysis goals need."""
     store = TraceStore(hass)
     now = datetime.now(tz=UTC)
     store.async_record(
@@ -908,7 +855,6 @@ async def test_query_filters_failures_and_time_range(hass: HomeAssistant) -> Non
 
 
 async def test_stored_traces_survive_a_reload(hass: HomeAssistant) -> None:
-    """Persisted summaries and events reload into their two structures."""
     store = TraceStore(hass)
     store.async_record(_finished_trace("kept", started_at=datetime.now(tz=UTC)))
     saved = store._data_to_save()
@@ -923,7 +869,6 @@ async def test_stored_traces_survive_a_reload(hass: HomeAssistant) -> None:
 
 
 async def test_store_load_failure_starts_empty(hass: HomeAssistant) -> None:
-    """A corrupt trace store must not block integration setup."""
     store = TraceStore(hass)
     with patch.object(
         store._store, "async_load", AsyncMock(side_effect=ValueError("corrupt"))
@@ -933,14 +878,12 @@ async def test_store_load_failure_starts_empty(hass: HomeAssistant) -> None:
     assert len(store) == 0
 
 
-# --- Retrieval services ---------------------------------------------------
 
 
 async def test_trace_retrieval_services(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Traces are retrievable through Home Assistant services, not a new server."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -994,7 +937,6 @@ async def test_diagnostics_redacts_utterances(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """A diagnostics download never leaks transcripts."""
     entry = await _create_entry(hass)
     with patch.object(
         LlamaCppClient,
@@ -1010,11 +952,9 @@ async def test_diagnostics_redacts_utterances(
     assert diagnostics["traces"]["stored"] == 1
 
 
-# --- Failure classification is stable -------------------------------------
 
 
 async def test_first_failure_wins() -> None:
-    """An outer handler cannot overwrite the precise failing stage."""
     trace = TraceContext(trace_id="t")
     trace.fail(Stage.TOOL_PARSE, ErrorType.INVALID_ARGUMENTS, "bad args")
     trace.fail(Stage.SAYSO_REQUEST, ErrorType.UNKNOWN, "generic")
@@ -1026,7 +966,6 @@ async def test_first_failure_wins() -> None:
 
 
 async def test_failing_a_trace_closes_open_stages() -> None:
-    """Open stages are closed as failed so the trace stays chronological."""
     trace = TraceContext(trace_id="t")
     trace.add_event(INTERACTION_STARTED)
     trace.open(Stage.HA_ACTION)

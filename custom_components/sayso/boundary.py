@@ -1,10 +1,3 @@
-"""The model boundary: what a llama.cpp tool call must survive to execute.
-
-Nothing here talks to Home Assistant or to the model. These are the pure
-decisions the conversation agent makes about untrusted model output — is the
-batch well-formed, which schema was the model actually shown, what stable code
-describes the failure — kept apart from the turn loop that acts on them.
-"""
 
 from __future__ import annotations
 
@@ -34,8 +27,6 @@ from .tracing import ErrorType, Stage, TraceContext
 
 _LOGGER = logging.getLogger(__name__)
 
-# Each boundary code answers the same two questions once: which stage of the
-# interaction broke, and how the trace should classify it.
 _BOUNDARY_OUTCOMES: dict[BoundaryFailureCode, tuple[Stage, ErrorType]] = {
     BoundaryFailureCode.SCHEMA_MISMATCH: (Stage.TOOL_PARSE, ErrorType.SCHEMA_MISMATCH),
     BoundaryFailureCode.INVALID_ARGUMENTS: (
@@ -54,7 +45,6 @@ _BOUNDARY_OUTCOMES: dict[BoundaryFailureCode, tuple[Stage, ErrorType]] = {
     ),
 }
 
-# Ordered most specific first; anything SaySo did not raise stays UNKNOWN.
 _INFERENCE_ERROR_TYPES: tuple[tuple[type[BaseException], ErrorType], ...] = (
     (SaySoTimeoutError, ErrorType.MODEL_TIMEOUT),
     (SaySoInvalidResponseError, ErrorType.INVALID_MODEL_OUTPUT),
@@ -63,7 +53,6 @@ _INFERENCE_ERROR_TYPES: tuple[tuple[type[BaseException], ErrorType], ...] = (
 
 
 def inference_error_type(err: BaseException) -> ErrorType:
-    """Classify why one llama.cpp request failed."""
     for error_class, error_type in _INFERENCE_ERROR_TYPES:
         if isinstance(err, error_class):
             return error_type
@@ -77,7 +66,6 @@ def boundary_schema(
     complete_schema: CompiledToolSchema | None,
     correction_used: bool = False,
 ) -> CompiledToolSchema | None:
-    """Return the schema whose fingerprint matches the tools sent in this phase."""
     corrected = phase == BoundaryPhase.CORRECTION or (
         phase == BoundaryPhase.EXECUTION and correction_used
     )
@@ -95,7 +83,6 @@ def record_boundary(
     ha_error: str | None = None,
     trace: TraceContext | None = None,
 ) -> None:
-    """Record one boundary failure and log its stable code and phase."""
     record_boundary_failure(
         entry_id,
         code,
@@ -124,14 +111,12 @@ def record_boundary(
 def validation_failure_code(
     error: ToolArgumentValidationError,
 ) -> BoundaryFailureCode:
-    """Map a tool-argument validation error to a boundary diagnostic code."""
     if error.code == ToolArgumentFailureCode.SCHEMA_MISMATCH:
         return BoundaryFailureCode.SCHEMA_MISMATCH
     return BoundaryFailureCode.INVALID_ARGUMENTS
 
 
 def is_well_formed_batch(tool_calls: list[ToolCall]) -> bool:
-    """Return whether every call in the batch is structurally usable."""
     ids = [call.id for call in tool_calls]
     return (
         all(call.id and call.name for call in tool_calls)
@@ -148,7 +133,6 @@ def validate_arguments(
     list[tuple[ToolCall, dict[str, Any]]],
     list[tuple[ToolCall, ToolArgumentValidationError]],
 ]:
-    """Split a batch into calls Home Assistant's schemas accept and ones they reject."""
     validated: list[tuple[ToolCall, dict[str, Any]]] = []
     failures: list[tuple[ToolCall, ToolArgumentValidationError]] = []
     for tool_call in tool_calls:
@@ -170,12 +154,10 @@ def validate_arguments(
 
 
 def is_tool_execution_failure(tool_result: dict[str, Any]) -> bool:
-    """Return whether HA reported a tool execution exception, not a negative result."""
     return "error" in tool_result and "success" not in tool_result
 
 
 def first_target(tool_result: dict[str, Any]) -> str | None:
-    """Return the first entity Home Assistant reported as successfully targeted."""
     data = tool_result.get("data")
     successes = data.get("success") if isinstance(data, dict) else None
     if not isinstance(successes, list):
@@ -190,10 +172,6 @@ def action_metadata(
     validated_tool_calls: list[tuple[ToolCall, dict[str, Any]]],
     tool_map: dict[str, llm.Tool],
 ) -> dict[str, Any]:
-    """Return small, non-sensitive metadata describing a tool batch.
-
-    Only identifiers are kept: no full arguments, prompts or state dumps.
-    """
     if not validated_tool_calls:
         return {}
     tool_call, normalized_args = validated_tool_calls[0]
@@ -212,7 +190,6 @@ def action_metadata(
 
 
 def apply_action_summary(trace: TraceContext, metadata: dict[str, Any]) -> None:
-    """Promote the executed action onto the interaction summary."""
     trace.tool = metadata.get("tool") or trace.tool
     target = metadata.get("target")
     if isinstance(target, str) and target:

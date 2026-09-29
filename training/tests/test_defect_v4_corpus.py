@@ -1,8 +1,3 @@
-"""Invariants for the v4 defect-driven corpus (issues #39, #94, #97).
-
-Each test here fails if one of the three data defects the v4 recipe exists to
-fix comes back.
-"""
 
 from __future__ import annotations
 
@@ -38,7 +33,6 @@ V4_RECIPE = REPO / "training" / "configs" / "generation" / "full_sft_v4.yaml"
 
 
 def _row(family: str, seed: int = 20260922, **config_kwargs):
-    """Generate one accepted row for ``family``, or None if every attempt fails."""
     config = GeneratorConfig(
         count=1,
         seed=seed,
@@ -68,35 +62,17 @@ def _row(family: str, seed: int = 20260922, **config_kwargs):
 
 
 def test_count_row_tokens_counts_a_row_with_tool_calls():
-    """Canonical rows keep ``arguments`` as a JSON string.
-
-    The LFM2 chat template calls ``.items()`` on it, so templating raised and
-    every caller silently fell back to a length/4 estimate; separately,
-    transformers >= 5 returns a BatchEncoding whose ``len()`` is 2. Both made
-    the token budget unenforceable, and all three shipped 40k manifests report
-    ``{min: 0, p50: 0, max: 0}``.
-    """
     row = _row("ordinary")
     assert row is not None, "no ordinary row generated"
     assert any(m.get("tool_calls") for m in row["messages"]), "need a tool-call row"
 
     tokens = count_row_tokens(row, model_name=TOKENIZER)
 
-    # A production-shaped row carries a ~30-tool catalog and a full static
-    # context: thousands of tokens, never 2 and never a char/4 estimate.
     assert tokens > 1000, f"token count collapsed to {tokens}"
     assert not row["metadata"].get("_token_length_estimated", False)
 
 
 def test_cheap_token_bound_never_understates_the_real_count():
-    """The budget gate skips the tokenizer using a character bound.
-
-    Tokenizing is ~9 ms and generation validates hundreds of thousands of
-    candidates, so the bound is what keeps a 40k build from taking two hours.
-    It is only safe if it never reads low: a row it clears must genuinely fit.
-    """
-    # Families the lights/turn_on slot below can actually produce, spanning the
-    # short (junk) and long (multi_action, exclusion) ends of the distribution.
     for family in ("ordinary", "settings", "multi_action", "exclusion", "junk"):
         row = _row(family)
         assert row is not None, f"no {family} row generated"
@@ -108,7 +84,6 @@ def test_cheap_token_bound_never_understates_the_real_count():
 
 
 def test_junk_transcripts_answer_without_calling_a_tool():
-    """Issue #97: garbled STT must not produce tool calls."""
     row = _row("junk")
     assert row is not None, "no junk row generated"
 
@@ -122,12 +97,6 @@ def test_junk_transcripts_answer_without_calling_a_tool():
 
 
 def test_bare_name_rate_produces_entities_without_their_area_prefix():
-    """Issue #94: a name like ``TV`` in area ``Living Room`` must exist.
-
-    Every synthetic name used to be ``f"{area} {role}"``, which taught the model
-    to answer "the living room TV" with ``name="Living room TV"`` -- a string no
-    Home Assistant registry holds, so the intent matcher raises MatchFailedError.
-    """
     rng = random.Random(7)
     prefixed = bare = 0
     bare_with_area_alias = 0
@@ -151,15 +120,12 @@ def test_bare_name_rate_produces_entities_without_their_area_prefix():
     assert 0.15 < bare / (bare + prefixed) < 0.60, (
         "bare-name share outside the useful band"
     )
-    # A bare entity must not be handed the area-prefixed alias back: that would
-    # put the concatenated string in the context and teach the defect again.
     assert bare_with_area_alias == 0, (
         f"{bare_with_area_alias} bare entities still carry an area-prefixed alias"
     )
 
 
 def test_bare_tv_room_phrasing_keeps_canonical_gold_name():
-    """Issue #94: room-qualified speech must not change ``name`` in tool args."""
     tv = make_entity(
         name="TV",
         capability="media_players",
@@ -200,7 +166,6 @@ def test_bare_tv_room_phrasing_keeps_canonical_gold_name():
 
 
 def test_stt_tv_corruption_passes_validate_row():
-    """Issue #102: letter-spaced TV in the utterance still validates against gold ``TV``."""
     tv = make_entity(
         name="TV",
         capability="media_players",
@@ -243,7 +208,6 @@ def test_stt_tv_corruption_passes_validate_row():
 
 
 def test_bare_name_rate_zero_keeps_the_old_naming():
-    """The default must not silently change corpora built from older recipes."""
     rng = random.Random(7)
     home = generate_home(0, 32, rng)
     named_by_area = [
@@ -255,7 +219,6 @@ def test_bare_name_rate_zero_keeps_the_old_naming():
 
 
 def test_junk_rows_are_not_counted_against_capability_quotas():
-    """A junk row teaches no capability, so it must not consume one's quota."""
     row = _row("junk")
     assert row is not None
     assert row["metadata"]["family"] == "junk"
@@ -319,7 +282,6 @@ def test_refusal_families_never_use_real_home_rows() -> None:
 
 
 def test_ordinary_only_run_fills_with_balanced_real_home_mix() -> None:
-    """Late-slot real-home pressure must not strand ordinary family quota."""
     base = _v4_config()
     plan = build_plan(
         base.count,
@@ -349,7 +311,6 @@ def test_ordinary_only_run_fills_with_balanced_real_home_mix() -> None:
 
 
 def test_40k_shaped_refusal_leftover_fills_under_attempt_budget() -> None:
-    """Unavailable + unsupported counts from the v4 recipe, isolated from easy families."""
     base = _v4_config()
     plan = build_plan(
         base.count,
@@ -360,8 +321,6 @@ def test_40k_shaped_refusal_leftover_fills_under_attempt_budget() -> None:
         datetime_required=base.get_datetime_positive_min,
     )
     count = plan.requested["unavailable"] + plan.requested["unsupported"]
-    # Keep the v4 unavailable/unsupported ratio but stay under audit's 1k-row
-    # diversity floor so this test only exercises allocation + attempt budget.
     probe_count = min(count, 800)
     scale = probe_count / count
     probe_unavailable = max(1, int(round(plan.requested["unavailable"] * scale)))
@@ -394,7 +353,7 @@ def test_40k_shaped_refusal_leftover_fills_under_attempt_budget() -> None:
     assert not any(row["metadata"].get("real_home") for row in result["rows"])
 
 
-if __name__ == "__main__":  # pragma: no cover - manual run
+if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()

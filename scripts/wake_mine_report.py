@@ -1,28 +1,4 @@
 #!/usr/bin/env python3
-"""Summarise, ingest, label, and inventory wake-training assets.
-
-Records land unlabelled: the satellite knows a window scored high, not whether
-anyone actually said the wake phrase. Labelling is a listening job, and this script is
-the thin wrapper around it.
-
-    # what's in the spool
-    python scripts/wake_mine_report.py /var/lib/sayso-satellite/wake-mining
-
-    # verify hashes and write ack files for transfer back to the satellite
-    python scripts/wake_mine_report.py SPOOL --ingest
-
-    # highest-scoring unreviewed clips first, with a play command per row
-    python scripts/wake_mine_report.py SPOOL --unreviewed --play
-
-    # record a verdict on a legacy flat clip or a record directory
-    python scripts/wake_mine_report.py SPOOL --label 20260910T001432_412_s0.3120 negative
-
-    # inventory wake-only roots (mine spool, eval audio, models data/output)
-    python scripts/wake_mine_report.py SPOOL --inventory
-
-    # quarantine corrupt assets and remove verified duplicates (retained copy kept)
-    python scripts/wake_mine_report.py SPOOL --inventory --cleanup
-"""
 
 from __future__ import annotations
 
@@ -34,21 +10,20 @@ import wave
 from collections import defaultdict
 from pathlib import Path
 
-# Import mining helpers from the satellite package when run from repo root.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SATELLITE_ROOT = _REPO_ROOT / "satellite"
 if str(_SATELLITE_ROOT) not in sys.path:
     sys.path.insert(0, str(_SATELLITE_ROOT))
 
-from sayso.wake.mining import ingest_record, write_ack  # noqa: E402
-from sayso.wake.corpus import (  # noqa: E402
+from sayso.wake.mining import ingest_record, write_ack
+from sayso.wake.corpus import (
     EVENTS_DIR,
     import_spool_records,
     load_events,
     set_event_label,
 )
-from sayso.wake.replay import replay_and_import_session  # noqa: E402
-from sayso.wake.sessions import ingest_session, list_sessions, load_session  # noqa: E402
+from sayso.wake.replay import replay_and_import_session
+from sayso.wake.sessions import ingest_session, list_sessions, load_session
 
 LABELS = ("positive", "negative", "unsure")
 MANIFEST_NAME = "wake_cleanup_manifest.json"
@@ -124,7 +99,6 @@ def load(spool: Path) -> list[dict]:
 
 
 def ingest(spool: Path) -> int:
-    """Verify published records and write ack files. Returns ack count."""
     acked = 0
     for record_dir in _record_dirs(spool):
         capture_id = record_dir.name
@@ -260,7 +234,6 @@ def _scan_wake_roots(roots: list[Path]) -> list[dict]:
         for wav in sorted(root.rglob("*.wav")):
             if _is_under_lfm(wav):
                 continue
-            # records/<id>/window.wav is indexed above; parent.parent is records/, not records/records/.
             if wav.name == "window.wav" and wav.parent.parent.name == "records":
                 continue
             if any(part == "quarantine" for part in wav.parts):

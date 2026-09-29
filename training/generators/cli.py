@@ -1,4 +1,3 @@
-"""CLI entry for canonical synthetic dataset generation."""
 
 from __future__ import annotations
 

@@ -1,4 +1,3 @@
-"""Validate Axolotl smoke/production configs."""
 
 from __future__ import annotations
 

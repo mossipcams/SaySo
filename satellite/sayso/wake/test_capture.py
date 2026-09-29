@@ -1,4 +1,3 @@
-"""Tests for sample-ordered capture and the explicit resampler."""
 
 from __future__ import annotations
 
@@ -11,13 +10,8 @@ from satellite.sayso.wake.capture import (
     gain_scalar_from_db,
 )
 
-# One impulse spreads over the full kernel, i.e. 2 * half_taps + 1 input
-# samples, which is a third as many output samples at 48k->16k.
 _FILTER_SPREAD = (2 * _FILTER_HALF_TAPS + 1) // 3 + 2
 
-# An output sample is emitted only once all of its right-hand taps have arrived,
-# so the stream runs a fixed `half_taps` input samples behind. Derived, not
-# hardcoded: retuning the filter must not require editing a magic number here.
 _FILTER_DELAY_44K = _FILTER_HALF_TAPS * 160 // 441
 
 
@@ -26,8 +20,6 @@ def test_resampler_produces_expected_length_for_44100_to_16000() -> None:
     block = np.zeros(441, dtype="<i2")
     out = b"".join(resampler.process(block.tobytes()) for _ in range(10))
     samples = np.frombuffer(out, dtype="<i2")
-    # 4410 input samples at 44.1 kHz is exactly 100 ms, so 1600 output samples
-    # once the fixed filter delay is accounted for.
     assert samples.size == 1600 - _FILTER_DELAY_44K
 
 
@@ -36,13 +28,10 @@ def test_resampler_preserves_length_across_many_small_blocks() -> None:
     total = 0
     for _ in range(100):
         total += len(resampler.process(np.zeros(441, dtype="<i2").tobytes()))
-    # The delay is paid once at the start, not per block: 100 blocks lag by the
-    # same 5 samples one block does.
     assert total // 2 == 16000 - _FILTER_DELAY_44K
 
 
 def test_resampler_delay_does_not_accumulate_over_a_long_run() -> None:
-    """The shortfall must stay constant; anything else is drift."""
     resampler = CaptureResampler(input_rate=44100, output_rate=16000)
     block = np.zeros(441, dtype="<i2").tobytes()
     produced = 0
@@ -53,11 +42,10 @@ def test_resampler_delay_does_not_accumulate_over_a_long_run() -> None:
 
 
 def test_resampler_is_continuous_across_block_boundaries() -> None:
-    """An impulse split by a block boundary must survive as one output peak."""
     rate = 48000
     resampler = CaptureResampler(input_rate=rate, output_rate=16000)
     block = 240
-    impulse_index = block - 1  # exactly the first block's final sample
+    impulse_index = block - 1
     first = np.zeros(block, dtype="<i2")
     first[-1] = 20000
     second = np.zeros(block, dtype="<i2")
@@ -68,10 +56,7 @@ def test_resampler_is_continuous_across_block_boundaries() -> None:
     assert out.size > 0
     expected = round(impulse_index * 16000 / rate)
     peak = int(np.argmax(np.abs(out)))
-    # The impulse energy must land at the expected output position. A per-block
-    # filter reset would smear it toward the seam and move or duplicate the peak.
     assert abs(peak - expected) <= 2
-    # A contiguous run, not two disjoint energy islands straddling the boundary.
     energy = np.abs(out).astype(np.int64)
     assert int(energy[peak]) > 0
     nonzero = np.nonzero(energy)[0]
@@ -79,7 +64,6 @@ def test_resampler_is_continuous_across_block_boundaries() -> None:
 
 
 def test_resampler_single_impulse_matches_one_block_impulse() -> None:
-    """Chunking must not change the output: same audio, same result."""
     rate = 44100
     samples = np.zeros(882, dtype="<i2")
     samples[500] = 30000
@@ -102,11 +86,6 @@ def _tone(freq: float, seconds: float, rate: int, amplitude: float = 0.5) -> np.
 
 
 def test_resampler_output_is_identical_for_any_block_size() -> None:
-    """A dense signal, not a sparse impulse: every block seam is exercised.
-
-    An impulse surrounded by zeros cannot detect a truncated filter at a seam,
-    because the missing taps multiply silence. Two tones do.
-    """
     rate = 44100
     t = np.arange(rate) / float(rate)
     signal = (
@@ -127,14 +106,6 @@ def test_resampler_output_is_identical_for_any_block_size() -> None:
 
 
 def test_resampler_does_not_fold_spurs_into_the_speech_band() -> None:
-    """Fractional output phases must use their own kernel, not the nearest one.
-
-    An output sample lands on a whole input sample only 1 time in 160 at
-    44.1 kHz. Rounding the other 159 to the nearest input sample is sample
-    jitter, and it shows up as in-band spurs tens of dB above the noise floor.
-    1000 Hz is an exact bin of an 8192-point analysis at 16 kHz, so a rectangular
-    window leaks nothing and any spur found is genuinely the resampler's.
-    """
     pcm = _tone(1000.0, 3.0, 44100)
     out = np.frombuffer(
         CaptureResampler(input_rate=44100, output_rate=16000).process(pcm.tobytes()),
@@ -150,8 +121,6 @@ def test_resampler_does_not_fold_spurs_into_the_speech_band() -> None:
     residual = spectrum.copy()
     residual[fundamental - 1 : fundamental + 2] = 0.0
     worst_dbc = 20.0 * np.log10(residual.max() / spectrum[fundamental])
-    # Phase-correct kernels put the worst spur near the int16 floor (~-96 dBc).
-    # Discarding the fractional phase measured -33 dBc at 2900 Hz.
     assert worst_dbc < -80.0, f"in-band spur at {worst_dbc:.1f} dBc"
 
 
@@ -184,13 +153,12 @@ def test_capture_ring_indexes_samples_absolutely() -> None:
 def test_capture_ring_read_clamps_to_available_span() -> None:
     ring = WakeCaptureRing(capacity=1000)
     ring.append(np.arange(10, dtype="<i2").tobytes())
-    # Nothing before the ring start is fabricated.
     assert np.frombuffer(ring.read(-50, 5), dtype="<i2").size == 5
 
 
 def test_capture_ring_underflow_reports_span_shortfall() -> None:
     ring = WakeCaptureRing(capacity=8)
-    ring.append(np.arange(20, dtype="<i2").tobytes())  # capacity forces wrap
+    ring.append(np.arange(20, dtype="<i2").tobytes())
     assert ring.end_index == 20
     span = ring.available_span()
     assert span == (12, 20)
@@ -199,7 +167,6 @@ def test_capture_ring_underflow_reports_span_shortfall() -> None:
 
 
 def test_capture_ring_stt_cursor_never_replays_samples() -> None:
-    """Each sample is handed to STT exactly once, in order."""
     ring = WakeCaptureRing(capacity=1000)
     ring.append(np.arange(10, dtype="<i2").tobytes())
     assert np.frombuffer(ring.drain_after_cursor(), dtype="<i2").size == 10
@@ -215,21 +182,18 @@ def test_gain_scalar_from_db_is_monotonic_and_clamped() -> None:
 
 
 def test_capture_ring_reads_correctly_after_wrap() -> None:
-    """Absolute-index mapping must survive a wrap-around write."""
     ring = WakeCaptureRing(capacity=100)
     ring.append(np.arange(150, dtype="<i2").tobytes())
     assert ring.end_index == 150
-    # The newest 100 samples (50..149) are held, in order.
     data = np.frombuffer(ring.read(50, 150), dtype="<i2")
     assert data.size == 100
     assert np.array_equal(data, np.arange(50, 150, dtype="<i2"))
 
 
 def test_capture_ring_rearm_does_not_claim_stale_samples() -> None:
-    """After a re-anchor the timeline advances but no old audio is readable."""
     ring = WakeCaptureRing(capacity=1000)
     ring.append(np.arange(500, dtype="<i2").tobytes())
-    ring.reset()  # re-anchors at 500, clears audio
+    ring.reset()
     assert ring.end_index == 500
     assert ring.available_span() == (500, 500)
     assert ring.read(0, 500) == b""
@@ -243,7 +207,6 @@ def test_capture_ring_rearm_does_not_claim_stale_samples() -> None:
 
 def test_capture_ring_large_append_maps_to_absolute_slots() -> None:
     ring = WakeCaptureRing(capacity=64)
-    # Feed values equal to their absolute sample index so slot mapping is visible.
     ring.append(np.arange(0, 10, dtype="<i2").tobytes())
     ring.append(np.arange(10, 210, dtype="<i2").tobytes())
     assert ring.end_index == 210

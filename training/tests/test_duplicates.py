@@ -1,4 +1,3 @@
-"""Tests for duplicate detection."""
 
 from __future__ import annotations
 

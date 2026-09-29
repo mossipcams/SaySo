@@ -1,4 +1,3 @@
-"""Generation statistics aggregation."""
 
 from __future__ import annotations
 

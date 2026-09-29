@@ -1,4 +1,3 @@
-"""Contract checks for the balanced synthetic test-data composer."""
 
 from __future__ import annotations
 

@@ -1,4 +1,3 @@
-"""Tests for SaySo config and options flows."""
 
 from __future__ import annotations
 
@@ -37,13 +36,11 @@ MODEL_ID = "test-model"
 
 @pytest.fixture(autouse=True)
 async def setup_llm(hass: HomeAssistant) -> None:
-    """Load the LLM integration so API selectors can be populated."""
     assert await async_setup_component(hass, "llm", {})
 
 
 @pytest.fixture
 def mock_list_models() -> Any:
-    """Patch LlamaCppClient.list_models."""
     with patch.object(
         LlamaCppClient,
         "list_models",
@@ -54,7 +51,6 @@ def mock_list_models() -> Any:
 
 @pytest.fixture
 def mock_validate_model() -> Any:
-    """Patch LlamaCppClient.validate_model."""
     with patch.object(
         LlamaCppClient,
         "validate_model",
@@ -101,7 +97,6 @@ async def test_successful_config_flow(
     mock_list_models: AsyncMock,
     mock_validate_model: AsyncMock,
 ) -> None:
-    """Test a successful config flow creates one entry per endpoint and model."""
     result = await _start_user_step(hass)
     result = await _complete_user_step(hass, result["flow_id"])
     assert result["type"] == FlowResultType.FORM
@@ -129,7 +124,6 @@ async def test_duplicate_entry_prevention(
     mock_list_models: AsyncMock,
     mock_validate_model: AsyncMock,
 ) -> None:
-    """Test duplicate endpoint and model combinations are rejected."""
     result = await _start_user_step(hass)
     result = await _complete_user_step(hass, result["flow_id"])
     result = await _complete_model_step(hass, result["flow_id"])
@@ -143,7 +137,6 @@ async def test_duplicate_entry_prevention(
 
 
 async def test_unreachable_server(hass: HomeAssistant) -> None:
-    """Test unreachable llama.cpp surfaces a connection error."""
     with patch.object(
         LlamaCppClient,
         "list_models",
@@ -158,7 +151,6 @@ async def test_unreachable_server(hass: HomeAssistant) -> None:
 
 
 async def test_invalid_api_key(hass: HomeAssistant) -> None:
-    """Test invalid API key surfaces an authentication error."""
     with patch.object(
         LlamaCppClient,
         "list_models",
@@ -175,7 +167,6 @@ async def test_invalid_api_key(hass: HomeAssistant) -> None:
 
 
 async def test_invalid_response(hass: HomeAssistant) -> None:
-    """Test invalid llama.cpp responses surface a response error."""
     with patch.object(
         LlamaCppClient,
         "list_models",
@@ -195,7 +186,6 @@ async def test_missing_model(
     hass: HomeAssistant,
     mock_list_models: AsyncMock,
 ) -> None:
-    """Test selecting a missing model surfaces a model error."""
     with patch.object(
         LlamaCppClient,
         "validate_model",
@@ -217,7 +207,6 @@ async def test_api_key_redacted_from_logged_errors(
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test API keys are redacted from config-flow debug logs."""
     secret = "super-secret-key"
     with patch.object(
         LlamaCppClient,
@@ -238,7 +227,6 @@ async def test_options_flow_updates_and_reloads(
     mock_list_models: AsyncMock,
     mock_validate_model: AsyncMock,
 ) -> None:
-    """Test options updates reload the config entry."""
     result = await _start_user_step(hass)
     result = await _complete_user_step(hass, result["flow_id"])
     result = await _complete_model_step(hass, result["flow_id"])

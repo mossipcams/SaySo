@@ -1,11 +1,3 @@
-"""Opt-in wake-window capture for offline labelling and hard-negative mining.
-
-Mining is off unless ``wake_word.mine_dir`` is set. Scored 16 kHz mono windows,
-bounded ring context, and HA/STT outcomes are published as immutable record
-directories via a bounded writer queue so capture and inference never block on
-disk. A host ingest step verifies hashes and writes acks; the satellite deletes
-only acknowledged records.
-"""
 
 from __future__ import annotations
 
@@ -34,7 +26,6 @@ SAMPLE_RATE = 16000
 WINDOW_SAMPLES = SAMPLE_RATE * 2
 HOP_SAMPLES = 2560
 
-# ponytail: 2000 two-second clips ~= 128 MB scored audio; raise if mining below 0.05.
 DEFAULT_MAX_RECORDS = 2000
 DEFAULT_MAX_BYTES = 256 * 1024 * 1024
 DEFAULT_QUEUE_SIZE = 32
@@ -133,7 +124,6 @@ class _WriteJob:
 
 
 class HardNegativeMiner:
-    """Publish scored wake windows and linked outcomes without blocking inference."""
 
     def __init__(
         self,
@@ -260,7 +250,6 @@ class HardNegativeMiner:
         *,
         sample_index: int | None = None,
     ) -> Optional[str]:
-        """Queue a scored window for publication. Never raises."""
         if window.size == 0:
             return None
         if not self._ensure_dirs():
@@ -306,7 +295,6 @@ class HardNegativeMiner:
         return published_id
 
     def snapshot_pre_trigger(self, trigger_index: int, *, synthetic_padding: bool = False) -> None:
-        """Capture ring audio before rearm/overwrite for pending publications."""
         if self._ring_reader is None or self._pre_context_samples <= 0:
             return
         pre_start = trigger_index - self._window_samples - self._pre_context_samples + 1
@@ -320,7 +308,6 @@ class HardNegativeMiner:
         self._pending_pre[key] = (pcm, flags)
 
     def note_rearm(self) -> None:
-        """Mark that the next pre-trigger snapshot may include synthetic padding."""
         self._processing["last_rearm_mono"] = time.monotonic()
 
     def publish_wake_outcome(
@@ -370,7 +357,6 @@ class HardNegativeMiner:
         self._publish_outcome(capture_id, OUTCOME_STT, payload)
 
     def drain_acks(self, *, max_age_days: float = 14.0) -> int:
-        """Delete only host-acknowledged records. Returns deleted count."""
         if not self._acks.is_dir():
             return 0
         removed = 0
@@ -646,7 +632,6 @@ class HardNegativeMiner:
 
 
 def ingest_record(record_dir: Path) -> tuple[bool, str]:
-    """Verify a published record directory. Returns (ok, message)."""
     meta_path = record_dir / "record.json"
     if not meta_path.is_file():
         return False, "missing record.json"
@@ -688,7 +673,6 @@ def write_ack(spool_dir: Path, capture_id: str, *, host: str = "wake_mine_report
 
 
 def demo() -> None:
-    """Self-check: sampling, hashes, queue loss, spool cap, and ingest/ack."""
     import tempfile
 
     rng = np.random.default_rng(0)

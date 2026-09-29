@@ -1,4 +1,3 @@
-"""Splitting and mixing in a fetched real Home Assistant home."""
 
 from __future__ import annotations
 

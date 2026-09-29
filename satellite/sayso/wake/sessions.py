@@ -1,4 +1,3 @@
-"""Long-form recording session ingest for the wake-word corpus pipeline."""
 
 from __future__ import annotations
 
@@ -127,7 +126,6 @@ def ingest_session(
     notes: str | None = None,
     copy_audio: bool = True,
 ) -> RecordingSession:
-    """Register a long-form WAV as a named recording session."""
     wav_path = Path(wav_path)
     if not wav_path.is_file():
         raise FileNotFoundError(f"missing session wav: {wav_path}")
@@ -219,7 +217,7 @@ def verify_session(session: RecordingSession) -> tuple[bool, str]:
 
 
 class ShipSessionError(RuntimeError):
-    """Session could not be copied to the train VM or verified remotely."""
+    pass
 
 
 @dataclass(frozen=True)
@@ -308,7 +306,6 @@ def ship_session(
     dry_run: bool = False,
     subprocess_run: Callable[..., subprocess.CompletedProcess] | None = None,
 ) -> ShipSessionResult:
-    """Copy one session to the train VM via rsync-over-SSH, verify, then delete locally."""
     runner = subprocess_run or subprocess.run
     sid = _validate_session_id(session_id)
     session = load_session(corpus_root, sid)

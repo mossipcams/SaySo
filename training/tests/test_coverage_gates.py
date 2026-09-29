@@ -1,12 +1,3 @@
-"""Gates that stop a corpus from claiming supervision it does not carry.
-
-Four properties, one test group each:
-
-1. a refusal cannot fill a positive operation quota;
-2. missing supervision fails the dataset audit rather than the training run;
-3. an action the entity cannot perform is rejected before it becomes a label;
-4. changing the entity graph changes the expected target or outcome.
-"""
 
 from __future__ import annotations
 
@@ -95,7 +86,6 @@ def test_distinct_phrasings_may_repeat_one_semantic_scenario_up_to_the_cap():
     ) == "duplicate_semantic_id"
 
 
-# 1. Refusals cannot fill a positive quota -------------------------------------
 
 
 def test_a_refusal_does_not_count_as_positive_supervision():
@@ -115,10 +105,8 @@ def test_refusal_only_fills_the_negative_budget_of_its_own_bucket():
     for _ in range(allowance):
         assert tracker.wants(classify_row(refusal)) is None
         tracker.record_accept(refusal)
-    # The bucket still needs every one of its positive rows.
     assert tracker.accepted_positive[key] == 0
     assert tracker.shortfall()["positive"][str(key)] == tracker.targets["positive"][key]
-    # And it will not take another refusal.
     assert tracker.wants(classify_row(refusal)) == "quota_negative_full"
 
 
@@ -130,7 +118,6 @@ def test_a_call_on_the_wrong_domain_is_not_positive_supervision():
 
 
 def test_offering_a_tool_is_not_coverage():
-    """A row that offers HassMediaPause but calls nothing has not taught it."""
     tools = [{"function": {"name": "HassMediaPause", "description": "", "parameters": {}}}]
     row = _row([], capability="media_players", operation="pause", reason="clarify", tools=tools)
     assert classify_row(row)["positive"] is False
@@ -154,7 +141,6 @@ def test_a_nonexistent_target_is_not_positive_supervision():
 
 
 def test_quota_positive_and_negative_partition_accepted_rows():
-    """QuotaTracker positive and negative buckets stay within each operation target."""
     tracker = QuotaTracker(300, seed=31337)
     key = (1, "media_players", "turn_on")
     assert tracker.targets["positive"][key] > 0
@@ -185,7 +171,6 @@ def test_impossible_quota_configurations_fail_before_generating():
         build_quota_targets(100, {1: 0.5, 2: 0.2})
 
 
-# 2. Missing supervision fails the audit ---------------------------------------
 
 
 def test_audit_fails_when_a_required_operation_has_no_positive_row():
@@ -231,8 +216,6 @@ def test_audit_caps_absence_answers():
     ] + [_row([_call("HassTurnOn", {"name": "TV", "domain": ["media_player"]})])]
     with pytest.raises(ValueError, match="absence answers"):
         audit_rows(rows, max_absence_rate=0.10)
-    # The same distribution passes when the cap allows it: 209 absence rows are a
-    # distribution to look at, not proof of anything on their own.
     assert audit_rows(rows, max_absence_rate=0.90)["absence_rate"] == 0.8
 
 
@@ -261,7 +244,6 @@ def test_tools_outside_declared_coverage_are_not_offered():
     assert not offered & excluded
 
 
-# 3. Unsupported entity actions are rejected -----------------------------------
 
 
 def test_an_entity_without_the_feature_cannot_be_given_the_action():
@@ -299,7 +281,6 @@ def test_a_device_unsupported_refusal_must_match_the_entity_graph():
 
 @pytest.mark.parametrize("operation", ["turn_on", "pause", "volume_set", "mute", "search_and_play"])
 def test_generated_media_scenarios_only_target_capable_devices(operation):
-    """Scenarios carry the home, so this checks the label against the real graph."""
     checked = 0
     for index in range(60):
         scenario = build_scenario(
@@ -323,7 +304,6 @@ def test_generated_media_scenarios_only_target_capable_devices(operation):
     assert checked, f"no {operation} labels produced"
 
 
-# 4. The entity graph decides the answer ---------------------------------------
 
 
 def _grounding(variant):
@@ -341,7 +321,6 @@ def test_the_same_request_changes_answer_with_the_entity_graph():
     )
     specs = {v["family"]: _grounding(v) for v in (present, renamed, moved, distractors)}
 
-    # One request for all four graphs.
     prompts = {spec["utterance"] for spec in specs.values()}
     assert len(prompts) == 1, prompts
 

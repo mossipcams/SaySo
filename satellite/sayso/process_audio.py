@@ -1,22 +1,3 @@
-"""Native-rate capture with one deliberate resample before LVA processes audio.
-
-Upstream LVA opens the microphone with a hardcoded ``samplerate=16000``:
-
-    with mic.recorder(samplerate=16000, channels=n_channels, blocksize=...) as mic_in:
-        raw = mic_in.record(block_size)   # float32
-
-For a 44.1 kHz device that makes the audio server resample implicitly, with no
-anti-alias filter under our control, and nothing downstream can tell that it
-happened. The overlay cannot change that call from the outside without patching
-upstream, so instead we wrap ``process_audio`` and force the *recorder* to open
-at the configured native rate, then resample each recorded block to 16 kHz
-before LVA sees it.
-
-LVA's own loop, WebRTC processing, satellite transport, wake feed, and the SaySo
-external wake hook all keep operating on 16 kHz PCM exactly as before. The only
-change is that the single 44.1 kHz -> 16 kHz conversion is ours, explicit, and
-continuous across block boundaries.
-"""
 
 from __future__ import annotations
 
@@ -35,28 +16,11 @@ TARGET_RATE = 16000
 
 @dataclass
 class NativeClipTally:
-    """Cumulative native-rate gain-clip events across capture blocks."""
 
     count: int = 0
 
 
 class _ResamplingRecorder:
-    """Wrap a soundcard recorder so ``record()`` returns 16 kHz float32.
-
-    The underlying recorder is opened at the native rate; each block is scaled
-    by the fixed gain and resampled once. Output keeps LVA's contract exactly:
-    ``record(n)`` returns float32 in ``[-1, 1]`` shaped ``(n, channels)`` at
-    16 kHz, because that is what upstream asks for when it calls
-    ``mic_in.record(block_size)``.
-
-    Honouring that needs two things the native rate makes awkward. Reading ``n``
-    frames of *output* means reading ``n * native / 16000`` frames of input --
-    at 44.1 kHz that is 2.76x as many, so requesting ``n`` directly would return
-    barely a third of the audio asked for. And the ratio is not an integer, so a
-    fixed read returns ``n`` or ``n +/- 1`` output frames depending on phase.
-    Surplus frames are therefore held over to the next call rather than handed
-    back as a short block.
-    """
 
     def __init__(
         self,
@@ -72,8 +36,6 @@ class _ResamplingRecorder:
         self._channels = channels
         self._gain = gain
         self._native_clip_tally = native_clip_tally
-        # One resampler per channel: each channel is an independent stream, and
-        # sharing one filter state across channels would corrupt both.
         self._resamplers = (
             None
             if native_rate == TARGET_RATE
@@ -103,15 +65,10 @@ class _ResamplingRecorder:
             raw = self._recorder.record(numframes)
             return raw if raw is None else self._apply_gain(np.asarray(raw, dtype=np.float32))
 
-        # Read native audio until enough output frames exist to satisfy the
-        # caller. The first call reads slightly extra to cover the resampler's
-        # fixed start-up delay; after that the loop runs once.
         native_frames = max(1, -(-numframes * self._native_rate // TARGET_RATE))
         while self._pending is None or self._pending.shape[0] < numframes:
             raw = self._recorder.record(native_frames)
             if raw is None:
-                # Device closed mid-stream: hand back whatever is buffered so
-                # the caller sees the stream end rather than a silent stall.
                 pending, self._pending = self._pending, None
                 return pending
             block = self._resample(self._apply_gain(np.asarray(raw, dtype=np.float32)))
@@ -145,8 +102,6 @@ class _ResamplingRecorder:
         for ch in range(n_channels):
             column = data[:, ch] if n_channels > 1 else data.reshape(-1)
             resampler = self._resamplers[ch]
-            # Round rather than truncate: astype() alone truncates toward zero,
-            # which biases every sample by up to 1 LSB towards silence.
             scaled = np.rint(column * 32767.0)
             pcm = np.clip(scaled, -32768, 32767).astype("<i2").tobytes()
             out_i16 = np.frombuffer(resampler.process(pcm), dtype="<i2")
@@ -154,26 +109,10 @@ class _ResamplingRecorder:
         return np.stack(resampled, axis=1)
 
 
-# Home Assistant exposes mic volume, auto gain, and noise suppression as
-# writable entities, and upstream re-reads all three inside the capture loop --
-# `state.mic_volume` every block, `state.preferences.mic_*` every block. Left
-# alone, a slider drag in HA silently re-scales the audio Whisper sees and
-# re-instantiates the WebRTC processor mid-stream. The command path has to be
-# reproducible, so config wins and HA's copies are frozen.
 _PINNED_SETTERS = ("persist_mic_volume", "persist_mic_gain", "persist_mic_noise")
 
 
 def _pin_audio_settings(state: Any, *, auto_gain: int, noise_suppression: int) -> None:
-    """Freeze mic volume, AGC, and NS at their configured values.
-
-    ``persist_mic_volume`` / ``persist_mic_gain`` / ``persist_mic_noise`` are the
-    only runtime writers of these fields, so shadowing those three bound methods
-    on the instance is enough to hold the values for the process lifetime. HA's
-    writes become no-ops instead of errors; its UI keeps reading back the pinned
-    value, which is the truth about what the audio path is using.
-    """
-    # 100 makes upstream's `max(0.1, min(1.0, mic_volume / 100))` exactly 1.0, so
-    # the multiply becomes a no-op and audio.mic_gain_db is the only gain applied.
     pinned = {
         "mic_volume": 100,
         "mic_auto_gain": int(auto_gain),
@@ -201,13 +140,10 @@ def install_native_rate_capture(
     noise_suppression: int = 0,
     native_clip_tally: NativeClipTally | None = None,
 ) -> Any:
-    """Wrap ``lva_main.process_audio`` to capture natively and resample once."""
     original_process_audio = lva_main.process_audio
     gain = gain_scalar_from_db(gain_db)
 
     def process_audio(state: Any, mic: Any, blocksize: int) -> None:
-        # Pinned here, not at install time: `state` only exists once upstream
-        # starts the capture thread, and this runs before its first block.
         _pin_audio_settings(
             state, auto_gain=auto_gain, noise_suppression=noise_suppression
         )
@@ -248,7 +184,6 @@ def install_native_rate_capture(
 
 
 def install_wake_audio_path(lva_main: Any, hook: Any) -> None:
-    """Install the external wake hook and preserve upstream SystemExit handling."""
     install_external_wake_hook(lva_main, hook)
     original_run = lva_main.run
 

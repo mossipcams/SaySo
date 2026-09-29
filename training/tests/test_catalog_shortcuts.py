@@ -1,9 +1,3 @@
-"""Regressions for the v5 corpus shortcuts (docs/PLAN_V5_CORPUS_SHORTCUT_FIXES.md).
-
-v5 let catalog shape predict the `unavailable` refusal: only those rows withheld a
-tool, and homes never had exactly 2 scripts. Status requests were always
-"status of X", and STT noise appended "." after "?".
-"""
 
 from __future__ import annotations
 
@@ -41,7 +35,7 @@ def test_decoys_withhold_only_unneeded_tools_at_the_set_rate():
         }
         removed = _decoy_removals(spec, messages)
         assert "intent__HassTurnOn" not in removed
-        assert "light__HassLightSet" not in removed  # the row's own operation tool
+        assert "light__HassLightSet" not in removed
         withheld += bool(removed)
     assert 0.25 < withheld / 1000 < 0.35
 
@@ -87,7 +81,6 @@ def test_plan_reserves_the_tool_floor_for_every_covered_tool():
 
 
 def test_lock_labels_carry_no_device_class():
-    # HA locks have no device class; "door" is a cover class and would filter the lock out.
     from generators.tools import build_area_call, build_turn_off, build_turn_on
 
     lock = {"name": "Front Door Lock", "domain": "lock", "device_class": "door", "capability": "locks"}

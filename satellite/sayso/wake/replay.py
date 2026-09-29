@@ -1,4 +1,3 @@
-"""Production-path replay of long-form sessions for wake candidate mining."""
 
 from __future__ import annotations
 
@@ -49,7 +48,6 @@ def production_replay_constants() -> dict[str, int]:
 
 
 def session_replay_spool_dir(corpus_root: Path, session_id: str) -> Path:
-    """Per-session replay spool so re-replay does not accumulate stale records."""
     return Path(corpus_root) / REPLAY_SPOOL_DIR / session_id
 
 
@@ -97,7 +95,6 @@ def collect_session_activations(
     predict: Optional[Callable[..., object]] = None,
     pcm: bytes | None = None,
 ) -> tuple[tuple[int, ...], list[float], float, bool]:
-    """Scan one session (or raw 16 kHz s16le ``pcm``) with production hop/lag; return activation sample indices."""
     cfg = config or ReplayConfig()
     if cfg.sample_rate != SAMPLE_RATE:
         raise ValueError(f"replay requires {SAMPLE_RATE} Hz audio")
@@ -150,7 +147,6 @@ def replay_session(
     config: ReplayConfig | None = None,
     predict: Optional[Callable[..., object]] = None,
 ) -> ReplayStats:
-    """Stream one session through the production sliding-window wake path."""
     cfg = config or ReplayConfig()
     if cfg.sample_rate != SAMPLE_RATE:
         raise ValueError(f"replay requires {SAMPLE_RATE} Hz audio")
@@ -204,7 +200,7 @@ def replay_session(
     mined_records = miner.published_record_count if miner is not None else 0
 
     duration_seconds = samples.size / float(cfg.sample_rate)
-    _ = started  # reserved for future latency metrics
+    _ = started
     return ReplayStats(
         windows_scored=windows_scored,
         detections=detections,
@@ -224,7 +220,6 @@ def replay_session_to_spool(
     below_sample_rate: float = 0.002,
     predict: Optional[Callable[..., object]] = None,
 ) -> ReplayStats:
-    """Replay a session and publish candidate windows into a mining spool."""
     miner = HardNegativeMiner(
         spool_dir,
         mine_threshold=mine_threshold,
@@ -248,7 +243,6 @@ def replay_and_import_session(
     below_sample_rate: float = 0.002,
     predict: Optional[Callable[..., object]] = None,
 ) -> tuple[ReplayStats, list]:
-    """Replay one session into a session-scoped spool and import corpus events."""
     from .corpus import import_spool_records, prune_unlabeled_session_events
 
     spool_dir = session_replay_spool_dir(corpus_root, session.session_id)

@@ -62,6 +62,43 @@ Defer if they threaten the voice path:
   `tests/` tree or a new test framework.
 - Do not commit `context.json`.
 
+## Delegation
+
+All implementation writes go through the Ajax Model Router: call the
+`model-router` skill, which emits one `EXECUTION` decision (agent, model, risk,
+scope, verify, fallback). The selected delegate implements the change inside
+that scope; the orchestrator reviews the actual delta and accepts or rejects
+it. The orchestrator does not implement, commit, push, or open pull requests
+itself. A delegate report is evidence, not approval.
+
+Never spawn native harness subagents (Cursor Task, best-of-n, Claude/Codex/Pi
+task children) for implementation work. A delegate must implement in-process.
+Do not duplicate model rankings or exact model IDs in this file.
+
+If the user explicitly approved bypassing delegation for this request, the
+active agent may implement, commit, push, and open pull requests in-process.
+That approval is per-request; it does not change the default.
+
+When the user asks to create a PR, the selected delegate runs the repository's
+local verification gate (the CI steps: `ruff check .`, `ruff format --check .`,
+`pytest tests evals/tests --ignore=tests/test_realistic_v3.py`,
+`pytest -q satellite/sayso`), commits, pushes, and opens the PR with
+`gh pr create`; the orchestrator reports the PR URL after reviewing the delta.
+After an explicit bypass, the active agent does that same PR path in-process.
+Delegates must not merge, rebase, force-push, or switch branches unless the
+user explicitly authorizes that behavior.
+
+Every delegated task must be bounded by scope, acceptance criteria,
+verification, and stop conditions. The active agent must inspect the actual
+delta, confirm scope, and independently accept or reject the result.
+
+## No code comments
+
+Code must never contain comments. Do not add `#` comments or docstrings to
+`.py` files, and do not add `#` comments to `.sh` files — new or existing.
+Shebang lines on line 1 are the only allowed `#` line. If a change seems to
+need a comment, restructure the code or name it so the comment is unnecessary.
+
 ## Architecture alignment
 
 - Read `ARCHITECTURE.md` at the repo root before changing runtime wiring or assuming topology.

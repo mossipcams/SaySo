@@ -35,7 +35,7 @@ def test_mine_chapter_saves_activation_with_context(tmp_path: Path, monkeypatch)
     sr = mine.SAMPLE_RATE
     spans = [("1-2-0000", 0, 3 * sr, "WHY DO YOU SAY SO"), ("1-2-0001", 3 * sr, 12 * sr, "THE SAME OLD STORY")]
     monkeypatch.setattr(mine, "load_chapter", lambda _d: (np.zeros(12 * sr, dtype=np.int16), spans))
-    fire = mine.WINDOW_SAMPLES + mine.HOP_SAMPLES * 30  # window lies wholly in utterance 2
+    fire = mine.WINDOW_SAMPLES + mine.HOP_SAMPLES * 30
     monkeypatch.setattr(mine, "_provider", _FakeProvider({fire}))
     (tmp_path / "chapters").mkdir()
 

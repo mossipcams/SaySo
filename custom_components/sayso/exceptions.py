@@ -1,30 +1,28 @@
-"""Exceptions raised by the SaySo llama.cpp client."""
 
 from __future__ import annotations
 
 
 class SaySoError(Exception):
-    """Base exception for SaySo client errors."""
+    pass
 
 
 class SaySoAuthError(SaySoError):
-    """Raised when llama.cpp rejects the API key."""
+    pass
 
 
 class SaySoConnectionError(SaySoError):
-    """Raised when llama.cpp is unreachable."""
+    pass
 
 
 class SaySoTimeoutError(SaySoError):
-    """Raised when a llama.cpp request times out."""
+    pass
 
 
 class SaySoInvalidResponseError(SaySoError):
-    """Raised when llama.cpp returns an invalid or unusable response."""
+    pass
 
 
 class SaySoHttpError(SaySoError):
-    """Raised when llama.cpp returns an unexpected HTTP error."""
 
     def __init__(self, status: int, message: str | None = None) -> None:
         self.status = status
@@ -32,16 +30,16 @@ class SaySoHttpError(SaySoError):
 
 
 class SaySoModelNotFoundError(SaySoError):
-    """Raised when the configured model is not available on llama.cpp."""
+    pass
 
 
 class SaySoInvalidToolEnvelopeError(SaySoError):
-    """Raised when a compiled tool envelope fails the outer transport contract."""
+    pass
 
 
 class SaySoModelLoadError(SaySoError):
-    """Raised when the embedded backend cannot load its GGUF model."""
+    pass
 
 
 class SaySoDependencyError(SaySoError):
-    """Raised when the native llama-cpp-python dependency is unavailable."""
+    pass

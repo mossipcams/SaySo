@@ -1,4 +1,3 @@
-"""Tests for home generation."""
 
 from __future__ import annotations
 
@@ -28,7 +27,6 @@ def test_entity_ids_match_domains() -> None:
 
 
 def test_entity_ids_are_unique_within_a_home() -> None:
-    """Two names that slug alike would collide as per-script tool names."""
     for size in (16, 32, 64):
         home = generate_home(9, size, random.Random(size))
         ids = [entity["entity_id"] for entity in home["entities"]]
@@ -36,7 +34,6 @@ def test_entity_ids_are_unique_within_a_home() -> None:
 
 
 def test_entity_names_balance_realistic_reuse_and_variety() -> None:
-    """Ordinary households share names; variety must not require invented names."""
     names: list[str] = []
     rng = random.Random(20260906)
     for index, size in enumerate([16, 32, 64] * 100):
@@ -50,9 +47,6 @@ def test_entity_names_balance_realistic_reuse_and_variety() -> None:
 
 
 def test_generator_cannot_emit_an_eval_entity_name() -> None:
-    """Real homes share room names, so training and eval areas overlap on
-    purpose. The property that has to hold is narrower: no generated entity name
-    may equal one the suites test on, or that eval row stops being held out."""
     from evals.cases import entity_names_for_tag
 
     eval_names = entity_names_for_tag("gold", include_aliases=False) | entity_names_for_tag(
@@ -66,8 +60,6 @@ def test_generator_cannot_emit_an_eval_entity_name() -> None:
 
 
 def test_apostrophe_names_stay_represented_but_not_dominant() -> None:
-    """Apostrophes are a known failure class, so they must appear — but a third
-    of a home named after someone is not a home."""
     names: list[str] = []
     rng = random.Random(4)
     for index, size in enumerate([16, 32] * 60):

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Full SFT of LFM2.5-230M-Base on SaySo's rendered v5 dataset."""
 
 from __future__ import annotations
 
@@ -9,7 +8,7 @@ import json
 import os
 import sys
 
-from unsloth import FastModel  # import before transformers
+from unsloth import FastModel
 import torch
 from datasets import Dataset
 from transformers import DataCollatorForSeq2Seq, Trainer, TrainingArguments
@@ -71,16 +70,12 @@ def main() -> int:
             "supervised": len(completion),
         }
 
-    # Only the two training columns: per-row metadata structs vary, and arrow
-    # schema inference over them fails.
     def rows(path, stamp):
         with open(path, encoding="utf-8") as handle:
             for line in handle:
                 row = json.loads(line)
                 yield {"instruction": row["instruction"], "output": row["output"]}
 
-    # The HF cache keys on the generator and its kwargs, not the file: without the
-    # size/mtime stamp a regenerated corpus at the same path reuses the old rows.
     stat = os.stat(args.data)
     dataset = Dataset.from_generator(
         rows, gen_kwargs={"path": args.data, "stamp": f"{stat.st_size}:{stat.st_mtime_ns}"}

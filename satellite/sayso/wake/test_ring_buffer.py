@@ -1,4 +1,3 @@
-"""Tests for the int16 ring buffer."""
 
 from __future__ import annotations
 

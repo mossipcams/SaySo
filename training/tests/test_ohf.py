@@ -1,4 +1,3 @@
-"""Semantic checks for the pinned OHF English grammar adapter."""
 import unittest
 
 from generators.ohf import render_call

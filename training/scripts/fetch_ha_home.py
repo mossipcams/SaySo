@@ -1,13 +1,3 @@
-"""Fetch a real Home Assistant home as a `generators.homes.generate_home` dict.
-
-Two REST calls: `/api/states` for entities and their attributes, `/api/template`
-for the area/floor map (the states API does not carry either). Output is the
-same shape `generate_home` returns, so it feeds the v3 pipeline and the eval
-builders without a second format.
-
-    HA_URL=http://192.168.1.35:8123 HA_TOKEN=... \
-      python training/scripts/fetch_ha_home.py --out training/fixtures/real_home.json
-"""
 
 from __future__ import annotations
 
@@ -20,14 +10,11 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-try:  # importable both as `scripts.fetch_ha_home` and as a standalone script
+try:
     from scripts.ha_websocket import fetch_assist_registry
-except ImportError:  # pragma: no cover - depends on how the module was reached
+except ImportError:
     from ha_websocket import fetch_assist_registry
 
-# Reverse of homes._KIND_MAP. Domains absent here are not part of the trained
-# capability contract, which drops sensors, updates, automations and the rest of
-# the 900-entity tail a real home carries.
 CAPABILITY_BY_DOMAIN: dict[str, str] = {
     "light": "lights",
     "fan": "fans",
@@ -44,13 +31,8 @@ CAPABILITY_BY_DOMAIN: dict[str, str] = {
     "button": "buttons",
 }
 
-# Home Assistant does not auto-expose `button` to Assist, and a real home's
-# button domain is almost entirely per-device diagnostics ("<device> Restart").
-# Pull them in with --domains if a home actually voice-controls buttons.
 DEFAULT_DOMAINS: tuple[str, ...] = tuple(d for d in CAPABILITY_BY_DOMAIN if d != "button")
 
-# ponytail: attribute-derived features for the domains where the model has to
-# distinguish them; everything else takes the capability default.
 _LIGHT_COLOR_MODES = {
     "brightness": ("brightness",),
     "color_temp": ("brightness", "color_temp"),
@@ -61,10 +43,6 @@ _LIGHT_COLOR_MODES = {
     "xy": ("brightness", "color"),
 }
 
-# MediaPlayerEntityFeature bits -> the feature names generators.capability_registry
-# gates operations on. An Echo Dot reports no TURN_ON/TURN_OFF and a dumb TV
-# reports no SEARCH_MEDIA, so assuming power, pause, volume and mute everywhere
-# produces labels Home Assistant refuses at runtime.
 _MEDIA_FEATURE_BITS: tuple[tuple[int, str], ...] = (
     (1, "pause"),
     (4, "volume"),
@@ -78,18 +56,12 @@ _MEDIA_FEATURE_BITS: tuple[tuple[int, str], ...] = (
     (4194304, "search"),
 )
 
-# FanEntityFeature.SET_SPEED
 _FAN_SET_SPEED = 1
 
-# Voice-assistant bridges (Alexa, Google) name entities after the linked account,
-# so a real home carries the owner's email in entity names and ids. Names and
-# possessives stay -- they are the shape the model has to learn -- but an email
-# address is not something to put in weights.
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 
 
 def _strip_email(name: str, entity_id: str) -> tuple[str, str]:
-    """Remove any email address from a name and its slug from the entity id."""
     found = _EMAIL.search(name)
     if found is None:
         return name, entity_id
@@ -98,7 +70,6 @@ def _strip_email(name: str, entity_id: str) -> tuple[str, str]:
     slug = "".join(char if char.isalnum() else "_" for char in email.casefold())
     domain, _, object_id = entity_id.partition(".")
     object_id = object_id.replace(slug, "").strip("_")
-    # A name that was only an email leaves the object id to carry it.
     return (cleaned or object_id.replace("_", " ").title() or domain), f"{domain}.{object_id}"
 
 
@@ -123,16 +94,15 @@ def _request(url: str, token: str, payload: dict[str, Any] | None = None) -> Any
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 - operator-supplied URL
+    with urllib.request.urlopen(request, timeout=30) as response:
         return json.loads(response.read())
 
 
 def fetch_raw(base_url: str, token: str) -> tuple[list[dict[str, Any]], list[list[Any]]]:
-    """Return `/api/states` and the `[entity_id, area, floor]` rows."""
     base = base_url.rstrip("/")
     states = _request(f"{base}/api/states", token)
     areas = _request(f"{base}/api/template", token, {"template": _AREA_FLOOR_TEMPLATE})
-    if isinstance(areas, str):  # /api/template returns text for some HA versions
+    if isinstance(areas, str):
         areas = json.loads(areas)
     return states, areas
 
@@ -154,8 +124,6 @@ def _features(domain: str, attributes: dict[str, Any]) -> tuple[str, ...] | None
         return tuple(sorted(features))
     if domain == "media_player":
         features = {name for bit, name in _MEDIA_FEATURE_BITS if supported & bit}
-        # A player that reports pause without play still resumes; HA's unpause
-        # intent uses media_play_pause for exactly this case.
         if "pause" in features:
             features.add("play")
         return tuple(sorted(features))
@@ -174,13 +142,7 @@ def build_home(
     aliases: dict[str, list[str]] | None = None,
     exposure_source: str = "domain_filter",
 ) -> dict[str, Any]:
-    """Assemble the home dict from raw Home Assistant payloads.
-
-    ``exposed_entities`` is the Assist exposure list from the websocket API. When
-    supplied it is authoritative: an entity Home Assistant does not expose to the
-    conversation agent never reaches the corpus, whatever its domain.
-    """
-    from generators.homes import make_entity  # local: keeps the module importable standalone
+    from generators.homes import make_entity
 
     placement = {row[0]: (row[1], row[2]) for row in area_rows}
     aliases = aliases or {}
@@ -207,13 +169,12 @@ def build_home(
             capability=capability,
             area=area or "Unassigned",
             floor=floor or "Main Floor",
-            rng=None,  # unused: state is supplied
+            rng=None,
             state=state.get("state") or "unknown",
             features=_features(domain, attributes),
             aliases=list(dict.fromkeys([name, *entity_aliases])),
             device_class=attributes.get("device_class"),
         )
-        # Home Assistant, not the slug rule, owns the entity id.
         entity["entity_id"] = entity_id
         entities.append(entity)
 
@@ -231,8 +192,6 @@ def build_home(
     ]
 
     default_area = next((e["area"] for e in entities if e["area"] != "Unassigned"), "Unassigned")
-    # Same keys generate_home returns: build_scenario injects a missing capability
-    # into whatever home it is handed and needs the area/floor map to place it.
     area_floors: dict[str, str] = {}
     for entity in entities:
         area_floors.setdefault(entity["area"], entity["floor"])
@@ -244,8 +203,6 @@ def build_home(
         "active_timers": timers,
         "areas": list(area_floors),
         "area_floors": area_floors,
-        # A real home's names come from Home Assistant, so there is no synthetic
-        # owner pool to draw from.
         "owners": (),
         "exposure_source": exposure_source,
     }
@@ -312,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
         exposed = frozenset(registry["exposed"])
         alias_map = registry["aliases"]
         exposure_source = "assist_exposure"
-    except Exception as err:  # noqa: BLE001 - any websocket failure is the same decision
+    except Exception as err:
         if not args.allow_unexposed:
             print(
                 f"could not read the Assist exposure list: {err}\n"

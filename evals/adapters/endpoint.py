@@ -1,4 +1,3 @@
-"""Served-model evaluation against an OpenAI-compatible chat endpoint."""
 
 from __future__ import annotations
 
@@ -10,7 +9,6 @@ from evals.outcomes import PRODUCTION_MAX_OUTPUT_TOKENS, PRODUCTION_TEMPERATURE
 
 
 class EndpointAdapter:
-    """One HTTP chat completion. The request shape is what production sends."""
 
     name = "endpoint"
 

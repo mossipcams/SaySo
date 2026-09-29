@@ -1,4 +1,3 @@
-"""Launch upstream Linux Voice Assistant with the SaySo overlay."""
 
 from __future__ import annotations
 
@@ -20,7 +19,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _configure_mpv() -> None:
-    """Configure PulseAudio output and explicit mpv playback recovery."""
     configure_pulse_mpv()
     install_playback_recovery()
 
@@ -80,8 +78,6 @@ def main() -> None:
 
     sys.argv = argv
 
-    # ponytail: getattr defaults so a config predating the mining fields still
-    # launches; mining is strictly opt-in and must never be a hard requirement.
     mine_dir = getattr(cfg.wake_word, "mine_dir", None)
     miner = None
     if mine_dir is not None:

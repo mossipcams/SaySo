@@ -1,4 +1,3 @@
-"""Tests for the SaySo conversation entity."""
 
 from __future__ import annotations
 
@@ -61,7 +60,6 @@ from tests.test_config_flow import (
 
 
 class _TestLight(LightEntity):
-    """Light used to exercise real HassTurnOn tool execution."""
 
     _attr_name = "Living Room"
     _attr_unique_id = "living_room"
@@ -69,27 +67,22 @@ class _TestLight(LightEntity):
     _attr_color_mode = ColorMode.ONOFF
 
     def __init__(self) -> None:
-        """Initialize the test light."""
         self._is_on = False
 
     @property
     def is_on(self) -> bool:
-        """Return if the light is on."""
         return self._is_on
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the light on."""
         self._is_on = True
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn the light off."""
         self._is_on = False
         self.async_write_ha_state()
 
 
 class _KitchenLight(LightEntity):
-    """Light used for ambiguous routing tests."""
 
     _attr_name = "Kitchen Light"
     _attr_unique_id = "kitchen_light"
@@ -113,7 +106,6 @@ class _KitchenLight(LightEntity):
 
 
 class _KitchenFan(FanEntity):
-    """Fan used for ambiguous routing tests."""
 
     _attr_name = "Kitchen Fan"
     _attr_unique_id = "kitchen_fan"
@@ -140,7 +132,6 @@ class _KitchenFan(FanEntity):
 
 
 class _MultiKitchenLight(LightEntity):
-    """Kitchen light dedicated to multi-tool payload tests."""
 
     _attr_name = "Kitchen Light"
     _attr_unique_id = "multi_kitchen_light"
@@ -164,7 +155,6 @@ class _MultiKitchenLight(LightEntity):
 
 
 class _MultiPorchLight(LightEntity):
-    """Porch light for multi-tool follow-up integration tests."""
 
     _attr_name = "Porch Light"
     _attr_unique_id = "multi_porch_light"
@@ -188,7 +178,6 @@ class _MultiPorchLight(LightEntity):
 
 
 class _BedroomFan(FanEntity):
-    """Fan used for confident light routing with a filtered fan tool."""
 
     _attr_name = "Bedroom Fan"
     _attr_unique_id = "bedroom_fan"
@@ -216,7 +205,6 @@ class _BedroomFan(FanEntity):
 
 @pytest.fixture(autouse=True)
 def _reset_schema_compile_cache() -> None:
-    """Isolate compile cache between conversation tests."""
     clear_compile_cache()
     yield
     clear_compile_cache()
@@ -224,7 +212,6 @@ def _reset_schema_compile_cache() -> None:
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    """Patch llama.cpp connectivity checks during setup."""
     with patch.object(
         LlamaCppClient,
         "list_models",
@@ -239,7 +226,6 @@ def mock_llama_client() -> Any:
 
 @pytest.fixture
 async def assist_light(hass: HomeAssistant) -> None:
-    """Register a test light for Assist tool execution."""
     setup_test_component_platform(hass, "light", [_TestLight()])
     assert await async_setup_component(hass, "light", {"light": {"platform": "test"}})
     assert await async_setup_component(hass, "intent", {})
@@ -248,7 +234,6 @@ async def assist_light(hass: HomeAssistant) -> None:
 
 @pytest.fixture
 async def assist_light_and_fan(hass: HomeAssistant) -> None:
-    """Register light and fan entities so domain tools and routing coexist."""
     setup_test_component_platform(hass, "light", [_TestLight()])
     setup_test_component_platform(hass, "fan", [_BedroomFan()])
     assert await async_setup_component(hass, "light", {"light": {"platform": "test"}})
@@ -259,7 +244,6 @@ async def assist_light_and_fan(hass: HomeAssistant) -> None:
 
 @pytest.fixture
 async def assist_ambiguous_kitchen(hass: HomeAssistant) -> None:
-    """Register conflicting kitchen light and fan entities."""
     setup_test_component_platform(hass, "light", [_KitchenLight()])
     setup_test_component_platform(hass, "fan", [_KitchenFan()])
     assert await async_setup_component(hass, "light", {"light": {"platform": "test"}})
@@ -270,7 +254,6 @@ async def assist_ambiguous_kitchen(hass: HomeAssistant) -> None:
 
 @pytest.fixture
 async def assist_kitchen_and_lock(hass: HomeAssistant) -> None:
-    """Register kitchen and porch lights for multi-tool follow-up tests."""
     setup_test_component_platform(hass, "light", [_MultiKitchenLight(), _MultiPorchLight()])
     assert await async_setup_component(hass, "light", {"light": {"platform": "test"}})
     assert await async_setup_component(hass, "intent", {})
@@ -278,7 +261,6 @@ async def assist_kitchen_and_lock(hass: HomeAssistant) -> None:
 
 
 async def _complete_llm_tools(hass: HomeAssistant, entry: Any) -> tuple[Any, ...]:
-    """Return the compiled complete tool schema for the active conversation agent."""
     llm_context = llm.LLMContext(
         platform=DOMAIN,
         context=None,
@@ -326,7 +308,6 @@ async def test_plain_conversational_response(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test a plain assistant response from llama.cpp."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -353,7 +334,6 @@ async def test_plain_conversational_response(
 
 
 def test_satellite_area_context_uses_entity_registry(hass: HomeAssistant) -> None:
-    """Satellite entity IDs resolve to their device area for model context."""
     user_input = SimpleNamespace(
         device_id=None,
         satellite_id="assist_satellite.office",
@@ -391,13 +371,6 @@ async def test_model_prompt_replaces_ha_area_sentence_with_shared_area_block(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """The bytes sent to llama.cpp are the shared renderer applied to HA's prompt.
-
-    Home Assistant adds "You are in area ..." for a device with an area. SaySo
-    must send exactly ``render_system_prompt`` of that prompt: the eval and the
-    training generator call the same function, so identical inputs give
-    identical bytes everywhere.
-    """
     from homeassistant.helpers import area_registry as ar, device_registry as dr
 
     from custom_components.sayso import conversation as sayso_conversation
@@ -445,7 +418,6 @@ async def test_conversation_id_preservation(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test conversation_id is preserved across turns."""
     entry = await _create_entry(hass)
     conversation_id = "sayso-test-conversation"
 
@@ -470,7 +442,6 @@ async def test_llama_cpp_timeout(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test timeout errors return a short spoken failure."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -488,7 +459,6 @@ async def test_llama_cpp_http_error(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test HTTP errors return a short spoken failure."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -506,7 +476,6 @@ async def test_empty_model_response(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test empty assistant content fails closed."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -521,7 +490,6 @@ async def test_empty_model_response(
 
 
 def test_chat_log_serializes_multi_tool_kitchen_and_lock() -> None:
-    """Test batched HassTurnOff + HassTurnOn transcript for kitchen/lock utterance."""
     content: list[conversation.Content] = [
         conversation.AssistantContent(
             agent_id="conversation.sayso",
@@ -568,7 +536,6 @@ def test_chat_log_serializes_multi_tool_kitchen_and_lock() -> None:
 
 
 def test_chat_log_serializes_batched_tool_calls_deterministically() -> None:
-    """Test one assistant batch and its ordered mixed tool results."""
     content: list[conversation.Content] = [
         conversation.AssistantContent(
             agent_id="conversation.sayso",
@@ -636,7 +603,6 @@ def test_chat_log_serializes_batched_tool_calls_deterministically() -> None:
 
 
 def _assistant_tool_batches(messages: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
-    """Return each assistant message's tool_calls payload in transcript order."""
     return [
         message["tool_calls"]
         for message in messages
@@ -645,7 +611,6 @@ def _assistant_tool_batches(messages: list[dict[str, Any]]) -> list[list[dict[st
 
 
 def _tool_results_by_id(messages: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Map tool_call_id to parsed tool result payloads."""
     results: dict[str, dict[str, Any]] = {}
     for message in messages:
         if message.get("role") != "tool":
@@ -660,7 +625,6 @@ def _assert_batch_transcript(
     expected_call_ids: list[str],
     expected_errors: dict[str, bool],
 ) -> None:
-    """Assert one assistant turn holds every call, then ordered tool results."""
     batches = _assistant_tool_batches(messages)
     assert len(batches) == 1
     assert [call["id"] for call in batches[0]] == expected_call_ids
@@ -745,7 +709,6 @@ async def test_batched_tool_calls_transcript_and_follow_up(
     expect_success: bool,
     expect_follow_up: bool,
 ) -> None:
-    """Test one assistant message batches calls and follow-up only on full success."""
     entry = await _create_entry(hass)
     captured_chat_logs: list[list[Any]] = []
 
@@ -820,7 +783,6 @@ async def test_multi_tool_follow_up_inference_payload(
     mock_llama_client: None,
     assist_kitchen_and_lock: None,
 ) -> None:
-    """Follow-up request carries one assistant batch and ordered tool results."""
     entry = await _create_entry(hass)
     tool_calls = [
         ToolCall(
@@ -875,7 +837,6 @@ async def _wrap_assist_tools_with_intent_namespace(
     user_llm_prompt: str | None = None,
     user_extra_system_prompt: str | None = None,
 ) -> None:
-    """Simulate HA 2026.9 intent tool namespacing on the active Assist tool list."""
     await _ORIGINAL_PROVIDE_LLM_DATA(
         chat_log,
         llm_context,
@@ -899,7 +860,6 @@ async def test_successful_light_tool_call_with_namespaced_ha_tools(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """The exact namespaced name Home Assistant offers executes."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -942,7 +902,6 @@ async def test_bare_legacy_tool_name_is_rejected_when_ha_namespaces_tools(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """A bare HassTurnOn is not the intent__HassTurnOn Home Assistant offered."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -976,7 +935,6 @@ async def test_successful_light_tool_call(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test a successful HassTurnOn tool call through real HA LLM plumbing."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1010,7 +968,6 @@ async def test_get_live_context_negative_result_requests_follow_up(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """GetLiveContext success:false is a completed result, not a boundary failure."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1054,7 +1011,6 @@ async def test_entity_state_query_tool_call(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test an entity state query via GetLiveContext."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1093,7 +1049,6 @@ async def test_tool_result_returned_to_llama_cpp(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test assistant tool calls and tool results are sent back to llama.cpp."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1136,7 +1091,6 @@ async def test_home_assistant_context_preservation(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test the original Home Assistant Context is preserved for tool execution."""
     entry = await _create_entry(hass)
     request_context = Context(id="sayso-context-test")
 
@@ -1177,7 +1131,6 @@ async def test_unknown_tool_fails_closed(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test unknown tool names fail closed without claiming success."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1208,7 +1161,6 @@ async def test_sequential_tool_calls_succeed(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test a successful action batch followed by final text."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1251,7 +1203,6 @@ async def test_model_turn_compiled_schema_and_fingerprint(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Initial and follow-up calls reuse one active schema; complete fingerprint is stable."""
     entry = await _create_entry(hass)
     compile_calls: list[Any] = []
 
@@ -1311,7 +1262,6 @@ async def test_tool_follow_up_reuses_compiled_schema_without_reconversion(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Follow-up model iterations reuse one compiled schema for the whole turn."""
     entry = await _create_entry(hass)
     build_calls = 0
 
@@ -1366,7 +1316,6 @@ async def test_max_tool_iterations_fails_closed(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test exceeding max tool iterations fails closed without claiming success."""
     entry = await _create_entry(hass)
     hass.config_entries.async_update_entry(
         entry,
@@ -1451,7 +1400,6 @@ async def test_invalid_batch_prevalidation_executes_no_tools(
     assist_light: None,
     second_call: ToolCall,
 ) -> None:
-    """Test a structurally invalid second call prevents any HA tool execution."""
     entry = await _create_entry(hass)
 
     tool_calls = [
@@ -1487,7 +1435,6 @@ async def test_malformed_tool_arguments_fails_closed(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test malformed tool arguments fail closed before execution."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1517,7 +1464,6 @@ async def test_non_object_tool_arguments_fails_closed(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test non-object tool arguments fail closed before execution."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1530,7 +1476,7 @@ async def test_non_object_tool_arguments_fails_closed(
                     ToolCall(
                         id="call_1",
                         name="HassTurnOn",
-                        arguments=[],  # type: ignore[arg-type]
+                        arguments=[],
                     )
                 ],
             )
@@ -1548,7 +1494,6 @@ async def test_pre_execution_correction_repairs_invalid_call(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test one pre-execution correction repairs a repairable invalid call."""
     entry = await _create_entry(hass)
     compiled_schemas: list[Any] = []
 
@@ -1630,7 +1575,6 @@ async def test_tool_validation_failure_fails_closed(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test schema validation errors fail closed before HA tool execution."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1667,7 +1611,6 @@ async def test_tool_schema_mismatch_fails_closed_before_execution(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test unexpected tool arguments fail closed before HA tool execution."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1707,7 +1650,6 @@ async def test_tool_execution_failure_fails_closed(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test Home Assistant tool execution errors fail closed."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1737,7 +1679,6 @@ async def test_connection_error(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test unreachable llama.cpp returns a short spoken failure."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1755,7 +1696,6 @@ async def test_invalid_llama_response_fails_closed(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test invalid llama.cpp responses fail closed."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1778,7 +1718,6 @@ async def test_second_invalid_response_fails_after_one_correction(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test a second invalid model response fails after one pre-execution correction."""
     entry = await _create_entry(hass)
     invalid_call = ToolCall(
         id="call_bad",
@@ -1814,7 +1753,6 @@ async def test_correction_timeout_never_retries(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test a correction-request timeout fails closed without retrying."""
     entry = await _create_entry(hass)
     invalid_call = ToolCall(
         id="call_bad",
@@ -1849,7 +1787,6 @@ async def test_initial_timeout_never_retries(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test an initial request timeout makes exactly one client call."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1869,7 +1806,6 @@ async def test_follow_up_timeout_never_retries_after_tool_execution(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test a follow-up timeout after tool execution never retries or re-executes."""
     entry = await _create_entry(hass)
 
     with patch.object(
@@ -1914,7 +1850,6 @@ async def test_invalid_follow_up_after_tool_execution_never_retries(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test invalid follow-up tool calls after execution never retry or re-execute."""
     entry = await _create_entry(hass)
     invalid_follow_up = ToolCall(
         id="call_bad",
@@ -1964,14 +1899,12 @@ async def test_invalid_follow_up_after_tool_execution_never_retries(
 
 @pytest.fixture(autouse=True)
 def _reset_boundary_diagnostics() -> None:
-    """Isolate boundary diagnostics between Task 17 conversation tests."""
     clear_boundary_diagnostics()
     yield
     clear_boundary_diagnostics()
 
 
 class TestFilteredSchemaRecovery:
-    """Task 17: recover from filtered-schema misses without pre-validation execution."""
 
     async def test_confident_routing_uses_filtered_schema_with_exact_counts(
         self,
@@ -1979,7 +1912,6 @@ class TestFilteredSchemaRecovery:
         mock_llama_client: None,
         assist_light_and_fan: None,
     ) -> None:
-        """Confident light routing sends a filtered schema and one successful HA call."""
         entry = await _create_entry(hass)
         complete_tools = await _complete_llm_tools(hass, entry)
 
@@ -2034,7 +1966,6 @@ class TestFilteredSchemaRecovery:
         mock_llama_client: None,
         assist_ambiguous_kitchen: None,
     ) -> None:
-        """Ambiguous routing keeps the complete schema byte-for-byte on the initial call."""
         entry = await _create_entry(hass)
         complete_tools = await _complete_llm_tools(hass, entry)
 
@@ -2080,7 +2011,6 @@ class TestFilteredSchemaRecovery:
         mock_llama_client: None,
         assist_light_and_fan: None,
     ) -> None:
-        """A filtered-out but valid tool triggers one complete-schema correction."""
         entry = await _create_entry(hass)
         complete_tools = await _complete_llm_tools(hass, entry)
         filtered_call = ToolCall(
@@ -2140,7 +2070,6 @@ class TestFilteredSchemaRecovery:
         mock_llama_client: None,
         assist_light_and_fan: None,
     ) -> None:
-        """An unknown tool name fails closed with unavailable_tool diagnostics."""
         entry = await _create_entry(hass)
 
         with patch.object(
@@ -2184,7 +2113,6 @@ class TestFilteredSchemaRecovery:
         mock_llama_client: None,
         assist_light_and_fan: None,
     ) -> None:
-        """A confident light route that picks a filtered fan tool gets one recovery."""
         entry = await _create_entry(hass)
         complete_tools = await _complete_llm_tools(hass, entry)
 

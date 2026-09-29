@@ -1,4 +1,3 @@
-"""Tests for STT noise."""
 
 from __future__ import annotations
 

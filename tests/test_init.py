@@ -1,4 +1,3 @@
-"""Tests for SaySo setup and unload."""
 
 from __future__ import annotations
 
@@ -27,7 +26,6 @@ from tests.test_config_flow import (
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    """Patch llama.cpp connectivity checks during setup."""
     with patch.object(
         LlamaCppClient,
         "list_models",
@@ -52,7 +50,6 @@ async def test_setup_and_unload_entry(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test config entry setup stores runtime data and unload clears it."""
     entry = await _create_entry(hass)
     await hass.async_block_till_done()
 
@@ -71,7 +68,6 @@ async def test_options_reload_updates_runtime_data(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test changing options reloads runtime configuration."""
     entry = await _create_entry(hass)
     await hass.async_block_till_done()
     assert entry.state.value == "loaded"

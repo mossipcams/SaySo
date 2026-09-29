@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Run Axolotl training with GPU-aware config selection."""
 
 from __future__ import annotations
 
@@ -11,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "configs"))
 
-from detect_gpu import detect_gpu  # noqa: E402
+from detect_gpu import detect_gpu
 
 BACKENDS = {
     "lfm": "lfm25-230m",

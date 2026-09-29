@@ -1,11 +1,3 @@
-"""Shared evaluation result types.
-
-A completion is read exactly as the integration reads it: the default
-backend's ``parse_completion_result``, then ``tool_contract.check_tool_calls``
-against the tools the model was offered. Nothing is normalized on the way: an
-unparseable completion is ``malformed_output`` (never "no call"), and a bare
-``HassTurnOn`` when production offers ``intent__HassTurnOn`` is ``unknown_tool``.
-"""
 
 from __future__ import annotations
 
@@ -15,12 +7,9 @@ from typing import Any
 
 from sayso_contract import completion, exceptions, tool_contract
 
-# Production's DEFAULT_TEMPERATURE / DEFAULT_MAX_OUTPUT_TOKENS (const.py imports
-# Home Assistant, so the values are restated; tests pin them to const.py).
 PRODUCTION_TEMPERATURE = 0
 PRODUCTION_MAX_OUTPUT_TOKENS = 160
 
-# Tools that read state. Any other call changes something.
 QUERY_TOOLS = frozenset(
     {"homeassistant__GetLiveContext", "llm__GetDateTime", "intent__HassTimerStatus"}
 )
@@ -58,21 +47,16 @@ class ResponseType(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Expectation:
-    """What one case requires. ``calls`` are exact production calls."""
 
     category: str
     response_type: ResponseType
     calls: tuple[dict[str, Any], ...] = ()
-    # Entities that must not be affected: {"name", "area", "domain"}.
     forbidden_entities: tuple[dict[str, Any], ...] = ()
-    # The area an area-scoped call must use: the satellite's for an implicit
-    # request, the named one when the request names an area.
     target_area: str | None = None
 
 
 @dataclass(slots=True)
 class Turn:
-    """One model completion, read through the production parser and validator."""
 
     raw: Any
     text: str | None = None
@@ -112,7 +96,6 @@ def read_completion(
     tools: list[dict[str, Any]],
     exposed_domains: frozenset[str] | set[str] | None,
 ) -> Turn:
-    """Parse and validate one completion body the way the integration does."""
     turn = Turn(raw=raw)
     try:
         result = completion.parse_completion_result(raw)

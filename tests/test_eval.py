@@ -1,4 +1,3 @@
-"""Offline evaluation: canonical cases, suites, and the shared scorer."""
 
 from __future__ import annotations
 

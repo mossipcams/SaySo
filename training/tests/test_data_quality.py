@@ -1,4 +1,3 @@
-"""Behavioral regressions from the failed 40k run (colocated, not in tests/)."""
 
 import random
 import sys

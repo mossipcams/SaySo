@@ -1,4 +1,3 @@
-"""Regression tests for locked v1 tool catalog alignment."""
 
 from __future__ import annotations
 

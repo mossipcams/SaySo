@@ -1,33 +1,4 @@
 #!/usr/bin/env python3
-"""Fixed 20-command STT benchmark: current pipeline vs native-rate pipeline.
-
-Runs the *same* Faster Whisper model over the *same* recordings through two
-front ends and reports the difference, so a change in transcription quality can
-only be attributed to the audio path, not to the model.
-
-  current    the previous behaviour: hand the device the 16 kHz request and let
-             the audio server resample implicitly, with no anti-alias control.
-
-  corrected  capture at the device's native rate, apply fixed gain, and resample
-             once to 16 kHz with a continuous polyphase filter.
-
-The runner also reports speech RMS, peak, and clipping per phrase and emits a
-single stable gain recommendation. It deliberately does not sweep noise
-suppression: the working hypothesis is gain, not NS, and an NS sweep would
-confound the comparison.
-
-Recordings are consumed as WAV files named ``<command id>.wav`` under
-``--audio-dir`` at the native rate. Missing recordings are skipped, never
-fabricated.
-
-Usage:
-
-    python3 satellite/benchmarks/run.py \
-        --model large-v3 --audio-dir recordings --commands commands.json
-
-``faster_whisper`` is imported lazily so the reporting path (metrics, gain
-advice) remains usable and testable without the model installed.
-"""
 
 from __future__ import annotations
 
@@ -42,9 +13,6 @@ from typing import Any, Callable, Optional
 import numpy as np
 
 
-# ---------------------------------------------------------------------------
-# Pure helpers (no model, no IO side effects beyond reading WAVs)
-# ---------------------------------------------------------------------------
 
 
 def _percentile(values: list[float], fraction: float) -> float:
@@ -63,7 +31,6 @@ def _percentile(values: list[float], fraction: float) -> float:
 
 
 def read_wav(path: Path) -> tuple[np.ndarray, int]:
-    """Read a WAV as mono float32 plus its sample rate."""
     with wave.open(str(path), "rb") as wf:
         channels = wf.getnchannels()
         width = wf.getsampwidth()
@@ -89,12 +56,6 @@ def write_wav(path: Path, samples: np.ndarray, rate: int) -> None:
 
 
 def naive_resample(samples: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
-    """Approximate the *implicit* audio-server resample.
-
-    A linear interpolation with no anti-alias filter. This is not a faithful
-    model of any specific resampler, but it reproduces the property that made
-    the old path lossy: broadband energy folds back into the speech band.
-    """
     if src_rate == dst_rate or samples.size == 0:
         return samples
     duration = samples.size / src_rate
@@ -105,7 +66,6 @@ def naive_resample(samples: np.ndarray, src_rate: int, dst_rate: int) -> np.ndar
 
 
 def correct_resample(samples: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
-    """One deliberate resample through the production capture resampler."""
     if src_rate == dst_rate or samples.size == 0:
         return samples
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -118,7 +78,6 @@ def correct_resample(samples: np.ndarray, src_rate: int, dst_rate: int) -> np.nd
 
 
 def apply_gain(samples: np.ndarray, gain_db: float) -> tuple[np.ndarray, int]:
-    """Apply fixed gain, returning the signal and the clipped-sample count."""
     if gain_db == 0.0:
         return samples, 0
     scaled = samples * (10.0 ** (gain_db / 20.0))
@@ -142,7 +101,6 @@ def measure_levels(samples: np.ndarray) -> dict[str, float]:
 
 
 def normalize_text(text: str) -> list[str]:
-    """Lowercase, strip punctuation, and split into comparable tokens."""
     cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in text.lower())
     return cleaned.split()
 
@@ -152,7 +110,6 @@ def word_error_rate(reference: str, hypothesis: str) -> float:
     hyp = normalize_text(hypothesis)
     if not ref:
         return 0.0 if not hyp else 1.0
-    # Levenshtein distance over tokens.
     prev = list(range(len(hyp) + 1))
     for i, r in enumerate(ref, start=1):
         current = [i]
@@ -179,12 +136,6 @@ def character_error_rate(reference: str, hypothesis: str) -> float:
 
 
 def recommend_gain(levels: list[dict[str, float]], target_rms_dbfs: float = -26.0) -> dict[str, Any]:
-    """Recommend one stable gain from measured speech RMS, not noise suppression.
-
-    Uses the median speech RMS across phrases, so one shouted or one whispered
-    phrase does not set the operating point. The recommendation is bounded so a
-    bad recording session cannot propose a deafening gain.
-    """
     measured = [lv["rms_dbfs"] for lv in levels if lv["rms_dbfs"] > -100.0]
     if not measured:
         return {"recommended_gain_db": 0.0, "median_rms_dbfs": None, "reason": "no measurable speech"}
@@ -198,9 +149,6 @@ def recommend_gain(levels: list[dict[str, float]], target_rms_dbfs: float = -26.
     }
 
 
-# ---------------------------------------------------------------------------
-# Benchmark orchestration
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -242,7 +190,6 @@ def build_variants(
     target_rate: int,
     gain_db: float,
 ) -> dict[str, np.ndarray]:
-    """Produce the two front ends for one recording."""
     current = naive_resample(samples, native_rate, target_rate)
     corrected = correct_resample(samples, native_rate, target_rate)
     current, _ = apply_gain(current, gain_db)
@@ -336,7 +283,7 @@ def summarize(results: list[PhraseResult]) -> dict[str, Any]:
 
 
 def _faster_whisper_transcriber(model: str, device: str = "cpu", compute_type: str = "int8"):
-    from faster_whisper import WhisperModel  # imported lazily
+    from faster_whisper import WhisperModel
 
     whisper = WhisperModel(model, device=device, compute_type=compute_type)
 

@@ -1,4 +1,3 @@
-"""Tests for conservative command-domain routing hints."""
 
 from __future__ import annotations
 
@@ -66,7 +65,6 @@ def _registries(
 
 
 def test_satellite_entity_resolves_device_area(hass: HomeAssistant) -> None:
-    """Satellite entity IDs provide routing preferences through their device."""
     llm_context = llm.LLMContext(
         platform="conversation",
         context=None,
@@ -99,7 +97,6 @@ def test_satellite_entity_resolves_device_area(hass: HomeAssistant) -> None:
 
 
 class TestIdentifyCommandDomain:
-    """Task 14: only exact, unambiguous matches produce a domain hint."""
 
     def test_exact_entity_name_returns_domain_hint(self) -> None:
         catalog = _catalog(
@@ -225,7 +222,6 @@ class TestIdentifyCommandDomain:
 
 
 class TestAreaAndFloorEvidence:
-    """Task 15: area and floor registry evidence narrows only when domains agree."""
 
     def test_exact_area_narrows_when_all_exposed_entities_share_domain(self) -> None:
         catalog = _catalog(
@@ -527,7 +523,6 @@ class TestAreaAndFloorEvidence:
 
 
 class _RoutingTestLight(LightEntity):
-    """Light used to load representative HA LLM tools."""
 
     _attr_name = "Living Room"
     _attr_unique_id = "living_room"
@@ -549,7 +544,6 @@ class _RoutingTestLight(LightEntity):
 
 
 class _RoutingTestFan(FanEntity):
-    """Fan used to load representative HA LLM tools."""
 
     _attr_name = "Bedroom Fan"
     _attr_unique_id = "bedroom_fan"
@@ -577,7 +571,6 @@ class _RoutingTestFan(FanEntity):
 
 
 class _FakeDomainTool(llm.Tool):
-    """Minimal HA tool for selector edge cases."""
 
     def __init__(
         self,
@@ -603,7 +596,6 @@ class _FakeDomainTool(llm.Tool):
 
 @pytest.fixture
 async def representative_ha_tools(hass: HomeAssistant) -> list[llm.Tool]:
-    """Load minimum/current HA tool objects with light and fan domain tools."""
     assert await async_setup_component(hass, "intent", {})
     setup_test_component_platform(hass, "light", [_RoutingTestLight()])
     setup_test_component_platform(hass, "fan", [_RoutingTestFan()])
@@ -623,13 +615,11 @@ async def representative_ha_tools(hass: HomeAssistant) -> list[llm.Tool]:
 
 
 class TestSelectToolsForDomain:
-    """Task 16: select a safe tool subset from compiled schemas."""
 
     def test_confident_light_command_filters_incompatible_domain_tools(
         self,
         representative_ha_tools: list[llm.Tool],
     ) -> None:
-        """Domain-declared incompatible tools drop; generic/query tools remain."""
         source_tools = representative_ha_tools + [
             _FakeDomainTool(
                 name="light_misleading",
@@ -661,7 +651,6 @@ class TestSelectToolsForDomain:
         self,
         representative_ha_tools: list[llm.Tool],
     ) -> None:
-        """Unknown routing must return the full compiled schema unchanged."""
         compiled = compile_tools(representative_ha_tools)
 
         selected = select_tools_for_domain(compiled, representative_ha_tools, None)
@@ -670,7 +659,6 @@ class TestSelectToolsForDomain:
         assert emit_canonical_json(selected) == emit_canonical_json(compiled)
 
     def test_metadata_extraction_never_uses_tool_name_substrings(self) -> None:
-        """Tools without explicit domain metadata are treated as unknown."""
         tool = _FakeDomainTool(name="light_by_name_only")
 
         metadata = extract_tool_routing_metadata(tool)
@@ -682,7 +670,6 @@ class TestSelectToolsForDomain:
         self,
         representative_ha_tools: list[llm.Tool],
     ) -> None:
-        """Filtered schema reduces serialized prompt size for confident routing."""
         source_tools = representative_ha_tools + [
             _FakeDomainTool(
                 name="climate_only",

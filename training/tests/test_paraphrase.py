@@ -1,4 +1,3 @@
-"""Tests for paraphrase module (disabled by default)."""
 
 from __future__ import annotations
 

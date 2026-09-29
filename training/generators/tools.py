@@ -1,4 +1,3 @@
-"""Runtime-equivalent tool call builders and availability."""
 
 from __future__ import annotations
 
@@ -7,20 +6,10 @@ from collections.abc import Callable
 from typing import Any
 
 from adapters.schema import v2_openai_tools
-from generators.context import _REPO_ROOT  # noqa: F401 - puts sayso_contract on sys.path
+from generators.context import _REPO_ROOT
 from sayso_contract import tool_schema
 from generators.capability_registry import CAPABILITIES
 
-# Home Assistant 2026.9 names every Assist LLM tool ``f"{DOMAIN}__{intent_type}"``,
-# where DOMAIN is the component that registers the intent handler, and wraps
-# multi-API tools in ``llm.NamespacedTool``. The pinned v2 contract predates that
-# and carries the bare names, so a corpus trained only on bare names meets an
-# out-of-distribution tool list at runtime. Measured on the deployed stack for
-# issue #52: with the production-namespaced list the model picks the wrong tool on
-# 2 of 3 TV utterances; with bare names and the same schema it picks the right one.
-#
-# Verified against homeassistant==2026.9.2: each component's ``llm.py`` exposes
-# ``LLM_INTENTS``/``TIMER_INTENTS`` and builds the name with its own DOMAIN.
 HA_TOOL_NAMESPACES: dict[str, str] = {
     "GetDateTime": "llm",
     "GetLiveContext": "homeassistant",
@@ -53,23 +42,14 @@ HA_TOOL_NAMESPACES: dict[str, str] = {
 
 
 def namespaced_tool_name(name: str) -> str:
-    """Return the Home Assistant 2026.9 name for a pinned tool.
-
-    Per-script tools keep their bare object id: ``ScriptTool`` overrides the
-    ``domain__action`` name, so they are already what Home Assistant sends.
-    """
     namespace = HA_TOOL_NAMESPACES.get(name)
     return f"{namespace}__{name}" if namespace else name
 
 
-# Namespaces whose tools Home Assistant offers regardless of which domains are
-# exposed: date/time, live context, and the generic intents and timers.
 _ALWAYS_OFFERED_NAMESPACES = frozenset({"llm", "homeassistant", "intent"})
 
 
 def compile_catalog(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Name tools as Home Assistant 2026.9 does and compile them with the
-    integration's own compiler, so every row's schema bytes match production."""
     return list(
         tool_schema.compile_source_tools(
             [
@@ -87,14 +67,6 @@ def compile_catalog(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def production_catalog(
     home: dict[str, Any], *, removed_tools: tuple[str, ...] | list[str] = ()
 ) -> list[dict[str, Any]]:
-    """The tool list Home Assistant would offer a satellite in ``home``.
-
-    Domain tools (``light__HassLightSet``) appear only when an entity of that
-    domain is exposed, exactly as each component's ``llm.py`` decides; the
-    generic intents, timers, live context and date/time are always offered;
-    every exposed script is its own tool. ``removed_tools`` takes production
-    names and withholds only those, for a deliberate missing-capability case.
-    """
     domains = {entity["domain"] for entity in home.get("entities", [])}
     offered = [
         tool
@@ -109,21 +81,11 @@ def production_catalog(
 
 
 def script_tool_name(entity: dict[str, Any]) -> str:
-    """Tool name Home Assistant gives a script: its object id, digit-prefixed with _.
-
-    ScriptTool overrides ActionTool's ``domain__action`` name with the bare object id
-    (homeassistant/components/script/llm.py, HA 2026.8.3).
-    """
     object_id = entity["entity_id"].split(".", 1)[1]
     return f"_{object_id}" if object_id[:1].isdigit() else object_id
 
 
 def script_tools(home: dict[str, Any]) -> list[dict[str, Any]]:
-    """One tool per exposed script, as Home Assistant exposes them.
-
-    Scripts are not controlled through HassTurnOn and never appear in the entity
-    overview: each is its own zero-argument tool.
-    """
     tools = []
     for entity in sorted(home.get("entities", []), key=lambda item: item["name"]):
         if entity["domain"] != "script":
@@ -149,8 +111,6 @@ def _domain_args(entity: dict[str, Any]) -> dict[str, Any]:
     domain = entity["domain"]
     if domain in {"light", "fan", "switch", "media_player", "climate", "vacuum", "scene", "script"}:
         return {"domain": [domain]}
-    # HA locks have no device class, and "door" is a cover class: a lock labeled
-    # device_class=["door"] is filtered out and the intent fails to match.
     if domain == "lock":
         return {}
     if entity.get("device_class"):
@@ -244,8 +204,6 @@ def build_media_previous(entity: dict[str, Any]) -> dict[str, Any]:
     return {"name": "HassMediaPrevious", "arguments": _media_player_args(entity)}
 
 
-# Titles a household actually asks for, paired with the media_class Home Assistant
-# would search. Names, not adjectives: the point is a realistic search_query slot.
 MEDIA_SEARCHES: tuple[tuple[str, str], ...] = (
     ("jazz", "music"),
     ("the news", "channel"),
@@ -260,8 +218,6 @@ MEDIA_SEARCHES: tuple[tuple[str, str], ...] = (
 
 def build_media_search_and_play(entity: dict[str, Any], rng: random.Random) -> dict[str, Any]:
     query, media_class = rng.choice(MEDIA_SEARCHES)
-    # No domain/device_class in this tool's contract: the pinned schema takes
-    # search_query, media_class and a target only.
     return {
         "name": "HassMediaSearchAndPlay",
         "arguments": {"name": entity["name"], "search_query": query, "media_class": media_class},
@@ -290,7 +246,6 @@ def build_vacuum_clean_area(entity: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_get_datetime() -> dict[str, Any]:
-    """GetDateTime has no entity arguments; Home Assistant answers from clock."""
     return {"name": "GetDateTime", "arguments": {}}
 
 
@@ -298,8 +253,6 @@ def build_query(entity: dict[str, Any]) -> dict[str, Any]:
     args: dict[str, Any] = {}
     if entity.get("name"):
         args["name"] = entity["name"]
-    # GetLiveContext takes any domain string; naming it keeps a cover or lock query
-    # as identifiable as a light query.
     if entity.get("domain"):
         args["domain"] = entity["domain"]
     return {"name": "GetLiveContext", "arguments": args}
@@ -349,7 +302,6 @@ def build_cancel_timer(*, name: str | None = None) -> dict[str, Any]:
 
 
 def build_adjust_timer(rng: random.Random, *, direction: str, name: str | None = None) -> dict[str, Any]:
-    """HassIncreaseTimer / HassDecreaseTimer: a duration delta on a running timer."""
     args: dict[str, Any] = (
         {"seconds": rng.choice((10, 15, 30, 45))} if rng.random() < 0.25 else {"minutes": rng.choice((1, 2, 5, 10, 15))}
     )
@@ -375,11 +327,10 @@ def build_area_call(
     if domain in {"light", "fan", "switch", "media_player", "climate", "vacuum", "scene", "script"}:
         args["domain"] = [domain]
     elif domain == "lock":
-        args["domain"] = ["lock"]  # no lock device class exists in HA
+        args["domain"] = ["lock"]
     elif cap.device_class:
         args["device_class"] = [cap.device_class]
     tool = _operation_tool(operation, capability)
-    # Tools whose pinned contract carries no domain/device_class filter.
     if tool in {"HassMediaSearchAndPlay", "HassSetVolumeRelative", "HassClimateSetTemperature"}:
         args.pop("domain", None)
         args.pop("device_class", None)
@@ -401,9 +352,6 @@ def build_area_call(
     return {"name": tool, "arguments": args}
 
 
-# The pinned tool each operation maps to, for area and floor calls where there
-# is no entity to inspect. Two operations are overloaded across capabilities and
-# are resolved before this table is consulted.
 _OPERATION_TOOLS: dict[str, str] = {
     "turn_on": "HassTurnOn",
     "open": "HassTurnOn",
@@ -441,7 +389,6 @@ _OPERATION_TOOLS: dict[str, str] = {
 
 
 def _operation_tool(operation: str, capability: str) -> str:
-    """Resolve one operation to its pinned tool name."""
     if operation == "start":
         return "HassVacuumStart" if capability == "vacuums" else "HassStartTimer"
     if operation == "pause" and capability == "timers":
@@ -451,9 +398,6 @@ def _operation_tool(operation: str, capability: str) -> str:
     return _OPERATION_TOOLS[operation]
 
 
-# What an operation means, once the entity is known. Replaces a forty-branch
-# if-chain: the routing is the table, and the exceptions below it are the three
-# operations whose meaning genuinely depends on the capability.
 _ENTITY_CALLS: dict[str, Callable[[dict[str, Any], random.Random], dict[str, Any]]] = {
     "turn_on": lambda entity, _rng: build_turn_on(entity),
     "open": lambda entity, _rng: build_turn_on(entity),
@@ -479,8 +423,6 @@ _ENTITY_CALLS: dict[str, Callable[[dict[str, Any], random.Random], dict[str, Any
     "clean_area": lambda entity, _rng: build_vacuum_clean_area(entity),
 }
 
-# Timers have no entity, and "start" and "pause" mean different tools here than
-# they do for a vacuum or a media player.
 _TIMER_CALLS: dict[str, Callable[[random.Random, str | None], dict[str, Any]]] = {
     "cancel_all": lambda _rng, area: build_cancel_all_timers(area),
     "start": lambda rng, _area: build_start_timer(rng),
@@ -502,7 +444,6 @@ def build_call_for_operation(
     area: str | None = None,
     floor: str | None = None,
 ) -> dict[str, Any]:
-    """The one tool call an operation on a capability means."""
     if capability == "timers" and (timer_call := _TIMER_CALLS.get(operation)):
         return timer_call(rng, area)
 
@@ -519,7 +460,6 @@ def build_call_for_operation(
             return build_area_call(capability, operation, area, floor=floor, rng=rng)
         raise ValueError("entity or area required for operation")
 
-    # A script is its own tool, so it never routes through HassTurnOn.
     if operation == "run" and capability == "scripts":
         return {"name": script_tool_name(entity), "arguments": {}}
     if operation.startswith("set_") and capability == "lights":
