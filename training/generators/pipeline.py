@@ -485,17 +485,20 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             and slot["operation"] in {"turn_on", "turn_off", "open", "close"}
         )
         real_home_retries = 0
+        synthetic_fallback = False
         while True:
-            # A rejected real-home attempt is retried as real-home, never
-            # silently downgraded to synthetic: the balancer owns the real-home
-            # count, and a synthetic fallback would undercount it. Retries draw
+            # A rejected real-home attempt is retried as real-home; only a
+            # forced tail falls back to synthetic, once, after the retries
+            # (the balancer owns the real-home count). Retries draw
             # from a fork so the main stream (and the exclusion cadence on
             # `attempts`) is undisturbed; the fork is seeded per (attempt, retry)
             # so each retry is a fresh, reproducible scenario. Cadence retries
             # keep their original selection: a real-home exclusion can be
             # structurally impossible (one supporting device) and would burn
             # every retry.
-            if exclusion_cadence:
+            if synthetic_fallback:
+                real_sel = False
+            elif exclusion_cadence:
                 real_sel = real_home_selected
             else:
                 real_sel = True if real_home_retries else real_home_selected
@@ -550,11 +553,15 @@ def _run_generation(config: GeneratorConfig) -> dict[str, Any]:
             # A saturated real home (21 entities) keeps producing duplicates,
             # and a capped entity keeps tripping real_home_entity_cap. Once
             # retries are exhausted, redraw the mix on the next pass instead of
-            # spinning to max_attempts; a forced tail simply keeps redrawing
-            # real-home until the mix is met.
+            # spinning to max_attempts. A forced tail gets one synthetic attempt
+            # after that: the real home's small correction/settings pool
+            # saturates under one-copy dedup, and without the fallback the
+            # tail spins to max_attempts (first v6 40k run: 39,498/40,000).
             real_home_retries += 1
             if real_home_retries >= REAL_HOME_RETRY_LIMIT:
-                break
+                if not real_home_forced or synthetic_fallback:
+                    break
+                synthetic_fallback = True
         attempts += 1
         # Consume the plan slot this row came from (family draw or discrimination).
         plan_index = discrimination_index if discrimination_index is not None else (

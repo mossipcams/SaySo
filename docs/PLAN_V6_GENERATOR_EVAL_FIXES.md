@@ -336,6 +336,17 @@ model, so it can't run from the dev worktree. It therefore gates the 40k run
 and the training launch, not the generator changes in this plan (which do
 nothing until a run).
 
+Result (run 2026-09-25, recorded 2026-09-28): v5b checkpoint-3000 on 300
+held-out rows (`valid_v5_id_seed20260925_clean_rendered.jsonl`, scored by
+`training/scripts/eval_rendered_cpu.py`; result
+`/srv/llm/lfm/runs/eval-v5b/id-ckpt3000.json`) got decision 0.98, calls 0.96,
+exact 0.83. The same model family scored 73/120 (60.83%) on promotion. High
+in-distribution with low eval means a data-distribution gap, so the gate
+passes and the 40k run can proceed. Low exact-match rates concentrate in
+clarify (0.43) and follow_up (0.52), where the decision and calls scores are
+1.0; these misses are text wording, not wrong actions. The final checkpoint
+(step 4,696) was not rescored.
+
 ## Sequencing
 
 Review-adjusted (2026-09-26): one bounded change per fix, in the order Fix 5
@@ -345,3 +356,25 @@ files). After all five, regenerate the smoke set (re-verify against the audit
 output above) before any 40k run. Step 0 gates the 40k run and training
 launch, not these generator changes. Ablations per
 `docs/PLAN_V6_DATASET_ARCHITECTURE.md` Step 3.
+
+## 40k run fix: forced real-home tail (2026-09-29)
+
+The first v6 40k generate (`full_sft_v5.yaml`, seed 20260922) failed after
+800,000 attempts at 39,498/40,000: correction 1,764/2,242, settings 2,965/2,989;
+every other family full. Rejections were dominated by `duplicate_semantic_id`
+(365k) and `exact_duplicate_utterance` (233k).
+
+Cause: v6 removed v5's synthetic fallback for rejected real-home rows. When the
+real-home count lags, the tail forces every row onto the real home, which has
+only ~15 correction-eligible devices with fixed "the {area} {name}" phrasing.
+Under Fix 5's one-copy exact-dedup that pool saturates, so the forced tail
+spins until max_attempts.
+
+Scope: `training/generators/pipeline.py` only. In a forced tail
+(`real_home_forced`), once `REAL_HOME_RETRY_LIMIT` real-home retries fail, try
+one synthetic attempt (v5 behavior). Unforced rows keep v6 behavior (redraw next
+pass); cadence retries are unchanged. The cost is a real-home share a few hundred
+rows under 10%.
+
+Verify: `training/tests/test_v6_eval_fixes.py` and the smoke dry-run still pass;
+rerun `./sayso generate` on the VM to 40,000 rows, then `./sayso validate`.
