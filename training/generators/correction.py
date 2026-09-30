@@ -1,4 +1,3 @@
-"""Synthetic pre-execution correction payloads for training rows."""
 
 from __future__ import annotations
 
@@ -12,7 +11,6 @@ LOCKED_SCHEMA_FINGERPRINT = (
 
 
 def entity_name_contains_area(entity: dict[str, Any]) -> bool:
-    """True when the registry name already embeds its area (no correction lesson)."""
     area = (entity.get("area") or "").strip()
     name = (entity.get("name") or "").strip()
     if not area or not name:
@@ -31,7 +29,6 @@ def format_synthetic_validation_error(
     allowed_tools: list[str],
     fingerprint: str = LOCKED_SCHEMA_FINGERPRINT,
 ) -> dict[str, Any]:
-    """Mirror ``custom_components.sayso.schema.format_synthetic_validation_error``."""
     return {
         "error": {
             "code": code,
@@ -43,7 +40,6 @@ def format_synthetic_validation_error(
 
 
 def wrong_name_tool_call(correct_call: dict[str, Any], wrong_name: str) -> dict[str, Any]:
-    """Duplicate a gold call but with the concatenated area+name the model must unlearn."""
     call = copy.deepcopy(correct_call)
     arguments = dict(call.get("arguments") or {})
     arguments["name"] = wrong_name

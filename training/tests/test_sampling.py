@@ -1,4 +1,3 @@
-"""Tests for weighted sampling."""
 
 from __future__ import annotations
 

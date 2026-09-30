@@ -1,4 +1,3 @@
-"""Tests for the in-memory evaluation adapter."""
 
 from __future__ import annotations
 

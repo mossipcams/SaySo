@@ -1,10 +1,3 @@
-"""Provision the embedded backend: the native wheel and the GGUF weights.
-
-Both live outside the integration on purpose. ``llama-cpp-python`` cannot be a
-manifest requirement (PyPI ships sdist only and the Home Assistant container has
-no compiler), and a multi-hundred-megabyte GGUF does not belong in a HACS
-repository. See docs/PLAN_EMBEDDED_INFERENCE.md §1.
-"""
 
 from __future__ import annotations
 
@@ -35,12 +28,10 @@ _DOWNLOAD_TIMEOUT = aiohttp.ClientTimeout(total=None, sock_read=60)
 
 
 def models_dir(hass: HomeAssistant) -> Path:
-    """Return the persistent model directory under /config."""
     return Path(hass.config.path(MODEL_STORAGE_SUBDIR))
 
 
 def list_local_models(hass: HomeAssistant) -> list[str]:
-    """Return the GGUF files in the model directory. Runs in an executor."""
     directory = models_dir(hass)
     if not directory.is_dir():
         return []
@@ -48,24 +39,10 @@ def list_local_models(hass: HomeAssistant) -> list[str]:
 
 
 def is_llama_cpp_installed() -> bool:
-    """Return whether llama_cpp can be imported in this interpreter."""
     return pkg_util.is_installed(f"{LLAMA_CPP_PACKAGE}>={LLAMA_CPP_MIN_VERSION}")
 
 
 def _install_llama_cpp() -> bool:
-    """Install the prebuilt llama-cpp-python wheel. Runs in an executor.
-
-    ``--no-deps`` is not optional: a plain install resolves a newer numpy over
-    the one Home Assistant pins, which would affect every other integration.
-    ``diskcache`` is llama_cpp's only other import-time dependency.
-    """
-    # install_package copies os.environ, so the extra index reaches uv this way.
-    # Home Assistant already sets UV_EXTRA_INDEX_URL to its own wheel mirror;
-    # append rather than replace so that mirror keeps working.
-    # ponytail: process-global env mutation, restored in the finally. Two entries
-    # setting up at the same moment could interleave here; uv tolerates it
-    # because the second install is a no-op. Use a module-level lock if SaySo
-    # ever provisions more than one backend concurrently.
     previous = os.environ.get("UV_EXTRA_INDEX_URL")
     merged = f"{previous} {LLAMA_CPP_WHEEL_INDEX}" if previous else LLAMA_CPP_WHEEL_INDEX
     os.environ["UV_EXTRA_INDEX_URL"] = merged
@@ -82,11 +59,6 @@ def _install_llama_cpp() -> bool:
 
 
 async def async_ensure_llama_cpp(hass: HomeAssistant) -> None:
-    """Make llama_cpp importable, installing the prebuilt wheel if needed.
-
-    The container filesystem is reset by Home Assistant updates, so this runs on
-    every setup and is a cheap no-op once installed.
-    """
     if is_llama_cpp_installed():
         return
 
@@ -102,7 +74,6 @@ async def async_ensure_llama_cpp(hass: HomeAssistant) -> None:
             f"at {LLAMA_CPP_WHEEL_INDEX}, and the Home Assistant container "
             "cannot build it from source."
         )
-    # Drop any negative import cache from before the install.
     import importlib
 
     importlib.invalidate_caches()
@@ -124,11 +95,6 @@ async def async_ensure_model(
     filename: str,
     sha256: str | None = None,
 ) -> Path:
-    """Return the local GGUF path, downloading it once if missing.
-
-    The download lands on a ``.part`` file and is renamed only after it
-    verifies, so an interrupted download can never be loaded as a model.
-    """
     directory = models_dir(hass)
     await hass.async_add_executor_job(
         lambda: directory.mkdir(parents=True, exist_ok=True)

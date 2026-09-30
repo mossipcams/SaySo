@@ -1,4 +1,3 @@
-"""Colocated tests for scripts/wake_mine_check.py (no ASR)."""
 
 import sys
 from pathlib import Path
@@ -7,7 +6,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.wake_mine_check import classify, phrase_spans  # noqa: E402
+from scripts.wake_mine_check import classify, phrase_spans
 
 
 def _words(*items):

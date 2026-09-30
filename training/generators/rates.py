@@ -1,4 +1,3 @@
-"""Fail-closed rate gates and reachable-share ceilings for cross-cutting rows."""
 
 from __future__ import annotations
 
@@ -13,9 +12,7 @@ from generators.grounding import (
 )
 from generators.planning import discrimination_available_share
 
-# Below this many accepted rows a percentage rate is not meaningfully assertable.
 RATE_GATE_MIN_ROWS = 1000
-# Measured delivery band on a 2.8% grounding request (2.4–2.8%).
 RATE_ACHIEVED_TOLERANCE = 0.85
 
 
@@ -26,7 +23,6 @@ def enforce_rate_gate(
     accepted: int,
     available_share: float = 1.0,
 ) -> None:
-    """Fail the build when a requested row share was not actually achieved."""
     requested = section["requested_rate"]
     if requested <= 0 or accepted < RATE_GATE_MIN_ROWS:
         return

@@ -1,4 +1,3 @@
-"""Structured scenario facts (homes, semantics, area, exclusions)."""
 
 from generators.scenarios.area import (
     DEFAULT_DISTRIBUTION,

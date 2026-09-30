@@ -1,4 +1,3 @@
-"""Diagnostics support for SaySo."""
 
 from __future__ import annotations
 
@@ -17,13 +16,10 @@ from .exceptions import SaySoError
 
 TO_REDACT = {CONF_API_KEY}
 
-# Transcripts are sensitive; a diagnostics download is shared far more widely
-# than the trace store it came from.
 TO_REDACT_TRACE = {"utterance"}
 
 
 class BoundaryFailureCode(StrEnum):
-    """Stable diagnostic codes for model-boundary failures."""
 
     SCHEMA_MISMATCH = "schema_mismatch"
     INVALID_ARGUMENTS = "invalid_arguments"
@@ -34,7 +30,6 @@ class BoundaryFailureCode(StrEnum):
 
 
 class BoundaryPhase(StrEnum):
-    """Phase within a model turn when a boundary failure occurred."""
 
     INITIAL = "initial"
     CORRECTION = "correction"
@@ -53,7 +48,6 @@ class _LastBoundaryFailure:
 
 @dataclass
 class BoundaryDiagnosticsState:
-    """Runtime counters and last failure metadata for one config entry."""
 
     counts: dict[str, int] = field(default_factory=dict)
     last: _LastBoundaryFailure | None = None
@@ -66,7 +60,6 @@ class BoundaryDiagnosticsState:
         fingerprint: str | None = None,
         ha_error: str | None = None,
     ) -> None:
-        """Increment a boundary counter and store safe last-failure metadata."""
         code_key = code.value
         self.counts[code_key] = self.counts.get(code_key, 0) + 1
         self.last = _LastBoundaryFailure(
@@ -82,7 +75,6 @@ _ENTRY_BOUNDARY_DIAGNOSTICS: dict[str, BoundaryDiagnosticsState] = {}
 
 
 def clear_boundary_diagnostics(entry_id: str | None = None) -> None:
-    """Clear boundary diagnostics. Intended for tests."""
     if entry_id is None:
         _ENTRY_BOUNDARY_DIAGNOSTICS.clear()
         return
@@ -97,13 +89,11 @@ def record_boundary_failure(
     fingerprint: str | None = None,
     ha_error: str | None = None,
 ) -> None:
-    """Record one boundary failure for a config entry."""
     state = _ENTRY_BOUNDARY_DIAGNOSTICS.setdefault(entry_id, BoundaryDiagnosticsState())
     state.record(code, phase, fingerprint=fingerprint, ha_error=ha_error)
 
 
 def boundary_diagnostics_snapshot(entry_id: str) -> dict[str, Any]:
-    """Return a redacted boundary diagnostics snapshot for export."""
     state = _ENTRY_BOUNDARY_DIAGNOSTICS.get(entry_id)
     if state is None:
         return {"counts": {}, "last": None}
@@ -128,7 +118,6 @@ def boundary_diagnostics_snapshot(entry_id: str) -> dict[str, Any]:
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: SaySoConfigEntry
 ) -> dict[str, Any]:
-    """Return diagnostics for a config entry."""
     connectivity: dict[str, Any] = {
         "api_key_configured": bool(entry.data.get(CONF_API_KEY)),
         "reachable": False,
@@ -154,7 +143,6 @@ async def async_get_config_entry_diagnostics(
             except SaySoError as err:
                 connectivity["error"] = type(err).__name__
         else:
-            # The model is in this process; if the entry loaded, it is reachable.
             connectivity["reachable"] = True
             connectivity["models"] = [runtime.model]
         runtime_data: dict[str, Any] = {

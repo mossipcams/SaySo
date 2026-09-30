@@ -1,19 +1,3 @@
-"""Optional second-stage wake verifier for LiveKit detection.
-
-The generate-first SaySo model classifies from (16, 96) speech embeddings
-built by the same mel frontend + embedding ONNX stack as LiveKit. A compatible
-second stage must score those embeddings — not a parallel mel pass.
-
-Legacy ``sayso-verifier.npz`` artifacts (unversioned or ``feature_kind=mel_union``)
-are a collapsed-mel mean+std logistic fit on 50 Snowball clips vs 19 live FPs.
-That is a this-room recording-envelope check, not a phrase verifier: it blessed
-recorded SaySo while the new classifier scored ~0.00, and vetoed live
-generate-first fires (LiveKit 0.53–0.84, verifier 0.01–0.10). Those artifacts
-are treated as incompatible with the generate-first model and do not AND-gate.
-
-Compatible npz files set ``feature_kind=speech_embedding`` and logistic weights
-for concat(mean, std) over the last 16 speech-embedding vectors (192-d).
-"""
 
 from __future__ import annotations
 
@@ -31,7 +15,7 @@ FEATURE_KIND_MEL_UNION = "mel_union"
 FEATURE_KIND_SPEECH_EMBEDDING = "speech_embedding"
 
 EMBEDDING_DIM = 96
-SPEECH_EMBEDDING_FEATURE_DIM = EMBEDDING_DIM * 2  # mean + std
+SPEECH_EMBEDDING_FEATURE_DIM = EMBEDDING_DIM * 2
 
 
 def _sigmoid(x: float) -> float:
@@ -53,11 +37,6 @@ def _npz_feature_kind(data: np.lib.npyio.NpzFile) -> str:
 
 
 def mel_union_features(model: Any, window: np.ndarray) -> Optional[np.ndarray]:
-    """Extract 64-d mel mean+std features from the last-16 embedding mel union.
-
-    Legacy living2 verifier fit only. Not a phrase check for the generate-first
-    model — see module docstring.
-    """
     mel_frontend = getattr(model, "_mel_frontend", None)
     if mel_frontend is None:
         return None
@@ -91,7 +70,6 @@ def mel_union_features(model: Any, window: np.ndarray) -> Optional[np.ndarray]:
 
 
 def speech_embedding_features(embeddings: np.ndarray) -> Optional[np.ndarray]:
-    """Collapse (16, 96) speech embeddings to 192-d mean+std features."""
     if not isinstance(embeddings, np.ndarray) or embeddings.ndim != 2:
         return None
     if embeddings.shape[0] < MIN_EMBEDDINGS or embeddings.shape[1] != EMBEDDING_DIM:
@@ -103,7 +81,6 @@ def speech_embedding_features(embeddings: np.ndarray) -> Optional[np.ndarray]:
 
 
 class WakeVerifier:
-    """Logistic verifier loaded from a versioned npz artifact."""
 
     def __init__(
         self,
@@ -122,7 +99,6 @@ class WakeVerifier:
 
     @property
     def compatible(self) -> bool:
-        """True when this artifact can second-gate the generate-first model."""
         return self.feature_kind == FEATURE_KIND_SPEECH_EMBEDDING
 
     @property
@@ -135,7 +111,6 @@ class WakeVerifier:
         model: Any,
         embeddings: Optional[np.ndarray] = None,
     ) -> Optional[float]:
-        """Return verifier probability in [0, 1], or None when features are unavailable."""
         if self.feature_kind == FEATURE_KIND_SPEECH_EMBEDDING:
             features = speech_embedding_features(embeddings) if embeddings is not None else None
             if features is None:
@@ -178,7 +153,6 @@ def load_wake_verifier(
     path: Path,
     threshold: Optional[float] = None,
 ) -> Optional[WakeVerifier]:
-    """Load a verifier npz, or None when the artifact is legacy/incompatible."""
     verifier = WakeVerifier(path, threshold=threshold)
     if verifier.compatible:
         return verifier
@@ -191,5 +165,4 @@ def load_wake_verifier(
     return None
 
 
-# Backward-compatible alias for tests and callers that still refer to MelVerifier.
 MelVerifier = WakeVerifier

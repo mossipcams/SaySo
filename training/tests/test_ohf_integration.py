@@ -1,4 +1,3 @@
-"""Both public rendering paths preserve authoritative request constraints."""
 import sys
 import random
 from pathlib import Path

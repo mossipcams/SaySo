@@ -1,4 +1,3 @@
-"""Focused checks that each request phase sends and records its schema identity."""
 
 from __future__ import annotations
 
@@ -84,14 +83,12 @@ def enable_custom_integrations(
     hass: HomeAssistant,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Allow Home Assistant to discover this repository's custom components."""
     monkeypatch.setattr(custom_components, "__path__", [CUSTOM_COMPONENTS_PATH])
     hass.data.pop(DATA_CUSTOM_COMPONENTS, None)
 
 
 @pytest.fixture(autouse=True)
 async def setup_required_integrations(hass: HomeAssistant) -> None:
-    """Load Home Assistant integrations required by SaySo tests."""
     assert await async_setup_component(hass, "homeassistant", {})
     assert await async_setup_component(hass, "llm", {})
     assert await async_setup_component(hass, "conversation", {})
@@ -203,7 +200,6 @@ async def test_initial_request_sends_active_schema_identity(
     mock_llama_client: None,
     assist_light_and_fan: None,
 ) -> None:
-    """Confident routing must send the active schema tools and fingerprint on the first call."""
     entry = await _create_entry(hass)
     complete_schema, active_schema = await _schemas_for_command(
         hass,
@@ -231,7 +227,6 @@ async def test_successful_action_skips_follow_up_request(
     mock_llama_client: None,
     assist_light_and_fan: None,
 ) -> None:
-    """Successful actions receive a deterministic acknowledgement."""
     entry = await _create_entry(hass)
     with patch.object(
         LlamaCppClient,
@@ -262,7 +257,6 @@ async def test_argument_correction_sends_complete_schema_identity(
     mock_llama_client: None,
     assist_light_and_fan: None,
 ) -> None:
-    """Argument correction must send and cite the complete schema fingerprint."""
     entry = await _create_entry(hass)
     complete_schema, active_schema = await _schemas_for_command(
         hass,
@@ -311,7 +305,6 @@ async def test_filtered_miss_correction_sends_complete_schema_identity(
     mock_llama_client: None,
     assist_light_and_fan: None,
 ) -> None:
-    """Filtered-schema miss correction must send the complete schema identity."""
     entry = await _create_entry(hass)
     complete_schema, active_schema = await _schemas_for_command(
         hass,
@@ -363,7 +356,6 @@ async def test_initial_boundary_diagnostic_uses_active_schema_fingerprint(
     mock_llama_client: None,
     assist_light_and_fan: None,
 ) -> None:
-    """Boundary diagnostics on the initial phase must record the active schema fingerprint."""
     entry = await _create_entry(hass)
     complete_schema, active_schema = await _schemas_for_command(
         hass,

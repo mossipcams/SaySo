@@ -1,4 +1,3 @@
-"""Pipeline must preserve the selected grammar and spoken target."""
 
 import random
 import re
@@ -69,19 +68,15 @@ def test_generated_requests_are_grammatical_english():
                 for message in row["messages"] if message["role"] == "user"]
     assert requests
     for request in requests:
-        # A dropped article must not leave a whitespace tell for the model.
         assert "  " not in request, request
         assert not re.search(r"\b(switchs|climates)\b", request, re.I), request
         assert "°" not in request and not re.search(r"\d k\b", request), request
-        # "set the brightness Kitchen Light to 40" needs its preposition.
         assert not re.search(r"\b(temperature|brightness|color|speed|volume) "
                              r"(?:the |my |our )?[A-Z]", request), request
         assert not re.search(r"\b(create|start|set) (?:the|my) timer\b", request, re.I), request
         assert not re.search(r"^make\b[^,]*? to (?:blue|red|green|warm white|cool white)\b",
                              request, re.I), request
         assert "to scene" not in request.casefold(), request
-        # Every clause needs a verb: "my garage bright lights on" is a parser
-        # fragment, and polite framing turns it into "can you my ... on for me?".
         core = re.sub(r"^(?:hey|okay|please|could you|can you|when you get a chance),?\s+",
                       "", request.strip(), flags=re.I)
         assert re.match(r"(?:turn|switch|set|change|make|open|close|lock|lok|unlock|start|stop|"

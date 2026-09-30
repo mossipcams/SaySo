@@ -1,4 +1,3 @@
-"""Area grounding rows: production format, correct labels, enforced quotas."""
 
 from __future__ import annotations
 
@@ -137,7 +136,6 @@ def test_a_short_area_scenario_fails_the_build() -> None:
     plan = _plan(2)
     rows = area_scenarios.build_rows(area_scenarios.required_counts(plan, 100), seed=5)
     area_scenarios.validate_distribution(rows, plan, 100)
-    # Keep one of the two required area_alias rows.
     short = [row for row in rows if row["metadata"]["area_scenario"] != "area_alias"]
     short.append(next(row for row in rows if row["metadata"]["area_scenario"] == "area_alias"))
     with pytest.raises(RuntimeError, match="area_alias"):

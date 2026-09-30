@@ -1,4 +1,3 @@
-"""Tests for wake audio window buffering."""
 
 from __future__ import annotations
 
@@ -30,8 +29,6 @@ def test_preroll_lookback_drops_wake_skip_prefix_on_flush() -> None:
     lookback.feed(wake_samples.tobytes())
     lookback.feed(command_samples.tobytes())
 
-    # Detection on the last captured sample; a 500 ms skip trims the wake word
-    # from the emitted window, leaving only the command.
     flushed = np.frombuffer(
         lookback.flush_until(16000, skip_ms=500).pcm, dtype="<i2"
     )

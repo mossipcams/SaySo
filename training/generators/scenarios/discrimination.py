@@ -1,4 +1,3 @@
-"""Entity-discrimination wording: describe a target without naming it."""
 
 from __future__ import annotations
 
@@ -13,19 +12,14 @@ from generators.utterances import (
     describe_target,
 )
 
-# Capabilities that can yield a description-based row. A description singles out
-# one entity from several of the same domain in one area, so it is only
-# producible where homes actually place siblings: lights, covers and switches.
 DISCRIMINATION_CAPABILITIES: frozenset[str] = frozenset(
     {"lights", "covers", "switches"}
 )
 
-# Measured delivery ceiling for description-based rows (2026-09-13).
 DISCRIMINATION_DELIVERY_CEILING = 0.02
 
 
 def call_carries_value(call: dict[str, Any]) -> bool:
-    """True when the call needs an argument a description cannot convey."""
     arguments = call.get("arguments") or {}
     value_keys = {
         "brightness", "color", "temperature", "percentage", "volume",
@@ -36,7 +30,6 @@ def call_carries_value(call: dict[str, Any]) -> bool:
 
 
 def entity_descriptors(entity: dict[str, Any], area: str | None) -> dict[str, str | None]:
-    """Pull genuinely descriptive tokens out of an entity's own name."""
     name = str(entity.get("name") or "")
     area = area or str(entity.get("area") or "")
     tokens = [t for t in re.split(r"[\s\-]+", name) if t]
@@ -61,7 +54,6 @@ def entity_descriptors(entity: dict[str, Any], area: str | None) -> dict[str, st
 
 
 def sibling_entities(scenario: dict[str, Any]) -> list[dict[str, Any]]:
-    """Same-domain, same-area entities other than the target."""
     home = scenario.get("home") or {}
     target = scenario.get("target_entity") or {}
     domain = target.get("domain")
@@ -82,7 +74,6 @@ def uniqueness_safe(
     target: dict[str, Any],
     siblings: list[dict[str, Any]],
 ) -> bool:
-    """Reject a description that any sibling could also satisfy."""
     lowered = text.lower()
     own = {str(target.get("name") or "").lower()}
     own.update(str(a).lower() for a in (target.get("aliases") or ()))
@@ -102,7 +93,6 @@ def pick_discriminating_description(
     scenario: dict[str, Any],
     rng: random.Random,
 ) -> str | None:
-    """Render a description that can only refer to the target."""
     target = scenario.get("target_entity") or {}
     domain = target.get("domain")
     area = target.get("area")

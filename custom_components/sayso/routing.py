@@ -1,15 +1,3 @@
-"""Conservative command-domain routing hints from HA registry metadata.
-
-Two independent kinds of evidence can narrow the tool schema, and only ever
-when they agree unambiguously:
-
-1. the command names an exposed entity or says a domain word outright, or
-2. the command names an area or floor whose exposed contents share one domain.
-
-Anything fuzzy, conflicting or absent means "unknown", and an unknown route
-sends the complete schema. Filtering is an optimization; it can never grant a
-capability Home Assistant did not offer.
-"""
 
 from __future__ import annotations
 
@@ -46,9 +34,6 @@ _CONTROL_VERBS = frozenset(
     }
 )
 
-# Domains a Home Assistant Assist/SaySo tool can act on. Non-control entities
-# (remote, update, select, sensor, ...) may share a friendly name with one of
-# these; they must not suppress the control domain hint.
 _CONTROL_DOMAINS = frozenset(
     {
         "alarm_control_panel", "button", "climate", "cover", "fan", "humidifier",
@@ -60,7 +45,6 @@ _CONTROL_DOMAINS = frozenset(
 
 @dataclass(frozen=True, slots=True)
 class RoutingArea:
-    """One HA area registry entry used for routing hints."""
 
     area_id: str
     name: str
@@ -69,7 +53,6 @@ class RoutingArea:
 
 @dataclass(frozen=True, slots=True)
 class RoutingFloor:
-    """One HA floor registry entry used for routing hints."""
 
     floor_id: str
     name: str
@@ -77,7 +60,6 @@ class RoutingFloor:
 
 @dataclass(frozen=True, slots=True)
 class RoutingDevice:
-    """One HA device registry entry used for routing hints."""
 
     device_id: str
     area_id: str | None = None
@@ -85,7 +67,6 @@ class RoutingDevice:
 
 @dataclass(frozen=True, slots=True)
 class RoutingEntity:
-    """One exposed entity used for routing hints."""
 
     entity_id: str
     domain: str
@@ -97,7 +78,6 @@ class RoutingEntity:
 
 @dataclass(frozen=True, slots=True)
 class RoutingCatalog:
-    """HA-provided entity names and domains for routing."""
 
     entities: tuple[RoutingEntity, ...]
 
@@ -108,7 +88,6 @@ class RoutingCatalog:
 
 @dataclass(frozen=True, slots=True)
 class RoutingRegistries:
-    """HA area, floor, and device registry metadata for routing hints."""
 
     areas: tuple[RoutingArea, ...] = ()
     floors: tuple[RoutingFloor, ...] = ()
@@ -117,14 +96,12 @@ class RoutingRegistries:
 
 @dataclass(frozen=True, slots=True)
 class RoutingPreferences:
-    """Satellite-preferred area/floor supporting evidence."""
 
     area: str | None = None
     floor: str | None = None
 
 
 def _tokenize(text: str) -> list[str]:
-    """Lowercase word/number tokens; punctuation and case never matter."""
     return _TOKEN_RE.findall(text.casefold())
 
 
@@ -147,7 +124,6 @@ def _token_matches_domain(token: str, domain: str) -> bool:
 
 
 def _phrase_in_tokens(phrase_tokens: list[str], command_tokens: list[str]) -> bool:
-    """Return whether the phrase appears as a verbatim run of command tokens."""
     width = len(phrase_tokens)
     if not width:
         return False
@@ -158,7 +134,6 @@ def _phrase_in_tokens(phrase_tokens: list[str], command_tokens: list[str]) -> bo
 
 
 def _control_tokens(command: str, catalog: RoutingCatalog) -> list[str] | None:
-    """Tokenize a command, or return None when routing must not even try."""
     tokens = _tokenize(command)
     if not tokens or not catalog.entities:
         return None
@@ -168,12 +143,6 @@ def _control_tokens(command: str, catalog: RoutingCatalog) -> list[str] | None:
 
 
 def _resolve_domain_hint(matched_domains: set[str]) -> str | None:
-    """Return the domain hint, preferring a lone control domain.
-
-    A non-control entity that shares a friendly name with a control entity
-    (``remote.living_room_tv`` vs ``media_player.living_room_tv``) must not
-    suppress the hint. Two control domains stay ambiguous.
-    """
     if len(matched_domains) == 1:
         return next(iter(matched_domains))
     control_domains = matched_domains & _CONTROL_DOMAINS
@@ -185,7 +154,6 @@ def _resolve_domain_hint(matched_domains: set[str]) -> str | None:
 def _identify_from_entity_and_domain_terms(
     command: str, catalog: RoutingCatalog
 ) -> str | None:
-    """Match exposed entity names, their aliases, and bare domain words."""
     command_tokens = _control_tokens(command, catalog)
     if command_tokens is None:
         return None
@@ -213,12 +181,6 @@ def _named_matches[T](
     command_tokens: list[str],
     preferred: str | None,
 ) -> list[T]:
-    """Return registry entries the command names, resolving ties by preference.
-
-    One match is unambiguous. Several stay ambiguous unless the satellite's
-    preferred area or floor is one of them — supporting evidence can break a
-    tie but never creates a match on its own.
-    """
     matched = [
         entry
         for entry in entries
@@ -244,7 +206,6 @@ def _named_matches[T](
 def _entity_area_id(
     entity: RoutingEntity, devices: dict[str, RoutingDevice]
 ) -> str | None:
-    """An entity's own area, or the area of the device it belongs to."""
     if entity.area_id is not None:
         return entity.area_id
     device = devices.get(entity.device_id) if entity.device_id else None
@@ -258,7 +219,6 @@ def _identify_from_area_and_floor_evidence(
     *,
     preferences: RoutingPreferences | None,
 ) -> str | None:
-    """Narrow by place: the exposed contents of a named area or floor."""
     command_tokens = _control_tokens(command, catalog)
     if command_tokens is None:
         return None
@@ -299,7 +259,6 @@ def identify_command_domain(
     registries: RoutingRegistries | None = None,
     preferences: RoutingPreferences | None = None,
 ) -> str | None:
-    """Return a domain hint only for exact, unambiguous token or registry matches."""
     domain_hint = _identify_from_entity_and_domain_terms(command, catalog)
     if domain_hint is not None or registries is None:
         return domain_hint
@@ -313,12 +272,6 @@ def select_tools_for_domain(
     source_tools: list[llm.Tool],
     domain_hint: str | None,
 ) -> tuple[dict[str, Any], ...]:
-    """Return compiled tools compatible with a confident domain hint.
-
-    A tool survives unless Home Assistant's own metadata says it acts on other
-    domains. Unknown metadata, scripts and query tools are always retained: a
-    routing guess must never be able to hide a tool the user needs.
-    """
     if domain_hint is None:
         return compiled_tools
 
@@ -340,7 +293,6 @@ def select_schema_for_domain(
     source_tools: list[llm.Tool],
     domain_hint: str | None,
 ) -> CompiledToolSchema:
-    """Return the active schema for a domain hint, or the complete schema unchanged."""
     selected_tools = select_tools_for_domain(
         complete_schema.tools, source_tools, domain_hint
     )
@@ -358,7 +310,6 @@ def build_routing_catalog(
     *,
     assistant: str = CONVERSATION_DOMAIN,
 ) -> RoutingCatalog:
-    """Build a routing catalog from exposed HA entities."""
     entity_reg = er.async_get(hass)
     entities: list[RoutingEntity] = []
     for entity_id, entry in entity_reg.entities.items():
@@ -382,7 +333,6 @@ def build_routing_catalog(
 
 @callback
 def build_routing_registries(hass: HomeAssistant) -> RoutingRegistries:
-    """Build area, floor, and device registry snapshots for routing hints."""
     return RoutingRegistries(
         areas=tuple(
             RoutingArea(area.id, area.name, area.floor_id)
@@ -406,7 +356,6 @@ def build_routing_preferences(
     *,
     satellite_id: str | None = None,
 ) -> RoutingPreferences | None:
-    """Return preferred area/floor from the requesting device or satellite."""
     device_id = llm_context.device_id
     if device_id is None and satellite_id is not None:
         satellite = er.async_get(hass).async_get(satellite_id)

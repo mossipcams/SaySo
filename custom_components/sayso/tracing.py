@@ -1,21 +1,3 @@
-"""Request-scoped tracing for one SaySo voice interaction.
-
-SaySo owns exactly one part of the Home Assistant voice pipeline: the
-conversation agent. Wake detection, audio transport, STT and TTS belong to the
-satellite and to Home Assistant's ``assist_pipeline``. This module therefore
-does two things:
-
-* Times the stages SaySo genuinely executes (context, inference, tool parsing,
-  Home Assistant action execution, response).
-* Reuses the timings Home Assistant already records on the active
-  ``PipelineRun`` for wake, audio transport, STT and TTS instead of
-  re-measuring them.
-
-The canonical trace id is the Home Assistant pipeline run id when a voice
-pipeline is running, because that id already identifies exactly one end-to-end
-interaction. Text-only conversations and any lookup failure fall back to a
-fresh ULID. The id is never regenerated for a downstream stage.
-"""
 
 from __future__ import annotations
 
@@ -33,13 +15,10 @@ from homeassistant.util import ulid as ulid_util
 
 _LOGGER = logging.getLogger(__name__)
 
-# ``assist_pipeline`` stores its runtime data under a plain string HassKey.
-# Using the literal keeps SaySo importable on installs without a voice pipeline.
 KEY_ASSIST_PIPELINE = "assist_pipeline"
 
 
 class Stage(StrEnum):
-    """Timed stages. Each emits ``<value>_started`` and ``<value>_completed``."""
 
     AUDIO_UPLOAD = "audio_upload"
     STT = "stt"
@@ -53,8 +32,6 @@ class Stage(StrEnum):
     PLAYBACK = "playback"
 
 
-# Point-in-time events. These have no measurable duration on the side that
-# observes them, so they are recorded as instants rather than as spans.
 INTERACTION_STARTED = "interaction_started"
 INTERACTION_COMPLETED = "interaction_completed"
 INTERACTION_FAILED = "interaction_failed"
@@ -64,7 +41,6 @@ SPEECH_ENDED = "speech_ended"
 
 
 class ErrorType(StrEnum):
-    """Stable machine-readable failure classifications."""
 
     STT_FAILED = "stt_failed"
     MODEL_UNAVAILABLE = "model_unavailable"
@@ -83,18 +59,15 @@ class ErrorType(StrEnum):
 
 
 def _now() -> datetime:
-    """Wall clock, used only for persisted timestamps."""
     return datetime.now(tz=UTC)
 
 
 def _ms(seconds: float) -> int:
-    """Round a monotonic delta to whole milliseconds."""
     return int(round(seconds * 1000.0))
 
 
 @dataclass(slots=True)
 class StageEvent:
-    """One recorded stage boundary."""
 
     stage: str
     timestamp: str
@@ -104,7 +77,6 @@ class StageEvent:
     metadata: dict[str, Any] | None = None
 
     def as_dict(self, trace_id: str, sequence: int) -> dict[str, Any]:
-        """Return the persisted stage-event record."""
         record: dict[str, Any] = {
             "trace_id": trace_id,
             "sequence": sequence,
@@ -121,7 +93,6 @@ class StageEvent:
 
 @dataclass
 class StageSpan:
-    """An in-flight stage. ``metadata`` may be filled in before it closes."""
 
     stage: str
     started: float
@@ -131,11 +102,6 @@ class StageSpan:
 
 @dataclass
 class TraceContext:
-    """Everything known about one interaction, scoped to that request.
-
-    A ``TraceContext`` is created per request and passed explicitly. There is no
-    global "current trace", so concurrent interactions cannot leak state.
-    """
 
     trace_id: str
     started_monotonic: float = field(default_factory=time.monotonic)
@@ -155,15 +121,9 @@ class TraceContext:
     _open: list[StageSpan] = field(default_factory=list, repr=False)
 
     def elapsed_ms(self) -> int:
-        """Milliseconds since the interaction started."""
         return _ms(time.monotonic() - self.started_monotonic)
 
     def rebase(self, started_at: datetime, age_seconds: float) -> None:
-        """Move the interaction start back to an earlier, externally observed point.
-
-        Used when Home Assistant's pipeline run began before SaySo was invoked,
-        so ``elapsed_ms`` stays relative to the real start of the interaction.
-        """
         self.started_at = started_at
         self.started_monotonic = time.monotonic() - max(age_seconds, 0.0)
 
@@ -177,7 +137,6 @@ class TraceContext:
         timestamp: datetime | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> StageEvent:
-        """Record one stage boundary and mirror it to the debug log."""
         event = StageEvent(
             stage=stage,
             timestamp=(timestamp or _now()).isoformat(),
@@ -207,7 +166,6 @@ class TraceContext:
         success: bool = True,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """Record a completed span measured somewhere other than this process."""
         name = str(stage)
         completed_at = (
             started_at + timedelta(milliseconds=duration_ms)
@@ -235,7 +193,6 @@ class TraceContext:
         self.stage_ms[name] = self.stage_ms.get(name, 0) + duration_ms
 
     def open(self, stage: Stage | str, **metadata: Any) -> StageSpan:
-        """Start timing a stage executed in this process."""
         span = StageSpan(
             stage=str(stage), started=time.monotonic(), metadata=dict(metadata)
         )
@@ -244,7 +201,6 @@ class TraceContext:
         return span
 
     def close(self, span: StageSpan, *, success: bool = True) -> None:
-        """Finish timing a stage. Closing twice is a no-op."""
         if span.closed:
             return
         span.closed = True
@@ -267,16 +223,10 @@ class TraceContext:
         error_type: ErrorType = ErrorType.UNKNOWN,
         **metadata: Any,
     ) -> Iterator[StageSpan]:
-        """Time one stage executed in this process.
-
-        The yielded span's ``metadata`` may be mutated before the block exits;
-        it is attached to the ``_completed`` event. An exception marks the stage
-        failed, records it against the trace, and propagates.
-        """
         span = self.open(stage, **metadata)
         try:
             yield span
-        except BaseException as err:  # noqa: BLE001 - re-raised below
+        except BaseException as err:
             self.close(span, success=False)
             self.fail(span.stage, error_type, type(err).__name__)
             raise
@@ -288,12 +238,6 @@ class TraceContext:
         error_type: ErrorType | str,
         message: str | None = None,
     ) -> None:
-        """Mark this trace failed at ``stage``.
-
-        The first failure wins so an outer handler cannot overwrite the precise
-        stage that actually broke. The terminal event is emitted by
-        :meth:`finish` so it always sorts last.
-        """
         if self.success is False:
             return
         for span in reversed(list(self._open)):
@@ -310,7 +254,6 @@ class TraceContext:
         )
 
     def finish(self) -> None:
-        """Emit the terminal event once, preserving every timing collected."""
         if self.completed_at is not None:
             return
         self.completed_at = _now()
@@ -328,19 +271,9 @@ class TraceContext:
         self.add_event(INTERACTION_COMPLETED)
 
     def total_ms(self) -> int:
-        """Wall-clock duration of the whole interaction."""
         return self.events[-1].elapsed_ms if self.events else self.elapsed_ms()
 
     def summary(self) -> dict[str, Any]:
-        """Return the one-record-per-interaction summary.
-
-        Fields stay ``None`` when nothing measured them. ``wake_ms`` and
-        ``playback_ms`` are satellite-side durations that the current
-        satellite-to-Home-Assistant transport cannot report; the wake instant
-        itself is still in the stage events, so wake-to-action latency remains
-        computable. ``service`` is null because SaySo executes Home Assistant
-        intent tools, which have no service name.
-        """
         return {
             "trace_id": self.trace_id,
             "started_at": self.started_at.isoformat(),
@@ -370,7 +303,6 @@ class TraceContext:
         }
 
     def stage_records(self) -> list[dict[str, Any]]:
-        """Return the chronological stage-event records."""
         return [
             event.as_dict(self.trace_id, sequence)
             for sequence, event in enumerate(self.events)
@@ -380,11 +312,6 @@ class TraceContext:
 def async_create_trace(
     hass: HomeAssistant, context: Context
 ) -> tuple[TraceContext, Any | None]:
-    """Create the trace for one interaction, adopting Home Assistant's run id.
-
-    Returns the trace and the pipeline run it belongs to, if any. Never raises:
-    an observability failure must not break a voice request.
-    """
     trace = TraceContext(trace_id=ulid_util.ulid_now())
     trace.add_event(INTERACTION_STARTED)
     run: Any | None = None
@@ -392,24 +319,13 @@ def async_create_trace(
         run = async_find_pipeline_run(hass, context)
         if run is not None:
             adopt_pipeline_run(hass, trace, run)
-    except Exception:  # noqa: BLE001 - tracing must never break the request
+    except Exception:
         _LOGGER.debug("SaySo could not adopt the pipeline run", exc_info=True)
         run = None
     return trace, run
 
 
 def async_find_pipeline_run(hass: HomeAssistant, context: Context) -> Any | None:
-    """Return the active ``PipelineRun`` that produced this conversation turn.
-
-    ``PipelineRun.context`` is the exact ``Context`` object handed to the
-    conversation agent, so identity comparison is unambiguous even when two
-    satellites are talking at once.
-    """
-    # ponytail: PipelineRuns keeps active runs in a private dict and Home
-    # Assistant exposes no public lookup. Read through the plain hass.data key
-    # rather than importing assist_pipeline, so a text-only install without the
-    # voice pipeline never pays for the import. Guarded so an upstream rename
-    # degrades to a locally generated trace id instead of breaking speech.
     pipeline_data = hass.data.get(KEY_ASSIST_PIPELINE)
     if pipeline_data is None:
         return None
@@ -426,7 +342,6 @@ def async_find_pipeline_run(hass: HomeAssistant, context: Context) -> Any | None
 
 
 def _pipeline_events(hass: HomeAssistant, run: Any) -> list[Any]:
-    """Return the pipeline events Home Assistant has already recorded."""
     try:
         debug = hass.data[KEY_ASSIST_PIPELINE].pipeline_debug
         return list(debug[run.pipeline.id][run.id].events)
@@ -445,7 +360,6 @@ def _parse_ts(value: Any) -> datetime | None:
 
 
 def adopt_pipeline_run(hass: HomeAssistant, trace: TraceContext, run: Any) -> None:
-    """Adopt the run id and replay the stages Home Assistant already timed."""
     run_id = getattr(run, "id", None)
     if isinstance(run_id, str) and run_id:
         trace.trace_id = run_id
@@ -453,14 +367,6 @@ def adopt_pipeline_run(hass: HomeAssistant, trace: TraceContext, run: Any) -> No
 
 
 def replay_pipeline_events(trace: TraceContext, events: list[Any]) -> None:
-    """Backfill wake, audio-transport and STT stages from pipeline events.
-
-    Audio transport and STT are deliberately separated: ``stt-start`` to
-    ``stt-vad-end`` is the capture and transport window, while ``stt-vad-end``
-    to ``stt-end`` is the transcription Home Assistant actually performed. When
-    the pipeline reports no VAD boundary, the split is not invented - the whole
-    span is recorded as STT and flagged in metadata.
-    """
     seen: dict[str, tuple[datetime, dict[str, Any] | None]] = {}
     for event in events:
         timestamp = _parse_ts(getattr(event, "timestamp", None))
@@ -540,16 +446,6 @@ def observe_pipeline_completion(
     run: Any,
     on_complete: Callable[[TraceContext], None],
 ) -> Callable[[], None]:
-    """Time Home Assistant's TTS synthesis and finalize the trace at run end.
-
-    The conversation agent returns before Home Assistant synthesizes speech, so
-    the remaining stages are observed by wrapping the run's event callback for
-    the rest of that run. The wrapper always forwards to the original callback,
-    even if recording raises, so tracing cannot break the voice pipeline.
-
-    Returns a callable that detaches the observer; it is idempotent and is also
-    invoked automatically when the run ends.
-    """
     original = run.event_callback
     tts_started: dict[str, datetime] = {}
     detached = False
@@ -606,7 +502,7 @@ def observe_pipeline_completion(
     def observer(event: Any) -> None:
         try:
             record(event)
-        except Exception:  # noqa: BLE001 - tracing must never break the pipeline
+        except Exception:
             _LOGGER.debug("SaySo trace observer failed", exc_info=True)
         original(event)
 

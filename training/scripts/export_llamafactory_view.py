@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Export canonical SaySo JSONL into LlamaFactory alpaca instruction/output views."""
 
 from __future__ import annotations
 

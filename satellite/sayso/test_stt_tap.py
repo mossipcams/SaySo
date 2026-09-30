@@ -1,4 +1,3 @@
-"""The capture tap must equal the bytes actually sent to Home Assistant."""
 
 from __future__ import annotations
 
@@ -51,9 +50,9 @@ class _Satellite:
 
 def _install(monkeypatch: pytest.MonkeyPatch, capture: SttAudioRecorder):
     model = ModuleType("aioesphomeapi.model")
-    model.VoiceAssistantEventType = _EventType  # type: ignore[attr-defined]
+    model.VoiceAssistantEventType = _EventType
     events = ModuleType("linux_voice_assistant.events")
-    events.LVAEvent = _LVAEvent  # type: ignore[attr-defined]
+    events.LVAEvent = _LVAEvent
     monkeypatch.setitem(sys.modules, "aioesphomeapi.model", model)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.events", events)
 
@@ -89,11 +88,11 @@ def test_wav_is_byte_exact_to_what_handle_audio_sent(
     protocol = _install(monkeypatch, capture)
     try:
         satellite = _Satellite()
-        protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))  # type: ignore[attr-defined]
+        protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))
 
         pcm = np.arange(1600, dtype="<i2")
-        protocol.handle_audio(satellite, pcm.tobytes())  # type: ignore[attr-defined]
-        protocol.handle_voice_event(  # type: ignore[attr-defined]
+        protocol.handle_audio(satellite, pcm.tobytes())
+        protocol.handle_voice_event(
             satellite, _EventType.VOICE_ASSISTANT_STT_END, {"text": "turn on the light"}
         )
         capture.flush(timeout=2.0)
@@ -102,7 +101,6 @@ def test_wav_is_byte_exact_to_what_handle_audio_sent(
 
     wavs = list((tmp_path / "commands").glob("*.wav"))
     assert len(wavs) == 1
-    # Byte-exact: the WAV is the stream the satellite would have sent.
     sent = np.frombuffer(b"".join(satellite.sent), dtype="<i2")
     assert np.array_equal(_read_wav(wavs[0]), sent)
     assert np.array_equal(_read_wav(wavs[0]), pcm)
@@ -116,11 +114,11 @@ def test_empty_transcript_produces_a_failure_wav(
     protocol = _install(monkeypatch, capture)
     try:
         satellite = _Satellite()
-        protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))  # type: ignore[attr-defined]
-        protocol.handle_audio(  # type: ignore[attr-defined]
+        protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))
+        protocol.handle_audio(
             satellite, np.full(500, 7, dtype="<i2").tobytes()
         )
-        protocol.handle_voice_event(  # type: ignore[attr-defined]
+        protocol.handle_voice_event(
             satellite, _EventType.VOICE_ASSISTANT_STT_END, {"text": "  "}
         )
         capture.flush(timeout=2.0)
@@ -141,8 +139,7 @@ def test_tap_stops_when_capture_not_started(
     protocol = _install(monkeypatch, capture)
     try:
         satellite = _Satellite()
-        # No wakeup: the tap must remain inactive.
-        protocol.handle_audio(satellite, np.zeros(100, dtype="<i2").tobytes())  # type: ignore[attr-defined]
+        protocol.handle_audio(satellite, np.zeros(100, dtype="<i2").tobytes())
         capture.flush(timeout=1.0)
     finally:
         capture.stop()
@@ -152,16 +149,14 @@ def test_tap_stops_when_capture_not_started(
 def test_aborted_turn_still_writes_a_failure_wav(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A turn with no stt_end must not leave the capture open forever."""
     capture = SttAudioRecorder(tmp_path, sample_rate=16000)
     capture.start()
     protocol = _install(monkeypatch, capture)
     try:
         satellite = _Satellite()
-        protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))  # type: ignore[attr-defined]
-        protocol.handle_audio(satellite, np.full(300, 4, dtype="<i2").tobytes())  # type: ignore[attr-defined]
-        # No stt_end: the turn is torn down anyway.
-        protocol._tts_finished(satellite)  # type: ignore[attr-defined]
+        protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))
+        protocol.handle_audio(satellite, np.full(300, 4, dtype="<i2").tobytes())
+        protocol._tts_finished(satellite)
         capture.flush(timeout=2.0)
     finally:
         capture.stop()

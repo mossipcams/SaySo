@@ -1,4 +1,3 @@
-"""The SaySo integration."""
 
 from __future__ import annotations
 
@@ -86,11 +85,8 @@ LIST_TRACES_SCHEMA = vol.Schema(
 
 @dataclass
 class SaySoRuntimeData:
-    """Runtime data stored on the config entry."""
 
     engine: SaySoInferenceEngine
-    # Set only for the external backend, so diagnostics can still report
-    # connectivity. Embedded entries have no server to describe.
     client: LlamaCppClient | None
     model: str
     llm_api: str
@@ -103,14 +99,12 @@ class SaySoRuntimeData:
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the SaySo integration."""
     hass.data.setdefault(DOMAIN, {})
     _async_register_trace_services(hass)
     return True
 
 
 def _async_trace_stores(hass: HomeAssistant) -> list[TraceStore]:
-    """Return the trace store of every loaded SaySo config entry."""
     stores: list[TraceStore] = []
     for entry in hass.config_entries.async_entries(DOMAIN):
         runtime = getattr(entry, "runtime_data", None)
@@ -120,16 +114,10 @@ def _async_trace_stores(hass: HomeAssistant) -> list[TraceStore]:
 
 
 def _async_register_trace_services(hass: HomeAssistant) -> None:
-    """Register the trace retrieval services.
-
-    Services keep retrieval inside Home Assistant's own APIs: no extra HTTP
-    server and no frontend.
-    """
     if hass.services.has_service(DOMAIN, SERVICE_GET_TRACE):
         return
 
     async def async_get_trace(call: ServiceCall) -> ServiceResponse:
-        """Return one full trace by id."""
         trace_id = call.data["trace_id"]
         for store in _async_trace_stores(hass):
             if (trace := store.get(trace_id)) is not None:
@@ -137,7 +125,6 @@ def _async_register_trace_services(hass: HomeAssistant) -> None:
         return {"summary": None, "events": []}
 
     async def async_list_traces(call: ServiceCall) -> ServiceResponse:
-        """Return recent interaction summaries, newest first."""
         limit: int = call.data["limit"]
         start_time: datetime | None = call.data.get("start_time")
         end_time: datetime | None = call.data.get("end_time")
@@ -174,7 +161,6 @@ def _async_register_trace_services(hass: HomeAssistant) -> None:
 async def _async_build_engine(
     hass: HomeAssistant, entry: SaySoConfigEntry
 ) -> tuple[SaySoInferenceEngine, LlamaCppClient | None]:
-    """Create and start the backend selected for this entry."""
     options = entry.options
     timeout = options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
     client: LlamaCppClient | None = None
@@ -189,13 +175,9 @@ async def _async_build_engine(
         try:
             await client.validate_model(options[CONF_MODEL])
         except SaySoError:
-            # Allow setup so options can be corrected without removing the entry.
             pass
         engine: SaySoInferenceEngine = ExternalEngine(client, options[CONF_MODEL])
     else:
-        # Provisioning failures are transient by nature — a missing wheel index
-        # or an interrupted download both resolve on retry — so they raise
-        # ConfigEntryNotReady rather than dropping the entry.
         try:
             await async_ensure_llama_cpp(hass)
             model_path = Path(options[CONF_MODEL_PATH]) if options.get(
@@ -225,7 +207,6 @@ async def _async_build_engine(
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bool:
-    """Set up SaySo from a config entry."""
     options = entry.options
     engine, client = await _async_build_engine(hass, entry)
 
@@ -267,20 +248,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
         try:
             await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         except Exception:
-            # Never leave a loaded model behind on a half-finished setup.
             await engine.async_shutdown()
             raise
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bool:
-    """Unload a SaySo config entry."""
     if PLATFORMS:
         if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
             return False
     if entry.runtime_data is not None:
         entry.runtime_data.tracer.async_shutdown()
-        # Releases the resident GGUF and stops the inference worker.
         await entry.runtime_data.engine.async_shutdown()
-    entry.runtime_data = None  # type: ignore[assignment]
+    entry.runtime_data = None
     return True

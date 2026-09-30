@@ -1,4 +1,3 @@
-"""Semantic, serialized-format, and token-length validation."""
 
 from __future__ import annotations
 
@@ -70,7 +69,6 @@ def _entity_can_run(entity: dict[str, Any], tool: str) -> bool:
 
 
 def validate_spec(spec: dict[str, Any]) -> str | None:
-    """Validate authoritative behavior against home and pinned v2 schema."""
     expected = spec.get("expected") or {}
     calls = expected.get("calls") or []
     if expected.get("kind") == "no_action" and calls:
@@ -154,15 +152,7 @@ _STATUS_QUERY = re.compile(r"status|\bwhat|^\W*(?:please\s+)?(?:is|are|did|does|
 
 
 def _names_one_clarify_candidate(spec: dict[str, Any], lowered: str) -> bool:
-    """A clarify label is wrong when the request names exactly one candidate.
-
-    Home Assistant resolves an exact multi-word name or alias ("the kitchen tv"
-    when "Kitchen TV" exists), so asking "did you mean" there teaches a needless
-    question. A shared alias matches every candidate and stays ambiguous.
-    """
     expected = spec.get("expected") or {}
-    # Grounding rows (the only ones with a phrasing_seed) derive the label from the
-    # graph by design, and their rate gate has no slack for rejected carriers.
     if spec.get("phrasing_seed"):
         return False
     if expected.get("response") == "clarify":
@@ -184,7 +174,6 @@ def _names_one_clarify_candidate(spec: dict[str, Any], lowered: str) -> bool:
 
 
 def validate_utterance(spec: dict[str, Any]) -> str | None:
-    """Check utterance aligns with expected behavior."""
     utterance = spec.get("utterance")
     if not isinstance(utterance, str) or not utterance.strip():
         return "missing_utterance"
@@ -265,7 +254,6 @@ def _tokenizer(model_name: str):
 
 
 def _call_with_parsed_arguments(call: dict[str, Any]) -> dict[str, Any]:
-    """Copy of ``call`` with its JSON-string ``arguments`` parsed into a dict."""
     function = call.get("function")
     if not isinstance(function, dict) or not isinstance(function.get("arguments"), str):
         return call
@@ -277,7 +265,6 @@ def _call_with_parsed_arguments(call: dict[str, Any]) -> dict[str, Any]:
 
 
 def count_row_tokens(row: dict[str, Any], *, model_name: str) -> int:
-    """Token count via pinned tokenizer and chat template (tools + supervision)."""
     tokenizer = _tokenizer(model_name)
     tools = []
     for tool in row.get("tools") or []:
@@ -296,10 +283,6 @@ def count_row_tokens(row: dict[str, Any], *, model_name: str) -> int:
     for message in row.get("messages") or []:
         entry = {"role": message["role"], "content": message.get("content", "")}
         if message.get("tool_calls"):
-            # Canonical rows keep ``arguments`` as a JSON string, which is what
-            # the OpenAI wire format uses and what we write to disk. The LFM2
-            # chat template calls ``.items()`` on it, so templating a canonical
-            # row raises and every caller silently fell back to an estimate.
             entry["tool_calls"] = [_call_with_parsed_arguments(c) for c in message["tool_calls"]]
         if message.get("tool_call_id"):
             entry["tool_call_id"] = message["tool_call_id"]
@@ -310,13 +293,10 @@ def count_row_tokens(row: dict[str, Any], *, model_name: str) -> int:
         tokenize=False,
         add_generation_prompt=False,
     )
-    # Not ``tokenize=True``: transformers >= 5 returns a BatchEncoding there, so
-    # ``len()`` counted its two keys and reported every row as 2 tokens.
     return len(tokenizer(rendered, add_special_tokens=False)["input_ids"])
 
 
 def row_characters(row: dict[str, Any]) -> int:
-    """Characters the chat template will render: tools, content, and tool calls."""
     total = len(json.dumps(row.get("tools") or []))
     for message in row.get("messages") or []:
         total += len(str(message.get("content") or ""))
@@ -324,10 +304,6 @@ def row_characters(row: dict[str, Any]) -> int:
     return total
 
 
-# Lowest chars-per-token seen across a rendered corpus is 3.27 (p50 3.32, max
-# 3.40): the catalog and static context are ordinary English and JSON, which this
-# tokenizer packs very consistently. Dividing by 3.0 is therefore a safe upper
-# bound on the token count -- if that bound fits the budget, the real count does.
 _MIN_CHARS_PER_TOKEN = 3.0
 
 
@@ -337,20 +313,12 @@ def validate_token_budget(
     *,
     tokenizer_model: str,
 ) -> str | None:
-    """Reject oversized rows; never truncate supervision.
-
-    Tokenizing costs ~9 ms. Generation calls this once per *candidate*, and a 40k
-    corpus burns several hundred thousand candidates, so tokenizing every one of
-    them added two hours to a build in order to reject almost nothing. Rows the
-    cheap character bound proves are under budget skip the tokenizer and are
-    measured once, on the accepted corpus, by ``manifest.build_manifest``.
-    """
     if row_characters(row) / _MIN_CHARS_PER_TOKEN <= budget:
         return None
     estimated = False
     try:
         tokens = count_row_tokens(row, model_name=tokenizer_model)
-    except Exception:  # noqa: BLE001 — offline fallback when HF hub unavailable
+    except Exception:
         from generators.context import serialize_context
 
         spec_len = len(serialize_context(row.get("metadata", {}))) + sum(
@@ -358,8 +326,6 @@ def validate_token_budget(
         )
         tokens = spec_len // 4
         estimated = True
-    # Flagged, not silent: this fallback hid a dead tokenizer path for three
-    # shipped corpora. The manifest must be able to say the counts are guesses.
     row.setdefault("metadata", {})["_token_length"] = tokens
     row["metadata"]["_token_length_estimated"] = estimated
     if tokens > budget:
@@ -391,7 +357,6 @@ def validate_serialized_row(
     token_budget: int,
     tokenizer_model: str,
 ) -> str | None:
-    """Validate the final JSONL row envelope."""
     if not row.get("tools"):
         return "missing_tools"
     for message in row.get("messages", []):

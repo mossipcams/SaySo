@@ -1,4 +1,3 @@
-"""Tests for LFM Python-style tool call parsing."""
 
 from __future__ import annotations
 
@@ -10,7 +9,7 @@ REPO = ROOT.parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(ROOT))
 
-from custom_components.sayso.lfm_parse import parse_lfm_python_tool_call, parse_lfm_python_tool_calls  # noqa: E402
+from custom_components.sayso.lfm_parse import parse_lfm_python_tool_call, parse_lfm_python_tool_calls
 
 
 def test_parse_apostrophe_names_in_single_quoted_values() -> None:

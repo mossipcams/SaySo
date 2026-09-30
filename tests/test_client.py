@@ -1,4 +1,3 @@
-"""Tests for the llama.cpp HTTP client."""
 
 from __future__ import annotations
 
@@ -368,7 +367,6 @@ async def test_no_retry_after_terminal_transport_failure(
 async def test_list_models_uses_http_get(
     mock_session: aiohttp.ClientSession,
 ) -> None:
-    """Test list_models uses the models endpoint over GET."""
     response = AsyncMock()
     response.status = 200
     response.json = AsyncMock(return_value={"data": [{"id": "test-model"}]})

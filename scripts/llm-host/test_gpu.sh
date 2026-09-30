@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Self-check for gpu with vLLM stubbed out: never touches docker or the real GPU state.
-# Run on the llm VM (needs flock): bash scripts/llm-host/test_gpu.sh
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -24,7 +22,6 @@ export GPU_VLLM_IS_UP="$GPU_LLAMA_IS_UP"
 export GPU_BUSY_CHECK=false GPU_PREEMPT_WAIT=1 GPU_SERVE_GRACE=3
 export GPU_POLL_INTERVAL=0.1 GPU_VLLM_DIR="$tmp"
 export GPU_WAKE_VENV="$tmp/venv"
-# Track actual stub service state as well as the transition log.
 export GPU_LLAMA_UP="$GPU_LLAMA_UP; echo yes > $tmp/serving"
 export GPU_VLLM_UP="$GPU_VLLM_UP; echo yes > $tmp/serving"
 export GPU_LLAMA_DOWN="$GPU_LLAMA_DOWN; rm -f $tmp/serving"
@@ -48,7 +45,7 @@ wait "$second"
 [[ -e $tmp/second ]] || fail "second run must eventually execute"
 [[ $(gpu status) == "state: idle"* ]] || fail "idle after train"
 
-echo "train:wake 999999" > "$tmp/gpu.state"             # dead pid
+echo "train:wake 999999" > "$tmp/gpu.state"
 gpu serve || fail "dead train pid must count as idle"
 
 gpu train wake --serve-after false 2>/dev/null && fail "failing cmd must fail"
@@ -59,7 +56,6 @@ done
 [[ $(cat "$tmp/gpu.state") == serve ]] || fail "--serve-after must restart vLLM even when the run fails"
 
 grep -q down "$tmp/vllm.log" || fail "train must stop vLLM"
-# Cancellation must reap the worker before releasing the state.
 "$here/gpu" train wake sleep 30 & t=$!
 for _ in {1..100}; do
   read -r state owner worker _ < "$tmp/gpu.state"
@@ -75,7 +71,6 @@ rc=0; wait "$t" || rc=$?
 kill -0 "$worker" 2>/dev/null && fail "cancelled worker survived"
 [[ $(gpu status) == "state: idle"* ]] || fail "idle after cancellation"
 
-# A hard-killed wrapper must not release a live worker's reservation.
 "$here/gpu" train wake sleep 30 & t=$!
 for _ in {1..100}; do
   read -r state owner worker _ < "$tmp/gpu.state"
@@ -94,7 +89,6 @@ for _ in {1..100}; do
 done
 [[ $(gpu status) == "state: idle"* ]] || fail "idle after orphan exits"
 
-# A dead group leader does not mean its descendants have stopped.
 "$here/gpu" train wake sh -c 'sleep 30 & echo $! > "$1"; wait' sh "$tmp/descendant" & t=$!
 for _ in {1..100}; do
   read -r state owner worker _ < "$tmp/gpu.state"
@@ -120,12 +114,9 @@ for _ in {1..100}; do
 done
 [[ $(gpu status) == "state: idle"* ]] || fail "idle only after descendants stop"
 
-# Pause the detached watcher while deliberately injecting stale/corrupt state;
-# these assertions specifically measure recovery by the foreground command.
 gpu stop
 exec 7>"$tmp/gpu.watch.lock"
 flock 7
-# Dead Docker clients cannot prove the container command has stopped.
 for action in serve stop train; do
   before=$(wc -l < "$tmp/docker.log" 2>/dev/null || echo 0)
   echo "train:lfm 2147483647 2147483646" > "$tmp/gpu.state"
@@ -156,7 +147,6 @@ echo garbage > "$tmp/gpu.state"
 gpu serve 2>/dev/null && fail "malformed state must fail closed"
 echo idle > "$tmp/gpu.state"
 exec 7>&-
-# FIFO arrival, no overlap, no serving between turns, and detached grace restart.
 gpu serve vllm
 before=$(grep -c '^up$' "$tmp/vllm.log")
 "$here/gpu" run host -- sh -ec 'mkdir "$GPU_RUN_DIR/active"; echo first >> "$GPU_RUN_DIR/order"; touch "$GPU_RUN_DIR/ready"; while [ ! -e "$GPU_RUN_DIR/go" ]; do sleep .1; done; rmdir "$GPU_RUN_DIR/active"' & first=$!
@@ -184,12 +174,10 @@ for _ in {1..100}; do [[ -e $tmp/serving ]] && break; sleep .1; done
 [[ -z $(ls -A "$tmp/gpu.queue") ]] || fail "dead ticket pruned"
 [[ $(gpu status) == *"default runtime: vllm"*"default runtime up: yes"* ]] || fail "persisted default and actual service status"
 
-# vLLM turns must skip the llama slot check, including its override.
 GPU_BUSY_CHECK='touch "$GPU_RUN_DIR/unexpected-busy-check"; true' \
   "$here/gpu" run host true
 [[ ! -e $tmp/unexpected-busy-check && ! -e $tmp/serving ]] || fail "vllm must skip llama preemption checks"
 
-# Preemption waits for busy llama slots before stopping serving.
 gpu serve llama
 GPU_PREEMPT_WAIT=5 GPU_BUSY_CHECK='touch "$GPU_RUN_DIR/busy-checked"; test ! -e "$GPU_RUN_DIR/slots-idle"' \
   "$here/gpu" run host touch "$tmp/after-busy" & busy=$!
@@ -199,7 +187,6 @@ touch "$tmp/slots-idle"
 wait "$busy"
 [[ -e $tmp/after-busy && ! -e $tmp/serving ]] || fail "idle slots allow the turn"
 
-# An unavailable default slots endpoint must not consume the preemption budget.
 gpu serve llama
 port=$(python3 - <<'PORT'
 import socket
@@ -214,7 +201,6 @@ env -u GPU_BUSY_CHECK GPU_LLAMA_SLOTS_URL="http://127.0.0.1:$port/slots" GPU_PRE
 [[ -e $tmp/unreachable-slots && ! -e $tmp/serving ]] || fail "unreachable slots allow the turn"
 (( SECONDS - before < 5 )) || fail "unreachable slots must not wait out preemption"
 
-# Legacy owner-only reservation, including its idle / serve exit path.
 gpu stop
 sleep 30 & legacy=$!
 echo "train:wake $legacy" > "$tmp/gpu.state"
@@ -222,7 +208,6 @@ echo "train:wake $legacy" > "$tmp/gpu.state"
 sleep .3
 gpu serve
 [[ ! -e $tmp/serving && ! -e $tmp/legacy-next ]] || fail "legacy owner blocks serving and turns"
-# The old wrapper writes idle under the lock before invoking new $0 serve.
 (
   flock 9
   echo idle > "$tmp/gpu.state"

@@ -1,4 +1,3 @@
-"""Both adapters feed the shared scorer."""
 
 from __future__ import annotations
 

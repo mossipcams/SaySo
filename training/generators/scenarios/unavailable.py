@@ -1,4 +1,3 @@
-"""Wording for no-action rows where Home Assistant supplies no tool."""
 
 from __future__ import annotations
 
@@ -10,9 +9,6 @@ from generators.homes import _ENTITY_TEMPLATES, make_entity
 from generators.tools import build_call_for_operation
 from generators.utterances import request_seed_from_spec
 
-# Operations Home Assistant supplies no tool for. They have no call to render, so
-# the request they refuse has to be written out; the refusal itself still comes
-# from the registry (SupportLevel.UNAVAILABLE), not from this table.
 _UNAVAILABLE_REQUESTS: dict[tuple[str, str], str] = {
     ("lawn_mowers", "control"): "start mowing the lawn with {name}",
     ("todo_lists", "control"): "add milk to {name}",
@@ -23,7 +19,6 @@ _UNAVAILABLE_REQUESTS: dict[tuple[str, str], str] = {
 
 
 def unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
-    """Describe the actual blocked request, never an unrelated random action."""
     requested = spec["expected"].get("requested")
     if requested:
         return request_seed_from_spec({
@@ -44,7 +39,6 @@ def unique_no_action_hint(spec: dict[str, Any], rng: random.Random) -> str:
         spec["linguistics"] = [{"source": "sayso_fallback", "intent": f"{capability}.{operation}"}]
         return template.format(name=entity["name"] if entity else "it")
     call = build_call_for_operation(entity, capability, operation, rng, area=area)
-    # Stash the phrased request's call so follow-up gold can reuse its value.
     spec["hint_call"] = call
     return request_seed_from_spec({
         "expected": {"kind": "action", "calls": [call]},

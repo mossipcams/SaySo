@@ -1,4 +1,3 @@
-"""Explicit mpv playback outcome handling."""
 
 from __future__ import annotations
 
@@ -53,12 +52,12 @@ def test_configure_pulse_mpv_sets_pulse_audio(monkeypatch: pytest.MonkeyPatch) -
                 self._mpv["audio-device"] = device
 
     package = ModuleType("linux_voice_assistant")
-    package.__path__ = []  # type: ignore[attr-defined]
+    package.__path__ = []
     player_package = ModuleType("linux_voice_assistant.player")
-    player_package.__path__ = []  # type: ignore[attr-defined]
+    player_package.__path__ = []
     libmpv = ModuleType("linux_voice_assistant.player.libmpv")
-    libmpv.mpv = fake_mpv  # type: ignore[attr-defined]
-    libmpv.LibMpvPlayer = FakeLibMpvPlayer  # type: ignore[attr-defined]
+    libmpv.mpv = fake_mpv
+    libmpv.LibMpvPlayer = FakeLibMpvPlayer
     monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player", player_package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player.libmpv", libmpv)
@@ -89,12 +88,12 @@ def test_playback_recovery_invokes_cleanup_on_error_not_on_interrupt(
                 callback()
 
     package = ModuleType("linux_voice_assistant")
-    package.__path__ = []  # type: ignore[attr-defined]
+    package.__path__ = []
     player_package = ModuleType("linux_voice_assistant.player")
-    player_package.__path__ = []  # type: ignore[attr-defined]
+    player_package.__path__ = []
     libmpv = ModuleType("linux_voice_assistant.player.libmpv")
-    libmpv.mpv = SimpleNamespace(MPV=Mock())  # type: ignore[attr-defined]
-    libmpv.LibMpvPlayer = FakeLibMpvPlayer  # type: ignore[attr-defined]
+    libmpv.mpv = SimpleNamespace(MPV=Mock())
+    libmpv.LibMpvPlayer = FakeLibMpvPlayer
     monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player", player_package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player.libmpv", libmpv)
@@ -138,9 +137,9 @@ def test_play_sound_reports_explicit_outcomes(
             pass
 
     libmpv = ModuleType("linux_voice_assistant.player.libmpv")
-    libmpv.LibMpvPlayer = FakeLibMpvPlayer  # type: ignore[attr-defined]
+    libmpv.LibMpvPlayer = FakeLibMpvPlayer
     mpv_player = ModuleType("linux_voice_assistant.mpv_player")
-    mpv_player.MpvMediaPlayer = FakeMpvMediaPlayer  # type: ignore[attr-defined]
+    mpv_player.MpvMediaPlayer = FakeMpvMediaPlayer
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player.libmpv", libmpv)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.mpv_player", mpv_player)
 
@@ -164,9 +163,9 @@ def test_play_sound_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
             pass
 
     libmpv = ModuleType("linux_voice_assistant.player.libmpv")
-    libmpv.LibMpvPlayer = FakeLibMpvPlayer  # type: ignore[attr-defined]
+    libmpv.LibMpvPlayer = FakeLibMpvPlayer
     mpv_player = ModuleType("linux_voice_assistant.mpv_player")
-    mpv_player.MpvMediaPlayer = FakeMpvMediaPlayer  # type: ignore[attr-defined]
+    mpv_player.MpvMediaPlayer = FakeMpvMediaPlayer
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player.libmpv", libmpv)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.mpv_player", mpv_player)
 

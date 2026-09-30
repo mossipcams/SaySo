@@ -1,4 +1,3 @@
-"""v5 recipe feasibility against grounding and real-home ceilings."""
 
 from __future__ import annotations
 
@@ -34,7 +33,6 @@ def test_v5_recipe_is_feasible() -> None:
 
 
 def test_v5_recipe_grounding_does_not_starve_families() -> None:
-    """40k v5 deadlocked: grounding stole slots until only two families moved."""
     from dataclasses import replace
 
     from generators.grounding import GROUNDING_CARRIER_FAMILIES

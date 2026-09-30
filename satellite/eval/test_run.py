@@ -1,4 +1,3 @@
-"""Tests for satellite/eval/run.py CLI."""
 
 from __future__ import annotations
 

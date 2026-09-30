@@ -12,20 +12,11 @@ from typing import Any
 
 from .config import CONFIG_PATH, load_config, validate_config
 
-# A system unit running as User=sayso, not a systemd --user unit: a user manager
-# would need lingering plus systemd-logind and D-Bus, which DietPi does not run
-# by default.
 UNIT = "sayso-satellite.service"
 CHECK_DIR = Path("/var/tmp/sayso-satellite")
 
 
 def _privileged(command: list[str]) -> list[str]:
-    """Prefix with sudo when changing unit state as an unprivileged user.
-
-    Reading unit state needs no privileges, so only the mutating commands take
-    this path. Without it a headless image with no polkit agent just fails with
-    "Interactive authentication required".
-    """
     if os.geteuid() == 0:
         return command
     sudo = shutil.which("sudo")
@@ -114,7 +105,6 @@ def _pulse_device(device: str) -> str:
 
 
 def _play_sound(path: Path | str, device: str, timeout: float = 15.0) -> int:
-    """Play through the same repaired mpv path used by the satellite."""
     from .playback import play_sound
 
     return play_sound(path, device, timeout=timeout)
@@ -126,8 +116,6 @@ def cmd_test_mic(_: argparse.Namespace) -> int:
     native = getattr(cfg.audio, "capture_rate", cfg.audio.sample_rate)
     wav = CHECK_DIR / "mic-check.wav"
     print(f"Recording 5 seconds from the configured microphone at {native} Hz…")
-    # Record at the device's native rate: this is the sanity check for the
-    # capture path itself, so it must not hide the audio server's resampling.
     rc = subprocess.call(
         [
             "timeout",
@@ -148,8 +136,6 @@ def cmd_test_mic(_: argparse.Namespace) -> int:
         print("parecord failed", rc)
         return rc or 1
     _level_report(wav)
-    # Also write the post-processing 16 kHz rendition the pipeline actually
-    # sends, so the operator can compare native capture against what STT sees.
     processed = CHECK_DIR / "mic-check-16k.wav"
     if _write_processed_copy(wav, processed, cfg):
         print(f"processed (sent to HA): {processed}")
@@ -159,7 +145,6 @@ def cmd_test_mic(_: argparse.Namespace) -> int:
 
 
 def _write_processed_copy(src: Path, dst: Path, cfg: Any) -> bool:
-    """Apply the production gain + single resample and write a 16 kHz copy."""
     import wave
 
     import numpy as np
@@ -187,7 +172,7 @@ def _write_processed_copy(src: Path, dst: Path, cfg: Any) -> bool:
             out.setframerate(target)
             out.writeframes(pcm)
         return True
-    except Exception as exc:  # pragma: no cover - diagnostic helper
+    except Exception as exc:
         print(f"could not write processed copy: {exc}")
         return False
 

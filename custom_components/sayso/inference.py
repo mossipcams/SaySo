@@ -1,14 +1,3 @@
-"""Inference backends for SaySo.
-
-Both backends return the same ``ChatCompletionResult`` and raise the same
-``SaySoError`` subclasses, so everything downstream — tool validation,
-correction retries, boundary diagnostics, tracing — is identical whichever one
-is active.
-
-Two implementations exist: ``EmbeddedEngine`` runs the GGUF in-process on the
-CPU, ``ExternalEngine`` keeps the original OpenAI-compatible HTTP path as an
-advanced fallback.
-"""
 
 from __future__ import annotations
 
@@ -23,8 +12,7 @@ from typing import Any, Protocol
 from homeassistant.const import CONF_URL
 
 from .client import ChatCompletionResult, LlamaCppClient
-# Re-exported: parsing lives in .completion so the eval can share it.
-from .completion import (  # noqa: F401
+from .completion import (
     extract_tool_calls,
     parse_completion_result,
     parse_completion_result as _parse_embedded_result,
@@ -51,13 +39,6 @@ _LOGGER = logging.getLogger(__name__)
 def _messages_for_embedded_template(
     messages: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Convert OpenAI JSON-string tool arguments for GGUF chat templates.
-
-    LFM2.5-Base's embedded chat template calls ``function.arguments.items()``,
-    so dicts are required at template time. SaySo's transcript envelope keeps
-    arguments as JSON strings for HTTP compatibility; only the embedded path
-    needs this adaptation immediately before ``create_chat_completion``.
-    """
     normalized: list[dict[str, Any]] = []
     for message in messages:
         tool_calls = message.get("tool_calls")
@@ -93,17 +74,10 @@ def _messages_for_embedded_template(
 
 
 def default_thread_count() -> int:
-    """Return a thread count that leaves headroom for Home Assistant."""
     return max(1, min(MAX_DEFAULT_THREADS, os.cpu_count() or 1))
 
 
 def entry_backend(entry: Any) -> str:
-    """Return which backend a config entry uses.
-
-    Entries created before embedded inference existed have no stored backend
-    but always have a URL, so they keep using the external one without a
-    migration step.
-    """
     backend = entry.data.get(CONF_BACKEND)
     if backend in (BACKEND_EMBEDDED, BACKEND_EXTERNAL):
         return backend
@@ -111,17 +85,16 @@ def entry_backend(entry: Any) -> str:
 
 
 class SaySoInferenceEngine(Protocol):
-    """One chat-completion backend."""
 
     @property
     def model_name(self) -> str:
-        """Identifier recorded in traces and diagnostics."""
+        pass
 
     async def async_start(self) -> None:
-        """Acquire whatever the backend needs to serve requests."""
+        pass
 
     async def async_shutdown(self) -> None:
-        """Release resources. Must be safe to call more than once."""
+        pass
 
     async def async_chat_completion(
         self,
@@ -131,11 +104,10 @@ class SaySoInferenceEngine(Protocol):
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     ) -> ChatCompletionResult:
-        """Run one completion."""
+        pass
 
 
 class ExternalEngine:
-    """Advanced fallback: a user-managed OpenAI-compatible llama.cpp server."""
 
     def __init__(self, client: LlamaCppClient, model: str) -> None:
         self._client = client
@@ -143,14 +115,13 @@ class ExternalEngine:
 
     @property
     def model_name(self) -> str:
-        """Model identifier advertised by the external server."""
         return self._model
 
     async def async_start(self) -> None:
-        """Nothing to acquire; the server owns the model."""
+        pass
 
     async def async_shutdown(self) -> None:
-        """Nothing to release; the shared aiohttp session is Home Assistant's."""
+        pass
 
     async def async_chat_completion(
         self,
@@ -160,7 +131,6 @@ class ExternalEngine:
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     ) -> ChatCompletionResult:
-        """Delegate to the HTTP client unchanged."""
         return await self._client.chat_completion(
             messages,
             model=self._model,
@@ -171,11 +141,6 @@ class ExternalEngine:
 
 
 class EmbeddedEngine:
-    """Runs the GGUF in this process, off the event loop.
-
-    The model stays resident between turns — reloading a 230M model per request
-    would cost more than the inference does.
-    """
 
     def __init__(
         self,
@@ -190,24 +155,17 @@ class EmbeddedEngine:
         self._n_threads = n_threads or default_thread_count()
         self._timeout = timeout
         self._llm: Any | None = None
-        # ponytail: one worker, not a pool. llama.cpp's Llama object is not
-        # thread-safe and a 230M model already saturates the cores it is given,
-        # so concurrent turns would contend rather than parallelise. A dedicated
-        # executor also keeps a slow inference off Home Assistant's shared pool.
         self._executor: ThreadPoolExecutor | None = None
 
     @property
     def model_path(self) -> Path:
-        """Path of the loaded GGUF."""
         return self._model_path
 
     @property
     def model_name(self) -> str:
-        """GGUF filename without its extension."""
         return self._model_path.stem
 
     def _load(self) -> Any:
-        """Construct the Llama object. Runs in the inference worker."""
         from llama_cpp import Llama
 
         return Llama(
@@ -218,7 +176,6 @@ class EmbeddedEngine:
         )
 
     async def async_start(self) -> None:
-        """Load the model into memory and keep it there."""
         if self._llm is not None:
             return
         self._executor = ThreadPoolExecutor(
@@ -240,11 +197,8 @@ class EmbeddedEngine:
         )
 
     async def async_shutdown(self) -> None:
-        """Free the model and stop the worker."""
         self._llm = None
         if self._executor is not None:
-            # wait=True: a running inference holds a pointer into model memory,
-            # so it must finish before the Llama object is collected.
             await asyncio.get_running_loop().run_in_executor(
                 None, lambda: self._executor.shutdown(wait=True)
             )
@@ -257,7 +211,6 @@ class EmbeddedEngine:
         temperature: float,
         max_tokens: int,
     ) -> dict[str, Any]:
-        """Run one completion. Runs in the inference worker."""
         assert self._llm is not None
         kwargs: dict[str, Any] = {
             "messages": _messages_for_embedded_template(messages),
@@ -277,7 +230,6 @@ class EmbeddedEngine:
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     ) -> ChatCompletionResult:
-        """Run one completion against the resident model."""
         if self._llm is None or self._executor is None:
             raise SaySoModelLoadError("The embedded model is not loaded")
 
@@ -295,9 +247,6 @@ class EmbeddedEngine:
                 timeout=self._timeout,
             )
         except TimeoutError as err:
-            # llama.cpp cannot be interrupted mid-token, so the worker finishes
-            # the turn we abandoned. The single worker then backpressures the
-            # next request rather than piling up concurrent inferences.
             raise SaySoTimeoutError("Local inference timed out") from err
         except SaySoModelLoadError:
             raise

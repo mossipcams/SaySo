@@ -1,4 +1,3 @@
-"""Structured scenario generation before utterances."""
 
 from __future__ import annotations
 
@@ -33,12 +32,6 @@ from generators.homes import (
 
 
 def home_areas(home: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
-    """Areas and their floors, derived from the entities when the home omits them.
-
-    ``generate_home`` records both; a home exported from a live Home Assistant by
-    an older ``fetch_ha_home`` does not, and injecting a missing capability into
-    one used to raise KeyError mid-run.
-    """
     areas = home.get("areas")
     floors = home.get("area_floors")
     if areas and floors:
@@ -52,7 +45,6 @@ def home_areas(home: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
 
 
 def semantic_id(scenario: dict[str, Any]) -> str:
-    """Stable ID from meaningful scenario content (not utterance or attempt index)."""
     expected = scenario.get("expected") or {}
     target_ids: list[str] = []
     if scenario.get("target_entity"):
@@ -90,7 +82,6 @@ def _ensure_supporting_in_area(
     rng: random.Random,
     index: int,
 ) -> None:
-    """Add entities until ``area`` has at least ``minimum`` operation-capable devices."""
     areas, floors = home_areas(home)
     floor = floors.get(area, "Main Floor")
     owners = tuple(home.get("owners") or ())
@@ -128,12 +119,6 @@ def _ensure_supporting_in_area(
 
 
 def _usable_aliases(entity: dict[str, Any], home: dict[str, Any]) -> list[str]:
-    """Aliases that resolve to exactly one entity in ``home``.
-
-    A usable alias is neither the canonical name nor any other entity's name
-    or alias; alias rows speak one of these and must land on the canonical
-    name.
-    """
     other_names = {
         name.casefold()
         for other in home["entities"]
@@ -160,7 +145,6 @@ def configure_family_scenario(
     rng: random.Random,
     index: int,
 ) -> tuple[str, str, dict[str, Any] | None, list[str]]:
-    """Shape the home graph before gold so the slot family can be labeled honestly."""
     area = home["sayso_entity_area"]
     removed_tools: list[str] = []
     request_intent: dict[str, Any] | None = None
@@ -186,11 +170,6 @@ def configure_family_scenario(
             return "individual", "unavailable", request_intent, removed_tools
         if op and op.tool_name:
             removed_tools = [op.tool_name]
-        # v5b called the nearest offered tool (volume on a light, LightSet for
-        # fan speed/thermostat) instead of refusing, so the sibling tools it
-        # substituted to must be offered as temptations. Size-16 homes have no
-        # media_player at all, so inject the missing sibling in the sayso area
-        # unless it is the very tool being withheld.
         withheld = {namespaced_tool_name(tool) for tool in removed_tools}
         for sibling_capability, sibling_tool in (
             ("lights", "light__HassLightSet"),
@@ -228,7 +207,6 @@ def configure_family_scenario(
         return "individual", "unavailable", request_intent, removed_tools
 
     if family in {"multi_action", "exclusion"}:
-        # Exclusion needs a third in-area device so "the <area> lights, but leave X" has targets.
         _ensure_supporting_in_area(home, capability, operation, area, 3 if family == "exclusion" else 2, rng, index)
         return "multiple", family, request_intent, removed_tools
 
@@ -289,16 +267,6 @@ _FAMILY_GRAPH_CONSTRAINTS = frozenset({
 def pick_target(
     cap_entities: list[dict[str, Any]], index: int, usage: Counter[str] | None
 ) -> dict[str, Any]:
-    """Rotate targets by row index, or take the least-used entity when tracking usage.
-
-    ``index`` is the global accepted-row count, so plain rotation spreads targets
-    across a *synthetic* home well -- every row draws a fresh home anyway. A real
-    home is one fixed set of names reused all run, and only a handful of its rows
-    land on any one operation, so rotation covers a specific device/operation pair
-    by luck: the TV would get ``turn_off`` and never ``turn_on``. Counting how often
-    each entity has already been the target *for this operation* makes that coverage
-    structural. Ties keep the rotation order, so a seed still reproduces exactly.
-    """
     rotation = index % len(cap_entities)
     rotated = cap_entities[rotation:] + cap_entities[:rotation]
     if usage is None:
@@ -307,8 +275,6 @@ def pick_target(
 
 
 def _near_miss_score(entity: dict[str, Any], in_area: list[dict[str, Any]]) -> int:
-    """How much the entity's name reads like its neighbours: the maximum count
-    of shared lowercase name tokens with any other in-area entity."""
     tokens = set(entity["name"].lower().split())
     return max(
         (len(tokens & set(other["name"].lower().split()))
@@ -335,15 +301,6 @@ def build_scenario(
     family: str | None = None,
     bare_name_rate: float = 0.0,
 ) -> dict[str, Any]:
-    """Build one scenario. `home` overrides synthetic generation and is mutated
-    (missing capabilities get an injected entity), so callers pass a fresh copy.
-
-    ``inject_missing=False`` leaves the graph exactly as supplied. A grounding pair
-    that tests absence needs that: injecting the very device whose absence is the
-    point would turn the refusal back into an action.
-    """
-    # crc32, not builtin hash(): str hashing is randomized per process and would
-    # make the same seed generate a different dataset on every run.
     rng = random.Random(
         (seed << 20)
         ^ (index << 8)
@@ -394,8 +351,6 @@ def build_scenario(
     if capability == "timers":
         cap_entities = []
     else:
-        # Only entities that can actually perform the operation are candidate
-        # targets; the rest stay in the home as distractors.
         cap_entities = entities_supporting(cap_entities, capability, operation)
         if inject_missing and not cap_entities and operation not in {"cancel_all"}:
             areas, floors = home_areas(home)
@@ -421,8 +376,6 @@ def build_scenario(
             cap_entities = [injected]
     remove_canonical_alias_collisions(home["entities"])
     if robustness == "alias_distractor":
-        # Prefer targets that already carry a usable alias; the row speaks the
-        # alias and gold resolves it to the canonical name.
         usable = [entity for entity in cap_entities if _usable_aliases(entity, home)]
         if usable:
             cap_entities = usable
@@ -458,9 +411,6 @@ def build_scenario(
     if robustness == "exclusion" and len(cap_entities) >= 2:
         in_area = [e for e in cap_entities if e["area"] == home["sayso_entity_area"]]
         if len(in_area) >= 3 and rng.random() < 0.6:
-            # "turn off the kitchen lights, but leave X alone": every other in-area device.
-            # The model must resolve a named sibling against the area-wide set, so
-            # the excluded device should read most like its neighbours.
             top = max(_near_miss_score(entity, in_area) for entity in in_area)
             kept = rng.choice([e for e in in_area if _near_miss_score(e, in_area) == top])
             scenario["target_entities"] = [e for e in in_area if e is not kept]
@@ -468,7 +418,6 @@ def build_scenario(
             scenario["exclusion_scope"] = f"the {kept['area'].lower()} {_plural(kept['domain'])}"
             scenario["spoken_targets"] = {e["name"]: scenario["exclusion_scope"] for e in scenario["target_entities"]}
         else:
-            # Deliberate contrast: a named list, possibly cross-area, with no area scope.
             scenario["target_entities"] = cap_entities[:2]
             scenario["excluded_names"] = [cap_entities[2]["name"]] if len(cap_entities) > 2 else []
     if robustness == "multi_action" and len(cap_entities) >= 2:
@@ -479,8 +428,6 @@ def build_scenario(
         scenario["targeting"] = "multiple"
     scenario["expected"] = gold_from_scenario(scenario, rng)
     if robustness == "alias_distractor" and target_entity:
-        # The model must resolve the spoken alias against a near-miss sibling
-        # in the same area; inject one when the home has none.
         siblings = [
             entity
             for entity in home["entities"]
@@ -519,7 +466,6 @@ def build_scenario(
                 )
             )
             remove_canonical_alias_collisions(home["entities"])
-        # Use only an unambiguous HA alias; retain the canonical name in labels.
         aliases = _usable_aliases(target_entity, home)
         if aliases:
             scenario["spoken_targets"] = {target_entity["name"]: rng.choice(aliases)}

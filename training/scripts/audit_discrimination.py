@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Pre-flight probe: does this corpus teach entity resolution, or name echoing?
-
-Run 013 trained fine and taught nothing about grounding. The reason was visible
-in the corpus without a GPU: 96.3% of rows with a target named that target
-verbatim in the user utterance, so the model could answer by echoing a name it
-had just been handed. This probe is the cheap gate that should run before any
-training run.
-
-    python training/scripts/audit_discrimination.py training/datasets/<corpus>.jsonl
-
-Exit status is 1 when the verbatim share exceeds ``--max-verbatim``, so it can
-gate a build script.
-"""
 
 from __future__ import annotations
 
@@ -38,12 +25,6 @@ def _user_utterance(row: dict[str, Any]) -> str:
 
 
 def names_target_verbatim(row: dict[str, Any]) -> bool | None:
-    """True/False for a row with a target, None for a row that has none.
-
-    Substring on normalized words, the same shape the corpus audit used: a row
-    "names" its target when the target's words appear in the utterance in order.
-    A row that refers to the target by alias or by description does not.
-    """
     targets = row.get("metadata", {}).get("expected_target_names") or []
     if not targets:
         return None

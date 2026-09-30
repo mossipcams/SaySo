@@ -1,10 +1,3 @@
-"""OpenAI-shaped transcripts sent to llama.cpp.
-
-Everything the model reads is built here: the running conversation, and the
-synthetic assistant/tool pair that asks it to correct a call before anything
-executes. Both use the same tool-call serialization, so a correction request is
-indistinguishable in shape from a real turn.
-"""
 
 from __future__ import annotations
 
@@ -22,7 +15,6 @@ from .schema import (
 
 
 def _tool_call_message(call_id: str, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Serialize one tool call the way llama.cpp expects to read it back."""
     return {
         "id": call_id,
         "type": "function",
@@ -36,7 +28,6 @@ def _tool_call_message(call_id: str, name: str, arguments: dict[str, Any]) -> di
 def chat_log_to_messages(
     content: list[conversation.Content],
 ) -> list[dict[str, Any]]:
-    """Convert Home Assistant chat log entries to llama.cpp messages."""
     messages: list[dict[str, Any]] = []
     for item in content:
         if isinstance(item, conversation.SystemContent):
@@ -69,12 +60,6 @@ def chat_log_to_messages(
 def filtered_miss_failures(
     tool_calls: list[ToolCall],
 ) -> list[tuple[ToolCall, ToolArgumentValidationError]]:
-    """Describe calls the active schema subset never offered.
-
-    A filtered miss and a rejected argument are the same failure from the
-    model's side — it was shown the wrong contract — so they are reported in
-    one shape and share one correction budget.
-    """
     return [
         (
             tool_call,
@@ -96,7 +81,6 @@ def build_correction_messages(
     allowed_tools: set[str],
     fingerprint: str,
 ) -> list[dict[str, Any]]:
-    """Append a synthetic assistant/tool transcript for one correction request."""
     allowed_tool_names = sorted(allowed_tools)
     messages = [
         *base_messages,

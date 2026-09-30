@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Verify embedding reuse is score-identical to stateless predict(), and time it.
-
-Run on the satellite, where the real livekit mel/embedding ONNX models live:
-
-    sudo systemctl stop sayso-satellite
-    PYTHONPATH=/opt/sayso-satellite /opt/sayso-satellite/.venv/bin/python \
-        scripts/wake_bench.py /opt/sayso-satellite/models/sayso.onnx AUDIO.wav
-    sudo systemctl start sayso-satellite
-
-The equivalence assertion is the point. The speedup is worthless if the cached
-path scores differently from what the model was evaluated with.
-"""
 
 from __future__ import annotations
 

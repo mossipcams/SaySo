@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Load an LFM2 GGUF through llama-cpp-python and report what the bindings expose.
-
-Run inside the Home Assistant container by scripts/verify_embedded_backend.sh.
-Exits non-zero if the native dependency cannot load or run the model.
-"""
 
 from __future__ import annotations
 
@@ -57,9 +52,6 @@ def main() -> int:
     message = out["choices"][0]["message"]
     structured = bool(message.get("tool_calls"))
     print(f"raw_content={message.get('content')!r}")
-    # Recorded deliberately: the bindings ship libllama only, not llama.cpp's
-    # common/chat.cpp, so LFM2 tool calls arrive as text and SaySo must parse
-    # them itself. See docs/PLAN_EMBEDDED_INFERENCE.md.
     print(f"structured_tool_calls={structured}")
 
     import llama_cpp

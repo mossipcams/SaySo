@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Cheap static gate for a generated SaySo training JSONL corpus."""
 
 from __future__ import annotations
 
@@ -16,9 +15,9 @@ from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "training"))
-from adapters.schema import v2_openai_tools  # noqa: E402
-from generators.validation import check_quality_eval_overlap  # noqa: E402
-from generators.tools import namespaced_tool_name  # noqa: E402
+from adapters.schema import v2_openai_tools
+from generators.validation import check_quality_eval_overlap
+from generators.tools import namespaced_tool_name
 
 
 def normalized(text: str) -> str:

@@ -1,4 +1,3 @@
-"""Offline checks for the Home Assistant home fetcher."""
 
 from __future__ import annotations
 
@@ -91,7 +90,6 @@ def test_light_features_derive_from_color_modes(home):
 
 def test_entity_ids_and_areas_come_from_home_assistant(home):
     outlet = next(e for e in home["entities"] if e["entity_id"] == "switch.pond_aerator")
-    # A slugged name would be switch.pond_aerator too; the point is HA owns it.
     assert outlet["entity_id"] == "switch.pond_aerator"
     assert outlet["area"] == "Unassigned"
     assert outlet["device_class"] == "outlet"

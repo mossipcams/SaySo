@@ -1,4 +1,3 @@
-"""Hypothesis strategies for property-based testing (tests only, not production sampling)."""
 
 from __future__ import annotations
 

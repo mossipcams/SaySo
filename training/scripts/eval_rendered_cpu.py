@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Score a checkpoint on held-out rendered rows (same distribution as training), on CPU.
-
-Plan: docs/PLAN_V6_DATASET_ARCHITECTURE.md, Step 1. Each row's first supervised
-turn is replayed exactly as training rendered it. The output is compared three
-ways: exact text, decision class (call / ask / refuse / unsupported / absent /
-ignore / other), and parsed tool calls (production parser, order-insensitive).
-High here but low on the eval means a distribution gap; low here means the
-model is not learning the task.
-
-  docker exec -e HIP_VISIBLE_DEVICES= -e CUDA_VISIBLE_DEVICES= -w /workspace/host/sayso unsloth \\
-    python training/scripts/eval_rendered_cpu.py CHECKPOINT VIEWS.jsonl --out RESULT.json --limit 300
-"""
 
 from __future__ import annotations
 
@@ -61,7 +49,6 @@ def main() -> int:
     p.add_argument("--threads", type=int, default=4)
     args = p.parse_args()
 
-    # First supervised turn per source row, then a seeded sample.
     first: dict[int, dict] = {}
     for line in args.views.open(encoding="utf-8"):
         view = json.loads(line)

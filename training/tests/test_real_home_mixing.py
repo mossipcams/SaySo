@@ -1,12 +1,3 @@
-"""Real-home mixing: what the manifest claims must be what the corpus contains.
-
-Home Assistant is authoritative for exposure, names, aliases, areas and supported
-features, so these checks run against a snapshot in the exporter's own shape. The
-fixture is `synthetic_reference_home.json` -- clearly synthetic, and used because
-this repository has no credentials for the live instance. A live refresh
-(`scripts/fetch_ha_home.py`, exposure_source=assist_exposure) remains a
-prerequisite for the home-specific recipe; `require_exposure_source` enforces it.
-"""
 
 from __future__ import annotations
 
@@ -40,7 +31,6 @@ _RUNS: dict[tuple, dict] = {}
 
 
 def _mixed_run(**overrides):
-    """Deterministic, so one run per distinct configuration is enough."""
     key = tuple(sorted(overrides.items()))
     if key not in _RUNS:
         _RUNS[key] = run_generation(
@@ -62,7 +52,6 @@ def test_the_reference_snapshot_carries_the_living_room_tv():
     assert tv["name"] == "TV"
     assert tv["area"] == "Living Room"
     assert "the telly" in tv["aliases"]
-    # Not every media player is the same device.
     speaker = next(e for e in home["entities"] if e["entity_id"] == "media_player.kitchen_speaker")
     assert not entity_supports(speaker, "media_players", "turn_on")
     assert entity_supports(speaker, "media_players", "volume_set")
@@ -123,7 +112,6 @@ def test_a_multi_target_row_is_one_real_home_row():
     result = _mixed_run()
     real_rows = [row for row in result["rows"] if row["metadata"]["real_home"]]
     assert any(len(_named_targets(row)) > 1 for row in real_rows), "no multi-target real rows"
-    # One row is one row, however many entities it names.
     assert result["stats"]["real_home"]["rows"] == len(real_rows)
     assert result["stats"]["real_home"]["rows"] < sum(
         max(len(_named_targets(row)), 1) for row in real_rows
@@ -145,7 +133,7 @@ def test_an_explicit_cap_binds():
     result = _mixed_run(real_home_entity_cap=3)
     counts = result["stats"]["real_home"]["target_counts"]
     assert counts and max(counts.values()) <= 3
-    assert result["stats"]["accepted"] == 1500  # capping redistributes, never shrinks
+    assert result["stats"]["accepted"] == 1500
 
 
 def test_synthetic_only_is_an_explicit_override():
@@ -165,7 +153,6 @@ def test_live_snapshot_requires_assist_exposure_and_stale_exports_fail(tmp_path)
         require_exposure_source(stale)
     with pytest.raises(ValueError, match="exposure_source"):
         require_exposure_source(stale, allowed=TESTABLE_EXPOSURE_SOURCES)
-    # The synthetic fixture is testable but still not a live input.
     require_exposure_source(FIXTURE, allowed=TESTABLE_EXPOSURE_SOURCES)
     with pytest.raises(ValueError, match="exposure_source"):
         require_exposure_source(FIXTURE, allowed=LIVE_EXPOSURE_SOURCES)

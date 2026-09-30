@@ -90,9 +90,9 @@ def test_play_sound_uses_repaired_mpv_and_reports_errors(
             pass
 
     libmpv = ModuleType("linux_voice_assistant.player.libmpv")
-    libmpv.LibMpvPlayer = FakeLibMpvPlayer  # type: ignore[attr-defined]
+    libmpv.LibMpvPlayer = FakeLibMpvPlayer
     mpv_player = ModuleType("linux_voice_assistant.mpv_player")
-    mpv_player.MpvMediaPlayer = FakeMpvMediaPlayer  # type: ignore[attr-defined]
+    mpv_player.MpvMediaPlayer = FakeMpvMediaPlayer
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player.libmpv", libmpv)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.mpv_player", mpv_player)
 
@@ -117,9 +117,9 @@ def test_play_sound_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
             pass
 
     libmpv = ModuleType("linux_voice_assistant.player.libmpv")
-    libmpv.LibMpvPlayer = FakeLibMpvPlayer  # type: ignore[attr-defined]
+    libmpv.LibMpvPlayer = FakeLibMpvPlayer
     mpv_player = ModuleType("linux_voice_assistant.mpv_player")
-    mpv_player.MpvMediaPlayer = FakeMpvMediaPlayer  # type: ignore[attr-defined]
+    mpv_player.MpvMediaPlayer = FakeMpvMediaPlayer
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player.libmpv", libmpv)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.mpv_player", mpv_player)
 
@@ -252,7 +252,6 @@ def test_mic_check_records_at_native_capture_rate(
 
     assert cli.cmd_test_mic(SimpleNamespace()) == 0
     command = record.call_args.args[0]
-    # The sanity check must record the native device rate, not the transport rate.
     assert command[command.index("--rate") + 1] == "44100"
 
 
@@ -278,7 +277,5 @@ def test_processed_copy_applies_gain_and_resamples_to_16k(tmp_path: Path) -> Non
         assert wf.getframerate() == 16000
         assert wf.getnchannels() == 1
         out = np.frombuffer(wf.readframes(wf.getnframes()), dtype="<i2")
-    # 100 ms of audio less the resampler's fixed right-hand tap delay, and
-    # 6 dB (2x) gain applied.
     assert out.size == 1600 - (_FILTER_HALF_TAPS * 16000 // 44100)
     assert int(np.max(out)) > 1000

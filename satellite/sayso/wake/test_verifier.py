@@ -1,4 +1,3 @@
-"""WakeVerifier feature extraction and scoring."""
 
 from __future__ import annotations
 
@@ -12,8 +11,8 @@ _SATELLITE_ROOT = Path(__file__).resolve().parents[2]
 if str(_SATELLITE_ROOT) not in sys.path:
     sys.path.insert(0, str(_SATELLITE_ROOT))
 
-from sayso.wake.streaming import EMBEDDING_STRIDE, EMBEDDING_WINDOW, MIN_EMBEDDINGS  # noqa: E402
-from sayso.wake.verifier import (  # noqa: E402
+from sayso.wake.streaming import EMBEDDING_STRIDE, EMBEDDING_WINDOW, MIN_EMBEDDINGS
+from sayso.wake.verifier import (
     FEATURE_KIND_MEL_UNION,
     FEATURE_KIND_SPEECH_EMBEDDING,
     SPEECH_EMBEDDING_FEATURE_DIM,

@@ -1,4 +1,3 @@
-"""Colocated tests for scripts/wake_train.py."""
 
 from __future__ import annotations
 
@@ -15,9 +14,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts import wake_train  # noqa: E402
-from satellite.sayso.wake.eval import write_synthetic_wav  # noqa: E402
-from satellite.sayso.wake.livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES  # noqa: E402
+from scripts import wake_train
+from satellite.sayso.wake.eval import write_synthetic_wav
+from satellite.sayso.wake.livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
 
 
 def _write_pcm_wav(path: Path, peak: int) -> None:

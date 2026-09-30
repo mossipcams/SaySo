@@ -1,4 +1,3 @@
-"""Pytest path setup for training package tests."""
 
 from __future__ import annotations
 

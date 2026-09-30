@@ -1,4 +1,3 @@
-"""SaySo training adapters."""
 
 from .lfm import LFM_BASE_MODEL, lfm_jsonl_line, prepare_lfm_example
 from .schema import (

@@ -1,11 +1,3 @@
-"""The only CLI entry point for SaySo model evaluation.
-
-    python -m evals.cli run --suite smoke --adapter endpoint --server http://127.0.0.1:8080
-    python -m evals.cli run --suite promotion --adapter endpoint --server http://127.0.0.1:8080
-    python -m evals.cli run --category ambiguity --adapter endpoint --server http://127.0.0.1:8080
-    python -m evals.cli run --tag grounding --adapter endpoint --server http://127.0.0.1:8080
-    python -m evals.cli run --case-id <id> --adapter endpoint --server http://127.0.0.1:8080
-"""
 
 from __future__ import annotations
 

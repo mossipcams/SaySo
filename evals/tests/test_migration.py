@@ -1,4 +1,3 @@
-"""Evaluator loading, suites, and migration coverage."""
 
 from __future__ import annotations
 

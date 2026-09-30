@@ -1,4 +1,3 @@
-"""Colocated tests for wake recording session ingest."""
 
 from __future__ import annotations
 

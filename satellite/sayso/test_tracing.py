@@ -1,4 +1,3 @@
-"""Tests for satellite-side interaction tracing."""
 
 from __future__ import annotations
 
@@ -19,7 +18,6 @@ from .tracing import (
 
 
 class _Recorder:
-    """Collect emitted trace events instead of logging them."""
 
     def __init__(self) -> None:
         self.events: list[dict[str, Any]] = []
@@ -33,7 +31,6 @@ class _Recorder:
 
 
 def test_wake_creates_a_trace_id() -> None:
-    """The satellite mints its own id for the interaction it observes."""
     recorder = _Recorder()
     tracer = SatelliteTracer(emit=recorder)
 
@@ -46,7 +43,6 @@ def test_wake_creates_a_trace_id() -> None:
 
 
 def test_each_interaction_gets_a_distinct_id() -> None:
-    """Consecutive wakes never reuse a trace id."""
     tracer = SatelliteTracer(emit=lambda event: None)
 
     first = tracer.wake()
@@ -57,7 +53,6 @@ def test_each_interaction_gets_a_distinct_id() -> None:
 
 
 def test_satellite_reports_only_the_stages_it_owns() -> None:
-    """Wake, audio upload and playback - never STT or TTS."""
     recorder = _Recorder()
     tracer = SatelliteTracer(emit=recorder)
 
@@ -80,7 +75,6 @@ def test_satellite_reports_only_the_stages_it_owns() -> None:
 
 
 def test_one_trace_id_across_every_satellite_stage() -> None:
-    """The id is never regenerated for a downstream stage."""
     recorder = _Recorder()
     tracer = SatelliteTracer(emit=recorder)
 
@@ -98,7 +92,6 @@ def test_one_trace_id_across_every_satellite_stage() -> None:
 
 
 def test_stages_record_durations_and_elapsed_time() -> None:
-    """Every completed stage carries a duration and an elapsed offset."""
     recorder = _Recorder()
     tracer = SatelliteTracer(emit=recorder)
 
@@ -114,7 +107,6 @@ def test_stages_record_durations_and_elapsed_time() -> None:
 
 
 def test_home_assistant_conversation_id_is_attached() -> None:
-    """The HA conversation id joins satellite timings to the canonical trace."""
     recorder = _Recorder()
     tracer = SatelliteTracer(emit=recorder)
 
@@ -132,7 +124,6 @@ def test_home_assistant_conversation_id_is_attached() -> None:
 
 
 def test_playback_started_is_idempotent() -> None:
-    """Early TTS streaming and tts-end must not open playback twice."""
     recorder = _Recorder()
     tracer = SatelliteTracer(emit=recorder)
 
@@ -145,7 +136,6 @@ def test_playback_started_is_idempotent() -> None:
 
 
 def test_failure_closes_open_stages_and_finalizes() -> None:
-    """A failure preserves timings collected before it."""
     recorder = _Recorder()
     tracer = SatelliteTracer(emit=recorder)
 
@@ -168,7 +158,6 @@ def test_failure_closes_open_stages_and_finalizes() -> None:
 
 
 def test_first_failure_wins() -> None:
-    """A later generic failure cannot overwrite the precise one."""
     recorder = _Recorder()
     tracer = SatelliteTracer(emit=recorder)
 
@@ -181,7 +170,6 @@ def test_first_failure_wins() -> None:
 
 
 def test_stage_events_outside_an_interaction_are_ignored() -> None:
-    """Playback of a chime or timer must not invent an interaction."""
     recorder = _Recorder()
     tracer = SatelliteTracer(emit=recorder)
 
@@ -194,7 +182,6 @@ def test_stage_events_outside_an_interaction_are_ignored() -> None:
 
 
 def test_emit_failure_does_not_break_the_voice_path() -> None:
-    """An observability error is never raised into the interaction."""
 
     def _broken(event: dict[str, Any]) -> None:
         raise OSError("log volume full")
@@ -210,7 +197,6 @@ def test_emit_failure_does_not_break_the_voice_path() -> None:
 
 
 def test_finish_clears_the_in_flight_interaction() -> None:
-    """The tracer holds at most one interaction, matching the satellite."""
     tracer = SatelliteTracer(emit=lambda event: None)
 
     tracer.wake()
@@ -219,11 +205,9 @@ def test_finish_clears_the_in_flight_interaction() -> None:
     assert tracer.current is None
 
 
-# --- Wiring into the patched LVA voice handlers ---------------------------
 
 
 class _EventType:
-    """Minimal stand-in for aioesphomeapi's voice event enum."""
 
     VOICE_ASSISTANT_STT_END = 1
     VOICE_ASSISTANT_ERROR = 2
@@ -250,7 +234,6 @@ class _State:
 
 
 class _Protocol:
-    """Stand-in for LVA's VoiceSatelliteProtocol."""
 
     def __init__(self) -> None:
         self.state = _State()
@@ -285,13 +268,12 @@ class _Wake:
 
 @pytest.fixture
 def patched_protocol(monkeypatch: pytest.MonkeyPatch) -> Any:
-    """Install the SaySo voice handlers onto a stand-in protocol class."""
     model = types.ModuleType("aioesphomeapi.model")
-    model.VoiceAssistantEventType = _EventType  # type: ignore[attr-defined]
+    model.VoiceAssistantEventType = _EventType
     aioesphomeapi = types.ModuleType("aioesphomeapi")
-    aioesphomeapi.model = model  # type: ignore[attr-defined]
+    aioesphomeapi.model = model
     events_module = types.ModuleType("linux_voice_assistant.events")
-    events_module.LVAEvent = types.SimpleNamespace(  # type: ignore[attr-defined]
+    events_module.LVAEvent = types.SimpleNamespace(
         WAKE_WORD_DETECTED="wake",
         LISTENING="listening",
         PIPELINE_ERROR="error",
@@ -318,7 +300,6 @@ def _sounds(tmp_path: Any) -> Any:
 def test_voice_handlers_trace_a_full_satellite_cycle(
     patched_protocol: Any, tmp_path: Any
 ) -> None:
-    """Wake through playback produces one chronological satellite trace."""
     from .events import install_voice_handlers
 
     recorder = _Recorder()
@@ -356,7 +337,6 @@ def test_voice_handlers_trace_a_full_satellite_cycle(
 def test_voice_handlers_trace_a_pipeline_error(
     patched_protocol: Any, tmp_path: Any
 ) -> None:
-    """A pipeline error fails the satellite trace at the pipeline stage."""
     from .events import install_voice_handlers
 
     recorder = _Recorder()
@@ -378,7 +358,6 @@ def test_voice_handlers_trace_a_pipeline_error(
 def test_voice_handlers_trace_an_empty_transcript(
     patched_protocol: Any, tmp_path: Any
 ) -> None:
-    """An empty STT result is recorded as an STT failure, not a success."""
     from .events import install_voice_handlers
 
     recorder = _Recorder()

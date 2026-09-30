@@ -1,4 +1,3 @@
-"""Colocated tests for scripts/wake_mine_report.py."""
 
 from __future__ import annotations
 
@@ -15,7 +14,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts import wake_mine_report  # noqa: E402
+from scripts import wake_mine_report
 
 
 def _write_window_wav(path: Path, seed: int = 0) -> None:

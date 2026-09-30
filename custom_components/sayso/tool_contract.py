@@ -1,13 +1,3 @@
-"""Check a model's tool calls against the compiled schema it was shown.
-
-This is the part of pre-execution validation that needs nothing but the
-compiled tools, so the conversation agent and the offline eval run the same
-code. Home Assistant's own voluptuous validation still runs after it in
-production; this layer only rejects what the advertised contract already rules
-out. Tool names are exact: a bare ``HassTurnOn`` is not ``intent__HassTurnOn``.
-
-Pure: no Home Assistant imports.
-"""
 
 from __future__ import annotations
 
@@ -29,7 +19,6 @@ _JSON_TYPES: dict[str, tuple[type, ...]] = {
 
 @dataclass(frozen=True, slots=True)
 class ContractViolation:
-    """Why one call cannot execute."""
 
     code: ViolationCode
     tool_name: str
@@ -37,7 +26,6 @@ class ContractViolation:
 
 
 def _value_error(schema: Mapping[str, Any], value: Any, path: str) -> str | None:
-    """First reason ``value`` does not satisfy ``schema``, or None."""
     if "anyOf" in schema and "type" not in schema:
         options = [option for option in schema["anyOf"] if isinstance(option, Mapping)]
         if options and all(_value_error(option, value, path) for option in options):
@@ -45,7 +33,6 @@ def _value_error(schema: Mapping[str, Any], value: Any, path: str) -> str | None
         return None
     expected = schema.get("type")
     if isinstance(expected, str) and expected in _JSON_TYPES:
-        # bool is an int in Python; JSON does not agree.
         is_bool = isinstance(value, bool)
         if not isinstance(value, _JSON_TYPES[expected]) or (
             is_bool and expected != "boolean"
@@ -75,7 +62,6 @@ def check_tool_call(
     tools: Mapping[str, Mapping[str, Any]],
     exposed_domains: Iterable[str] | None = None,
 ) -> ContractViolation | None:
-    """Return why one call violates the advertised contract, or None."""
     label = name if isinstance(name, str) else repr(name)
     if not isinstance(name, str) or name not in tools:
         return ContractViolation("unknown_tool", label, f"tool {label} is not offered")
@@ -119,7 +105,6 @@ def check_tool_call(
 def tools_by_name(
     compiled_tools: Sequence[Mapping[str, Any]],
 ) -> dict[str, Mapping[str, Any]]:
-    """Index compiled OpenAI tools by their exact function name."""
     return {tool["function"]["name"]: tool["function"] for tool in compiled_tools}
 
 
@@ -128,7 +113,6 @@ def check_tool_calls(
     compiled_tools: Sequence[Mapping[str, Any]],
     exposed_domains: Iterable[str] | None = None,
 ) -> list[ContractViolation]:
-    """Every contract violation in a batch, in call order."""
     tools = tools_by_name(compiled_tools)
     domains = None if exposed_domains is None else frozenset(exposed_domains)
     return [

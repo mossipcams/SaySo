@@ -1,4 +1,3 @@
-"""LiveKitWakeWordProvider: hop accumulation and worker-friendly predict."""
 
 from __future__ import annotations
 
@@ -14,9 +13,9 @@ _SATELLITE_ROOT = Path(__file__).resolve().parents[2]
 if str(_SATELLITE_ROOT) not in sys.path:
     sys.path.insert(0, str(_SATELLITE_ROOT))
 
-from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES, LiveKitWakeWordProvider  # noqa: E402
-from sayso.wake.streaming import EMBEDDING_STRIDE, EMBEDDING_WINDOW, MIN_EMBEDDINGS  # noqa: E402
-from sayso.wake.verifier import FEATURE_KIND_SPEECH_EMBEDDING, SPEECH_EMBEDDING_FEATURE_DIM  # noqa: E402
+from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES, LiveKitWakeWordProvider
+from sayso.wake.streaming import EMBEDDING_STRIDE, EMBEDDING_WINDOW, MIN_EMBEDDINGS
+from sayso.wake.verifier import FEATURE_KIND_SPEECH_EMBEDDING, SPEECH_EMBEDDING_FEATURE_DIM
 
 CHUNK_SAMPLES = 512
 
@@ -27,7 +26,6 @@ def _silence_pcm(n_samples: int) -> bytes:
 
 @pytest.fixture
 def mock_wake_model(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    # spec limits MagicMock auto-attrs so CachedEmbeddingScorer stays on predict().
     mock_model = MagicMock(spec=["predict"])
     mock_model.predict.return_value = {"hey_ferra": 0.0}
     mock_model_cls = MagicMock(return_value=mock_model)

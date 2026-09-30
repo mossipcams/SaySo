@@ -1,4 +1,3 @@
-"""Validate LFM2.5-230M Axolotl configs."""
 
 from __future__ import annotations
 

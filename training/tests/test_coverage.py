@@ -1,4 +1,3 @@
-"""Coverage distribution tests."""
 
 from __future__ import annotations
 

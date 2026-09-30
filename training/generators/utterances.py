@@ -1,4 +1,3 @@
-"""Deterministic utterance templates from authoritative labels."""
 
 from __future__ import annotations
 
@@ -18,13 +17,11 @@ _CONVERSATIONAL = (
 
 
 def vary_training_utterance(text: str, rng: random.Random) -> str:
-    """Vary request style independently of the expected call/no-call decision."""
     text = text[:1].lower() + text[1:]
     if re.match(r"^(how|is|are|does|do|did|which)\b", text) or text.endswith("?"):
         return text
     for technical, spoken in (("climates", "thermostats"), ("switchs", "outlets"), ("covers", "blinds"), ("media players", "TVs")):
         text = text.replace(f"the {technical} ", f"the {spoken} ")
-    # Preserve multi-action/exclusion scope; vary single-clause sentence structure.
     if " and " not in text and ", but leave " not in text:
         patterns = (
             (r"turn on (.+)", ("turn on {0}", "turn {0} on", "switch {0} on", "switch on {0}")),
@@ -60,22 +57,12 @@ def vary_training_utterance(text: str, rng: random.Random) -> str:
 
 
 def finalize_training_utterance(text: str, rng: random.Random, *, upper: bool | None = None) -> str:
-    """Single casing site: vary phrasing, then set request case before validation.
-
-    ``upper`` forces the casing (the pipeline uses it to keep casing balanced per
-    label kind); ``None`` draws it at random.
-    """
     utterance = vary_training_utterance(text, rng)
-    drawn = rng.random() >= 0.5  # always drawn, so forcing does not shift the rng stream
+    drawn = rng.random() >= 0.5
     return utterance[:1].upper() + utterance[1:] if (drawn if upper is None else upper) else utterance.lower()
 
 
 def apply_bare_media_room_phrasing(spec: dict[str, Any]) -> dict[str, Any]:
-    """Phrase a bare registry name as ``the <area> tv`` while labels stay canonical.
-
-    Home Assistant often registers ``TV`` in ``Living Room``; users say "the living
-    room TV". Gold must remain ``name="TV"``, not a concatenated area prefix.
-    """
     if spec.get("spoken_targets") or spec.get("category") == "ambiguity":
         return spec
     expected = spec.get("expected") or {}
@@ -102,11 +89,6 @@ def apply_bare_media_room_phrasing(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def apply_generic_wording(spec: dict[str, Any]) -> dict[str, Any]:
-    """Speak the target as "the <area> <noun>" instead of its canonical name.
-
-    This is what keeps a grounding pair honest: the request is fixed and only the
-    entity graph moves, so the model cannot read the answer off the wording.
-    """
     from generators.homes import _ENTITY_TEMPLATES
 
     capability = spec.get("capability")
@@ -117,8 +99,6 @@ def apply_generic_wording(spec: dict[str, Any]) -> dict[str, Any]:
     default_noun = _ENTITY_TEMPLATES[capability][0].lower()
     spoken = {}
     for name in spec["target_names"]:
-        # "the porch speaker", not "the porch tv": the device class is the noun a
-        # household would use when it does not say the device's name.
         device_class = (by_name.get(name) or {}).get("device_class")
         noun = device_class if capability == "media_players" and device_class else default_noun
         spoken[name] = f"the {area} {noun}"
@@ -127,7 +107,6 @@ def apply_generic_wording(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def request_seed_from_spec(spec: dict[str, Any]) -> str:
-    """Derive compact semantic seed from expected behavior."""
     provenance: list[dict[str, Any]] = []
     spec["linguistics"] = provenance
     expected = spec.get("expected") or {}
@@ -156,7 +135,6 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
     phrases: list[str] = []
     scope = spec.get("exclusion_scope")
     if scope and spec.get("excluded_names"):
-        # One group phrase covers every target; the calls still name each device.
         seed_key = spec.get("phrasing_seed") or spec.get("candidate_id", "")
         first = (expected.get("calls") or [{}])[0]
         return (_phrase_for_call(scope, first, f"{seed_key}:0", provenance)
@@ -168,8 +146,6 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
             target = spec["spoken_targets"][canonical]
         elif canonical in spec.get("target_names", []):
             target = canonical
-        # phrasing_seed lets a grounding pair share one request while their labels
-        # differ; everything else keys phrasing off the row's own id.
         seed_key = spec.get("phrasing_seed") or spec.get("candidate_id", "")
         phrases.append(_phrase_for_call(target, _lock_phrasing(call, spec), f"{seed_key}:{index}", provenance))
     seed = " and ".join(phrases)
@@ -180,11 +156,6 @@ def request_seed_from_spec(spec: dict[str, Any]) -> str:
 
 
 def _lock_phrasing(call: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any]:
-    """Phrase a lock call as "lock X" / "unlock X".
-
-    Lock labels carry no device class (HA has none for locks), so the wording
-    hints the grammar keys on are added to a phrasing-only copy of the call.
-    """
     arguments = call.get("arguments") or {}
     if call.get("name") not in {"HassTurnOn", "HassTurnOff"}:
         return call
@@ -205,9 +176,6 @@ def _no_action_hint(expected: dict[str, Any]) -> str:
     return hints.get(response, "do something unsupported")
 
 
-# Domain ids are not spoken English nouns ("switchs", "climates").
-# Natural yes/no state questions, by GetLiveContext domain. Users rarely say
-# "what is the status of X"; they ask "is X locked?".
 _STATUS_QUESTIONS: dict[str, tuple[str, ...]] = {
     "lock": ("is {0} locked", "is {0} unlocked", "is {0} still locked"),
     "light": ("is {0} on", "is {0} off", "is {0} still on", "are {0} still on"),
@@ -266,7 +234,6 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
         target += f" in {arguments['area']}"
     if arguments.get("floor"):
         target += f" on {arguments['floor']}"
-    # Per-script tools are named after the script itself, not Hass*/Get*.
     if not name.startswith(("Hass", "Get")):
         return f"run {target}"
     device_class = set(arguments.get("device_class") or [])
@@ -320,8 +287,6 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
     if name == "HassMediaPrevious":
         return f"go back to the previous track on {target}"
     if name == "HassMediaSearchAndPlay":
-        # "search for X on Y", not "play X on Y": vary_training_utterance rewrites a
-        # leading "play " to "resume ", which would relabel a search as an unpause.
         return f"search for {arguments['search_query']} on {target}"
     if name == "HassStartTimer":
         duration = _duration(arguments)
@@ -379,7 +344,6 @@ def _phrase_for_call(target: str, call: dict[str, Any], seed: str = "", provenan
 
 
 def expand_utterance(spec: dict[str, Any]) -> str:
-    """Render deterministic utterance from labels."""
     spec = apply_bare_media_room_phrasing(spec)
     category = spec.get("category", "clean_direct")
     expected = spec.get("expected") or {}
@@ -390,8 +354,6 @@ def expand_utterance(spec: dict[str, Any]) -> str:
         return spec["request_hint"]
     if category == "conversational":
         action = request_seed_from_spec(spec)
-        # crc32, not builtin hash(): randomized str hashing would pick a different
-        # template per process for the same spec.
         index = zlib.crc32(str(spec.get("candidate_id", "")).encode()) % len(_CONVERSATIONAL)
         template = _CONVERSATIONAL[index]
         return template.format(action=action)
@@ -401,16 +363,6 @@ def expand_utterance(spec: dict[str, Any]) -> str:
     return seed
 
 
-# Description templates for entity-discrimination rows. The user refers to a
-# device by a property of it instead of its name, so the model must resolve a
-# description against the static context rather than echo a name it was handed.
-#
-# {domain} is a pluralised device noun, {place} is an area name, {mod} is the
-# entity's own descriptive token ("Ceiling", "Pendant", "Wall", "Vanity"),
-# {brand} is a manufacturer token when the entity has one ("Nanoleaf",
-# "Lutron"). Every slot is filled from data that exists in the home fixture; see
-# ``scenarios.discrimination.entity_descriptors``. Nothing here invents a position or location
-# that the fixture does not model.
 _DESCRIPTIONS: tuple[str, ...] = (
     "the {mod} {domain} in the {place}",
     "the {mod} {domain} in my {place}",
@@ -420,14 +372,10 @@ _DESCRIPTIONS: tuple[str, ...] = (
     "the {place} {brand} {domain}",
 )
 
-# Tokens that mark a manufacturer or line rather than a placement. Used to fill
-# the {brand} slot and excluded from the {mod} slot so a name is never split into
-# two leaking halves.
 _BRAND_TOKENS: frozenset[str] = frozenset(
     {"nanoleaf", "lutron", "ikea", "govee", "lifx", "hue", "sengled", "wiz"}
 )
 
-# Generic words that do not discriminate (they are the domain noun or filler).
 _STOP_TOKENS: frozenset[str] = frozenset(
     {"light", "lights", "lamp", "lamps", "lighting", "the", "a", "an", "s",
      "tv", "television", "outlet", "outlets", "plug", "plugs", "blinds",
@@ -444,14 +392,6 @@ def describe_target(
     modifier: str | None = None,
     brand: str | None = None,
 ) -> str:
-    """Render a description of a device that does not name it.
-
-    Deterministic given ``rng``. ``modifier`` and ``brand`` must come from the
-    entity's own name (see ``scenarios.discrimination.entity_descriptors``); passing None picks
-    whichever slots the chosen template needs from what was supplied. Returns
-    None-safe output only when the caller supplied a usable slot value. The
-    caller is responsible for uniqueness against siblings.
-    """
     noun = _plural(domain) if domain else "devices"
     order = list(range(len(_DESCRIPTIONS)))
     rng.shuffle(order)

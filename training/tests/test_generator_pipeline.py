@@ -1,4 +1,3 @@
-"""Tests for generation pipeline."""
 
 from __future__ import annotations
 
@@ -76,7 +75,6 @@ def test_generation_is_reproducible_across_processes() -> None:
 
 
 def test_rows_use_production_catalog() -> None:
-    """Every row offers the production exposure catalog, not an answer-first subset."""
     rows = run_generation(_cfg(count=80, seed=5))["rows"]
     sizes: set[int] = set()
     for row in rows:

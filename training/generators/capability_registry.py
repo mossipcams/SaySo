@@ -1,4 +1,3 @@
-"""SaySo capability registry: tier weights, operations, tool mappings, and blockers."""
 
 from __future__ import annotations
 
@@ -6,10 +5,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-# Accepted-row tier proportions
 TIER_PROPORTIONS: dict[int, float] = {1: 0.80, 2: 0.15, 3: 0.05}
 
-# Tier 1 relative weights (normalized within the 80% tier-1 bucket)
 TIER1_CAPABILITY_WEIGHTS: dict[str, int] = {
     "lights": 22,
     "media_players": 14,
@@ -24,19 +21,11 @@ TIER1_CAPABILITY_WEIGHTS: dict[str, int] = {
 TIER2_CAPABILITIES: tuple[str, ...] = ("vacuums", "scenes", "scripts")
 TIER3_CAPABILITIES: tuple[str, ...] = ("lawn_mowers", "todo_lists", "buttons")
 
-# Minimum accepted rows per supported operation (prevents on/off from consuming a capability)
 MIN_OPERATION_COVERAGE: int = 3
-# Minimum fraction of a capability quota reserved per supported operation at scale
 MIN_OPERATION_FRACTION: float = 0.08
 
-# Share of accepted rows reserved for supervision that is not a successful action:
-# refusals, clarifications and absence answers. Positive operation quotas are
-# allocated over the remaining rows, so a refusal can never fill one.
 DEFAULT_NEGATIVE_RATE: float = 0.12
 
-# Tools withheld from declared positive coverage. Empty: every production-catalog
-# tool the recipe advertises must appear in positive_by_tool when the YAML min
-# requires it (see coverage.get_datetime_positive_min).
 TRAINING_COVERAGE_EXCLUDED: frozenset[str] = frozenset()
 
 
@@ -48,7 +37,6 @@ class SupportLevel(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class OperationSpec:
-    """One trainable or documentable operation within a capability."""
 
     name: str
     support: SupportLevel
@@ -60,7 +48,6 @@ class OperationSpec:
 
 @dataclass(frozen=True, slots=True)
 class CapabilitySpec:
-    """Runtime-aligned capability definition."""
 
     name: str
     tier: int
@@ -82,20 +69,16 @@ class CapabilitySpec:
 
 
 def _op(name: str, tool: str, *features: str) -> OperationSpec:
-    """A supported operation, naming the entity features it needs."""
     return OperationSpec(name, SupportLevel.SUPPORTED, tool, requires_features=features)
 
 
 def _blocked(name: str, blocker: str) -> OperationSpec:
-    """An operation Home Assistant supplies no tool for, and why."""
     return OperationSpec(name, SupportLevel.UNAVAILABLE, blocker=blocker)
 
 
 _QUERY = _op("query_state", "GetLiveContext")
 _ON_OFF = (_op("turn_on", "HassTurnOn"), _op("turn_off", "HassTurnOff"))
 
-# Placeholder tool name for scripts: the real name is the script's own object id, so it
-# is only known per home. See generators.tools.script_tool_name.
 SCRIPT_ACTION_TOOL = "__script__"
 
 
@@ -107,10 +90,6 @@ def _capability(
     operations: tuple[OperationSpec, ...],
     **extra: Any,
 ) -> CapabilitySpec:
-    """Tier 1 samples by its configured weight; tiers 2 and 3 share weight 1.
-
-    A capability is supported unless it carries a ``blocker``.
-    """
     return CapabilitySpec(
         name=name,
         tier=tier,
@@ -124,7 +103,6 @@ def _capability(
 
 
 def _unavailable(name: str, domain: str, blocker: str, operation_blocker: str) -> CapabilitySpec:
-    """A tier-3 capability: state is readable, nothing is controllable."""
     return _capability(
         name, 3, domain, None,
         (_blocked("control", operation_blocker), _QUERY),
@@ -142,10 +120,6 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
             _op("set_color_temperature", "HassLightSet", "color_temp"),
             _QUERY,
         )),
-        # Media players differ far more than lights: an Echo Dot has no power
-        # control and a dumb TV cannot search. Every operation names the entity
-        # feature it needs, so generation never labels an action the device
-        # cannot perform.
         _capability("media_players", 1, "media_player", "tv", (
             _op("turn_on", "HassTurnOn", "on"),
             _op("turn_off", "HassTurnOff", "off"),
@@ -194,9 +168,6 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
             _QUERY,
         )),
         _capability("scenes", 2, "scene", None, (_op("activate", "HassTurnOn"), _QUERY)),
-        # Scripts are their own tools in HA 2026.8.3, and their state is not
-        # readable: async_get_exposed_entities buckets the script domain out of
-        # both the static overview and GetLiveContext.
         _capability("scripts", 2, "script", None, (
             _op("run", SCRIPT_ACTION_TOOL),
             _blocked("query_state", "GetLiveContext excludes the script domain"),
@@ -210,13 +181,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
     )
 }
 
-# Home size distribution defaults. The 128-entity bucket is omitted: those rows render
-# to ~5.6k tokens and OOM a GTX 1070 (8 GiB), and TRL drops over-length rows silently,
-# so generating them would shrink the train set without saying so. Its weight moved to
-# 64, which is the largest size that trains and still covers large-home behaviour.
 HOME_SIZE_WEIGHTS: dict[int, int] = {8: 10, 16: 35, 32: 35, 64: 20}
 
-# Difficulty tag sampling (~70-80% ordinary)
 ORDINARY_DIFFICULTY_RATE: float = 0.75
 
 DIFFICULTY_TAGS: tuple[str, ...] = (
@@ -240,12 +206,6 @@ def operation_spec(capability: str, operation: str) -> OperationSpec | None:
 
 
 def entity_supports(entity: dict[str, Any] | None, capability: str, operation: str) -> bool:
-    """Whether this entity can actually perform the operation.
-
-    Home Assistant refuses an action the entity's ``supported_features`` does not
-    carry, so a label that assumes every media player has power, pause, volume and
-    mute teaches the model to emit calls the runtime rejects.
-    """
     op = operation_spec(capability, operation)
     if op is None:
         return False
@@ -268,11 +228,6 @@ def required_features(capability: str, operation: str) -> tuple[str, ...]:
 
 
 def covered_tool_names() -> frozenset[str]:
-    """Pinned-contract tools this corpus promises to produce positive rows for.
-
-    ``SCRIPT_ACTION_TOOL`` stands in for the per-home script tools, whose real
-    names are the scripts' object ids (see generators.tools.script_tool_name).
-    """
     names = {
         op.tool_name
         for cap in CAPABILITIES.values()
@@ -284,7 +239,6 @@ def covered_tool_names() -> frozenset[str]:
 
 
 def trainable_operations(cap: CapabilitySpec) -> list[OperationSpec]:
-    """Operations that produce a tool call (not query-only unsupported)."""
     return [
         op
         for op in cap.operations
@@ -294,7 +248,6 @@ def trainable_operations(cap: CapabilitySpec) -> list[OperationSpec]:
 
 
 def registry_summary() -> dict[str, Any]:
-    """Human-readable registry snapshot for manifests."""
     return {
         name: {
             "tier": cap.tier,

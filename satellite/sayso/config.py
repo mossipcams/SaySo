@@ -31,17 +31,9 @@ class AudioCfg:
     channels: int
     noise_suppression: int
     auto_gain: int
-    # Native capture rate requested from the device. The Snowball-class USB mic
-    # runs at 44.1 kHz; asking the audio server for 16 kHz makes it resample
-    # implicitly, so we capture at the device rate and resample exactly once.
     capture_rate: int = 44100
-    # Fixed linear gain applied once, in place of LVA's runtime mic_volume
-    # multiply, so the command path does not change under Home Assistant.
     mic_gain_db: float = 0.0
-    # Settle delay after playback ends before the mic opens. Stands in for AEC,
-    # which webrtc-noise-gain does not provide.
     aec_gate_ms: int = 0
-    # Directory for exact post-processing STT PCM (milestone 0 artifact).
     stt_capture_dir: Path | None = None
     stt_capture_enabled: bool = True
 
@@ -55,14 +47,7 @@ class WakeWordCfg:
     refractory_seconds: float
     preroll_ms: int
     post_tts_cooldown_ms: int
-    # Lookback, not a skip: the STT handoff starts this far *before* the
-    # detection boundary. Too low truncates a pauseless command's onset; too
-    # high prepends wake-word audio that opens Home Assistant's VAD early. Both
-    # bounds are measured -- see wake/hook.py:DEFAULT_WAKE_SKIP_MS, which
-    # test_handoff pins to this value.
     wake_skip_ms: int = 120
-    # Hard-negative mining. Off unless mine_dir is set. mine_threshold should sit
-    # well below threshold so near-misses are captured, not just fires.
     mine_dir: Path | None = None
     mine_threshold: float = 0.1
     mine_pre_context_ms: int = 500
@@ -75,7 +60,6 @@ class WakeWordCfg:
     mine_near_cap: int = 1000
     mine_below_cap: int = 200
     mine_below_sample_rate: float = 0.002
-    # Optional second-stage mel verifier (LiveKit only). None keeps single-stage fire.
     verifier: Path | None = None
     verifier_threshold: float | None = None
 
@@ -230,8 +214,6 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append("wake_word.refractory_seconds must be >= 0")
     if cfg.wake_word.preroll_ms < 0:
         errors.append("wake_word.preroll_ms must be >= 0")
-    # The hook clamps a negative lookback to zero, so a typed minus sign would
-    # otherwise change nothing and report nothing.
     if cfg.wake_word.wake_skip_ms < 0:
         errors.append("wake_word.wake_skip_ms must be >= 0")
     if not (0.0 < cfg.wake_word.mine_threshold < 1.0):

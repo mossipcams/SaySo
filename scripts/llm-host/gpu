@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# One GPU, three users: llama.cpp/vLLM serving, Unsloth (SaySo LFM) training, LiveKit (wake) training.
-# Installed on the llm VM as /srv/llm/bin/gpu -> /srv/llm/sayso/scripts/llm-host/gpu.
-# Plan: docs/PLAN_VM_LAYOUT.md Task 4.
-#
-#   gpu run <label> [--] <cmd...>    wait for a FIFO GPU turn
-#   gpu status
-#   gpu serve [llama|vllm]            start llama.cpp by default, or vLLM explicitly
-#   gpu stop                          stop both inference runtimes
-#   gpu train lfm  [--serve-after] <cmd...>   run <cmd> in the unsloth container
-#   gpu train wake [--serve-after] <cmd...>   run <cmd> with the wake venv on the host
-#
-# State is a file (inference services are detached containers, so no process can hold a lock
-# while it serves): "idle" | "serve" | "train:<label> <owner> <worker> <started>" (legacy timestamps optional).
-# flock guards transitions. Surviving worker groups keep the reservation.
-# Stale LFM reservations require container cleanup before the GPU can be reused.
 set -euo pipefail
 
 RUN=${GPU_RUN_DIR:-/srv/llm/run}
@@ -41,7 +26,6 @@ alive() {
   local stat
   [[ $1 =~ ^[1-9][0-9]*$ ]] || return 1
   kill -0 "$1" 2>/dev/null || return 1
-  # Linux keeps zombies in /proc until their parent reaps them.
   stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
   [[ ${stat##*) } != Z* ]]
 }
@@ -74,7 +58,7 @@ read_state() {
             write_state idle
             s=idle
           else
-            s="orphan:lfm $owner $worker"  # Status does not restart services.
+            s="orphan:lfm $owner $worker"
           fi
         else
           s=idle
@@ -94,7 +78,6 @@ write_state() {
 
 with_lock() { exec 9>"$LOCK"; flock 9 || die "cannot lock GPU state"; }
 
-# All queue inspection and service transitions occur under fd 9.
 prune_queue() {
   local ticket label pid arrived
   for ticket in "$QUEUE"/*; do
@@ -123,7 +106,6 @@ start_inference() {
   write_state serve
 }
 
-# Exit zero only for valid busy slots; unavailable/invalid responses are idle.
 llama_busy() {
   if [[ -n ${GPU_BUSY_CHECK:-} ]]; then eval "$GPU_BUSY_CHECK"; return; fi
   python3 - "$VLLM_DIR/secrets.env" <<'BUSY'
@@ -173,7 +155,6 @@ watch_queue() {
     else
       now=$(date +%s%N)
       [[ -n $idle_since ]] || idle_since=$now
-      # A complete short turn can occur between polls; its release resets grace.
       released=$(cat "$RUN/gpu.idle-since" 2>/dev/null || echo 0)
       if (( released > idle_since )); then idle_since=$released; fi
       if (( now - idle_since >= GRACE * 1000000000 )); then
@@ -187,7 +168,6 @@ watch_queue() {
 }
 
 ensure_watcher() {
-  # Detached from both the caller's session and its output/lock descriptors.
   nohup setsid "$0" _watch </dev/null >>"$RUN/gpu.watch.log" 2>&1 9>&- &
 }
 
@@ -287,7 +267,6 @@ case $cmd in
         ensure_watcher
         exit "$rc"
       fi
-      # A signal between spawning and recording $! cannot prove no worker exists.
       [[ -n $child ]] || die "interrupted launch; GPU remains blocked for inspection"
       if [[ -n $child ]]; then
         kill -TERM -- "-$child" 2>/dev/null || true
@@ -306,7 +285,6 @@ case $cmd in
           die "worker group survived cleanup; GPU remains blocked"
         fi
       fi
-      # Killing docker exec alone does not stop its container-side command.
       if [[ $pipeline == lfm && $rc != 0 ]]; then
         write_state blocked:lfm-cleanup
         docker restart unsloth >/dev/null || exit "$rc"
@@ -320,7 +298,6 @@ case $cmd in
     trap 'exit 130' INT
     trap 'exit 143' TERM
     trap 'exit 129' HUP
-    # Publish arrival before contending for flock; lock wake-up order is irrelevant.
     ticket="$QUEUE/$(date +%s%N).$$"
     printf '%s %s %s\n' "$pipeline" "$$" "$(date +%s)" > "$RUN/ticket.$$"
     mv "$RUN/ticket.$$" "$ticket"
@@ -335,7 +312,6 @@ case $cmd in
       sleep "$POLL_INTERVAL"
       with_lock
     done
-    # Keep the head ticket queued during preemption. No worker exists yet.
     if [[ $s == serve && $(default_runtime) == llama ]]; then
       deadline=$((SECONDS + PREEMPT))
       while (( SECONDS < deadline )) && llama_busy; do sleep 1; done

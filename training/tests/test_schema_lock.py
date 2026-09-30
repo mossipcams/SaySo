@@ -1,4 +1,3 @@
-"""Ensure training fixtures stay locked to schemas/sayso-tool-schema-v2.json."""
 
 from __future__ import annotations
 

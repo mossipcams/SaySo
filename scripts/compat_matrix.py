@@ -1,8 +1,3 @@
-"""Home Assistant compatibility matrix for CI and manual verification.
-
-Creates isolated standard virtualenvs with exact resolved Home Assistant versions.
-Never modifies the worktree ``.venv``.
-"""
 
 from __future__ import annotations
 
@@ -17,21 +12,18 @@ from typing import Final, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Exact resolved version exercised by the matrix (not an open range).
 CURRENT_HA_VERSION: Final = "2026.8.3"
 
-# Declared support floor; must stay aligned with pyproject.toml and README.
 DECLARED_MINIMUM_HA_VERSION: Final = "2026.8.3"
 
-# Categories required by Task 21; mapped to existing test modules.
 COMPAT_TEST_PATHS: Final[tuple[str, ...]] = (
-    "tests/test_conversation.py",  # transcript
-    "tests/test_schema.py",  # compiler
-    "tests/test_diagnostics.py",  # boundary
-    "tests/test_routing.py",  # routing
-    "tests/test_client.py",  # request contract
-    "tests/test_eval.py",  # offline eval
-    "tests/test_tracing.py",  # tracing
+    "tests/test_conversation.py",
+    "tests/test_schema.py",
+    "tests/test_diagnostics.py",
+    "tests/test_routing.py",
+    "tests/test_client.py",
+    "tests/test_eval.py",
+    "tests/test_tracing.py",
 )
 
 COMPAT_TEST_CATEGORIES: Final[dict[str, str]] = {
@@ -47,7 +39,6 @@ COMPAT_TEST_CATEGORIES: Final[dict[str, str]] = {
 
 @dataclass(frozen=True, slots=True)
 class MatrixEntry:
-    """One HA/Python pair in the compatibility matrix."""
 
     id: str
     label: str
@@ -64,17 +55,12 @@ MATRIX: Final[tuple[MatrixEntry, ...]] = (
     ),
 )
 
-# Integration roots whose manifest requirements are installed after Home Assistant.
-# Conversation setup on 2026.8.3 pulls hassil via the conversation manifest.
-# assist_pipeline is present so the tracing contract test can import the voice
-# pipeline internals the canonical trace id depends on.
 COMPONENT_REQUIREMENT_ROOTS: Final[dict[str, tuple[str, ...]]] = {
     "current": ("conversation", "llm", "assist_pipeline"),
 }
 
 
 def homeassistant_components_dir(venv_dir: Path) -> Path:
-    """Return the installed Home Assistant components directory for a venv."""
     python = venv_dir / "bin" / "python"
     script = (
         "import homeassistant, pathlib; "
@@ -93,7 +79,6 @@ def collect_integration_requirements(
     components_dir: Path,
     roots: Sequence[str],
 ) -> tuple[str, ...]:
-    """Collect pinned requirements from integration manifests and dependencies."""
     pending = list(roots)
     seen_domains: set[str] = set()
     requirements: set[str] = set()
@@ -117,7 +102,6 @@ def collect_integration_requirements(
 
 
 def get_entry(entry_id: str) -> MatrixEntry:
-    """Return the matrix entry for ``entry_id``."""
     for entry in MATRIX:
         if entry.id == entry_id:
             return entry
@@ -126,14 +110,12 @@ def get_entry(entry_id: str) -> MatrixEntry:
 
 
 def default_venv_dir(entry_id: str) -> Path:
-    """Return an isolated venv path outside the worktree ``.venv``."""
     base = os.environ.get("SAYSO_COMPAT_VENV_ROOT")
     root = Path(base) if base else Path(os.environ.get("RUNNER_TEMP", "/tmp"))
     return root / f"sayso-compat-{entry_id}"
 
 
 def install_commands(entry: MatrixEntry, venv_dir: Path) -> list[list[str]]:
-    """Return shell-safe pip install steps for one matrix entry."""
     pip = venv_dir / "bin" / "pip"
     return [
         [sys.executable, "-m", "venv", str(venv_dir)],
@@ -150,7 +132,6 @@ def install_commands(entry: MatrixEntry, venv_dir: Path) -> list[list[str]]:
 
 
 def install_component_requirements(entry: MatrixEntry, venv_dir: Path) -> None:
-    """Install integration manifest requirements needed by the compat test suite."""
     pip = venv_dir / "bin" / "pip"
     component_requirements = collect_integration_requirements(
         homeassistant_components_dir(venv_dir),
@@ -161,19 +142,16 @@ def install_component_requirements(entry: MatrixEntry, venv_dir: Path) -> None:
 
 
 def pytest_command(venv_dir: Path, test_paths: Sequence[str] | None = None) -> list[str]:
-    """Build the pytest invocation for a matrix venv."""
     paths = list(test_paths or COMPAT_TEST_PATHS)
     return [str(venv_dir / "bin" / "pytest"), *paths]
 
 
 def run_command(command: list[str], *, cwd: Path = ROOT) -> None:
-    """Run a command and exit non-zero on failure."""
     print("+", " ".join(command), flush=True)
     subprocess.run(command, cwd=cwd, check=True)
 
 
 def setup_venv(entry_id: str, venv_dir: Path | None = None) -> Path:
-    """Create an isolated venv and install exact resolved dependencies."""
     entry = get_entry(entry_id)
     target = venv_dir or default_venv_dir(entry_id)
     if target.resolve() == (ROOT / ".venv").resolve():
@@ -186,7 +164,6 @@ def setup_venv(entry_id: str, venv_dir: Path | None = None) -> Path:
 
 
 def run_tests(entry_id: str, venv_dir: Path | None = None) -> None:
-    """Run the compatibility test suite for one matrix entry."""
     entry = get_entry(entry_id)
     target = venv_dir or default_venv_dir(entry_id)
     if not (target / "bin" / "pytest").exists():
@@ -200,7 +177,6 @@ def run_tests(entry_id: str, venv_dir: Path | None = None) -> None:
 
 
 def emit_matrix_json() -> None:
-    """Print matrix metadata as JSON for CI consumers."""
     payload = {
         "declared_minimum": DECLARED_MINIMUM_HA_VERSION,
         "entries": [asdict(entry) for entry in MATRIX],
@@ -212,7 +188,6 @@ def emit_matrix_json() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the CLI parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -245,7 +220,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point."""
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
 

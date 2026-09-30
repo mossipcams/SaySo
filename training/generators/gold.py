@@ -1,4 +1,3 @@
-"""Deterministic gold-label generation from structured scenarios."""
 
 from __future__ import annotations
 
@@ -31,8 +30,6 @@ def expected_action(
     call = build_call_for_operation(entity, capability, operation, rng, area=area, floor=floor)
     payload: dict[str, Any] = {"kind": "action", "calls": [call]}
     if capability == "scripts":
-        # A script tool takes no arguments, so the friendly name has to ride alongside
-        # the call for utterance generation and target checks.
         payload["script_targets"] = [entity["name"]]
     return payload
 
@@ -63,12 +60,6 @@ def expected_device_unsupported(
     operation: str,
     rng: random.Random,
 ) -> dict[str, Any]:
-    """The devices are there, exposed, and cannot do it.
-
-    Distinct from ``area_unavailable`` (nothing of that type in the room) and from
-    ``unsupported`` (Home Assistant did not supply the tool at all): here the tool
-    is offered and the entity's supported_features simply lack the action.
-    """
     target = entities[0]
     requested = {
         "kind": "action",
@@ -82,7 +73,6 @@ def expected_device_unsupported(
 
 
 def gold_matches_family(expected: dict[str, Any], family: str) -> bool:
-    """Whether ``expected`` honors the recipe slot family contract."""
     kind = expected.get("kind")
     response = expected.get("response")
     if family == "follow_up":
@@ -94,10 +84,6 @@ def gold_matches_family(expected: dict[str, Any], family: str) -> bool:
     if family == "clarify":
         return kind == "no_action" and response == "clarify"
     if family == "junk":
-        # A junk row starts life as a clarify row; generate_row swaps the
-        # utterance for a non-command transcript and the response for
-        # ``not_understood`` once this contract has been checked. Both readings
-        # are valid, so re-checking a finished row still passes.
         return kind == "no_action" and response in ("clarify", "not_understood")
     if family == "absence":
         return kind == "no_action" and response in ("area_unavailable", "device_absent")
@@ -130,7 +116,6 @@ def gold_matches_family(expected: dict[str, Any], family: str) -> bool:
 
 
 def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str, Any]:
-    """Derive authoritative expected behavior from a structured scenario."""
     if scenario.get("family") == "datetime" or scenario.get("capability") == "datetime":
         return expected_datetime()
     home = scenario["home"]
@@ -205,7 +190,6 @@ def gold_from_scenario(scenario: dict[str, Any], rng: random.Random) -> dict[str
             )
         if len(matches) == 1:
             return expected_action(matches[0], operation, rng)
-        # Area with multiple: single area-targeted call
         call = build_call_for_operation(None, capability, operation, rng, area=area)
         return {"kind": "action", "calls": [call]}
 
@@ -265,14 +249,6 @@ def names_of(entity: dict[str, Any]) -> list[str]:
 
 
 def refers_to(entity: dict[str, Any], noun: str | None) -> bool:
-    """Does the request's device noun refer to this entity?
-
-    A whole-word match against the canonical name or any alias, so "TV" picks out
-    ``TV`` and ``Living Room TV`` but never ``Living Room Media Player``. Without
-    this, a room that holds a TV and a speaker reads as ambiguous, and a room that
-    holds only a speaker reads as "turn on the speaker" -- both of which are how
-    issue #52's home would have been labelled.
-    """
     if not noun:
         return True
     pattern = re.compile(rf"\b{re.escape(noun.casefold())}\b")
@@ -282,7 +258,6 @@ def refers_to(entity: dict[str, Any], noun: str | None) -> bool:
 def _requested(
     home: dict[str, Any], capability: str, intent: dict[str, Any] | None
 ) -> tuple[str, list[dict[str, Any]]]:
-    """(area the request means, entities the request could refer to)."""
     intent = intent or {}
     area = intent.get("area") or home["sayso_entity_area"]
     present = entities_in_area(home, capability, area)
@@ -297,7 +272,6 @@ def _ambiguous_gold(
     intent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if capability == "scripts":
-        # Script tools expose friendly names, not their hidden HA area assignments.
         return expected_no_action("clarify")
     area, present = _requested(home, capability, intent)
     matches = entities_supporting(present, capability, operation)
@@ -306,9 +280,6 @@ def _ambiguous_gold(
             return expected_device_unsupported(present, capability, operation, rng)
         noun = (intent or {}).get("name")
         if noun:
-            # The room has media players, just not the one that was asked for.
-            # Saying "no media players available" here would be the fabricated
-            # absence reported in issue #52.
             return expected_no_action(
                 "device_absent",
                 unavailable={"area": area.casefold(), "type": noun},

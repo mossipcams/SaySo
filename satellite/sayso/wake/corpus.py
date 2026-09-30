@@ -1,4 +1,3 @@
-"""Wake corpus candidate events derived from long-form session replay."""
 
 from __future__ import annotations
 
@@ -58,7 +57,6 @@ def _read_window_samples(window_path: Path) -> np.ndarray:
 
 
 def score_window_verifier(provider: LiveKitWakeWordProvider, window_path: Path) -> float | None:
-    """Score the exact 2s window with the provider's production verifier."""
     verifier = getattr(provider, "_verifier", None)
     model = getattr(provider, "_model", None)
     if verifier is None or model is None:
@@ -201,7 +199,6 @@ def import_spool_record(
     verifier_score: float | None = None,
     config: ReplayConfig | None = None,
 ) -> CandidateEvent:
-    """Copy a verified mining record into the corpus with optional context enrichment."""
     ok, message = ingest_record(record_dir)
     if not ok:
         raise ValueError(f"cannot import record: {message}")
@@ -271,7 +268,6 @@ def events_for_session(events: Iterable[CandidateEvent], session_id: str) -> lis
 
 
 def prune_unlabeled_session_events(corpus_root: Path, session_id: str) -> int:
-    """Remove unlabeled corpus events for one session before a fresh replay import."""
     removed = 0
     for event in events_for_session(load_events(corpus_root), session_id):
         if event.label is not None or _has_manual_label(event):

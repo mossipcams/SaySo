@@ -1,4 +1,3 @@
-"""Voice pipeline event hooks for post-STT acknowledgement sounds."""
 
 from __future__ import annotations
 
@@ -26,12 +25,11 @@ class _LVAEvent:
 
 def _install_test_handlers(monkeypatch: pytest.MonkeyPatch, sounds: SoundsCfg, wake_hook=None):
     model = ModuleType("aioesphomeapi.model")
-    model.VoiceAssistantEventType = _EventType  # type: ignore[attr-defined]
+    model.VoiceAssistantEventType = _EventType
     events = ModuleType("linux_voice_assistant.events")
-    events.LVAEvent = _LVAEvent  # type: ignore[attr-defined]
+    events.LVAEvent = _LVAEvent
     monkeypatch.setitem(sys.modules, "aioesphomeapi.model", model)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.events", events)
-    # Warm-up timers are driven explicitly in tests that exercise their callback.
     monkeypatch.setattr("satellite.sayso.events.threading.Timer", Mock())
 
     from satellite.sayso.events import install_voice_handlers
@@ -74,7 +72,6 @@ class _FakeLibMpvPlayer:
 
 
 class _FakeMpvMediaPlayer:
-    """Models LVA MpvMediaPlayer: user callback on wrapper; inner EOF drives _on_track_finished."""
 
     def __init__(self) -> None:
         self._player = _FakeLibMpvPlayer()
@@ -104,9 +101,9 @@ def _install_test_handlers_with_miner(
     stt_capture=None,
 ):
     model = ModuleType("aioesphomeapi.model")
-    model.VoiceAssistantEventType = _EventType  # type: ignore[attr-defined]
+    model.VoiceAssistantEventType = _EventType
     events = ModuleType("linux_voice_assistant.events")
-    events.LVAEvent = _LVAEvent  # type: ignore[attr-defined]
+    events.LVAEvent = _LVAEvent
     monkeypatch.setitem(sys.modules, "aioesphomeapi.model", model)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.events", events)
     monkeypatch.setattr("satellite.sayso.events.threading.Timer", Mock())
@@ -158,7 +155,7 @@ def test_accepted_wake_outcome_published_without_stt_capture(
     )
     wake_word = SimpleNamespace(wake_word="SaySo")
 
-    protocol.wakeup(satellite, wake_word)  # type: ignore[attr-defined]
+    protocol.wakeup(satellite, wake_word)
 
     wake_miner.publish_wake_outcome.assert_called_once_with(
         "capture-123",
@@ -188,7 +185,7 @@ def test_wakeup_suspends_external_wake_hook(
     )
     wake_word = SimpleNamespace(wake_word="SaySo")
 
-    protocol.wakeup(satellite, wake_word)  # type: ignore[attr-defined]
+    protocol.wakeup(satellite, wake_word)
 
     wake_hook.suspend.assert_called_once_with()
 
@@ -211,7 +208,7 @@ def test_wakeup_starts_streaming_without_wake_chime(
     )
     wake_word = SimpleNamespace(wake_word="SaySo")
 
-    protocol.wakeup(satellite, wake_word)  # type: ignore[attr-defined]
+    protocol.wakeup(satellite, wake_word)
 
     satellite.duck.assert_called_once_with()
     satellite._start_audio_streaming.assert_called_once_with("SaySo")
@@ -264,7 +261,7 @@ def test_wakeup_flushes_preroll_after_streaming_starts(
     )
     wake_word = SimpleNamespace(wake_word="SaySo")
 
-    protocol.wakeup(satellite, wake_word)  # type: ignore[attr-defined]
+    protocol.wakeup(satellite, wake_word)
 
     assert streaming_order == ["start", "audio"]
     assert handle_audio_calls == [bytes(38400)]
@@ -298,12 +295,12 @@ def test_stt_end_defers_chime_until_after_handle_voice_event_returns(
             played_during_handler.append(True)
         original_play(path, done_callback)
 
-    tts_player.play = tracking_play  # type: ignore[method-assign]
+    tts_player.play = tracking_play
 
     async def _invoke_under_running_loop() -> None:
         nonlocal inside_handler
         inside_handler = True
-        protocol.handle_voice_event(  # type: ignore[attr-defined]
+        protocol.handle_voice_event(
             satellite,
             _EventType.VOICE_ASSISTANT_STT_END,
             {"text": "turn on the lights"},
@@ -327,7 +324,7 @@ def test_stt_end_with_text_plays_acknowledgement(
 
     satellite = SimpleNamespace(state=SimpleNamespace(tts_player=tts_player))
 
-    protocol.handle_voice_event(  # type: ignore[attr-defined]
+    protocol.handle_voice_event(
         satellite,
         _EventType.VOICE_ASSISTANT_STT_END,
         {"text": "turn on the lights"},
@@ -347,7 +344,7 @@ def test_stt_end_empty_plays_failure_not_ack(
 
     satellite = SimpleNamespace(state=SimpleNamespace(tts_player=tts_player))
 
-    protocol.handle_voice_event(  # type: ignore[attr-defined]
+    protocol.handle_voice_event(
         satellite,
         _EventType.VOICE_ASSISTANT_STT_END,
         {"text": "   "},
@@ -368,7 +365,7 @@ def test_voice_assistant_error_plays_failure(
 
     satellite = SimpleNamespace(state=SimpleNamespace(tts_player=tts_player))
 
-    protocol.handle_voice_event(satellite, _EventType.VOICE_ASSISTANT_ERROR, {})  # type: ignore[attr-defined]
+    protocol.handle_voice_event(satellite, _EventType.VOICE_ASSISTANT_ERROR, {})
 
     assert len(tts_player.play_calls) == 1
     assert tts_player.play_calls[0][0] == str(sounds.failure)
@@ -387,7 +384,7 @@ def test_stt_ack_chains_onto_in_flight_tts_callback(
     inner_on_track_finished = tts_player._player._on_track_finished
     satellite = SimpleNamespace(state=SimpleNamespace(tts_player=tts_player))
 
-    protocol.handle_voice_event(  # type: ignore[attr-defined]
+    protocol.handle_voice_event(
         satellite,
         _EventType.VOICE_ASSISTANT_STT_END,
         {"text": "turn on the lights"},
@@ -416,7 +413,7 @@ def test_failure_chime_defers_rearm_until_done_callback(
         _chime_rearm_pending=False,
     )
 
-    protocol.handle_voice_event(  # type: ignore[attr-defined]
+    protocol.handle_voice_event(
         satellite,
         _EventType.VOICE_ASSISTANT_STT_END,
         {"text": "   "},
@@ -424,7 +421,7 @@ def test_failure_chime_defers_rearm_until_done_callback(
     assert satellite._chime_rearm_pending is True
     wake_hook.rearm.assert_not_called()
 
-    protocol._tts_finished(satellite)  # type: ignore[attr-defined]
+    protocol._tts_finished(satellite)
     wake_hook.rearm.assert_not_called()
 
     tts_player.eof()
@@ -448,7 +445,7 @@ def test_error_chime_does_not_steal_in_flight_tts_callback(
         _chime_rearm_pending=False,
     )
 
-    protocol.handle_voice_event(satellite, _EventType.VOICE_ASSISTANT_ERROR, {})  # type: ignore[attr-defined]
+    protocol.handle_voice_event(satellite, _EventType.VOICE_ASSISTANT_ERROR, {})
 
     chained = tts_player._done_callback
     assert chained is not tts_finished

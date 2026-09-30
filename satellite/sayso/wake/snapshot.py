@@ -1,4 +1,3 @@
-"""Deterministic wake corpus snapshots with session-level splits."""
 
 from __future__ import annotations
 
@@ -28,7 +27,6 @@ def assign_session_splits(
     holdout_session_ids: Sequence[str] | None = None,
     eval_fraction: float = 0.15,
 ) -> dict[str, str]:
-    """Deterministically assign whole sessions to train/eval/holdout."""
     holdouts = {sid for sid in (holdout_session_ids or []) if sid}
     assignments: dict[str, str] = {}
     for session_id in sorted(set(session_ids)):
@@ -195,7 +193,6 @@ def derive_training_examples(
     events: Sequence[CandidateEvent],
     session_splits: Mapping[str, str],
 ) -> list[CorpusExample]:
-    """Derive train examples from labeled events using session-level splits only."""
     return _derive_split_examples(events, session_splits, target_split="train")
 
 
@@ -203,7 +200,6 @@ def derive_eval_examples(
     events: Sequence[CandidateEvent],
     session_splits: Mapping[str, str],
 ) -> list[CorpusExample]:
-    """Derive eval examples from labeled events on eval sessions."""
     return _derive_split_examples(events, session_splits, target_split="eval")
 
 
@@ -211,7 +207,6 @@ def derive_snapshot_examples(
     events: Sequence[CandidateEvent],
     session_splits: Mapping[str, str],
 ) -> list[CorpusExample]:
-    """Derive train and eval examples; holdout sessions stay out of snapshots."""
     train = derive_training_examples(events, session_splits)
     eval_examples = derive_eval_examples(events, session_splits)
     assert_no_split_leak(train, eval_examples)

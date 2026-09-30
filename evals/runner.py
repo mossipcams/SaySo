@@ -1,14 +1,3 @@
-"""One behavioral execution pipeline.
-
-For each case: build the production area context from the household and
-utterance (never from the expected answer), render the production system
-prompt, compile the household's production tool catalog (minus only the
-capability an unavailable case withholds), ask the model through the
-configured adapter, parse with the production parser, validate with the
-production contract check, and score with the shared scorer.
-
-Evaluation never executes Home Assistant actions.
-"""
 
 from __future__ import annotations
 
@@ -54,8 +43,6 @@ AreaContext = _area_context.AreaContext
 build_area_context = _area_context.build_area_context
 render_system_prompt = _area_context.render_system_prompt
 
-# Mirrors training/generators/context.py — kept here so HA compat tests never
-# import the training package tree (which pulls jsonschema).
 SAYSO_SYSTEM_PROMPT = """You are SaySo, a local Home Assistant voice agent.
 Use the available tools for home state queries and actions. Only claim an action succeeded when its tool result confirms success. Use names, areas, and context supplied by Home Assistant. If a request is ambiguous, ask one short question. Keep spoken responses brief. Do not describe tool calls."""
 
@@ -105,7 +92,6 @@ DEVICE_CONTROL_TOOL_USAGE_PROMPT = (
 
 OVERVIEW_EXCLUDED_DOMAINS = frozenset({"calendar", "script"})
 
-# Mirrors training/generators/tools.py HA_TOOL_NAMESPACES.
 HA_TOOL_NAMESPACES: dict[str, str] = {
     "GetDateTime": "llm",
     "GetLiveContext": "homeassistant",
@@ -147,7 +133,6 @@ class ModelAdapter(Protocol):
 
 @contextmanager
 def training_path():
-    """Expose ``training/generators`` without shadowing the repo ``tests`` package."""
     path = str(ROOT / "training")
     added = path not in sys.path
     if added:
@@ -161,7 +146,6 @@ def training_path():
 
 @lru_cache(maxsize=1)
 def _v2_openai_tools() -> tuple[dict[str, Any], ...]:
-    """Pinned v2 catalog from the checked-in schema artifact (no jsonschema)."""
     payload = json.loads(V2_SCHEMA_PATH.read_text(encoding="utf-8"))
     tools = payload.get("tools")
     if not isinstance(tools, list) or not tools:
@@ -287,7 +271,6 @@ def production_catalog(home: dict[str, Any], *, removed_tools: list[str] | None 
 
 
 def render_case(case: Case) -> dict[str, Any]:
-    """Everything the model and the scorer see for one case."""
     home = load_home(case.household)
     removed = (case.unavailable or {}).get("removed_tools") or []
     expected = case.expected
@@ -311,7 +294,6 @@ def render_case(case: Case) -> dict[str, Any]:
 
 
 def evaluate(cases: list[Case], adapter: ModelAdapter) -> list[CaseResult]:
-    """Score every case through the shared parser, validator, and scorer."""
     results: list[CaseResult] = []
     for case in cases:
         rendered = render_case(case)

@@ -1,4 +1,3 @@
-"""Benchmark logic: metrics, resample comparison, and gain advice."""
 
 from __future__ import annotations
 
@@ -11,7 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "satellite"))
 
-from benchmarks.run import (  # noqa: E402
+from benchmarks.run import (
     CommandSpec,
     apply_gain,
     build_variants,
@@ -26,11 +25,8 @@ from benchmarks.run import (  # noqa: E402
     word_error_rate,
     write_wav,
 )
-from sayso.wake.capture import _FILTER_HALF_TAPS  # noqa: E402
+from sayso.wake.capture import _FILTER_HALF_TAPS
 
-# The resampler withholds its right-hand taps, so a finished stream is short by
-# a fixed, known amount. Asserting the exact figure rather than a loose slack
-# keeps these length checks able to catch real drift.
 _RESAMPLE_DELAY_44K = _FILTER_HALF_TAPS * 16000 // 44100
 
 
@@ -73,7 +69,6 @@ def test_correct_resample_preserves_length() -> None:
 
 
 def test_correct_resample_keeps_a_tone_clean_where_naive_aliases() -> None:
-    """A band-limited tone must survive the deliberate resample intact."""
     rate = 44100
     target = 16000
     tone_hz = 440.0
@@ -81,7 +76,6 @@ def test_correct_resample_keeps_a_tone_clean_where_naive_aliases() -> None:
     samples = (0.5 * np.sin(2 * np.pi * tone_hz * t)).astype(np.float32)
 
     good = correct_resample(samples, rate, target)
-    # Recover the dominant frequency of each version.
     def dominant_hz(signal: np.ndarray) -> float:
         spectrum = np.abs(np.fft.rfft(signal * np.hanning(signal.size)))
         freqs = np.fft.rfftfreq(signal.size, d=1.0 / target)
@@ -91,14 +85,12 @@ def test_correct_resample_keeps_a_tone_clean_where_naive_aliases() -> None:
 
 
 def test_naive_resample_is_the_uncorrected_comparison() -> None:
-    """The naive path must be different, or the benchmark compares nothing."""
     rate = 44100
     t = np.arange(rate, dtype=np.float64) / rate
     samples = (0.5 * np.sin(2 * np.pi * 3000 * t)).astype(np.float32)
     naive = naive_resample(samples, rate, 16000)
     corrected = correct_resample(samples, rate, 16000)
     assert naive.size > 0 and corrected.size > 0
-    # Same length up to the corrected path's filter delay; content differs.
     assert naive.size - corrected.size == _RESAMPLE_DELAY_44K
     n = min(naive.size, corrected.size)
     assert not np.allclose(naive[:n], corrected[:n], atol=1e-3)
@@ -121,7 +113,6 @@ def test_measure_levels_reports_rms_and_peak() -> None:
 def test_recommend_gain_targets_median_speech_rms() -> None:
     levels = [{"rms_dbfs": -32.0}, {"rms_dbfs": -30.0}, {"rms_dbfs": -34.0}]
     advice = recommend_gain(levels, target_rms_dbfs=-26.0)
-    # Median is -32, so +6 dB reaches the -26 dBFS target.
     assert advice["recommended_gain_db"] == pytest.approx(6.0, abs=1.0)
 
 
@@ -156,7 +147,7 @@ def test_run_benchmark_compares_both_variants_with_one_model(tmp_path: Path) -> 
 
     report = run_benchmark(commands, tmp_path, transcribe)
 
-    assert seen_rates == [16000] * 4  # two variants x two phrases
+    assert seen_rates == [16000] * 4
     variants = {r.variant for r in report["results"]}
     assert variants == {"current", "corrected"}
     assert "delta" in report["summary"]

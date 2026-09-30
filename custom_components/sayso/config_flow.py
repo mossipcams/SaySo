@@ -1,4 +1,3 @@
-"""Config flow for SaySo."""
 
 from __future__ import annotations
 
@@ -77,7 +76,6 @@ _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        # Optional and not prefilled on purpose: blank means local inference.
         vol.Optional(CONF_URL): TextSelector(
             TextSelectorConfig(type=TextSelectorType.URL)
         ),
@@ -89,7 +87,6 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 
 def redact_api_key(message: str, api_key: str | None) -> str:
-    """Remove API key material from user-visible error text."""
     if not api_key:
         return message
     redacted = message.replace(api_key, "***")
@@ -100,7 +97,6 @@ def redact_api_key(message: str, api_key: str | None) -> str:
 
 
 def _number(minimum: float, maximum: float, step: float = 1) -> NumberSelector:
-    """A plain numeric box; every numeric option uses the same widget."""
     return NumberSelector(
         NumberSelectorConfig(
             min=minimum, max=maximum, step=step, mode=NumberSelectorMode.BOX
@@ -108,11 +104,6 @@ def _number(minimum: float, maximum: float, step: float = 1) -> NumberSelector:
     )
 
 
-# The shared option contract, in the order the form shows it: marker, key,
-# default, widget. Both the options form and the defaults a new entry starts
-# with read this table, so the two cannot drift apart. The one selector that is
-# None is the Home Assistant LLM API picker, whose choices come from the
-# running instance rather than from a constant.
 _OPTIONS: tuple[tuple[Any, str, Any, Any], ...] = (
     (vol.Required, CONF_TIMEOUT, DEFAULT_TIMEOUT, _number(1, 300)),
     (vol.Required, CONF_LLM_HASS_API, LLM_API_ASSIST, None),
@@ -157,7 +148,6 @@ _CONNECTION_ERROR_KEYS: tuple[tuple[type[SaySoError], str], ...] = (
 
 
 def _default_embedded_options() -> dict[str, Any]:
-    """Options for a local install: no server, URL, port, or API key."""
     return {
         CONF_MODEL: DEFAULT_MODEL_FILENAME,
         CONF_MODEL_PATH: "",
@@ -168,12 +158,10 @@ def _default_embedded_options() -> dict[str, Any]:
 
 
 def _default_options(model: str) -> dict[str, Any]:
-    """Options a new external entry starts with."""
     return {CONF_MODEL: model, **_OPTION_DEFAULTS}
 
 
 def _connection_error_key(error: SaySoError) -> str:
-    """Map a client failure to the translation key the form shows."""
     for error_class, key in _CONNECTION_ERROR_KEYS:
         if isinstance(error, error_class):
             return key
@@ -187,7 +175,6 @@ def _entry_title(base_url: str, model: str) -> str:
 
 
 def _suggest(options: dict[str, Any], key: str, default: Any = None) -> dict[str, Any]:
-    """Prefill a field with the entry's current value."""
     return {"suggested_value": options.get(key, default)}
 
 
@@ -203,11 +190,6 @@ def _select(values: list[str], *, custom: bool = False) -> SelectSelector:
 def _model_fields(
     options: dict[str, Any], models: list[str], *, embedded: bool
 ) -> dict[Any, Any]:
-    """The part of the form that differs by backend.
-
-    A local install has no model list to choose from; it has a file on disk and
-    the two knobs that decide how much of the machine inference may use.
-    """
     if not embedded:
         current = options.get(CONF_MODEL)
         choices = list(models)
@@ -219,8 +201,6 @@ def _model_fields(
             )
         }
 
-    # Files already in the model directory, labelled by name. Custom values
-    # keep a GGUF stored elsewhere selectable; empty still means the default.
     choices = list(models)
     current = options.get(CONF_MODEL_PATH)
     if isinstance(current, str) and current and current not in choices:
@@ -254,7 +234,6 @@ def _options_schema(
     *,
     embedded: bool = False,
 ) -> vol.Schema:
-    """Build the options form: the backend-specific model fields, then the table."""
     llm_apis = SelectSelector(
         SelectSelectorConfig(
             options=[
@@ -278,12 +257,10 @@ def _options_schema(
 
 
 class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for SaySo."""
 
     VERSION = 1
 
     def __init__(self) -> None:
-        """Initialize the config flow."""
         self._base_url: str | None = None
         self._api_key: str | None = None
         self._models: list[str] = []
@@ -297,7 +274,6 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
     def _step(
         self, step_id: str, schema: vol.Schema, user_input: Any, errors: dict[str, str]
     ) -> ConfigFlowResult:
-        """Redisplay a step with the user's own values and an error."""
         return self.async_show_form(
             step_id=step_id,
             data_schema=self.add_suggested_values_to_schema(schema, user_input),
@@ -305,7 +281,6 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def _async_fetch_models(self) -> dict[str, str]:
-        """Populate the model list, or report why the server could not answer."""
         try:
             self._models = await self._client().list_models()
         except SaySoError as err:
@@ -322,11 +297,6 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Set up SaySo.
-
-        Local inference is the default: submitting without a URL runs the model
-        on this device. Supplying a URL selects the advanced external backend.
-        """
         if user_input is None:
             return self.async_show_form(
                 step_id="user", data_schema=STEP_USER_DATA_SCHEMA
@@ -336,8 +306,6 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
         if not base_url:
             await self.async_set_unique_id(f"{DOMAIN}_embedded")
             self._abort_if_unique_id_configured()
-            # The wheel and the model are provisioned during entry setup, not
-            # here, so the flow never blocks the UI on a large download.
             return self.async_create_entry(
                 title="SaySo (local)",
                 data={CONF_BACKEND: BACKEND_EMBEDDED},
@@ -362,7 +330,6 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_model(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Select the llama.cpp model identifier."""
         assert self._base_url is not None
         schema = _model_step_schema(self._models)
         if user_input is None:
@@ -394,7 +361,6 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> SaySoOptionsFlowHandler:
-        """Return the options flow handler."""
         return SaySoOptionsFlowHandler()
 
 
@@ -403,10 +369,8 @@ def _model_step_schema(models: list[str]) -> vol.Schema:
 
 
 class SaySoOptionsFlowHandler(OptionsFlowWithReload):
-    """Handle SaySo options."""
 
     def _client(self, timeout: float) -> LlamaCppClient:
-        """A client for the entry's external server."""
         entry = self.config_entry
         return LlamaCppClient.from_hass(
             self.hass,
@@ -442,12 +406,9 @@ class SaySoOptionsFlowHandler(OptionsFlowWithReload):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage SaySo options."""
         entry = self.config_entry
 
         if entry_backend(entry) == BACKEND_EMBEDDED:
-            # No server to reach and no model list to validate against; the
-            # entry reloads on save and the engine picks up the new settings.
             if user_input is not None:
                 return self.async_create_entry(data={**entry.options, **user_input})
             local_models = await self.hass.async_add_executor_job(

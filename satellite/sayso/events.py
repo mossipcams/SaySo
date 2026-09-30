@@ -1,4 +1,3 @@
-"""SaySo voice pipeline hooks: silent wake and post-STT acknowledgement sounds."""
 
 from __future__ import annotations
 
@@ -15,13 +14,10 @@ from .wake.hook import SaySoExternalWakeHook
 
 _LOGGER = logging.getLogger(__name__)
 
-# Monotonic counter so two commands captured in the same millisecond still get
-# distinct run ids.
 _capture_counter = itertools.count()
 
 
 def _chain_chime_play(player: Any, path: str, done_callback: Callable[[], None] | None) -> None:
-    """Play on tts_player without overwriting an in-flight MpvMediaPlayer callback."""
     existing = getattr(player, "_done_callback", None)
     if existing is not None:
 
@@ -34,14 +30,8 @@ def _chain_chime_play(player: Any, path: str, done_callback: Callable[[], None] 
     player.play(str(path), done_callback=done_callback)
 
 
-# Ceiling on how long a wake will wait behind in-flight playback before giving
-# up. Only chimes and timer sounds can be in flight here -- a wake arriving
-# during a TTS response is rejected outright by `wakeup` -- and those run well
-# under a second, so this only ever trips on a callback that was lost.
 PLAYBACK_HANDOFF_TIMEOUT_S = 5.0
 
-# HA's external VAD needs about 1.05 s to become ready on the affected host.
-# ponytail: fixed warm-up; remove when HA initializes VAD before STT audio.
 STT_VAD_WARMUP_MS = 1200
 STT_VAD_PRIMER_BYTES = 16_000 * 2 * STT_VAD_WARMUP_MS // 1000
 
@@ -52,25 +42,6 @@ def _defer_until_playback_idle(
     on_timeout: Callable[[], None] | None = None,
     timeout: float = PLAYBACK_HANDOFF_TIMEOUT_S,
 ) -> None:
-    """Run ``action`` once the player is idle, without stealing its callback.
-
-    If the player is mid-track the action is chained behind the callback it
-    already holds; if it is idle the action runs immediately. This is what keeps
-    the microphone shut until response audio is genuinely finished instead of
-    approximately finished.
-
-    Reading the slot and writing the chained callback cannot be made atomic --
-    the player fires and clears it from its own thread. If playback ends in that
-    window, ``existing`` has already run and the chained callback is installed on
-    a finished player, where it will never fire. The player exposes no idle flag
-    to distinguish that from a genuinely armed callback, so instead the wait is
-    bounded: ``on_timeout`` runs if nothing fired in ``timeout`` seconds.
-
-    It deliberately does not open the microphone on timeout. Doing so could
-    capture live speaker output, which is the defect this deferral exists to
-    prevent; the caller aborts the wake instead. A dropped wake is recoverable,
-    a pipeline wedged mid-handoff is not.
-    """
     if player is None or not getattr(player, "_done_callback", None):
         action()
         return
@@ -92,7 +63,6 @@ def _schedule_chime_play(
     path: str,
     done_callback: Callable[[], None] | None,
 ) -> None:
-    """Defer chime play until after the ESPHome packet handler returns."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -102,11 +72,6 @@ def _schedule_chime_play(
 
 
 def _event_type(source: Any, name: str) -> Any:
-    """Return one voice event member, or a value that can never match it.
-
-    Older aioesphomeapi builds do not define every member SaySo observes; a
-    unique sentinel keeps the comparison false instead of raising.
-    """
     return getattr(source, name, object())
 
 
@@ -119,7 +84,6 @@ def install_voice_handlers(
     stt_capture: Any = None,
     wake_miner: Any = None,
 ) -> None:
-    """Patch LVA satellite hooks for silent wake, post-STT sounds and tracing."""
     from aioesphomeapi.model import VoiceAssistantEventType
     from linux_voice_assistant.events import LVAEvent
 
@@ -145,8 +109,6 @@ def install_voice_handlers(
     trace = tracer if tracer is not None else SatelliteTracer()
 
     def _run_id() -> str:
-        # A per-command id derived from the monotonic clock: unique enough for a
-        # capture directory, and independent of the Home Assistant trace id.
         return f"cmd-{int(time.monotonic() * 1000)}-{next(_capture_counter)}"
 
     def _start_capture(self: Any, phrase: str) -> None:
@@ -204,14 +166,11 @@ def install_voice_handlers(
         if self._pipeline_active:
             _LOGGER.debug("Ignoring wake word - pipeline already active")
             return
-        # Never open the microphone into an in-flight response: the speaker feed
-        # would be captured as the first command audio and there is no AEC on
-        # this path (webrtc-noise-gain exposes AGC/NS only).
         if getattr(self, "_tts_played", False):
             _LOGGER.debug("Ignoring wake word - response playback still in flight")
             return
 
-        wake_word_phrase = wake_word.wake_word  # type: ignore[union-attr]
+        wake_word_phrase = wake_word.wake_word
         _LOGGER.debug("Detected wake word: %s", wake_word_phrase)
         trace.wake(wake_word_phrase)
 
@@ -225,8 +184,6 @@ def install_voice_handlers(
         self.duck()
         trace.upload_started()
 
-        # The mic opens once per wake, from whichever path gets there first: the
-        # player's done callback, the settle timer, or the handoff watchdog.
         settled = threading.Lock()
         claimed: list[bool] = [False]
 
@@ -238,7 +195,6 @@ def install_voice_handlers(
                 return True
 
         def _abandon(reason: str) -> None:
-            """Release the wake without opening the microphone."""
             if not _claim():
                 return
             wake_capture_id = getattr(self, "_sayso_wake_capture_id", None)
@@ -251,12 +207,7 @@ def install_voice_handlers(
                 )
                 self._sayso_wake_capture_id = None
             _LOGGER.warning("Abandoning wake before microphone open: %s", reason)
-            # Clear the pipeline flag, or every later wake is rejected as
-            # "pipeline already active" and the satellite goes deaf for good.
             self._pipeline_active = False
-            # wakeup() ducked any playing media. Nothing downstream will unduck
-            # it now, because the pipeline teardown that normally does never
-            # runs for a wake that was abandoned here.
             unduck = getattr(self, "unduck", None)
             if callable(unduck):
                 try:
@@ -268,18 +219,13 @@ def install_voice_handlers(
                 wake_hook.resume()
 
         def _open_microphone() -> None:
-            # Guard the deferral: the pipeline can be torn down while the chime
-            # and settle delay are still pending.
             if self.state.muted or not self._pipeline_active:
-                # The wake was abandoned before the mic opened; release the
-                # suspended hook so the next detection is not swallowed.
                 if _claim() and wake_hook is not None:
                     wake_hook.discard_detection()
                     wake_hook.resume()
                 return
             if not _claim():
                 return
-            # Start capture before sending the VAD primer and buffered audio.
             _start_capture(self, wake_word_phrase)
             self._start_audio_streaming(wake_word_phrase)
             if wake_hook is not None:
@@ -293,8 +239,6 @@ def install_voice_handlers(
                     self._sayso_vad_warmup_timer = None
                     if not self._pipeline_active:
                         return
-                    # Audio stays buffered in the wake ring during warm-up.
-                    # Flush it after HA has initialized its external VAD.
                     try:
                         result = wake_hook.flush_preroll(self)
                     except Exception:
@@ -308,8 +252,6 @@ def install_voice_handlers(
                     if result.underflow:
                         self._sayso_capture_underflow = True
 
-                # Advance HA's per-stream VAD warm-up on silence before sending
-                # the buffered speech; the pending boundary holds live audio.
                 self.handle_audio(bytes(STT_VAD_PRIMER_BYTES), None)
                 if self._sayso_vad_warmup_token is token and self._pipeline_active:
                     timer = threading.Timer(
@@ -320,18 +262,11 @@ def install_voice_handlers(
                     timer.start()
 
         def _after_settle() -> None:
-            # Optional extra delay before opening the microphone. This does not
-            # strip speaker tail from the STT payload: flush_preroll still emits
-            # [trim, now] and the gate window is included in that handoff.
             if aec_gate_ms > 0:
                 threading.Timer(aec_gate_ms / 1000.0, _open_microphone).start()
             else:
                 _open_microphone()
 
-        # Any in-flight playback (a previous response, a timer sound, ducked
-        # music) must finish before the mic opens. Chaining through the player's
-        # own done callback keeps ordering without overwriting a callback the
-        # player already holds.
         player = getattr(self.state, "tts_player", None)
         if player is None:
             _after_settle()
@@ -343,11 +278,6 @@ def install_voice_handlers(
             )
 
     def _fail_turn(self: Any, stage: str, error: str, capture_reason: str) -> None:
-        """End a failed turn: record it, play the failure chime, then rearm.
-
-        Rearming waits for the chime's own callback. Rearming before it
-        finishes would let the failure sound itself re-trigger the wake word.
-        """
         _cancel_vad_warmup(self)
         trace.fail(stage, error)
         _finish_capture(self, transcript="", failed_reason=capture_reason)
@@ -368,8 +298,6 @@ def install_voice_handlers(
         original_handle_voice_event(self, event_type, data)
 
         if event_type in (event_stt_vad_end, event_stt_end):
-            # Home Assistant stopped consuming command audio; the transcription
-            # itself happens there and is timed there.
             trace.upload_completed()
 
         if event_type == event_intent_end:
@@ -396,8 +324,6 @@ def install_voice_handlers(
         original_tts_finished(self)
         trace.playback_completed()
         trace.finish()
-        # Safety net: a command with no stt_end (aborted turn) must still be
-        # written rather than left open and overwritten by the next wake.
         _finish_capture(self, transcript="", failed_reason="no_stt_end")
         if getattr(self, "_chime_rearm_pending", False):
             return
@@ -414,15 +340,12 @@ def install_voice_handlers(
             wake_hook.rearm()
 
     def handle_audio(self, audio_chunk: bytes, audio_chunk_2: Any = None) -> None:
-        # Tap the exact bytes on their way to Home Assistant. This is the only
-        # place that can guarantee the captured WAV equals what Faster Whisper
-        # receives, so recording happens before the send, not after.
         if stt_capture is not None and getattr(self, "_sayso_capture_id", None):
             stt_capture.tap(audio_chunk)
         original_handle_audio(self, audio_chunk, audio_chunk_2)
 
-    protocol.wakeup = wakeup  # type: ignore[method-assign]
-    protocol.handle_voice_event = handle_voice_event  # type: ignore[method-assign]
-    protocol._tts_finished = _tts_finished  # type: ignore[method-assign]
-    protocol.stop = stop  # type: ignore[method-assign]
-    protocol.handle_audio = handle_audio  # type: ignore[method-assign]
+    protocol.wakeup = wakeup
+    protocol.handle_voice_event = handle_voice_event
+    protocol._tts_finished = _tts_finished
+    protocol.stop = stop
+    protocol.handle_audio = handle_audio

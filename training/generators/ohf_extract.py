@@ -1,8 +1,3 @@
-"""Reproduce the pinned English grammar subset from an OHF intents checkout.
-
-Maintenance only: python training/generators/ohf_extract.py /path/to/intents
-Requires PyYAML; runtime rendering consumes the resulting JSON directly.
-"""
 import hashlib
 import json
 from pathlib import Path

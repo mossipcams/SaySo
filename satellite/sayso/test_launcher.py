@@ -46,7 +46,6 @@ def test_patch_0002_disables_builtin_wake_only_not_stop_word() -> None:
 
 
 def _patch_0002_process_audio_wake_hunk_post_lines() -> list[str]:
-    """Post-patch lines for the process_audio wake/stop hunk in patch 0002."""
 
     text = _PATCH_0002_PATH.read_text(encoding="utf-8")
     start = text.index(_PATCH_0002_WAKE_HUNK) + len(_PATCH_0002_WAKE_HUNK)
@@ -115,7 +114,6 @@ def _run_patched_wake_stop_control_flow(
     satellite: Any | None = None,
     audio_chunk: bytes | None = None,
 ) -> tuple[Mock, Mock, Mock]:
-    """Execute patch-0002 process_audio hunk + unchanged LVA stop-word tail once."""
 
     hunk_body = _process_audio_hunk_body_before_stop_tail(
         _patch_0002_process_audio_wake_hunk_post_lines()
@@ -178,7 +176,6 @@ def _run_patched_wake_stop_control_flow(
 
 
 def test_installed_lva_process_audio_guards_handle_audio_when_builtin_wake_disabled() -> None:
-    """Fail when an importable LVA still sends STT from process_audio with builtin wake off."""
 
     guard = re.compile(
         r"if not state\.disable_builtin_wake_word:\s*\n\s+state\.satellite\.handle_audio\("
@@ -233,12 +230,12 @@ def test_launcher_passes_device_name_separate_from_friendly_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     package = ModuleType("linux_voice_assistant")
-    package.__path__ = []  # type: ignore[attr-defined]
+    package.__path__ = []
     upstream = ModuleType("linux_voice_assistant.__main__")
-    upstream.run = Mock()  # type: ignore[attr-defined]
-    upstream.process_audio = Mock()  # type: ignore[attr-defined]
+    upstream.run = Mock()
+    upstream.process_audio = Mock()
     satellite_module = ModuleType("linux_voice_assistant.satellite")
-    satellite_module.VoiceSatelliteProtocol = object  # type: ignore[attr-defined]
+    satellite_module.VoiceSatelliteProtocol = object
     monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.__main__", upstream)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.satellite", satellite_module)
@@ -284,17 +281,17 @@ def test_launcher_passes_device_name_separate_from_friendly_name(
     assert sys.argv[device_index + 1] == "sayso-living-room"
     assert sys.argv[name_index + 1] == "Living Room"
     assert "SAYSO_STABLE_NAME" not in os.environ
-    upstream.run.assert_called_once_with()  # type: ignore[attr-defined]
+    upstream.run.assert_called_once_with()
 
 
 def test_launcher_passes_verifier_to_livekit(monkeypatch: pytest.MonkeyPatch) -> None:
     package = ModuleType("linux_voice_assistant")
-    package.__path__ = []  # type: ignore[attr-defined]
+    package.__path__ = []
     upstream = ModuleType("linux_voice_assistant.__main__")
-    upstream.run = Mock()  # type: ignore[attr-defined]
-    upstream.process_audio = Mock()  # type: ignore[attr-defined]
+    upstream.run = Mock()
+    upstream.process_audio = Mock()
     satellite_module = ModuleType("linux_voice_assistant.satellite")
-    satellite_module.VoiceSatelliteProtocol = object  # type: ignore[attr-defined]
+    satellite_module.VoiceSatelliteProtocol = object
     monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.__main__", upstream)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.satellite", satellite_module)
@@ -341,14 +338,14 @@ def test_launcher_passes_verifier_to_livekit(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_launcher_rejects_unavailable_wake_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     package = ModuleType("linux_voice_assistant")
-    package.__path__ = []  # type: ignore[attr-defined]
+    package.__path__ = []
     models = ModuleType("linux_voice_assistant.models")
-    models.ServerState = object  # type: ignore[attr-defined]
+    models.ServerState = object
     webrtc = ModuleType("linux_voice_assistant.webrtc")
-    webrtc.WebRTCProcessor = object  # type: ignore[attr-defined]
+    webrtc.WebRTCProcessor = object
     upstream = ModuleType("linux_voice_assistant.__main__")
-    upstream.run = Mock()  # type: ignore[attr-defined]
-    upstream.process_audio = Mock()  # type: ignore[attr-defined]
+    upstream.run = Mock()
+    upstream.process_audio = Mock()
     monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.models", models)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.webrtc", webrtc)
@@ -387,19 +384,19 @@ def test_launcher_rejects_unavailable_wake_provider(monkeypatch: pytest.MonkeyPa
     with pytest.raises(SystemExit, match="Wake detection is not operational"):
         launcher.main()
 
-    upstream.run.assert_not_called()  # type: ignore[attr-defined]
+    upstream.run.assert_not_called()
 
 
 def test_launcher_keeps_wakeup_sound_out_of_stt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     package = ModuleType("linux_voice_assistant")
-    package.__path__ = []  # type: ignore[attr-defined]
+    package.__path__ = []
     upstream = ModuleType("linux_voice_assistant.__main__")
-    upstream.process_audio = Mock()  # type: ignore[attr-defined]
-    upstream.run = Mock()  # type: ignore[attr-defined]
+    upstream.process_audio = Mock()
+    upstream.run = Mock()
     satellite_module = ModuleType("linux_voice_assistant.satellite")
-    satellite_module.VoiceSatelliteProtocol = object  # type: ignore[attr-defined]
+    satellite_module.VoiceSatelliteProtocol = object
     monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.__main__", upstream)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.satellite", satellite_module)
@@ -456,7 +453,7 @@ def test_launcher_keeps_wakeup_sound_out_of_stt(
     assert call_args[1] is cfg.sounds
     assert isinstance(call_args[2], launcher.SaySoExternalWakeHook)
     configure_mpv.assert_called_once_with()
-    upstream.run.assert_called_once_with()  # type: ignore[attr-defined]
+    upstream.run.assert_called_once_with()
 
 
 def test_configure_mpv_uses_pulse_and_recovers_from_playback_errors(
@@ -493,12 +490,12 @@ def test_configure_mpv_uses_pulse_and_recovers_from_playback_errors(
                 callback()
 
     package = ModuleType("linux_voice_assistant")
-    package.__path__ = []  # type: ignore[attr-defined]
+    package.__path__ = []
     player_package = ModuleType("linux_voice_assistant.player")
-    player_package.__path__ = []  # type: ignore[attr-defined]
+    player_package.__path__ = []
     libmpv = ModuleType("linux_voice_assistant.player.libmpv")
-    libmpv.mpv = fake_mpv  # type: ignore[attr-defined]
-    libmpv.LibMpvPlayer = FakeLibMpvPlayer  # type: ignore[attr-defined]
+    libmpv.mpv = fake_mpv
+    libmpv.LibMpvPlayer = FakeLibMpvPlayer
     monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player", player_package)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.player.libmpv", libmpv)

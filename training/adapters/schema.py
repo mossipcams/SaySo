@@ -1,4 +1,3 @@
-"""SaySo training schema types and validation helpers."""
 
 from __future__ import annotations
 
@@ -17,8 +16,6 @@ V2_SCHEMA_ARTIFACT = REPO_ROOT / "schemas" / "sayso-tool-schema-v2.json"
 TRAINING_V1_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sayso_tool_schema_v1.json"
 TRAINING_V2_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sayso_tool_schema_v2.json"
 
-# Device-type tiers mirror synthetic generator kinds plus Assist domain tools.
-# HassTurnOn/HassTurnOff remain the on/off path for scene, script, vacuum, and climate.
 TRAINING_TOOL_DEVICE_TYPE_TIERS: dict[str, frozenset[str]] = {
     "query": frozenset({"GetDateTime", "GetLiveContext"}),
     "generic": frozenset({"HassTurnOff", "HassTurnOn"}),
@@ -59,10 +56,8 @@ TRAINING_TOOL_DEVICE_TYPE_TIERS: dict[str, frozenset[str]] = {
     ),
 }
 
-# Backward-compatible alias for tests comparing v1 artifact metadata.
 V1_TOOL_DEVICE_TYPE_TIERS = TRAINING_TOOL_DEVICE_TYPE_TIERS
 
-# Legacy service-call argument keys that must be rejected.
 LEGACY_ARGUMENT_KEYS: frozenset[str] = frozenset(
     {
         "entity_id",
@@ -72,7 +67,6 @@ LEGACY_ARGUMENT_KEYS: frozenset[str] = frozenset(
     }
 )
 
-# Legacy tool name prefixes/patterns.
 LEGACY_TOOL_PREFIXES: tuple[str, ...] = (
     "light.",
     "switch.",
@@ -101,7 +95,6 @@ def _load_artifact(path: Path, label: str) -> dict[str, Any]:
 
 
 def _validated_tools(schema: dict[str, Any], label: str) -> tuple[dict[str, Any], ...]:
-    """Every tool an artifact declares, each checked for the function envelope."""
     tools = schema.get("tools")
     if not isinstance(tools, list) or not tools:
         raise ValueError(f"{label} schema must contain a non-empty tools list")
@@ -115,7 +108,6 @@ def _validated_tools(schema: dict[str, Any], label: str) -> tuple[dict[str, Any]
 
 
 def _assert_tiers_cover(allowed: frozenset[str]) -> None:
-    """Ensure the device-type tiers partition a catalog exactly, with no overlap."""
     tiered: set[str] = set()
     for names in TRAINING_TOOL_DEVICE_TYPE_TIERS.values():
         if overlap := tiered & set(names):
@@ -129,30 +121,25 @@ def _assert_tiers_cover(allowed: frozenset[str]) -> None:
 
 @lru_cache(maxsize=1)
 def load_v2_schema() -> dict[str, Any]:
-    """Load the device-type-tiered SaySo tool schema artifact."""
     return _load_artifact(V2_SCHEMA_ARTIFACT, "tiered")
 
 
 @lru_cache(maxsize=1)
 def load_v1_schema() -> dict[str, Any]:
-    """Load the locked SaySo tool schema artifact (read-only source of truth)."""
     return _load_artifact(V1_SCHEMA_ARTIFACT, "locked")
 
 
 @lru_cache(maxsize=1)
 def load_v2_tools() -> tuple[dict[str, Any], ...]:
-    """Return immutable OpenAI-style tools from the pinned v2 artifact."""
     return _validated_tools(load_v2_schema(), "Pinned v2")
 
 
 @lru_cache(maxsize=1)
 def load_v1_tools() -> tuple[dict[str, Any], ...]:
-    """Return immutable OpenAI-style tools from the locked v1 artifact."""
     return _validated_tools(load_v1_schema(), "Locked v1")
 
 
 def v2_tool_catalog_by_device_type() -> dict[str, list[dict[str, Any]]]:
-    """Return v2 tool groups keyed by device-type tier."""
     catalog = load_v2_schema().get("tool_catalog_by_device_type")
     if not isinstance(catalog, dict):
         raise ValueError("v2 schema must contain tool_catalog_by_device_type")
@@ -160,12 +147,10 @@ def v2_tool_catalog_by_device_type() -> dict[str, list[dict[str, Any]]]:
 
 
 def v2_tool_names() -> frozenset[str]:
-    """Tool names declared in the pinned v2 artifact."""
     return frozenset(tool["function"]["name"] for tool in load_v2_tools())
 
 
 def v1_tool_names() -> frozenset[str]:
-    """Tool names declared in the locked v1 artifact."""
     return frozenset(tool["function"]["name"] for tool in load_v1_tools())
 
 
@@ -173,36 +158,29 @@ ALLOWED_HASS_TOOLS: frozenset[str] = v2_tool_names()
 
 
 def v2_tool_device_type_tiers() -> dict[str, frozenset[str]]:
-    """Return the pinned v2 catalog grouped by device-type tier."""
     return TRAINING_TOOL_DEVICE_TYPE_TIERS
 
 
-# v1 is flat but shares v2's partition.
 v1_tool_device_type_tiers = v2_tool_device_type_tiers
 
 
 def assert_v2_tiers_cover_catalog() -> None:
-    """Ensure tier metadata partitions the pinned v2 catalog without drift."""
     _assert_tiers_cover(ALLOWED_HASS_TOOLS)
 
 
 def assert_v1_tiers_cover_catalog() -> None:
-    """Ensure tier metadata partitions the v1 flat catalog without drift."""
     _assert_tiers_cover(v1_tool_names())
 
 
 def v2_openai_tools() -> list[dict[str, Any]]:
-    """Full pinned v2 catalog in the OpenAI type:function envelope SaySo sends at runtime."""
     return [dict(tool) for tool in load_v2_tools()]
 
 
 def v1_openai_tools() -> list[dict[str, Any]]:
-    """Full v1 catalog in the OpenAI type:function envelope SaySo sends at runtime."""
     return [dict(tool) for tool in load_v1_tools()]
 
 
 def assert_openai_tool_envelope(tool: dict[str, Any]) -> None:
-    """Validate one tools[] entry matches the runtime llama.cpp envelope."""
     if tool.get("type") != "function":
         raise ValueError("tool entry must have type 'function'")
     fn = tool.get("function")
@@ -216,12 +194,10 @@ def assert_openai_tool_envelope(tool: dict[str, Any]) -> None:
 
 
 def assert_tools_subset_of_v1(tools: list[dict[str, Any]]) -> None:
-    """Ensure every tool name is declared in the pinned training catalog."""
     assert_tools_subset_of_v2(tools)
 
 
 def assert_tools_subset_of_v2(tools: list[dict[str, Any]]) -> None:
-    """Ensure every tool name is declared in the pinned v2 catalog."""
     allowed = ALLOWED_HASS_TOOLS
     for tool in tools:
         assert_openai_tool_envelope(tool)
@@ -231,13 +207,11 @@ def assert_tools_subset_of_v2(tools: list[dict[str, Any]]) -> None:
 
 
 def contains_chatml_tool_call_markers(text: str) -> bool:
-    """Return True when text uses forbidden ChatML tool-call labels."""
     return any(marker in text for marker in CHATML_TOOL_CALL_MARKERS)
 
 
 @dataclass(frozen=True, slots=True)
 class RejectionStats:
-    """Counts of rejected examples by reason."""
 
     counts: dict[str, int] = field(default_factory=dict)
 
@@ -257,20 +231,12 @@ class RejectionStats:
 
 @dataclass(frozen=True, slots=True)
 class TrainingExample:
-    """One SaySo-compatible training record."""
 
     messages: list[dict[str, Any]]
     tools: list[dict[str, Any]]
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_jsonl_line(self, *, view: str = "sayso") -> str:
-        """Serialize to JSONL.
-
-        view="sayso" keeps OpenAI-style function.arguments as JSON strings
-        (runtime / SaySo compatibility). view="lfm" is an alias of sayso.
-        view="axolotl" parses argument strings into dicts so the FunctionGemma
-        jinja template renders native key:value calls.
-        """
         if view == "axolotl":
             messages = _axolotl_messages(self.messages)
         elif view in {"sayso", "lfm"}:
@@ -284,7 +250,6 @@ class TrainingExample:
 
 
 def _axolotl_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Return a copy with tool-call argument strings parsed to dicts."""
     out: list[dict[str, Any]] = []
     for message in messages:
         msg = dict(message)
@@ -306,7 +271,6 @@ def _axolotl_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def extract_text_content(content: Any) -> str:
-    """Normalize message content from list or string payloads."""
     if content is None:
         return ""
     if isinstance(content, str):
@@ -325,7 +289,6 @@ def extract_text_content(content: Any) -> str:
 
 
 def tool_schema_map(tools: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Build name -> JSON Schema properties map from OpenAI-style tools."""
     result: dict[str, dict[str, Any]] = {}
     for tool in tools:
         fn = tool.get("function")
@@ -339,7 +302,6 @@ def tool_schema_map(tools: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
 
 def allowed_properties(schema: dict[str, Any]) -> frozenset[str]:
-    """Return property names declared on a tool parameters schema."""
     properties = schema.get("properties")
     if not isinstance(properties, dict):
         return frozenset()
@@ -351,7 +313,6 @@ def validate_tool_arguments(
     args: dict[str, Any],
     schemas: dict[str, dict[str, Any]],
 ) -> str | None:
-    """Return rejection reason when arguments fail schema or policy checks."""
     for key in args:
         if key in LEGACY_ARGUMENT_KEYS:
             return "legacy_argument_key"
@@ -380,7 +341,6 @@ def validate_tool_arguments(
 
 
 def normalize_tool_arguments(args: Any) -> dict[str, Any] | None:
-    """Parse tool arguments to a dict, or None when invalid."""
     if isinstance(args, dict):
         return dict(args)
     if isinstance(args, str):

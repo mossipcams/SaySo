@@ -1,4 +1,3 @@
-"""Regression coverage for wake recovery after a terminal TTS error."""
 
 from __future__ import annotations
 
@@ -70,9 +69,9 @@ def _sounds(tmp_path) -> SoundsCfg:
 
 def _install_cycle_handlers(monkeypatch: pytest.MonkeyPatch, sounds: SoundsCfg, wake_hook):
     model = ModuleType("aioesphomeapi.model")
-    model.VoiceAssistantEventType = _EventType  # type: ignore[attr-defined]
+    model.VoiceAssistantEventType = _EventType
     events = ModuleType("linux_voice_assistant.events")
-    events.LVAEvent = _LVAEvent  # type: ignore[attr-defined]
+    events.LVAEvent = _LVAEvent
     monkeypatch.setitem(sys.modules, "aioesphomeapi.model", model)
     monkeypatch.setitem(sys.modules, "linux_voice_assistant.events", events)
     monkeypatch.setattr("satellite.sayso.events.threading.Timer", Mock())
@@ -109,18 +108,17 @@ def test_tts_finished_rearms_wake_without_resetting_on_every_capture_block(
     )
     wake_word = SimpleNamespace(wake_word="SaySo")
 
-    protocol.wakeup(satellite, wake_word)  # type: ignore[attr-defined]
+    protocol.wakeup(satellite, wake_word)
     assert hook._suspended is True
     pcm = np.zeros(512, dtype="<i2").tobytes()
     hook.feed_pcm(SimpleNamespace(satellite=satellite), pcm)
     provider.predict_window.assert_not_called()
 
-    protocol._tts_finished(satellite)  # type: ignore[attr-defined]
+    protocol._tts_finished(satellite)
     provider.reset.assert_called_once()
     assert hook._suspended is False
 
     hook.feed_pcm(SimpleNamespace(satellite=satellite), pcm)
-    # Suspended blocks inference; after rearm the capture thread may enqueue again.
 
 
 def test_empty_stt_rearms_wake_after_failure_chime_eof(
@@ -137,7 +135,7 @@ def test_empty_stt_rearms_wake_after_failure_chime_eof(
         _chime_rearm_pending=False,
     )
 
-    protocol.handle_voice_event(  # type: ignore[attr-defined]
+    protocol.handle_voice_event(
         satellite,
         _EventType.VOICE_ASSISTANT_STT_END,
         {"text": "   "},
@@ -145,7 +143,7 @@ def test_empty_stt_rearms_wake_after_failure_chime_eof(
     assert satellite._chime_rearm_pending is True
     provider.reset.assert_not_called()
 
-    protocol._tts_finished(satellite)  # type: ignore[attr-defined]
+    protocol._tts_finished(satellite)
     provider.reset.assert_not_called()
 
     tts_player.eof()
@@ -169,7 +167,7 @@ def test_error_during_tts_invokes_tts_callback_then_failure_chime_then_rearm(
         _chime_rearm_pending=False,
     )
 
-    protocol.handle_voice_event(satellite, _EventType.VOICE_ASSISTANT_ERROR, {})  # type: ignore[attr-defined]
+    protocol.handle_voice_event(satellite, _EventType.VOICE_ASSISTANT_ERROR, {})
     assert satellite._chime_rearm_pending is True
     provider.reset.assert_not_called()
 

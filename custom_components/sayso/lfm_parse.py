@@ -1,4 +1,3 @@
-"""Parse LFM Base ChatML Python-style tool calls with apostrophe-safe quoting."""
 
 from __future__ import annotations
 
@@ -7,14 +6,13 @@ from typing import Any
 
 
 class LfmPythonParseError(ValueError):
-    """Raised when an LFM Python-style tool call cannot be parsed."""
+    pass
 
 
 _CLOSER_AFTER_QUOTE = frozenset({",", ")", "]", "}"})
 
 
 def _parse_single_quoted_string(text: str, start: int) -> tuple[str, int]:
-    """Parse a single-quoted string starting at ``start`` (the opening quote index)."""
     if start >= len(text) or text[start] != "'":
         raise LfmPythonParseError("expected opening single quote")
     index = start + 1
@@ -34,12 +32,6 @@ def _parse_single_quoted_string(text: str, start: int) -> tuple[str, int]:
 
 
 def _parse_double_quoted_string(text: str, start: int) -> tuple[str, int]:
-    """Parse a double-quoted string starting at ``start``.
-
-    LFM2.5 quotes with `"` at inference time even though the training labels
-    use `'`. Apostrophes need no special handling inside double quotes, so this
-    only applies the closer heuristic to embedded double quotes.
-    """
     if start >= len(text) or text[start] != '"':
         raise LfmPythonParseError("expected opening double quote")
     index = start + 1
@@ -133,7 +125,6 @@ def _parse_argument_list(text: str, index: int) -> tuple[dict[str, Any], int]:
 
 
 def parse_lfm_python_tool_call(text: str) -> dict[str, Any]:
-    """Parse one ``ToolName(key='value')`` call into ``{name, arguments}``."""
     stripped = text.strip()
     match = re.match(r"([A-Za-z][A-Za-z0-9_]*)\(", stripped)
     if not match:
@@ -148,7 +139,6 @@ def parse_lfm_python_tool_call(text: str) -> dict[str, Any]:
 
 
 def parse_lfm_python_tool_calls(text: str) -> list[dict[str, Any]]:
-    """Parse a bracketed or bare sequence of Python-style tool calls."""
     stripped = text.strip()
     if stripped.startswith("[") and stripped.endswith("]"):
         stripped = stripped[1:-1].strip()

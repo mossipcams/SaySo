@@ -1,4 +1,3 @@
-"""Colocated tests for production wake session replay."""
 
 from __future__ import annotations
 

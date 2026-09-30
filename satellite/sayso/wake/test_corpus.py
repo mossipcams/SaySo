@@ -1,4 +1,3 @@
-"""Colocated tests for wake corpus candidate events."""
 
 from __future__ import annotations
 

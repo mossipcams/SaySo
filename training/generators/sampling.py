@@ -1,10 +1,3 @@
-"""Weighted quota sampling for tiers, capabilities, operations, and home sizes.
-
-Quotas are accounted on what a row *teaches*, not on the metadata it carries. A
-refusal tagged ``media_players``/``turn_on`` used to fill that operation's quota,
-so an operation could reach its target without a single row that calls the tool.
-Positive supervision and refusals now have separate budgets in every bucket.
-"""
 
 from __future__ import annotations
 
@@ -28,8 +21,6 @@ from generators.capability_registry import (
 )
 from generators.coverage import expected_tool
 
-# Rows per unavailable operation, as a share of its capability's quota. These
-# buckets exist only to teach the refusal, so they stay small but never empty.
 REFUSAL_OPERATION_SHARE: float = 0.05
 
 
@@ -72,7 +63,6 @@ def compute_capability_quotas(tier_quota: int, tier: int) -> dict[str, int]:
 
 
 def quota_operation_names(cap: CapabilitySpec) -> list[str]:
-    """Operations eligible for positive accepted-row quota allocation."""
     names: list[str] = []
     for op in cap.operations:
         if op.support in {SupportLevel.SUPPORTED, SupportLevel.PARTIAL}:
@@ -83,14 +73,12 @@ def quota_operation_names(cap: CapabilitySpec) -> list[str]:
 
 
 def refusal_operation_names(cap: CapabilitySpec) -> list[str]:
-    """Operations whose only correct supervision is a refusal."""
     supported = set(quota_operation_names(cap))
     return [op.name for op in cap.operations
             if op.support is SupportLevel.UNAVAILABLE and op.name not in supported]
 
 
 def _split_evenly(cap_quota: int, op_names: list[str]) -> dict[str, int]:
-    """Allocate per-operation targets with a meaningful minimum share."""
     if cap_quota <= 0 or not op_names:
         return {name: 0 for name in op_names}
     min_per = max(MIN_OPERATION_COVERAGE, int(cap_quota * MIN_OPERATION_FRACTION))
@@ -117,7 +105,6 @@ def _split_evenly(cap_quota: int, op_names: list[str]) -> dict[str, int]:
 
 
 def compute_operation_quotas(cap_quota: int, cap: CapabilitySpec) -> dict[str, int]:
-    """Split a capability quota across its supported and its refusal-only operations."""
     supported = quota_operation_names(cap)
     refusals = refusal_operation_names(cap)
     if cap_quota <= 0:
@@ -134,7 +121,6 @@ def compute_operation_quotas(cap_quota: int, cap: CapabilitySpec) -> dict[str, i
 
 
 def _positive_floor(capability: str, operation: str, target: int, negative_rate: float) -> int:
-    """Rows in this bucket that must carry real positive supervision."""
     op = operation_spec(capability, operation)
     if target <= 0 or op is None or op.support is SupportLevel.UNAVAILABLE:
         return 0
@@ -147,11 +133,6 @@ def build_quota_targets(
     *,
     negative_rate: float = DEFAULT_NEGATIVE_RATE,
 ) -> dict[str, dict[Any, int]]:
-    """Requested accepted-row targets keyed by tier, capability, and operation.
-
-    ``operation`` is the total rows for a bucket and still sums to ``count``;
-    ``positive`` and ``negative`` are the floors within each bucket.
-    """
     if count < 1:
         raise ValueError(f"count must be at least 1, got {count}")
     if not 0.0 <= negative_rate < 1.0:
@@ -187,7 +168,6 @@ def build_quota_targets(
 
 
 def _verify_feasible(count: int, targets: dict[str, dict[Any, int]]) -> None:
-    """Fail before the generation loop, not after exhausting max_attempts."""
     total = sum(targets["operation"].values())
     if total != count:
         raise ValueError(f"operation quotas sum to {total}, expected {count}")
@@ -205,7 +185,6 @@ def _verify_feasible(count: int, targets: dict[str, dict[Any, int]]) -> None:
 
 
 def uncovered_operations(targets: dict[str, dict[Any, int]]) -> list[str]:
-    """Supported operations this run is too small to reach. Recorded, not silent."""
     return sorted(
         f"{cap_name}/{op_name}"
         for (tier, cap_name, op_name), target in targets["operation"].items()
@@ -216,7 +195,6 @@ def uncovered_operations(targets: dict[str, dict[Any, int]]) -> list[str]:
 
 
 def build_quota_plan(count: int, seed: int, proportions: dict[int, float] | None = None) -> list[dict[str, Any]]:
-    """Return one generation slot per requested accepted row (no padding/cloning)."""
     targets = build_quota_targets(count, proportions)
     rng = random.Random(seed)
     slots: list[dict[str, Any]] = []
@@ -240,12 +218,6 @@ def build_quota_plan(count: int, seed: int, proportions: dict[int, float] | None
 
 
 class QuotaTracker:
-    """Track accepted-row progress against tier/capability/operation quotas.
-
-    Every bucket carries three counters: total rows, rows with real positive
-    supervision, and rows that refuse, clarify or report an absence. A row is
-    accepted only when it advances one of them (:meth:`wants`).
-    """
 
     def __init__(
         self,
@@ -281,13 +253,11 @@ class QuotaTracker:
         return (tier, cap, op)
 
     def _negative_allowance(self, key: tuple[int, str, str]) -> int:
-        """Refusals a bucket may hold: its floor, or the slack left by its positive floor."""
         target = self.targets["operation"].get(key, 0)
         floor = self.targets["negative"].get(key, 0)
         return max(floor, target - self.targets["positive"].get(key, 0))
 
     def wants(self, facets: dict[str, Any]) -> str | None:
-        """Rejection reason, or None when this row advances a quota."""
         key = self._key(facets)
         if key not in self.targets["operation"]:
             return "quota_bucket_unknown"
@@ -350,21 +320,9 @@ class QuotaTracker:
             raise RuntimeError(f"accepted-row quota shortfall: {gaps}")
 
     def next_slot(self) -> dict[str, Any]:
-        """Pick the bucket with the largest remaining need, positives first."""
         return self._slot_from(self._best_keys())
 
     def take_slot(self, capability: str, operation: str) -> dict[str, Any] | None:
-        """Pick the next slot for one specific (capability, operation) bucket.
-
-        Grounding variants exist for only a few (capability, operation) pairs
-        (lights/turn_on, media_players/turn_on, media_players/volume_set,
-        fans/turn_on). Drawing arbitrary slots meant only ~4% of rows could ever
-        host a grounding variant, which is why v1 requested a 3% grounding share
-        and shipped 0.22%.
-
-        Returns None when the bucket has no remaining need, so ordinary callers
-        fall back rather than over-filling.
-        """
         matches = [
             key
             for key in self.targets["operation"]

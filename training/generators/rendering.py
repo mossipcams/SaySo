@@ -1,4 +1,3 @@
-"""Production prompt, tool catalog, and canonical training row rendering."""
 
 from __future__ import annotations
 
@@ -16,7 +15,6 @@ from generators.tools import namespaced_tool_name, production_catalog, script_to
 
 
 def scenario_to_spec(scenario: dict[str, Any]) -> dict[str, Any]:
-    """Convert structured scenario facts to a renderable spec."""
     from generators.gold import target_names_from_expected
 
     expected = scenario["expected"]
@@ -45,9 +43,6 @@ def scenario_to_spec(scenario: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# Share of rows (outside deliberate removals) that withhold tools they do not need.
-# Without it, only `unavailable` rows had a short catalog, and the model learned
-# "a tool is missing -> refuse" from catalog shape instead of checking relevance.
 DECOY_WITHHOLD_RATE = 0.3
 
 
@@ -60,7 +55,6 @@ def _offered_catalog(spec: dict[str, Any], messages: list[dict[str, Any]]) -> li
 
 
 def _decoy_removals(spec: dict[str, Any], messages: list[dict[str, Any]]) -> list[str]:
-    """Withhold 1-2 tools the row never needs, drawn from every tool like `unavailable` does."""
     rng = random.Random(zlib.crc32(f"decoy:{spec['candidate_id']}".encode()))
     if rng.random() >= DECOY_WITHHOLD_RATE:
         return []
@@ -70,8 +64,6 @@ def _decoy_removals(spec: dict[str, Any], messages: list[dict[str, Any]]) -> lis
         needed.add(namespaced_tool_name(op.tool_name))
     for call in (spec["expected"].get("requested") or {}).get("calls") or []:
         needed.add(namespaced_tool_name(call["name"]))
-    # Home Assistant always offers the core tools, so withholding one would
-    # teach a catalog shape that never happens.
     core = {namespaced_tool_name(name) for name in CORE_TOOL_NAMES}
     candidates = [
         t["function"]["name"]
@@ -89,7 +81,6 @@ def _call_id(candidate_id: str, index: int, call: dict[str, Any]) -> str:
 
 
 def _did_you_mean(names: list[str]) -> str:
-    """Name the ambiguous devices instead of a generic 'which device'."""
     labels = [
         name if name.casefold().startswith("the ") else f"the {name}"
         for name in names[:3]
@@ -112,7 +103,6 @@ def _final_text(spec: dict[str, Any]) -> str:
 
         names = names or target_names_from_expected(expected)
         state = str(expected.get("state", "unknown"))
-        # Real-home states are raw HA values: scenes/buttons hold a timestamp, to-do lists a count.
         if re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d.*", state):
             return f"{names[0]} was last activated at {state[11:16]}."
         if state.isdigit():
@@ -137,7 +127,7 @@ def _final_text(spec: dict[str, Any]) -> str:
         return f"There is no {device} in the {area}."
     if expected.get("response") == "area_unavailable":
         unavailable = expected.get("unavailable") or {}
-        area = unavailable.get("area", "this area").casefold()  # one spelling across families
+        area = unavailable.get("area", "this area").casefold()
         device_type = unavailable.get("type", "devices")
         return f"The {area} has no {device_type} available."
     return {
@@ -292,7 +282,6 @@ def _render_correction(spec: dict[str, Any]) -> dict[str, Any]:
     correct_call = calls[0]
     bad_call = wrong_name_tool_call(correct_call, wrong_name)
     tool_name = namespaced_tool_name
-    # The messages are built below from `allowed_tools`, so pass the calls directly.
     planned = [{"tool_calls": [{"function": {"name": tool_name(call["name"])}} for call in calls]}]
     offered = _offered_catalog(spec, planned)
     allowed_tools = sorted({entry["function"]["name"] for entry in offered})
@@ -364,7 +353,6 @@ def _render_correction(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def render_example(spec: dict[str, Any]) -> dict[str, Any]:
-    """Render a validated spec as canonical SaySo JSONL using production catalog."""
     family = spec.get("family")
     if family == "follow_up":
         return _render_follow_up(spec)

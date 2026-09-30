@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-"""Mine SaySo false activations from LibriSpeech (train-other-500) via production replay.
-
-Each speaker/chapter is concatenated in transcript order and streamed through
-the same window/hop/lag/refractory path the satellite runs
-(``collect_session_activations``). Every activation is saved with ~2.5 s of
-surrounding audio. Activations overlapping an utterance whose transcript says
-"say so" are kept but excluded from false-positive scoring; lexical near
-misses (say, so, same, ...) are tagged ``hard_negative``.
-
-    python scripts/wake_librispeech_mine.py \
-        --root /srv/llm/data/wake/librispeech/LibriSpeech/train-other-500 \
-        --model /srv/llm/data/wake/librispeech-mine/sayso-7f9a84.onnx \
-        --out /srv/llm/data/wake/librispeech-mine/run --workers 6
-
-Resumable: finished chapters are recorded under ``OUT/chapters`` and skipped.
-"""
 
 from __future__ import annotations
 
@@ -33,8 +17,8 @@ import numpy as np
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT / "satellite"))
 
-from sayso.wake.livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES  # noqa: E402
-from sayso.wake.replay import ReplayConfig  # noqa: E402
+from sayso.wake.livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
+from sayso.wake.replay import ReplayConfig
 
 SAY_SO = re.compile(r"\bSAY SO\b")
 HARD_TERMS = re.compile(r"\b(SAY SOMETHING|SAY SOME|SAY|SO|SAID|SAYS|SAME|SAVE|SAFE)\b")
@@ -44,7 +28,6 @@ _provider = None
 
 
 def classify(transcripts: list[str]) -> tuple[str, list[str]]:
-    """Category and matched hard-negative terms for the utterances under a window."""
     text = " ".join(t.upper() for t in transcripts)
     if SAY_SO.search(text):
         return "excluded_say_so", ["SAY SO"]
@@ -104,7 +87,6 @@ def mine_chapter(chapter_dir: Path, out: Path) -> dict:
     chapter_id = chapter_dir.parent.name + "-" + chapter_dir.name
     records = []
     for index in activations:
-        # Replay stamps the window's exclusive end sample.
         win_start = index - WINDOW_SAMPLES
         under = [s for s in spans if s[1] < index and s[2] > win_start]
         category, terms = classify([s[3] for s in under])

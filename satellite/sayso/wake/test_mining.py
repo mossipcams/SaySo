@@ -1,4 +1,3 @@
-"""Colocated checks for opt-in wake mining."""
 
 from __future__ import annotations
 

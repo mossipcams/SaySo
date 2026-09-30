@@ -1,4 +1,3 @@
-"""Synthetic home generation with coherent entities and distractors."""
 
 from __future__ import annotations
 
@@ -10,8 +9,6 @@ from typing import Any
 
 from generators.capability_registry import CAPABILITIES, CapabilitySpec
 
-# Repeated names across homes are normal. Vary real fixtures, rooms, brands,
-# and household members, not arbitrary adjectives chosen for uniqueness.
 _AREAS = (
     "Kitchen", "Living Room", "Dining Room", "Master Bedroom", "Guest Bedroom", "Kids Room",
     "Nursery", "Bathroom", "Ensuite", "Powder Room", "Office", "Study", "Den", "Family Room",
@@ -146,10 +143,6 @@ _KIND_MAP: dict[str, str] = {
 }
 
 
-# Informal household nickname aliases, keyed by the lowercase role suffix of
-# the entity name. A share of alias rows uses these so the model learns to
-# resolve a nickname ("telly") to the canonical device name. Never add the
-# eval nicknames "prep lights", "sofa lamp", "my bedside light".
 _NICKNAMES: dict[str, tuple[str, ...]] = {
     "ceiling lights": ("big lights", "overhead lights", "main lights"),
     "ceiling light": ("big light", "overhead light", "main light"),
@@ -176,11 +169,6 @@ _NICKNAME_KEYS = sorted(_NICKNAMES, key=len, reverse=True)
 def _nickname_alias(
     name: str, owners: tuple[str, ...], nickname_rng: random.Random, used: set[str]
 ) -> str | None:
-    """One household nickname alias for ``name``, or None when it gets none.
-
-    Nicknames are aliases only, never names. Owner-named fixtures get the
-    possessive form ("my ceiling light") instead of the pool nickname.
-    """
     lowered = name.casefold()
     for key in _NICKNAME_KEYS:
         if not lowered.endswith(key):
@@ -212,10 +200,6 @@ def _device_class_for(cap: CapabilitySpec) -> str | None:
     return cap.device_class or mapping.get(cap.name)
 
 
-# A real home's media players are not interchangeable: a TV has power control and
-# no search, a voice speaker has neither power nor a remote. Deriving the profile
-# from the fixture's own name keeps the context, the device class and the feature
-# set describing one plausible device.
 _MEDIA_PROFILES: tuple[tuple[tuple[str, ...], str, tuple[str, ...]], ...] = (
     (
         ("echo", "smart speaker", "google nest", "homepod"),
@@ -237,7 +221,6 @@ _MEDIA_DEFAULT = ("on", "off", "play", "pause", "volume", "volume_step", "mute",
 
 
 def media_player_profile(name: str) -> tuple[str, tuple[str, ...]]:
-    """Return (device_class, features) implied by a media player's name."""
     lowered = name.casefold()
     for keywords, device_class, features in _MEDIA_PROFILES:
         if any(keyword in lowered for keyword in keywords):
@@ -257,7 +240,6 @@ def make_entity(
     state: str | None = None,
     device_class: str | None = None,
 ) -> dict[str, Any]:
-    """Create one entity dict aligned with inference context serialization."""
     cap = CAPABILITIES[capability]
     kind = _KIND_MAP[capability]
     noun, states, default_features = _ENTITY_TEMPLATES[capability]
@@ -284,7 +266,6 @@ def make_entity(
 
 @lru_cache(maxsize=1)
 def _eval_entity_names() -> frozenset[str]:
-    """Names the quality gold/shadow suites test on. Held out so eval targets stay unseen."""
     import sys
     from pathlib import Path
 
@@ -293,7 +274,7 @@ def _eval_entity_names() -> frozenset[str]:
         sys.path.append(str(repo))
     try:
         from evals.cases import entity_names_for_tag
-    except Exception:  # noqa: BLE001 - generation must not depend on the eval package
+    except Exception:
         return frozenset()
     names = entity_names_for_tag("gold", include_aliases=False) | entity_names_for_tag(
         "shadow", include_aliases=False
@@ -311,15 +292,6 @@ def _random_entity_name(
     owners: tuple[str, ...] = _OWNERS,
     bare_name_rate: float = 0.0,
 ) -> str:
-    """Name a real fixture or routine in its room; uniqueness is home-local.
-
-    ``bare_name_rate`` is the share of fixtures named without their area prefix.
-    Home Assistant installs commonly carry a bare ``TV`` in area ``Living Room``
-    -- the user's own home does -- while every name this generator produced was
-    ``f"{area} {role}"``. A corpus of only prefixed names teaches the model to
-    answer "the living room TV" with ``name="Living room TV"``, a string that
-    exists in no registry, which is the ``MatchFailedError`` in issue #94.
-    """
     taken = taken if taken is not None else set()
     roles = _roles(capability, area)
     brands = _BRANDS.get(capability, ())
@@ -344,7 +316,6 @@ def _random_entity_name(
             name = name[:1] + name[1:].lower()
         if _slug(name) not in taken and name.casefold() not in _eval_entity_names():
             return name
-    # Real HA installations commonly number identical fixtures in one room.
     for number in range(2, len(taken) + 3):
         name = f"{area} {roles[0]} {number}"
         if _slug(name) not in taken and name.casefold() not in _eval_entity_names():
@@ -353,12 +324,11 @@ def _random_entity_name(
 
 
 def _capability_slots(size: int, rng: random.Random) -> list[str]:
-    """Lights and plugs dominate; whole-home appliances remain few."""
     counts = {
         "lights": int(size * .40), "switches": int(size * .22),
         "covers": int(size * .10), "fans": int(size * .06), "media_players": int(size * .04),
         "climate": min(2, max(1, size // 24)), "locks": min(3, max(1, size // 24)),
-        "scripts": rng.randint(1, 4),  # not size-scaled: script count must not fingerprint the catalog "scenes": max(1, size // 24),
+        "scripts": rng.randint(1, 4),
         "vacuums": int(size >= 32), "buttons": int(size >= 32),
         "todo_lists": int(size >= 32), "lawn_mowers": int(size >= 64),
     }
@@ -369,13 +339,6 @@ def _capability_slots(size: int, rng: random.Random) -> list[str]:
 
 
 def _collision_aliases(name: str, area: str, noun: str) -> list[str]:
-    """Aliases for a deliberate collision entity.
-
-    The bare ``noun`` is the point -- two devices answering to "tv" is what makes
-    the row hard. The area-prefixed form is dropped when the entity's own name is
-    not area-prefixed, so a bare or owner-named device never hands the model back
-    a "{area} {noun}" string to concatenate (issue #94).
-    """
     if name.casefold().startswith(area.casefold()):
         return [f"{area} {noun}", noun]
     return [noun]
@@ -389,10 +352,8 @@ def generate_home(
     sayso_entity_area: str | None = None,
     bare_name_rate: float = 0.0,
 ) -> dict[str, Any]:
-    """Build a coherent synthetic home with distractors."""
     capabilities = _capability_slots(size, rng)
     entities: list[dict[str, Any]] = []
-    # Several devices per room, not a different room for every device.
     rooms = ["Kitchen", "Living Room", "Master Bedroom", "Bathroom", "Hallway", "Entryway", "Garage"]
     extras = [area for area in _AREAS if area not in rooms]
     rooms += rng.sample(extras, min(5, max(1, size // 8)))
@@ -400,9 +361,6 @@ def generate_home(
                      "Upstairs" if "Bedroom" in area or area == "Attic" else "Main Floor") for area in rooms}
     taken: set[str] = set()
     owners = tuple(rng.sample(_OWNERS, 2))
-    # Nickname draws use a side stream seeded per home: consuming the main rng
-    # here would shift every downstream draw and re-roll the acceptance
-    # cadence of seed-pinned runs (e.g. the grounding coverage gate).
     nickname_rng = random.Random(f"nicknames:{index}:{size}")
     used_nicknames: set[str] = set()
     for slot, capability in enumerate(capabilities):
@@ -412,9 +370,6 @@ def generate_home(
         )
         taken.add(_slug(name))
         noun = _ENTITY_TEMPLATES[capability][0].lower()
-        # A bare name keeps its area only in ``areas``. Giving it the usual
-        # "{area} {noun}" alias would hand the area-prefixed string straight back
-        # to the model and teach exactly the concatenation issue #94 is about.
         bare = not name.casefold().startswith(area.casefold())
         if capability in {"scripts", "scenes", "todo_lists"} or bare:
             aliases = [name]
@@ -434,11 +389,6 @@ def generate_home(
         entities.append(make_entity(name=name, capability=capability, area=area,
                                     floor=floors[area], rng=rng, aliases=aliases))
 
-    # Plausible collisions: a second light sharing an area, and a second TV
-    # elsewhere sharing the "tv" alias. Both names are drawn, not fixed — a
-    # constant here lands in every home of size >= 16 and would be the single
-    # most repeated string in the corpus, which is the habit that broke Run 008.
-    # The colliding alias, not the name, is what makes these rows hard.
     if size >= 16:
         lights = [entity for entity in entities if entity["capability"] == "lights"]
         if lights:
@@ -486,16 +436,12 @@ def generate_home(
         "entities": entities,
         "active_timers": _synthetic_timers(rng) if rng.random() < 0.3 else [],
         "areas": rooms, "area_floors": floors, "owners": owners,
-        # Where the entity list came from. A fetched home records whether Home
-        # Assistant's Assist exposure list was applied; a synthetic one is exposed
-        # by construction. Kept on both so the two shapes stay interchangeable.
         "exposure_source": "synthetic",
     }
 
 
 
 def remove_canonical_alias_collisions(entities: list[dict[str, Any]]) -> None:
-    """Keep ordinary exact-name targets resolvable while retaining ambiguous distractors."""
     canonical = {entity["name"].casefold() for entity in entities}
     for entity in entities:
         other_names = canonical - {entity["name"].casefold()}

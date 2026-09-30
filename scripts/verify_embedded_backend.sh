@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Prove llama-cpp-python installs and loads an LFM2 GGUF inside the real Home
-# Assistant container on amd64 and arm64.
-#
-# This is the gate for embedded CPU inference (docs/PLAN_EMBEDDED_INFERENCE.md).
-# Requires Docker with binfmt/multi-arch emulation.
-#
-#   scripts/verify_embedded_backend.sh [HA_VERSION]
 
 set -euo pipefail
 

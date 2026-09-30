@@ -1,4 +1,3 @@
-"""Recorded-audio wake-word evaluation harness."""
 
 from __future__ import annotations
 
@@ -154,7 +153,6 @@ def _command_after_wake(command: str) -> list[str]:
 
 
 def detect_missing_first_word(command_transcript: str, actual_transcript: str) -> bool:
-    """True when the first command word after wake is absent from the STT stub."""
     expected_words = _command_after_wake(command_transcript)
     if not expected_words:
         return False
@@ -165,7 +163,6 @@ def detect_missing_first_word(command_transcript: str, actual_transcript: str) -
         return True
     if actual_words[0] == first_word:
         return False
-    # ponytail: substring fallback for partial transcripts; upgrade to fuzzy match if corpus grows
     return first_word not in actual_words[:2]
 
 
@@ -501,11 +498,10 @@ def evaluate_holdout_session(
     predict: Optional[Callable[..., Any]] = None,
     labeled_positives: Sequence[Any] | None = None,
 ) -> dict[str, Any]:
-    """Continuous replay of one holdout session; report detections and FA/hour."""
     from .replay import collect_session_activations
     from .sessions import RecordingSession
 
-    _ = RecordingSession  # re-export for type checkers
+    _ = RecordingSession
     activation_samples, inference_ms, duration_seconds, detected = collect_session_activations(
         session,
         provider,

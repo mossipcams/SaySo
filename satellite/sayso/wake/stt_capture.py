@@ -1,15 +1,3 @@
-"""Retain the exact post-processing PCM handed to Home Assistant.
-
-Milestone 0 of the audio-path remediation: before tuning gain, adjusting
-reverberation, or blaming the model, there must be an artifact that can be
-listened to. This records the bytes at the single point where they leave for
-Home Assistant, so a WAV of a failed command is byte-identical to what Faster
-Whisper received -- not a re-recording, not a re-derivation.
-
-Writes happen on a dedicated thread with a single-slot queue. A slow disk must
-never stall the capture loop: a command that cannot be queued is dropped and
-counted, never awaited.
-"""
 
 from __future__ import annotations
 
@@ -45,17 +33,6 @@ class _Command:
 
 
 class SttAudioRecorder:
-    """Tap the STT path and persist one WAV per command, plus one per failure.
-
-    Usage from the voice path::
-
-        recorder.begin_command(run_id)
-        recorder.tap(pcm)      # exactly the bytes passed to handle_audio
-        recorder.end_command(run_id, transcript=text)
-
-    ``tap`` is cheap and never touches disk. ``end_command`` hands the finished
-    command to the writer thread and returns immediately.
-    """
 
     def __init__(
         self,
@@ -125,7 +102,6 @@ class SttAudioRecorder:
         self._thread = None
 
     def flush(self, timeout: float = 2.0) -> None:
-        """Wait until the writer queue drains (tests and orderly shutdown)."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self._queue.empty() and self._inflight == 0:
@@ -148,7 +124,6 @@ class SttAudioRecorder:
             )
 
     def tap(self, pcm_s16le: bytes) -> None:
-        """Record bytes on their way to Home Assistant. Never blocks on IO."""
         if not self._enabled or not pcm_s16le:
             return
         with self._lock:
@@ -158,7 +133,6 @@ class SttAudioRecorder:
             active.samples.extend(pcm_s16le)
 
     def mark_failed(self, reason: str) -> None:
-        """Flag the active command so a failure WAV is written as well."""
         with self._lock:
             if self._active is not None:
                 self._active.failed = True
@@ -173,11 +147,6 @@ class SttAudioRecorder:
         failed_reason: str | None = None,
         wake_capture_id: str | None = None,
     ) -> Optional[Path]:
-        """Finish the active command and queue it for writing.
-
-        Returns the command WAV path immediately; the file may still be
-        draining on the writer thread. ``None`` when disabled or empty.
-        """
         if not self._enabled:
             return None
         with self._lock:
@@ -205,8 +174,6 @@ class SttAudioRecorder:
         try:
             self._queue.put_nowait(command)
         except queue.Full:
-            # Drop the oldest pending command rather than stalling the audio
-            # thread; the newest failure is the one worth keeping.
             try:
                 self._queue.get_nowait()
             except queue.Empty:
@@ -247,8 +214,6 @@ class SttAudioRecorder:
             _write_sidecar(failure_path.with_suffix(".json"), meta)
 
     def _sidecar(self, command: _Command, data: np.ndarray) -> dict:
-        # The capture rate and processing chain are recorded so a listening
-        # session can be tied back to the exact settings that produced it.
         peak = int(np.max(np.abs(data))) if data.size else 0
         rms = float(np.sqrt(np.mean(data.astype(np.float64) ** 2))) if data.size else 0.0
         db = 20.0 * np.log10(rms / 32768.0) if rms > 0 else -120.0

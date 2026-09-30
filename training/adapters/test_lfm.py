@@ -1,4 +1,3 @@
-"""Tests for LFM training adapter helpers."""
 
 from __future__ import annotations
 

@@ -1,4 +1,3 @@
-"""Checks the manual model-promotion escape hatch."""
 
 from __future__ import annotations
 

@@ -1,4 +1,3 @@
-"""Unit tests for the live command smoke harness (no network)."""
 
 from __future__ import annotations
 
@@ -46,7 +45,6 @@ def test_unwrap_service_response_strips_the_ha_envelope() -> None:
     inner = {"traces": [{"trace_id": "t1"}]}
     wrapped = {"changed_states": [], "service_response": inner}
     assert unwrap_service_response(wrapped) is inner
-    # A bare dict is returned unchanged (older HA or a direct call).
     assert unwrap_service_response(inner) == inner
     assert unwrap_service_response(None) == {}
 
@@ -82,7 +80,7 @@ def test_discover_agent_rejects_ambiguous_home() -> None:
         discover_agent(states)
     except RuntimeError as err:
         assert "SAYSO_AGENT" in str(err)
-    else:  # pragma: no cover - explicit failure
+    else:
         raise AssertionError("expected RuntimeError")
 
 
@@ -156,7 +154,6 @@ def test_classify_fails_action_without_tool_call() -> None:
 
 def test_classify_allows_query_without_tool() -> None:
     command = Command("GetDateTime", "What time is it?")
-    # A query tool must still be called; a bare spoken answer is not enough.
     status, detail = classify(
         command, response=_response("It is noon."), trace=_trace(None, target=None)
     )

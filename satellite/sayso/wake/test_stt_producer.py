@@ -1,4 +1,3 @@
-"""Regression: overlay ring is the sole STT producer when builtin wake is disabled."""
 
 from __future__ import annotations
 
@@ -13,7 +12,6 @@ from satellite.sayso.wake.test_handoff import _RecordingSatellite
 
 
 def test_one_capture_block_yields_one_handle_audio_send() -> None:
-    """Overlay feed_pcm plus exec'd patch-0002 hunk must not double-send a block."""
     provider = MagicMock(available=True)
     provider.predict_window.return_value = None
     hook = SaySoExternalWakeHook(provider)

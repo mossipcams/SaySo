@@ -1,4 +1,3 @@
-"""Detect GPU capabilities for Axolotl training configs."""
 
 from __future__ import annotations
 
@@ -8,7 +7,6 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class GpuProfile:
-    """Resolved training precision settings for this machine."""
 
     name: str
     fp16: bool
@@ -18,7 +16,6 @@ class GpuProfile:
 
 
 def detect_gpu() -> GpuProfile:
-    """Detect GPU and return safe training settings."""
     try:
         result = subprocess.run(
             [
@@ -52,7 +49,6 @@ def detect_gpu() -> GpuProfile:
     line = result.stdout.strip().splitlines()[0]
     gpu_name = line.split(",")[0].strip().lower()
 
-    # GTX 10xx (Pascal): FP16 works, no native BF16, no flash-attn
     if any(tag in gpu_name for tag in ("gtx 10", "gtx 16", "pascal")):
         return GpuProfile(
             name=gpu_name,
@@ -62,7 +58,6 @@ def detect_gpu() -> GpuProfile:
             notes="Pascal-class GPU: FP16 only, no BF16 or flash-attn",
         )
 
-    # Ampere+ generally supports BF16 and flash attention
     if any(tag in gpu_name for tag in ("rtx 30", "rtx 40", "a100", "h100", "ampere", "ada")):
         return GpuProfile(
             name=gpu_name,

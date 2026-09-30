@@ -1,4 +1,3 @@
-"""Unit tests for generated notification tones."""
 
 from __future__ import annotations
 

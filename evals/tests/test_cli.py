@@ -1,4 +1,3 @@
-"""CLI filtering is not a third runner."""
 
 from __future__ import annotations
 

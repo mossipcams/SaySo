@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Leakage-resistant 80/10/10 split by template/phrasing/seed families."""
 
 from __future__ import annotations
 
@@ -25,7 +24,6 @@ def _family_key(record: dict, seed: int) -> str:
 
 
 def assign_split(family: str, *, train_ratio: float = 0.8, val_ratio: float = 0.1) -> str:
-    """Deterministically assign family to train/val/test."""
     digest = int(hashlib.sha256(family.encode()).hexdigest(), 16) % 1000
     train_cut = int(train_ratio * 1000)
     val_cut = train_cut + int(val_ratio * 1000)

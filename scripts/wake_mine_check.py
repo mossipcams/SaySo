@@ -1,24 +1,4 @@
 #!/usr/bin/env python3
-"""Check mined wake records: was the wake phrase said, and was it a false positive?
-
-Transcribes each record's scored window with faster-whisper and classifies it
-by whether the phrase was said in that window and whether it fired:
-
-                  phrase in window    no phrase
-    fired         wake                false_positive
-    not fired     missed_wake         near_miss
-
-The window is transcribed alone because whisper stretches word timestamps
-over surrounding silence, so timestamp overlap with pre/post context can't
-place the phrase. The pre + window + post transcript is kept for review.
-
-Writes check.json per record (never `label` -- the human is the label
-authority) and prints a report. --export copies window wavs into per-class
-dirs with a manifest for training-set handoff.
-
-    uv run --no-project --with faster-whisper --with numpy python scripts/wake_mine_check.py SPOOL --phrase Atlas
-    uv run --no-project --with faster-whisper --with numpy python scripts/wake_mine_check.py SPOOL --export OUT
-"""
 
 from __future__ import annotations
 
@@ -36,7 +16,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "satellite"))
-from sayso.wake.mining import ingest_record  # noqa: E402
+from sayso.wake.mining import ingest_record
 
 SAMPLE_RATE = 16000
 CLASSES = ("wake", "false_positive", "missed_wake", "near_miss")
@@ -47,7 +27,6 @@ def _norm(word: str) -> str:
 
 
 def phrase_spans(words: list[dict], phrase: str) -> list[tuple[float, float]]:
-    """(start, end) of each exact, consecutive occurrence of phrase in words."""
     target = [_norm(w) for w in phrase.split()]
     tokens = [_norm(w["word"]) for w in words]
     n = len(target)

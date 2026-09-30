@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Run LFM2.5-230M Axolotl training (SaySo OpenAI tool envelope)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,3 @@
-"""Tests for SaySo payload fixture compatibility."""
 
 from __future__ import annotations
 

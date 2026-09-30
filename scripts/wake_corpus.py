@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Wake corpus pipeline: session ingest, replay mining, splits, and snapshots."""
 
 from __future__ import annotations
 
@@ -13,9 +12,9 @@ _SATELLITE_ROOT = _REPO_ROOT / "satellite"
 if str(_SATELLITE_ROOT) not in sys.path:
     sys.path.insert(0, str(_SATELLITE_ROOT))
 
-from sayso.wake.corpus import labeled_positive_events, load_events, set_event_label  # noqa: E402
-from sayso.wake.replay import production_replay_constants, replay_and_import_session  # noqa: E402
-from sayso.wake.sessions import (  # noqa: E402
+from sayso.wake.corpus import labeled_positive_events, load_events, set_event_label
+from sayso.wake.replay import production_replay_constants, replay_and_import_session
+from sayso.wake.sessions import (
     DEFAULT_SHIP_REMOTE,
     DEFAULT_SHIP_REMOTE_CORPUS,
     ShipSessionError,
@@ -24,7 +23,7 @@ from sayso.wake.sessions import (  # noqa: E402
     load_session,
     ship_session,
 )
-from sayso.wake.snapshot import (  # noqa: E402
+from sayso.wake.snapshot import (
     corpus_snapshot_id,
     derive_snapshot_examples,
     ensure_session_splits,

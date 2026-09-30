@@ -1,4 +1,3 @@
-"""Constants for the SaySo integration."""
 
 from homeassistant.const import CONF_LLM_HASS_API, CONF_MODEL, CONF_PROMPT
 
@@ -10,8 +9,6 @@ DEFAULT_MAX_OUTPUT_TOKENS = 160
 DEFAULT_MAX_TOOL_ITERATIONS = 3
 DEFAULT_TIMEOUT = 30
 
-# Backends. "embedded" runs the GGUF in-process; "external" keeps the original
-# OpenAI-compatible HTTP path as an advanced fallback.
 BACKEND_EMBEDDED = "embedded"
 BACKEND_EXTERNAL = "external"
 CONF_BACKEND = "backend"
@@ -21,18 +18,10 @@ CONF_MODEL_PATH = "model_path"
 CONF_N_THREADS = "n_threads"
 CONF_N_CTX = "n_ctx"
 
-# llama-cpp-python publishes sdist only to PyPI and the Home Assistant container
-# has no compiler, so this cannot be a manifest requirement. The maintainer's
-# index carries musllinux_1_2 wheels for both HAOS architectures.
-# See docs/PLAN_EMBEDDED_INFERENCE.md §1.
 LLAMA_CPP_PACKAGE = "llama-cpp-python"
 LLAMA_CPP_MIN_VERSION = "0.3.33"
 LLAMA_CPP_WHEEL_INDEX = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 
-# Default weights: the manually accepted SaySo LFM v5b eval champion, published
-# as a release asset because every useful quant exceeds GitHub's 100 MB file limit.
-# Swap these three together to ship a new model; scripts/publish_model.sh
-# uploads the asset and rewrites them in one step.
 DEFAULT_MODEL_URL = (
     "https://github.com/mossipcams/SaySo/releases/download/model-v2/"
     "SaySo-LFM-v5b-F16.gguf"
@@ -42,11 +31,7 @@ DEFAULT_MODEL_SHA256: str | None = "7d4dff1cc6730f1494a3172b4ad8247566ff73dd5b25
 
 MODEL_STORAGE_SUBDIR = "sayso/models"
 
-# The training cutoff. A full (unrouted) HA 2026.9 catalog prompt measures
-# ~4.8-5.0k tokens with the LFM tokenizer, so the old 4096 overflowed every
-# request the router could not narrow; training rows run up to ~7k.
 DEFAULT_N_CTX = 8192
-# Home Assistant shares the box; do not take every core.
 MAX_DEFAULT_THREADS = 4
 
 CONF_TIMEOUT = "timeout"
@@ -57,8 +42,6 @@ CONF_TRACE_RETENTION_DAYS = "trace_retention_days"
 CONF_TRACE_MAX_INTERACTIONS = "trace_max_interactions"
 CONF_TRACE_STORE_UTTERANCES = "trace_store_utterances"
 
-# Retention. Whichever limit is reached first applies. The interaction cap is
-# the one that fits the JSON store cleanly; 30 days is the conservative age.
 DEFAULT_TRACE_RETENTION_DAYS = 30
 DEFAULT_TRACE_MAX_INTERACTIONS = 500
 MAX_TRACE_INTERACTIONS = 5000

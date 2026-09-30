@@ -1,4 +1,3 @@
-"""Tests for SaySo diagnostics."""
 
 from __future__ import annotations
 
@@ -34,7 +33,6 @@ from tests.test_config_flow import (
 
 
 class _TestLight(LightEntity):
-    """Light used to exercise boundary diagnostics through real tool execution."""
 
     _attr_name = "Living Room"
     _attr_unique_id = "living_room"
@@ -42,28 +40,23 @@ class _TestLight(LightEntity):
     _attr_color_mode = ColorMode.ONOFF
 
     def __init__(self) -> None:
-        """Initialize the test light."""
         self._is_on = False
 
     @property
     def is_on(self) -> bool:
-        """Return if the light is on."""
         return self._is_on
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the light on."""
         self._is_on = True
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn the light off."""
         self._is_on = False
         self.async_write_ha_state()
 
 
 @pytest.fixture(autouse=True)
 def _reset_boundary_diagnostics() -> None:
-    """Isolate boundary diagnostics between tests."""
     clear_boundary_diagnostics()
     yield
     clear_boundary_diagnostics()
@@ -71,7 +64,6 @@ def _reset_boundary_diagnostics() -> None:
 
 @pytest.fixture
 async def assist_light(hass: HomeAssistant) -> None:
-    """Register a test light for Assist tool execution."""
     setup_test_component_platform(hass, "light", [_TestLight()])
     assert await async_setup_component(hass, "light", {"light": {"platform": "test"}})
     assert await async_setup_component(hass, "intent", {})
@@ -80,7 +72,6 @@ async def assist_light(hass: HomeAssistant) -> None:
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    """Patch llama.cpp connectivity checks during setup."""
     with patch.object(
         LlamaCppClient,
         "list_models",
@@ -112,7 +103,6 @@ async def test_api_key_redacted_from_diagnostics(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test API keys are redacted from config entry diagnostics."""
     secret = "super-secret-api-key"
     entry = await _create_entry_with_api_key(hass, secret)
 
@@ -132,7 +122,6 @@ async def test_diagnostics_without_api_key(
     hass: HomeAssistant,
     mock_llama_client: None,
 ) -> None:
-    """Test diagnostics when no API key is configured."""
     result = await _start_user_step(hass)
     result = await _complete_user_step(hass, result["flow_id"])
     result = await _complete_model_step(hass, result["flow_id"])
@@ -163,7 +152,6 @@ def _assert_safe_boundary_diagnostics(
     expected_code: str,
     expected_phase: str | None = None,
 ) -> None:
-    """Assert boundary diagnostics expose counts and safe last-failure metadata."""
     boundary = diagnostics["boundary"]
     assert boundary["counts"][expected_code] >= 1
     last = boundary["last"]
@@ -266,7 +254,6 @@ async def test_boundary_diagnostics_record_failure_codes(
     expected_code: str,
     side_effect: Any,
 ) -> None:
-    """Test each boundary code is counted with safe last-failure metadata."""
     entry = await _create_entry_with_api_key(hass, "super-secret-api-key")
 
     mock_side_effect: Any
@@ -293,7 +280,6 @@ async def test_boundary_diagnostics_record_iteration_limit(
     mock_llama_client: None,
     assist_light: None,
 ) -> None:
-    """Test iteration-limit failures appear in boundary diagnostics."""
     entry = await _create_entry_with_api_key(hass, "super-secret-api-key")
     hass.config_entries.async_update_entry(
         entry,
@@ -403,7 +389,6 @@ async def test_boundary_diagnostics_record_timeout_phases(
     expected_phase: str,
     side_effect: Any,
 ) -> None:
-    """Test request_timeout diagnostics record the correct phase."""
     entry = await _create_entry_with_api_key(hass, "super-secret-api-key")
 
     with patch.object(
