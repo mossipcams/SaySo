@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# One GPU, three users: vLLM serving, Unsloth (SaySo LFM) training, LiveKit (wake) training.
+# One GPU, three users: llama.cpp/vLLM serving, Unsloth (SaySo LFM) training, LiveKit (wake) training.
 # Installed on the llm VM as /srv/llm/bin/gpu -> /srv/llm/sayso/scripts/llm-host/gpu.
 # Plan: docs/PLAN_VM_LAYOUT.md Task 4.
 #
+#   gpu run <label> [--] <cmd...>    wait for a FIFO GPU turn
 #   gpu status
-#   gpu serve                         start vLLM (refuses while a training run is alive)
-#   gpu stop                          stop vLLM
+#   gpu serve [llama|vllm]            start llama.cpp by default, or vLLM explicitly
+#   gpu stop                          stop both inference runtimes
 #   gpu train lfm  [--serve-after] <cmd...>   run <cmd> in the unsloth container
 #   gpu train wake [--serve-after] <cmd...>   run <cmd> with the wake venv on the host
 #
-# State is a file (vLLM is a detached container, so no process can hold a lock
-# while it serves): "idle" | "serve" | "train:<lfm|wake> <owner> <worker>".
+# State is a file (inference services are detached containers, so no process can hold a lock
+# while it serves): "idle" | "serve" | "train:<label> <owner> <worker> <started>" (legacy timestamps optional).
 # flock guards transitions. Surviving worker groups keep the reservation.
 # Stale LFM reservations require container cleanup before the GPU can be reused.
 set -euo pipefail
@@ -21,8 +22,19 @@ LOCK=$RUN/gpu.lock
 VLLM_DIR=${GPU_VLLM_DIR:-/srv/llm/serve/vllm}
 VLLM_UP=${GPU_VLLM_UP:-docker compose --project-directory "$VLLM_DIR" up -d}
 VLLM_DOWN=${GPU_VLLM_DOWN:-docker compose --project-directory "$VLLM_DIR" down}
+LLAMA_DIR=${GPU_LLAMA_DIR:-/srv/llm/serve/llama.cpp}
+LLAMA_COMPOSE=${GPU_LLAMA_COMPOSE:-/srv/llm/sayso/scripts/llm-host/llama-compose.yml}
+LLAMA_UP=${GPU_LLAMA_UP:-${GPU_VLLM_UP:-docker compose --project-directory "$LLAMA_DIR" --env-file "$VLLM_DIR/secrets.env" -f "$LLAMA_COMPOSE" up -d}}
+LLAMA_DOWN=${GPU_LLAMA_DOWN:-${GPU_VLLM_DOWN:-docker compose --project-directory "$LLAMA_DIR" --env-file "$VLLM_DIR/secrets.env" -f "$LLAMA_COMPOSE" down}}
 WAKE_VENV=${GPU_WAKE_VENV:-/srv/llm/data/wake/.venv}
-mkdir -p "$RUN"
+QUEUE=$RUN/gpu.queue
+DEFAULT=$RUN/gpu.default
+GRACE=${GPU_SERVE_GRACE:-60}
+PREEMPT=${GPU_PREEMPT_WAIT:-120}
+POLL_INTERVAL=${GPU_POLL_INTERVAL:-2}
+mkdir -p "$QUEUE"
+export LC_ALL=C
+shopt -s nullglob
 die() { echo "gpu: $*" >&2; exit 1; }
 
 alive() {
@@ -42,7 +54,7 @@ group_alive() {
 }
 
 read_state() {
-  local s owner worker
+  local s owner worker started
   if [[ -e $STATE ]]; then
     s=$(cat "$STATE") || die "cannot read $STATE"
   else
@@ -52,10 +64,10 @@ read_state() {
     idle|serve) ;;
     starting:*) die "interrupted launch; inspect workers before clearing $STATE" ;;
     *)
-      [[ $s =~ ^train:(lfm|wake)\ ([1-9][0-9]*)(\ ([1-9][0-9]*))?$ ]] || die "invalid GPU state; inspect $STATE before proceeding"
-      owner=${BASH_REMATCH[2]}; worker=${BASH_REMATCH[4]:-}
+      [[ $s =~ ^train:[a-zA-Z0-9_-]+\ [1-9][0-9]*(\ [1-9][0-9]*(\ [0-9]+)?)?$ ]] || die "invalid GPU state; inspect $STATE before proceeding"
+      read -r _ owner worker started <<< "$s"
       if ! alive "$owner" && ! alive "$worker" && ! group_alive "$worker"; then
-        if [[ $s == train:lfm* ]]; then
+        if [[ $s == "train:lfm "* ]]; then
           if [[ ${1:-} == recover ]]; then
             write_state blocked:lfm-cleanup
             docker restart unsloth >/dev/null || die "LFM recovery failed; GPU remains blocked"
@@ -66,6 +78,7 @@ read_state() {
           fi
         else
           s=idle
+          if [[ ${1:-} == recover ]]; then write_state idle; fi
         fi
       fi
       ;;
@@ -76,53 +89,206 @@ read_state() {
 write_state() {
   echo "$1" > "$STATE.tmp"
   mv "$STATE.tmp" "$STATE"
+  if [[ $1 == idle ]]; then date +%s%N > "$RUN/gpu.idle-since"; fi
 }
 
-with_lock() { exec 9>"$LOCK"; flock -w 30 9 || die "lock busy"; }
+with_lock() { exec 9>"$LOCK"; flock 9 || die "cannot lock GPU state"; }
+
+# All queue inspection and service transitions occur under fd 9.
+prune_queue() {
+  local ticket label pid arrived
+  for ticket in "$QUEUE"/*; do
+    read -r label pid arrived < "$ticket"
+    if ! alive "$pid"; then rm -f "$ticket"; fi
+  done
+}
+
+default_runtime() {
+  if [[ -f $DEFAULT ]]; then cat "$DEFAULT"; else echo llama; fi
+}
+
+stop_inference() {
+  eval "$LLAMA_DOWN"
+  eval "$VLLM_DOWN"
+}
+
+start_inference() {
+  local runtime
+  runtime=$(default_runtime)
+  [[ $runtime == llama || $runtime == vllm || $runtime == none ]] || die "invalid default runtime"
+  [[ $runtime != none ]] || return 0
+  write_state starting:serve
+  stop_inference
+  if [[ $runtime == llama ]]; then eval "$LLAMA_UP"; else eval "$VLLM_UP"; fi
+  write_state serve
+}
+
+# Exit zero only for valid busy slots; unavailable/invalid responses are idle.
+llama_busy() {
+  if [[ -n ${GPU_BUSY_CHECK:-} ]]; then eval "$GPU_BUSY_CHECK"; return; fi
+  python3 - "$VLLM_DIR/secrets.env" <<'BUSY'
+import json, os, shlex, sys, urllib.request
+key = os.environ.get("GPU_LLAMA_API_KEY")
+if key is None:
+    try:
+        with open(sys.argv[1]) as secrets:
+            for line in secrets:
+                name, sep, value = line.strip().partition("=")
+                if sep and name.strip() == "VLLM_API_KEY":
+                    key = " ".join(shlex.split(value, comments=True))
+                    break
+    except (OSError, ValueError):
+        pass
+try:
+    request = urllib.request.Request(os.environ.get("GPU_LLAMA_SLOTS_URL", "http://127.0.0.1:8000/slots"))
+    if key:
+        request.add_header("Authorization", "Bearer " + key)
+    with urllib.request.urlopen(request, timeout=2) as response:
+        slots = json.load(response)
+    if not isinstance(slots, list) or not all(
+        isinstance(slot, dict) and isinstance(slot.get("is_processing"), bool)
+        for slot in slots
+    ):
+        raise ValueError("invalid slots response")
+    busy = any(slot["is_processing"] for slot in slots)
+except Exception:
+    busy = False
+raise SystemExit(0 if busy else 1)
+BUSY
+}
+
+watch_queue() {
+  local idle_since='' s released now
+  exec 8>"$RUN/gpu.watch.lock"
+  flock -n 8 || return 0
+  while :; do
+    with_lock
+    s=$(read_state recover)
+    prune_queue
+    tickets=("$QUEUE"/*)
+    if [[ $s == train:* || ${#tickets[@]} != 0 ]]; then
+      idle_since=
+    elif [[ $s == serve || $(default_runtime) == none ]]; then
+      return 0
+    else
+      now=$(date +%s%N)
+      [[ -n $idle_since ]] || idle_since=$now
+      # A complete short turn can occur between polls; its release resets grace.
+      released=$(cat "$RUN/gpu.idle-since" 2>/dev/null || echo 0)
+      if (( released > idle_since )); then idle_since=$released; fi
+      if (( now - idle_since >= GRACE * 1000000000 )); then
+        start_inference
+        return 0
+      fi
+    fi
+    exec 9>&-
+    sleep "$POLL_INTERVAL"
+  done
+}
+
+ensure_watcher() {
+  # Detached from both the caller's session and its output/lock descriptors.
+  nohup setsid "$0" _watch </dev/null >>"$RUN/gpu.watch.log" 2>&1 9>&- &
+}
+
+show_clients() {
+  python3 - <<'CLIENTS'
+import glob, os
+print("GPU clients (fdinfo; visible processes only):")
+for proc in glob.glob("/proc/[0-9]*"):
+    clients = {}
+    for fd in glob.glob(proc + "/fdinfo/*"):
+        try:
+            fields = dict(line.split(":", 1) for line in open(fd) if ":" in line)
+            client = fields.get("drm-client-id")
+            if client:
+                clients[(fields.get("drm-pdev"), client)] = fields.get("drm-memory-vram", "unknown").strip()
+        except (OSError, ValueError):
+            pass
+    if clients:
+        try:
+            name = open(proc + "/comm").read().strip()
+        except OSError:
+            name = "exited"
+        print(f"  pid={os.path.basename(proc)} {name} VRAM={', '.join(clients.values())}")
+CLIENTS
+}
 
 cmd=${1:-status}; shift || true
 case $cmd in
+  _watch) watch_queue ;;
   status)
     with_lock
     s=$(read_state)
     echo "state: $s"
     if [[ $s == train:* || $s == orphan:* ]]; then
-      read -r _ owner worker <<< "$s"
+      read -r turn owner worker started <<< "$s"
+      echo "active label: ${turn#*:}"
       echo "owner alive: $(alive "$owner" && echo yes || echo no)"
       echo "worker alive: $(alive "${worker:-}" && echo yes || echo no)"
       echo "worker group alive: $(group_alive "${worker:-}" && echo yes || echo no)"
+      if [[ -n ${started:-} ]]; then echo "elapsed: $(( $(date +%s) - started ))s"; else echo "elapsed: unknown (legacy)"; fi
     fi
+    echo "queue (FIFO):"
+    for ticket in "$QUEUE"/*; do
+      read -r label pid arrived < "$ticket"
+      echo "  $label pid=$pid waiting=$(( $(date +%s) - arrived ))s alive=$(alive "$pid" && echo yes || echo no)"
+    done
+    runtime=$(default_runtime)
+    echo "default runtime: $runtime"
+    case $runtime in
+      llama) up=${GPU_LLAMA_IS_UP:-docker compose --project-directory "$LLAMA_DIR" --env-file "$VLLM_DIR/secrets.env" -f "$LLAMA_COMPOSE" ps --status running -q} ;;
+      vllm) up=${GPU_VLLM_IS_UP:-docker compose --project-directory "$VLLM_DIR" ps --status running -q} ;;
+      *) up=false ;;
+    esac
+    echo "default runtime up: $(if [[ -n $(eval "$up" 2>/dev/null) ]]; then echo yes; else echo no; fi)"
     exec 9>&-
+    show_clients
     command -v rocm-smi >/dev/null && rocm-smi --showmemuse 2>/dev/null | grep -m1 "VRAM%" || true
     ;;
   serve)
+    runtime=${1:-llama}; shift || true
+    [[ $# == 0 ]] || die "serve accepts only llama or vllm"
+    [[ $runtime == llama || $runtime == vllm ]] || die "serve runtime must be llama or vllm"
     with_lock
     s=$(read_state recover)
-    [[ $s == train:* ]] && die "training holds the GPU ($s); not starting vLLM"
-    eval "$VLLM_UP"
-    write_state serve
+    echo "$runtime" > "$DEFAULT"
+    prune_queue
+    tickets=("$QUEUE"/*)
+    if [[ $s == train:* || ${#tickets[@]} != 0 ]]; then
+      ensure_watcher
+    else
+      start_inference
+    fi
     ;;
   stop)
     with_lock
     s=$(read_state recover)
-    eval "$VLLM_DOWN"
+    echo none > "$DEFAULT"
+    stop_inference
     [[ $s == train:* ]] || write_state idle
     ;;
-  train)
+  run|train)
     pipeline=${1:-}; shift || true
-    [[ $pipeline == lfm || $pipeline == wake ]] || die "train needs lfm or wake"
-    serve_after=0
-    [[ ${1:-} == --serve-after ]] && { serve_after=1; shift; }
-    [[ $# -gt 0 ]] || die "train $pipeline needs a command"
-    with_lock
-    s=$(read_state recover)
-    [[ $s == train:* ]] && die "already training ($s)"
-    eval "$VLLM_DOWN"
-    child=
+    [[ $pipeline =~ ^[a-zA-Z0-9_-]+$ ]] || die "run needs a label"
+    if [[ $cmd == train ]]; then
+      [[ $pipeline == lfm || $pipeline == wake ]] || die "train needs lfm or wake"
+      if [[ ${1:-} == --serve-after ]]; then shift; fi
+    fi
+    if [[ ${1:-} == -- ]]; then shift; fi
+    [[ $# -gt 0 ]] || die "$cmd $pipeline needs a command"
+    child=; active=0; ticket=
     release() {
       local rc=$?
       trap - EXIT INT TERM HUP
       with_lock
+      [[ -z $ticket ]] || rm -f "$ticket"
+      if [[ $active == 0 ]]; then
+        ensure_watcher
+        exit "$rc"
+      fi
+      # A signal between spawning and recording $! cannot prove no worker exists.
+      [[ -n $child ]] || die "interrupted launch; GPU remains blocked for inspection"
       if [[ -n $child ]]; then
         kill -TERM -- "-$child" 2>/dev/null || true
         for _ in {1..50}; do
@@ -147,23 +313,48 @@ case $cmd in
       fi
       write_state idle
       exec 9>&-
-      if [[ $serve_after == 1 ]]; then "$0" serve || exit 1; fi
+      ensure_watcher
       exit "$rc"
     }
     trap release EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
     trap 'exit 129' HUP
+    # Publish arrival before contending for flock; lock wake-up order is irrelevant.
+    ticket="$QUEUE/$(date +%s%N).$$"
+    printf '%s %s %s\n' "$pipeline" "$$" "$(date +%s)" > "$RUN/ticket.$$"
+    mv "$RUN/ticket.$$" "$ticket"
+    with_lock
+    ensure_watcher
+    while :; do
+      s=$(read_state recover)
+      prune_queue
+      tickets=("$QUEUE"/*)
+      if [[ ${tickets[0]:-} == "$ticket" && $s != train:* ]]; then break; fi
+      exec 9>&-
+      sleep "$POLL_INTERVAL"
+      with_lock
+    done
+    # Keep the head ticket queued during preemption. No worker exists yet.
+    if [[ $s == serve && $(default_runtime) == llama ]]; then
+      deadline=$((SECONDS + PREEMPT))
+      while (( SECONDS < deadline )) && llama_busy; do sleep 1; done
+    fi
     write_state "starting:$pipeline $$"
+    stop_inference
+    active=1
     if [[ $pipeline == lfm ]]; then
       setsid docker exec unsloth "$@" 9>&- &
-    else
+    elif [[ $pipeline == wake ]]; then
       PATH=$WAKE_VENV/bin:$PATH setsid "$@" 9>&- &
+    else
+      setsid "$@" 9>&- &
     fi
     child=$!
-    write_state "train:$pipeline $$ $child"
-    exec 9>&-  # The live owner/worker now guard the GPU.
+    write_state "train:$pipeline $$ $child $(date +%s)"
+    rm -f "$ticket"
+    exec 9>&-
     wait "$child"
     ;;
-  *) die "unknown command: $cmd (status|serve|stop|train)" ;;
+  *) die "unknown command: $cmd (status|serve [llama|vllm]|stop|run|train)" ;;
 esac

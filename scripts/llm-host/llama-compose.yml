@@ -1,0 +1,97 @@
+name: llama
+services:
+  llama:
+    image: sayso/llama.cpp:d280808-vulkan
+    build:
+      context: /srv/llm/data/llama.cpp/source
+      dockerfile: .devops/vulkan.Dockerfile
+      target: server
+    container_name: llama-server
+    restart: "no"
+    network_mode: host
+    ipc: host
+    devices:
+      - /dev/dri
+    group_add:
+      - "44"
+      - "992"
+    volumes:
+      - /srv/llm/data/llama.cpp/models:/models:ro
+      - /srv/llm/data/llama.cpp/cache:/cache
+    environment:
+      VK_DRIVER_FILES: /usr/share/vulkan/icd.d/radeon_icd.json
+      GGML_VK_SUBALLOCATION_BLOCK_SIZE: "4294967296"
+      LLAMA_CACHE: /cache/llama
+      LLAMA_API_KEY: ${VLLM_API_KEY:?VLLM_API_KEY must be set in secrets.env}
+    command:
+      - --model
+      # ggml-org Q4_K_M with its Q8_0 attn/ssm tensors requantized to Q6_K (KLD 0.0018 vs source): ~8% faster decode, 1.3 GB VRAM headroom.
+      # unsloth UD-Q4_K_M (16.46 GB): 2026-09-29 llama-bench @30k verify pp4 95.2 vs 92.5, pp8 141.5 vs 135.4 (attnQ6),
+      # SaySo-code PPL 2.11 vs 2.142, 0.9 GB less VRAM. Previous: /models/Qwen3.8-27B-Q4_K_M-attnQ6.gguf
+      - /models/Qwen3.8-27B-UD-Q4_K_M.gguf
+      - --model-draft
+      # MTP head rebuilt from ggml-org BF16: layer Q8_0, output Q4_0 (2026-09-29 MTP-only bench: 85.9 vs 82.5 tok/s ggml Q4_0,
+      # +0.2 GB VRAM). Lossless: drafts only change speed. Previous: /models/mtp-Qwen3.8-27B-Q4_0.gguf
+      - /models/mtp-M2-L8-O4.gguf
+      # MTP + ngram-mod lookup: lossless; ~+54% decode on code edits/rewrites, neutral elsewhere (bench 2026-09-24).
+      - --spec-type
+      - draft-mtp,ngram-mod
+      - --spec-draft-n-max
+      - "3"
+      - --n-gpu-layers
+      - "99"
+      - --spec-draft-ngl
+      - "99"
+      - --fit
+      - "off"
+      - --flash-attn
+      - "on"
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
+      # Draft (MTP) KV defaults to f16; q8_0 keeps the whole stack in VRAM.
+      - --cache-type-k-draft
+      - q8_0
+      - --cache-type-v-draft
+      - q8_0
+      - --ctx-size
+      - "131072"
+      - --parallel
+      - "-1"
+      - --kv-unified
+      - --no-cache-idle-slots
+      # Server-side sampling defaults = Qwen3.8 model-card non-thinking values; only used when a request sends none
+      # (Pi sends its own). Higher MTP acceptance: sudoingX probe.py 80.0 -> 93.9 tok/s (2026-09-29).
+      - --temp
+      - "0.7"
+      - --top-p
+      - "0.8"
+      - --top-k
+      - "20"
+      - --min-p
+      - "0"
+      # Default (on) saves+clears EVERY idle slot from VRAM whenever any new request starts; the RAM reload then missed,
+      # forcing ~30k-token re-prefills that stalled concurrent streams to ~5 t/s. Off: idle slots stay resident and are
+      # only purged on demand when the 128k pool is full (bench 2026-09-28: all cache hits, 2 streams 68-71 t/s).
+      # --ctx-size is the shared KV pool. Auto (4) slots cost 2.4 GB of recurrent state and only fit with the attnQ6 model; any spill into GTT halves tok/s.
+      - --n-predict
+      - "8192"
+      - --jinja
+      # froggeric/Qwen-Fixed-Chat-Templates v22.5 @ 855bffc4 (fixes Qwen3.x tool-call/thinking template bugs).
+      - --chat-template-file
+      - /models/qwen-fixed-chat-template.jinja
+      - --reasoning-format
+      - deepseek
+      - --alias
+      - qwen3.8-27b
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 2m

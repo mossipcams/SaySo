@@ -25,12 +25,14 @@ Wake training runs on the LLM VM (`ssh llm`, `LLM@192.168.1.76`, Radeon RX
 | `/srv/llm/wake/runs/` | One work dir per run (generated clips, features, checkpoints, exports), on the SSD |
 | `/srv/llm/data/wake/librispeech/` | Raw public LibriSpeech download (phrase-agnostic), on the HDD |
 
-ROCm torch uses the `torch.cuda` API names. Do not empty `HIP_VISIBLE_DEVICES`.
+ROCm torch uses the `torch.cuda` API names. Keep GPU visibility enabled for
+training; mask it only on CPU-only commands.
 
 ## Train
 
-Always run through the GPU lock (see below). `--serve-after` restarts serving
-when the run ends.
+Keep inference available for the CPU stages. Reserve the GPU only for model
+training; augmentation, export, and evaluation run outside the lock. The train
+command's `--serve-after` restarts inference when training ends.
 
 ```bash
 # on llm
@@ -38,8 +40,15 @@ W=/srv/llm/wake/runs/atlas-prod-$(date +%Y%m%d)
 mkdir "$W" && cd "$W"
 ln -s /srv/llm/wake/livekit-data data
 cp /path/to/repo/satellite/models/atlas.yaml .
-/srv/llm/bin/gpu train wake --serve-after bash -c \
-  'set -e; for s in generate augment train export eval; do python -m livekit.wakeword $s atlas.yaml; done'
+/srv/llm/bin/gpu serve
+python -m livekit.wakeword setup --config atlas.yaml
+CUDA_VISIBLE_DEVICES= HIP_VISIBLE_DEVICES= \
+  python -m livekit.wakeword generate atlas.yaml
+python -m livekit.wakeword augment atlas.yaml
+/srv/llm/bin/gpu train wake --serve-after \
+  python -m livekit.wakeword train atlas.yaml
+python -m livekit.wakeword export atlas.yaml
+python -m livekit.wakeword eval atlas.yaml
 ```
 
 Output goes to `$W/output/atlas/`: `atlas.onnx`, plus `atlas_eval.json` from

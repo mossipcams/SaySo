@@ -79,6 +79,25 @@ def ensure_vm() -> None:
         raise SystemExit(f"Missing VM GPU lock: {GPU_LOCK}; run these commands on the llm VM")
 
 
+def gpu(action: str) -> None:
+    # Off the VM there is no lock and nothing to arbitrate.
+    if Path(GPU_LOCK).is_file() and os.access(GPU_LOCK, os.X_OK):
+        subprocess.run([GPU_LOCK, action], check=False)
+
+
+def untrained_promoted() -> bool:
+    try:
+        promotion = load(STATE / "promoted_dataset.json")
+        return not load(STATE / f"{promotion['run_id']}.json").get("trained")
+    except (OSError, KeyError, json.JSONDecodeError):
+        return False
+
+
+def settle_gpu() -> None:
+    # `gpu stop` holds the GPU (no auto-restart); `gpu serve` hands it back to Qwen.
+    gpu("stop" if untrained_promoted() else "serve")
+
+
 def render_and_stage(record: dict) -> str:
     rendered = Path(record["rendered_path"])
     run([str(PYTHON), str(ROOT / "training/scripts/export_llamafactory_view.py"), record["dataset_path"],
@@ -125,8 +144,12 @@ def cmd_generate(_: argparse.Namespace) -> None:
     CANDIDATES.mkdir(parents=True, exist_ok=True)
     dataset = CANDIDATES / f"{run_id}.jsonl"
     manifest = CANDIDATES / f"{run_id}.manifest.json"
-    run([str(PYTHON), "-m", "generators.cli", "--config", "configs/generation/full_sft_v5.yaml",
-         "--output", str(dataset), "--manifest", str(manifest)], cwd=ROOT / "training")
+    gpu("serve")  # Qwen serves while the CPU generates.
+    try:
+        run([str(PYTHON), "-m", "generators.cli", "--config", "configs/generation/full_sft_v5.yaml",
+             "--output", str(dataset), "--manifest", str(manifest)], cwd=ROOT / "training")
+    finally:
+        gpu("stop")  # Generation is over: Qwen off, GPU held for training.
     record = {"run_id": run_id, "dataset_path": str(dataset), "manifest_path": str(manifest),
               "rendered_path": str(CANDIDATES / f"{run_id}.rendered.jsonl"), "git_commit": git_commit(),
               "config": "training/configs/generation/full_sft_v5.yaml",
@@ -161,8 +184,11 @@ def cmd_canary(_: argparse.Namespace) -> None:
     run_id = record["run_id"]
     out = f"{HOST}/lfm/runs/sayso-promotion/{run_id}-canary"
     checkpoint = f"{out}/final"
-    run([GPU_LOCK, "train", "lfm", "python", f"{HOST}/sayso/training/scripts/train_unsloth_full.py",
-         "--data", data, "--canary", "--out", out])
+    try:
+        run([GPU_LOCK, "train", "lfm", "python", f"{HOST}/sayso/training/scripts/train_unsloth_full.py",
+             "--data", data, "--canary", "--out", out])
+    finally:
+        settle_gpu()
     passed, metrics = eval_checkpoint(checkpoint, f"{run_id}-canary-eval", "smoke")
     record.update(rendered_sha256=digest(Path(record["rendered_path"])), canary_checkpoint=checkpoint,
                   canary_metrics=metrics, canary_passed=passed)
@@ -207,10 +233,15 @@ def cmd_train(_: argparse.Namespace) -> None:
     out = f"{HOST}/lfm/runs/sayso-promotion/{record['run_id']}-full"
     record.update(trained=False, final_eval_passed=False)
     write_current(record)
-    run([GPU_LOCK, "train", "lfm", "python", f"{HOST}/sayso/training/scripts/train_unsloth_full.py",
-         "--data", data, "--out", out, "--promotion-record", f"{HOST}/sayso/training/runs/promotion/promoted_dataset.json"])
+    try:
+        run([GPU_LOCK, "train", "lfm", "python", f"{HOST}/sayso/training/scripts/train_unsloth_full.py",
+             "--data", data, "--out", out, "--promotion-record", f"{HOST}/sayso/training/runs/promotion/promoted_dataset.json"])
+    except BaseException:
+        settle_gpu()  # Failed: data is still untrained, so the GPU stays held.
+        raise
     record.update(trained=True, checkpoint=f"{out}/final", full_output=out, final_eval_passed=False)
     write_current(record)
+    settle_gpu()  # Trained now: Qwen returns unless other promoted data waits.
 
 
 def cmd_eval(_: argparse.Namespace) -> None:
