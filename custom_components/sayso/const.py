@@ -78,3 +78,7 @@ OPTION_KEYS = (
 
 SERVICE_GET_TRACE = "get_trace"
 SERVICE_LIST_TRACES = "list_traces"
+
+VAD_SENSITIVITY_DEFAULT = "default"
+VAD_SENSITIVITY_OPTIONS = ["default", "relaxed", "aggressive"]
+VAD_SENSITIVITY_UNIQUE_ID = "sayso_vad_sensitivity"

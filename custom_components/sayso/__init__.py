@@ -65,6 +65,11 @@ from .inference import (
 )
 from .model_store import async_ensure_llama_cpp, async_ensure_model
 from .trace_store import TraceRecorder, TraceStore
+from .vad_sensitivity import (
+    VadSensitivitySetup,
+    async_setup_vad_sensitivity,
+    async_teardown_vad_sensitivity,
+)
 
 PLATFORMS: list[Platform] = [Platform.CONVERSATION]
 
@@ -96,6 +101,7 @@ class SaySoRuntimeData:
     max_tool_iterations: int
     traces: TraceStore
     tracer: TraceRecorder
+    vad: VadSensitivitySetup | None = None
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -225,6 +231,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     await traces.async_load()
     traces.async_prune()
 
+    try:
+        vad = await async_setup_vad_sensitivity(hass)
+    except Exception:
+        await engine.async_shutdown()
+        raise
+
     entry.runtime_data = SaySoRuntimeData(
         engine=engine,
         client=client,
@@ -240,6 +252,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
         ),
         traces=traces,
         tracer=TraceRecorder(hass, traces),
+        vad=vad,
     )
 
     _async_register_trace_services(hass)
@@ -260,5 +273,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bo
     if entry.runtime_data is not None:
         entry.runtime_data.tracer.async_shutdown()
         await entry.runtime_data.engine.async_shutdown()
+        if entry.runtime_data.vad is not None:
+            await async_teardown_vad_sensitivity(hass, entry.runtime_data.vad)
     entry.runtime_data = None
     return True
