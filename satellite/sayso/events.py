@@ -154,11 +154,10 @@ def install_voice_handlers(
             )
 
     def _cancel_vad_warmup(self: Any) -> None:
+        # Invalidates the pending primer flush: a pipeline teardown that lands
+        # between sending the primer and flushing the wake ring must not send
+        # audio after the pipeline is gone.
         self._sayso_vad_warmup_token = None
-        timer = getattr(self, "_sayso_vad_warmup_timer", None)
-        self._sayso_vad_warmup_timer = None
-        if timer is not None:
-            timer.cancel()
 
     def wakeup(self, wake_word) -> None:
         if self.state.muted:
@@ -232,34 +231,20 @@ def install_voice_handlers(
                 token = object()
                 self._sayso_vad_warmup_token = token
 
-                def _flush_after_vad_warmup() -> None:
-                    if self._sayso_vad_warmup_token is not token:
-                        return
-                    self._sayso_vad_warmup_token = None
-                    self._sayso_vad_warmup_timer = None
-                    if not self._pipeline_active:
-                        return
-                    try:
-                        result = wake_hook.flush_preroll(self)
-                    except Exception:
-                        _LOGGER.exception(
-                            "Could not flush STT audio after VAD warm-up"
-                        )
-                        _fail_turn(
-                            self, "stt", "stt_warmup_flush_failed", "pipeline_error"
-                        )
-                        return
-                    if result.underflow:
-                        self._sayso_capture_underflow = True
-
                 self.handle_audio(bytes(STT_VAD_PRIMER_BYTES), None)
-                if self._sayso_vad_warmup_token is token and self._pipeline_active:
-                    timer = threading.Timer(
-                        STT_VAD_WARMUP_MS / 1000.0, _flush_after_vad_warmup
-                    )
-                    timer.daemon = True
-                    self._sayso_vad_warmup_timer = timer
-                    timer.start()
+                if self._sayso_vad_warmup_token is not token:
+                    return
+                if not self._pipeline_active:
+                    return
+                self._sayso_vad_warmup_token = None
+                try:
+                    result = wake_hook.flush_preroll(self)
+                except Exception:
+                    _LOGGER.exception("Could not flush STT audio after VAD primer")
+                    _fail_turn(self, "stt", "stt_warmup_flush_failed", "pipeline_error")
+                    return
+                if result.underflow:
+                    self._sayso_capture_underflow = True
 
         def _after_settle() -> None:
             if aec_gate_ms > 0:

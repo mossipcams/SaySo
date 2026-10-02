@@ -12,8 +12,13 @@ re-recording and not a re-derivation.
 
 Each command capture begins with 1.2 seconds of silent PCM. This advances
 Home Assistant's external VAD through its observed startup delay while the
-satellite holds microphone audio in the wake ring; after the same 1.2-second
-guard, the saved WAV continues with buffered microphone audio.
+satellite holds microphone audio in the wake ring; the saved WAV continues
+immediately with the buffered microphone audio, which is flushed in the same
+open path as the primer. The primer alone is the VAD warm-up — an earlier
+1.2-second wall-clock hold on top of it was removed as latency work
+(`docs/PLAN_SATELLITE_LATENCY_BARGE_IN.md`, Phase 1). If the live A/B shows
+the command onset clipped, HA is dropping pre-VAD-ready audio and the hold
+must be restored.
 
 ## Where the tap is
 

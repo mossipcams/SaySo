@@ -214,10 +214,15 @@ def test_wakeup_starts_streaming_without_wake_chime(
     satellite._start_audio_streaming.assert_called_once_with("SaySo")
 
 
-def test_wakeup_flushes_preroll_after_streaming_starts(
+def test_wakeup_flushes_preroll_immediately_after_streaming_starts(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
+    """The primer is sent, then the wake ring is flushed in the same open path.
+
+    No wall-clock hold: the buffered command audio must reach handle_audio
+    before wakeup() returns, not on a later timer callback.
+    """
     sounds = _sounds(tmp_path)
     provider = MagicMock(available=True, predict_window=MagicMock(return_value=None))
     hook = SaySoExternalWakeHook(provider, preroll_ms=1000, wake_skip_ms=500)
@@ -230,17 +235,6 @@ def test_wakeup_flushes_preroll_after_streaming_starts(
 
     streaming_order: list[str] = []
     handle_audio_calls: list[bytes] = []
-    timers: list[tuple[float, object]] = []
-
-    class _Timer:
-        def __init__(self, interval, fn):
-            timers.append((interval, fn))
-            self.daemon = False
-
-        def start(self):
-            pass
-
-    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
 
     def _start_streaming(_phrase: str) -> None:
         streaming_order.append("start")
@@ -263,18 +257,50 @@ def test_wakeup_flushes_preroll_after_streaming_starts(
 
     protocol.wakeup(satellite, wake_word)
 
-    assert streaming_order == ["start", "audio"]
-    assert handle_audio_calls == [bytes(38400)]
-    assert timers[0][0] == pytest.approx(1.2)
-
-    timers[0][1]()
-
     assert streaming_order == ["start", "audio", "audio"]
+    assert handle_audio_calls[0] == bytes(38400)
     assert len(handle_audio_calls) == 2
     flushed = np.frombuffer(handle_audio_calls[1], dtype="<i2")
     assert flushed.size == 8000
     assert np.all(flushed == 7)
     assert not np.any(flushed == 0)
+
+
+def test_wakeup_flush_discarded_when_pipeline_tears_down_after_primer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """A teardown that lands while the primer is in flight must discard the flush.
+
+    The pipeline's stop() invalidates the warm-up token; the buffered speech
+    must never be sent after teardown.
+    """
+    sounds = _sounds(tmp_path)
+    hook = MagicMock()
+    protocol = _install_test_handlers(monkeypatch, sounds, hook)
+
+    satellite = SimpleNamespace(
+        state=SimpleNamespace(muted=False),
+        _pipeline_active=False,
+        _timer_finished=False,
+        _timer_ring_start=None,
+        duck=Mock(),
+        _emit=Mock(),
+        _start_audio_streaming=Mock(),
+        # Simulate a concurrent pipeline teardown while the primer is in
+        # flight: stop() cancels the warm-up token.
+        handle_audio=Mock(
+            side_effect=lambda chunk, chunk2=None: protocol.stop(satellite)
+        ),
+    )
+    wake_word = SimpleNamespace(wake_word="SaySo")
+
+    protocol.wakeup(satellite, wake_word)  # type: ignore[attr-defined]
+
+    # The primer was sent (teardown happened inside it); the flush was not.
+    assert satellite.handle_audio.call_count == 1
+    assert satellite.handle_audio.call_args.args[0] == bytes(38400)
+    hook.flush_preroll.assert_not_called()
 
 
 def test_stt_end_defers_chime_until_after_handle_voice_event_returns(

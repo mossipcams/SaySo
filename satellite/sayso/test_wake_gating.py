@@ -140,17 +140,6 @@ def test_flush_preroll_runs_at_the_true_boundary_only(monkeypatch) -> None:
     protocol = _install(monkeypatch, hook)
 
     satellite = _satellite()
-    timers: list[tuple[float, object]] = []
-
-    class _Timer:
-        def __init__(self, interval, fn):
-            timers.append((interval, fn))
-            self.daemon = False
-
-        def start(self):
-            pass
-
-    monkeypatch.setattr("satellite.sayso.events.threading.Timer", _Timer)
     buffered_audio = b"\x07\x00" * 8000
     hook.feed_pcm(SimpleNamespace(satellite=None), buffered_audio)
     opened: list[str] = []
@@ -163,12 +152,8 @@ def test_flush_preroll_runs_at_the_true_boundary_only(monkeypatch) -> None:
 
     protocol.wakeup(satellite, SimpleNamespace(wake_word="SaySo"))
     assert opened == ["SaySo"]
-    satellite.handle_audio.assert_called_once_with(bytes(38400), None)
-    assert timers[0][0] == pytest.approx(1.2)
-
-    timers[0][1]()
-
     assert satellite.handle_audio.call_count == 2
+    assert satellite.handle_audio.call_args_list[0].args == (bytes(38400), None)
     assert satellite.handle_audio.call_args_list[1].args == (buffered_audio, None)
 
 
