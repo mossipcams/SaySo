@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.13.0](https://github.com/mossipcams/SaySo/compare/1.12.0...1.13.0) (2026-10-02)
+
+
+### Features
+
+* **gpu:** serve Qwen during generation, hold GPU for training ([403a054](https://github.com/mossipcams/SaySo/commit/403a054463de950b5b0e0e5b9b479dc468a00fcc))
+* **sayso:** expose satellite VAD endpointing sensitivity ([31d130f](https://github.com/mossipcams/SaySo/commit/31d130fc0402dcd8ebea3efd36c7cdd4162ea7fa))
+* **training:** v6 generator fixes for v5b eval failure modes ([d0f35d2](https://github.com/mossipcams/SaySo/commit/d0f35d24a609645fa579aa6836151b64901141f8))
+* **wake:** switch wake word to Atlas; retire SaySo wake data ([5d20919](https://github.com/mossipcams/SaySo/commit/5d2091912f331461a1133ff050c84763504bdb7f))
+
+
+### Bug Fixes
+
+* **satellite:** advance HA VAD with silence pre-roll ([526c6a2](https://github.com/mossipcams/SaySo/commit/526c6a230eb5482beb11be838a36ced286f77f8e))
+* **satellite:** warm up HA VAD before command audio ([cd833f8](https://github.com/mossipcams/SaySo/commit/cd833f80e0c547cf797823cdc386839a3d133ded))
+
+
+### Performance Improvements
+
+* **satellite:** flush wake ring immediately after VAD primer ([c0cd6ec](https://github.com/mossipcams/SaySo/commit/c0cd6ec9a61825ed8f2156f348f48c7047b0be55))
+
+
+### Documentation
+
+* **wake:** reserve GPU only for training ([60864c7](https://github.com/mossipcams/SaySo/commit/60864c767755991f1e9b1c34da0803a4ca195377))
+
 ## [1.12.0](https://github.com/mossipcams/SaySo/compare/1.11.0...1.12.0) (2026-09-25)
 
 
