@@ -23,7 +23,6 @@ Wake training runs on the LLM VM (`ssh llm`, `LLM@192.168.1.76`, Radeon RX
 | `/srv/llm/data/wake/.venv` | Python 3.12 venv: `livekit-wakeword` 0.2.1, ROCm torch, onnx/onnxruntime, audiomentations |
 | `/srv/llm/wake/livekit-data/` | Shared LiveKit `setup` assets (Piper checkpoint, backgrounds, RIRs, ACAV features), phrase-agnostic, on the SSD |
 | `/srv/llm/wake/runs/` | One work dir per run (generated clips, features, checkpoints, exports), on the SSD |
-| `/srv/llm/data/wake/librispeech/` | Raw public LibriSpeech download (phrase-agnostic), on the HDD |
 
 ROCm torch uses the `torch.cuda` API names. Keep GPU visibility enabled for
 training; mask it only on CPU-only commands.
@@ -92,6 +91,21 @@ positives.
 
 Their SaySo defaults (`sayso-training.yaml`, `satellite/eval/*.json`) were
 deleted. Pass explicit paths.
+
+### Real Koda seeds and distance variants
+
+`docs/PLAN_KODA_REAL_TAKES.md`. Listen-verified real takes seed extra
+positives; a third are held out for eval and never emitted.
+
+```bash
+python3 scripts/wake_koda_seeds.py select SPOOL --out seeds.json
+# listen, then set "verified": true on real Koda takes
+python3 scripts/wake_koda_seeds.py variants SPOOL --seeds seeds.json \
+  --rirs data/rirs/16khz --backgrounds data/backgrounds --out OUT -n 50
+```
+
+Copy `OUT/*.wav` into the new run's `output/koda/positive_train/` before
+`augment`. Each seed yields near-field clips plus 1, 2 and 3 m clips.
 
 ### GPU reservation and cancellation
 
