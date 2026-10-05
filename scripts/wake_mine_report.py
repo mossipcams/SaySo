@@ -413,7 +413,7 @@ def main() -> int:
     ap.add_argument("--import-spool", type=Path, default=None, help="Import verified mining records into corpus events")
     ap.add_argument("--model", type=Path, default=_REPO_ROOT / "satellite" / "models" / "output-living2" / "sayso" / "sayso.onnx")
     ap.add_argument("--verifier", type=Path, default=_REPO_ROOT / "satellite" / "models" / "output-living2" / "sayso" / "verifier.npz")
-    ap.add_argument("--phrase", default="Atlas")
+    ap.add_argument("--phrase", default="Koda")
     ap.add_argument("--detect-threshold", type=float, default=0.28)
     ap.add_argument("--mine-threshold", type=float, default=0.1)
     ap.add_argument("--refractory", type=float, default=2.0)
