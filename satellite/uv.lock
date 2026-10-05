@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 
 [[package]]
@@ -293,15 +293,15 @@ dependencies = [
 
 [[package]]
 name = "livekit-wakeword"
-version = "0.2.1"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "onnxruntime" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/34/29/30cadc7d03635f76dfe7aeb0359cd0e2fdccaf08ed101936dac0c26dc6f7/livekit_wakeword-0.2.1.tar.gz", hash = "sha256:cf2d9cf4867812c06788f64c15e49abd909d9d6291f0a13f1c3f9cb649fa6127", size = 1891150, upload-time = "2026-05-20T22:47:23.94Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/16/9a/3af06750535bbe90e2b0c65018ddc514465e76398ab4f2a4d7f0c625c0e9/livekit_wakeword-0.3.0.tar.gz", hash = "sha256:0a5d22e3434fa87cc09ce8ee3c6a140790971b64a6a1c084e3a390e3b6c2ec0e", size = 1895594, upload-time = "2026-09-30T21:07:42.039Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/ee/47127a539b73361e141d578ab0e3afdeae16918048359f378cf1c7116a2e/livekit_wakeword-0.2.1-py3-none-any.whl", hash = "sha256:9576e103b6777619342ef9cce1d47727c39f1d6b7b564238f3467ace4d10a99a", size = 1911465, upload-time = "2026-05-20T22:47:21.824Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/33/cc1682755d3e626faefa1def3b761f6b6826a0498a514246b54bd5e9ecbc/livekit_wakeword-0.3.0-py3-none-any.whl", hash = "sha256:6bb00b832c21720ebb94410e005854740b2d36b20970c7cecc74b5e889d94f4b", size = 1917287, upload-time = "2026-09-30T21:07:37.831Z" },
 ]
 
 [[package]]
@@ -592,7 +592,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "linux-voice-assistant", git = "https://github.com/OHF-Voice/linux-voice-assistant.git?rev=99ee08f7b136f5a57a3da59d5f7c73e7ed62ed68" },
-    { name = "livekit-wakeword", specifier = "==0.2.1" },
+    { name = "livekit-wakeword", specifier = "==0.3.0" },
     { name = "numpy", specifier = ">=2,<3" },
     { name = "onnxruntime", specifier = "==1.30.0" },
     { name = "python-mpv", specifier = ">=1,<2" },
