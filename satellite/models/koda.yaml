@@ -1,16 +1,16 @@
-# SaySo "Atlas" wake word — LiveKit configs/prod.yaml (livekit-wakeword 0.2.1)
+# SaySo "Koda" wake word — LiveKit configs/prod.yaml (livekit-wakeword 0.2.1)
 # with only the phrase, near-miss negatives, and model size changed.
-# Plan: docs/PLAN_WAKE_ATLAS.md. Run from a work dir whose ./data is the shared
+# Plan: docs/PLAN_WAKE_KODA_RECOVERY.md. Run from a work dir whose ./data is the shared
 # LiveKit setup assets (see training/wake/README.md).
 #
 # Model name — used for output directory and exported model filename
 #
 # Multilingual wake words: you must use tts_backend: voxcpm — Piper cannot synthesize
 # arbitrary languages. See configs/prod_voxcpm.yaml (Chinese example: 你好 livekit / nihao livekit).
-model_name: atlas
+model_name: koda
 
 # Wake word phrases to detect (include spelling variations)
-target_phrases: ["Atlas"]
+target_phrases: ["Koda"]
 
 # ============================================================================
 # Data Generation
@@ -33,28 +33,15 @@ tts_batch_size: 50
 # Adversarial negatives — phonetically similar phrases that should NOT trigger
 # Suggestion: add words that sound like your wake word, common misheard phrases
 custom_negative_phrases:
-  # Phrases that run into the wake word's sounds (espeak: Atlas = ˈætləs).
-  - "at last"
-  - "at least"
-  - "that last"
-  - "outlast"
-  - "at less"
-  - "at loss"
-  - "fat lass"
-  # Words sharing the stressed vowel + "-less/-las" ending
-  - "cutlass"
-  - "callous"
-  - "Dallas"
-  - "Alice"
-  - "palace"
-  - "flatness"
-  - "actress"
-  - "address"
-  - "battles"
-  # Longer words that contain the wake word
-  - "atlases"
-  - "Atlanta"
-  - "Atlantic"
+  # Near-misses of the wake word (espeak: Koda = ˈkoʊdə). Never add coda/cody/kody: they collide with the target.
+  - "coder"
+  - "yoda"
+  - "code day"
+  - "kodi"
+  - "soda"
+  - "Dakota"
+  - "cola"
+  - "no da"
 
 # ============================================================================
 # TTS Parameters (VITS + SLERP speaker blending)

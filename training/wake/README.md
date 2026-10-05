@@ -1,11 +1,11 @@
-# Wake-word training: "Atlas" (LiveKit)
+# Wake-word training: "Koda" (LiveKit)
 
-This guide covers training the "Atlas" wake classifier that the satellite runs.
+This guide covers training the "Koda" wake classifier that the satellite runs.
 The SaySo language model has its own guide: [training/README.md](../README.md).
 
-- Plan: [docs/PLAN_WAKE_ATLAS.md](../../docs/PLAN_WAKE_ATLAS.md). The
+- Plan: [docs/PLAN_WAKE_KODA_RECOVERY.md](../../docs/PLAN_WAKE_KODA_RECOVERY.md). The
   measurement-first program is in [docs/PLAN_WAKE_RETHINK.md](../../docs/PLAN_WAKE_RETHINK.md).
-- Recipe: [satellite/models/atlas.yaml](../../satellite/models/atlas.yaml). It's
+- Recipe: [satellite/models/koda.yaml](../../satellite/models/koda.yaml). It's
   LiveKit's `configs/prod.yaml` with only the phrase, the near-miss negatives,
   and `model_size: small` changed.
 
@@ -36,27 +36,27 @@ command's `--serve-after` restarts inference when training ends.
 
 ```bash
 # on llm
-W=/srv/llm/wake/runs/atlas-prod-$(date +%Y%m%d)
+W=/srv/llm/wake/runs/koda-prod-$(date +%Y%m%d)
 mkdir "$W" && cd "$W"
 ln -s /srv/llm/wake/livekit-data data
-cp /path/to/repo/satellite/models/atlas.yaml .
+cp /path/to/repo/satellite/models/koda.yaml .
 /srv/llm/bin/gpu serve
-python -m livekit.wakeword setup --config atlas.yaml
+python -m livekit.wakeword setup --config koda.yaml
 CUDA_VISIBLE_DEVICES= HIP_VISIBLE_DEVICES= \
-  python -m livekit.wakeword generate atlas.yaml
-python -m livekit.wakeword augment atlas.yaml
+  python -m livekit.wakeword generate koda.yaml
+python -m livekit.wakeword augment koda.yaml
 /srv/llm/bin/gpu train wake --serve-after \
-  python -m livekit.wakeword train atlas.yaml
-python -m livekit.wakeword export atlas.yaml
-python -m livekit.wakeword eval atlas.yaml
+  python -m livekit.wakeword train koda.yaml
+python -m livekit.wakeword export koda.yaml
+python -m livekit.wakeword eval koda.yaml
 ```
 
-Output goes to `$W/output/atlas/`: `atlas.onnx`, plus `atlas_eval.json` from
+Output goes to `$W/output/koda/`: `koda.onnx`, plus `koda_eval.json` from
 LiveKit eval on synthetic validation data.
 
 LiveKit eval uses synthetic audio only. It doesn't show how the model
-performs in the room. Before an Atlas model ships, measure recall on real
-Atlas takes and TV false fires per hour on long-form TV recordings; see
+performs in the room. Before an Koda model ships, measure recall on real
+Koda takes and TV false fires per hour on long-form TV recordings; see
 `docs/PLAN_WAKE_RETHINK.md`. The satellite also has to allow the new phrase:
 `satellite/sayso/config.py` still requires `SaySo`.
 
@@ -73,7 +73,7 @@ sessions and mining near-miss windows:
 
 The Pi mines windows that fire, near-threshold windows, and a small sample of
 low-scoring ones, with 0.5 s of audio on each side and the HA STT transcript.
-Mining only covers Atlas once the Pi runs an Atlas model.
+Mining only covers Koda once the Pi runs an Koda model.
 
 ```bash
 # pull, verify + ack, push acks (the satellite then deletes acked records)
@@ -83,7 +83,7 @@ rsync -a SPOOL/acks/ pi@192.168.1.54:/var/lib/sayso-satellite/wake-mining/acks/
 
 # classify: wake / false_positive / missed_wake / near_miss, and export sets
 uv run --no-project --with faster-whisper --with numpy \
-  python scripts/wake_mine_check.py SPOOL --phrase Atlas --export OUT
+  python scripts/wake_mine_check.py SPOOL --phrase Koda --export OUT
 ```
 
 The class is an ASR suggestion written to `check.json`. `wake` and

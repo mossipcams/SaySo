@@ -134,7 +134,7 @@ def export(rows: list[dict], out: Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("spool", type=Path, help="pulled mining spool (records/, outcomes/)")
-    ap.add_argument("--phrase", default="Atlas")
+    ap.add_argument("--phrase", default="Koda")
     ap.add_argument("--asr-model", default="small.en")
     ap.add_argument("--export", type=Path, help="new dir for per-class window wavs + manifest.json")
     args = ap.parse_args()
