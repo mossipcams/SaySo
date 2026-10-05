@@ -64,27 +64,32 @@ Defer if they threaten the voice path:
 
 ## Delegation
 
-All implementation writes go through the Ajax Model Router: call the
-`model-router` skill, which emits one `EXECUTION` decision (agent, model, risk,
-scope, verify, fallback). The selected delegate implements the change inside
-that scope; the orchestrator reviews the actual delta and accepts or rejects
-it. The orchestrator does not implement, commit, push, or open pull requests
-itself. A delegate report is evidence, not approval.
+The local agent does the work; the frontier agent orchestrates. All
+exploration, implementation, testing, diagnosis, and reporting go through the
+Ajax Model Router: call the `model-router` skill, which emits one `EXECUTION`
+decision (agent, model, risk, scope, verify, fallback). The selected local
+delegate runs the full loop inside that scope: explore, implement, test,
+diagnose failures, and report. The frontier agent reviews the actual delta and
+report and accepts or rejects it. It does not explore the tree, implement,
+test, diagnose, commit, push, or open pull requests itself. A delegate report
+is evidence, not approval.
 
 Never spawn native harness subagents (Cursor Task, best-of-n, Claude/Codex/Pi
-task children) for implementation work. A delegate must implement in-process.
-Do not duplicate model rankings or exact model IDs in this file.
+task children) for any work. A delegate must run in-process. When the delegate
+fails, re-route through the router; do not take over. Do not duplicate model
+rankings or exact model IDs in this file.
 
-If the user explicitly approved bypassing delegation for this request, the
-active agent may implement, commit, push, and open pull requests in-process.
-That approval is per-request; it does not change the default.
+Only an explicit user approval to bypass delegation for this request lets the
+frontier agent run the loop in-process (explore, implement, test, diagnose,
+report, commit, push, open pull requests). That approval is per-request; it
+does not change the default, and silence or a delegate failure is not approval.
 
 When the user asks to create a PR, the selected delegate runs the repository's
 local verification gate (the CI steps: `ruff check .`, `ruff format --check .`,
 `pytest tests evals/tests --ignore=tests/test_realistic_v3.py`,
 `pytest -q satellite/sayso`), commits, pushes, and opens the PR with
 `gh pr create`; the orchestrator reports the PR URL after reviewing the delta.
-After an explicit bypass, the active agent does that same PR path in-process.
+After an explicit bypass, the frontier agent does that same PR path in-process.
 Delegates must not merge, rebase, force-push, or switch branches unless the
 user explicitly authorizes that behavior.
 
