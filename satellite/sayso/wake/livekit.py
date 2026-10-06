@@ -33,6 +33,8 @@ class LiveKitWakeWordProvider:
         verifier_threshold: Optional[float] = None,
         verifier_factory: Optional[Callable[[], Any]] = None,
     ) -> None:
+        if verifier_factory is not None and verifier_path is not None:
+            raise ValueError("verifier_factory and verifier_path are mutually exclusive")
         self._model_path = Path(model_path)
         self._phrase = phrase
         self._threshold = float(threshold)

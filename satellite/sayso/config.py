@@ -246,6 +246,13 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
             errors.append("wake_word.dma_kws_model and wake_word.verifier are mutually exclusive")
         if not cfg.wake_word.dma_kws_model.is_file():
             errors.append(f"wake_word.dma_kws_model file missing: {cfg.wake_word.dma_kws_model}")
+        else:
+            from .wake.dma_kws_verifier import _verified_model  # local: keeps config import light
+
+            try:
+                _verified_model(cfg.wake_word.dma_kws_model)
+            except ValueError as exc:  # wrong or corrupt model: fail at startup, not silently at wake time
+                errors.append(f"wake_word.dma_kws_model: {exc}")
         if not (0.0 < cfg.wake_word.dma_kws_threshold < 1.0):
             errors.append("wake_word.dma_kws_threshold must be between 0 and 1 exclusive")
         if not cfg.wake_word.dma_kws_phonemes:

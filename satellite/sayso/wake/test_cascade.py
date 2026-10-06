@@ -221,9 +221,12 @@ def _config(tmp_path: Path, **wake) -> Path:
     return path
 
 
-def test_dma_kws_config_roundtrip_and_validation(tmp_path: Path) -> None:
+def test_dma_kws_config_roundtrip_and_validation(tmp_path: Path, monkeypatch) -> None:
+    import hashlib
+
     kws = tmp_path / "dma.onnx"
     kws.write_bytes(b"x")
+    monkeypatch.setattr(dk, "MODEL_SHA256", hashlib.sha256(b"x").hexdigest())
     cfg = load_config(_config(tmp_path, dma_kws_model=str(kws), dma_kws_phonemes=["K OW1 D AH0"]))
     assert cfg.wake_word.dma_kws_model == kws
     assert cfg.wake_word.dma_kws_phonemes == ("K OW1 D AH0",) and cfg.wake_word.dma_kws_threshold == 0.98
@@ -254,3 +257,23 @@ def test_real_model_smoke_if_provisioned() -> None:
         pytest.skip("set DMA_KWS_MODEL to the exported ONNX to run")
     v = DmaKwsVerifier(Path(path), KODA, 0.98)
     assert 0.0 <= v.score(_speech()) <= 1.0
+
+
+def test_wrong_model_file_fails_at_config_time(tmp_path: Path) -> None:
+    bad = tmp_path / "stale.onnx"
+    bad.write_bytes(b"not the pinned model")
+    with pytest.raises(ValueError, match="pinned SHA-256"):
+        load_config(_config(tmp_path, dma_kws_model=str(bad), dma_kws_phonemes=["K OW1 D AH0"]))
+
+
+def test_crop_tolerates_tiny_input() -> None:
+    assert dk.crop_after_speech(np.zeros(0, dtype=np.float32)) is None
+    assert dk.crop_after_speech(np.ones(100, dtype=np.float32)) is None
+    v = DmaKwsVerifier(None, KODA, 0.5, session=_FakeSession([0.9]))
+    assert v.score(np.ones(100, dtype=np.int16)) == 0.0
+
+
+def test_provider_rejects_factory_plus_verifier_path(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        LiveKitWakeWordProvider(tmp_path / "m.onnx", "Koda", verifier_path=tmp_path / "v.npz",
+                                verifier_factory=lambda: None)

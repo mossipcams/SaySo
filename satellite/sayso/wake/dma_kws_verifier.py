@@ -55,13 +55,16 @@ def fbank(samples: np.ndarray) -> np.ndarray:
     idx = np.arange(400)[None] + 160 * np.arange(n)[:, None]
     frames = x[idx].astype(np.float64)
     frames -= frames.mean(1, keepdims=True)
-    frames = np.concatenate([frames[:, :1], frames[:, 1:] - 0.97 * frames[:, :-1]], 1) * _WINDOW
+    previous = np.concatenate([frames[:, :1], frames[:, :-1]], 1)  # Kaldi replicate-pads the first sample
+    frames = (frames - 0.97 * previous) * _WINDOW
     power = np.abs(np.fft.rfft(frames, 512)) ** 2
     return np.log(np.maximum(power @ _FB.T, np.finfo(np.float32).eps)).astype(np.float32)
 
 
 def crop_after_speech(audio: np.ndarray) -> Optional[np.ndarray]:
     """The CROP samples ending 0.2 s after the last loud frame, or None for silence."""
+    if len(audio) < 320:
+        return None
     frames = audio[: len(audio) // 320 * 320].reshape(-1, 320)
     db = 20 * np.log10(np.sqrt((frames.astype(np.float64) ** 2).mean(1)) + 1e-9)
     if db.max() < -80:
@@ -114,7 +117,6 @@ class DmaKwsVerifier:
             raise ValueError("wake_word.dma_kws_phonemes is required (for example ['K OW1 D AH0'])")
         self._anchors = [phoneme_ids(p) for p in phonemes]
         self.threshold = float(threshold)
-        self.last_score = 0.0
         if session is not None:  # injected for tests
             self._session = session
             return
@@ -135,6 +137,5 @@ class DmaKwsVerifier:
             return 0.0
         feats = fbank(seg)[None]
         best = max(float(self._session.run(None, {"feats": feats, "anchor": a})[0][0]) for a in self._anchors)
-        self.last_score = best
         _LOGGER.debug("DMA-KWS score %.3f", best)
         return best

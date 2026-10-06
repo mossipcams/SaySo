@@ -96,7 +96,8 @@ wake_word:
 ```
 
 **Provisioning.** The service never downloads a model: the file must hash to the SHA-256 pinned in
-`dma_kws_verifier.py`. Build it on a dev machine with `scripts/export_dma_kws_onnx.py` (source:
+`dma_kws_verifier.py`, which is checked at config load (a wrong file stops startup with an error
+instead of silently disabling wake). Build it on a dev machine with `scripts/export_dma_kws_onnx.py` (source:
 github.com/aizhiqi-work/DMA-KWS at commit 207d056, checkpoint `155k-v2-ft.ckpt`, torch 2.14.1 /
 onnx 1.23.2 give a reproducible file) and copy it to the satellite. The upstream repo has no
 LICENSE file, so the model is not committed here. The keyword length (4 phonemes) and crop (78
