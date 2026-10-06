@@ -39,15 +39,14 @@ def _build_wake_provider(
         raise SystemExit(f"Unsupported wake_word.provider: {cfg.wake_word.provider}")
     ww = cfg.wake_word
     factory = None
-    if getattr(ww, "moonshine_verifier", False):
-        from .wake.moonshine_verifier import MoonshineVerifier
+    if getattr(ww, "dma_kws_model", None) is not None:
+        from .wake.dma_kws_verifier import DmaKwsVerifier
 
         factory = partial(
-            MoonshineVerifier,
-            ww.phrase,
-            accept=list(ww.moonshine_accept) or None,
-            boost=ww.moonshine_boost,
-            cache_dir=getattr(ww, "moonshine_cache_dir", None),
+            DmaKwsVerifier,
+            ww.dma_kws_model,
+            list(ww.dma_kws_phonemes),
+            ww.dma_kws_threshold,
         )
     return LiveKitWakeWordProvider(
         **common,

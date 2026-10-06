@@ -90,49 +90,105 @@ def test_veto_on_early_hop_does_not_lock_out_a_real_wake() -> None:
     assert out[2] is not None, "veto started the refractory and swallowed the real wake"
 
 
-# --- Moonshine verifier wiring -------------------------------------------------
+# --- DMA-KWS verifier -----------------------------------------------------------
 
 import yaml  # noqa: E402
 
 from sayso.config import load_config, validate_config  # noqa: E402
-from sayso.wake import moonshine_verifier as mv  # noqa: E402
-from sayso.wake.moonshine_verifier import MoonshineVerifier  # noqa: E402
+from sayso.wake import dma_kws_verifier as dk  # noqa: E402
+from sayso.wake.dma_kws_verifier import DmaKwsVerifier  # noqa: E402
+
+KODA = ["K OW1 D AH0"]
 
 
-class _FakeTranscriber:
-    def __init__(self, text: str) -> None:
-        self.text = text
+class _FakeSession:
+    """Stands in for onnxruntime: returns scripted scores and records its inputs."""
 
-    def transcribe_without_streaming(self, samples, rate):
-        return SimpleNamespace(lines=[SimpleNamespace(text=self.text)])
+    def __init__(self, scores) -> None:
+        self.scores, self.calls = list(scores), []
 
-
-def _moonshine(text: str, accept=None) -> MoonshineVerifier:
-    return MoonshineVerifier("Koda", accept=accept, transcriber=_FakeTranscriber(text))
-
-
-def test_moonshine_hears_phrase_or_variant() -> None:
-    win = np.zeros(WINDOW_SAMPLES, dtype=np.int16)
-    assert _moonshine("Okay, Koda.").score(win) == 1.0
-    assert _moonshine("Coda,", accept=["koda", "coda"]).score(win) == 1.0
-    assert _moonshine("Hold on.").score(win) == 0.0
-    assert _moonshine("Kodak").score(win) == 0.0
+    def run(self, _outputs, feed):
+        self.calls.append(feed)
+        return [np.array([self.scores.pop(0) if len(self.scores) > 1 else self.scores[0]], dtype=np.float32)]
 
 
-def test_moonshine_veto_does_not_lock_out_cascade() -> None:
+def _speech(end_s: float = 1.7, n: int = 32000) -> np.ndarray:
+    """int16 window with a 0.4 s tone burst ending at end_s and quiet noise elsewhere."""
+    rng = np.random.default_rng(0)
+    x = (rng.standard_normal(n) * 30).astype(np.int16)
+    a, b = int((end_s - 0.4) * 16000), int(end_s * 16000)
+    x[a:b] = (8000 * np.sin(2 * np.pi * 300 * np.arange(b - a) / 16000)).astype(np.int16)
+    return x
+
+
+def test_fbank_matches_torchaudio_reference() -> None:
+    # Reference rows computed with torchaudio.compliance.kaldi.fbank (80 bins, povey, no dither).
+    rng = np.random.default_rng(7)
+    t = np.arange(12720) / 16000
+    x = (0.2 * np.sin(2 * np.pi * 440 * t) + 0.05 * rng.standard_normal(12720)).astype(np.float32)
+    f = dk.fbank(x)
+    assert f.shape == (dk.FRAMES, 80)
+    want = {0: [11.701, 16.932, 19.076, 22.602], 40: [9.322, 16.83, 20.042, 22.74], 77: [11.795, 15.667, 20.238, 24.164]}
+    for row, vals in want.items():
+        assert np.allclose(f[row, [0, 10, 40, 79]], vals, atol=2e-3)
+
+
+def test_crop_ends_after_speech_and_is_fixed_size() -> None:
+    audio = _speech(1.7).astype(np.float32) / 32768.0
+    seg = dk.crop_after_speech(audio)
+    assert seg.shape == (dk.CROP,)
+    # speech burst ends 0.2 s before the crop end; the burst is the loud part of the crop
+    loud = np.where(np.abs(seg) > 0.05)[0]
+    assert abs((dk.CROP - loud.max()) / 16000 - 0.2) < 0.03
+    # speech right at the window end: the crop is padded with zeros after it
+    late = dk.crop_after_speech(_speech(2.0).astype(np.float32) / 32768.0)
+    assert late.shape == (dk.CROP,) and np.abs(late[-3000:]).max() < 0.01
+    assert dk.crop_after_speech(np.zeros(32000, dtype=np.float32)) is None
+
+
+def test_phoneme_ids_validated() -> None:
+    assert dk.phoneme_ids("k ow1 d ah0").tolist() == [[44, 50, 23, 9]]
+    for bad in ("K OW1 D", "K OW1 D AH0 X", "K OW D AH0", "HH OW1 L D AA1 N"):
+        with pytest.raises(ValueError, match="ARPAbet"):
+            dk.phoneme_ids(bad)
+
+
+def test_dma_kws_score_threshold_and_best_pronunciation() -> None:
+    sess = _FakeSession([0.2, 0.97])
+    v = DmaKwsVerifier(None, ["K OW1 D AH0", "K OW2 D AH0"], 0.98, session=sess)
+    assert v.score(_speech()) == pytest.approx(0.97)  # best of the pronunciations
+    assert v.score(_speech()) >= 0 and len(sess.calls) == 4
+    assert sess.calls[0]["feats"].shape == (1, dk.FRAMES, 80)
+    assert sess.calls[0]["anchor"].tolist() == [[44, 50, 23, 9]]
+    assert v.threshold == 0.98 and v.score(np.zeros(32000, dtype=np.int16)) == 0.0
+
+
+def test_dma_kws_veto_does_not_lock_out_cascade() -> None:
     p = _provider([0.30, 0.10, 0.60], [])
-    p._verifier = _FakeTranscribeStage(["Hold on.", "Koda."])
-    out = _hops(p, 3)
-    assert out[0] is None and out[2] is not None
+    p._verifier = DmaKwsVerifier(None, KODA, 0.9, session=_FakeSession([0.1, 0.99]))
+    hops = []
+    window = _speech()
+    for i in range(3):
+        hops.append(p.predict_window(window, sample_index=i * HOP_SAMPLES))
+    assert hops[0] is None and hops[2] is not None
 
 
-class _FakeTranscribeStage(MoonshineVerifier):
-    def __init__(self, texts: list[str]) -> None:
-        self._texts = iter(texts)
-        super().__init__("Koda", transcriber=self)
+def test_model_file_is_pinned_never_downloaded(tmp_path: Path, monkeypatch) -> None:
+    with pytest.raises(ValueError, match="dma_kws_model is required"):
+        dk._verified_model(None)
+    with pytest.raises(FileNotFoundError, match="export_dma_kws_onnx"):
+        dk._verified_model(tmp_path / "missing.onnx")
+    f = tmp_path / "m.onnx"
+    f.write_bytes(b"not the pinned model")
+    with pytest.raises(ValueError, match="pinned SHA-256"):
+        dk._verified_model(f)
+    import hashlib
 
-    def transcribe_without_streaming(self, samples, rate):
-        return SimpleNamespace(lines=[SimpleNamespace(text=next(self._texts))])
+    monkeypatch.setattr(dk, "MODEL_SHA256", hashlib.sha256(b"not the pinned model").hexdigest())
+    assert dk._verified_model(f) == f
+    f.write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="pinned SHA-256"):
+        dk._verified_model(f)
 
 
 def test_verifier_factory_failure_fails_closed() -> None:
@@ -147,7 +203,7 @@ def test_verifier_factory_failure_fails_closed() -> None:
     assert _hops(p, 1) == [None]
 
 
-def test_moonshine_config_roundtrip_and_exclusive_with_npz(tmp_path: Path) -> None:
+def _config(tmp_path: Path, **wake) -> Path:
     sound = Path(__file__).parents[2] / "sounds" / "wake.wav"
     model = tmp_path / "wake.onnx"
     model.write_bytes(b"onnx")
@@ -156,123 +212,45 @@ def test_moonshine_config_roundtrip_and_exclusive_with_npz(tmp_path: Path) -> No
         "home_assistant": {"port": 6053},
         "audio": {"input_device": "mic", "output_device": "spk", "sample_rate": 16000,
                   "channels": 1, "noise_suppression": 0, "auto_gain": 0},
-        "wake_word": {"provider": "livekit", "phrase": "Koda", "model": str(model),
-                      "threshold": 0.4, "refractory_seconds": 2.0, "preroll_ms": 500,
-                      "post_tts_cooldown_ms": 500, "moonshine_verifier": True,
-                      "moonshine_accept": ["koda", "coda"],
-                      "moonshine_cache_dir": str(tmp_path / "ms")},
+        "wake_word": {"provider": "livekit", "phrase": "Koda", "model": str(model), "threshold": 0.4,
+                      "refractory_seconds": 2.0, "preroll_ms": 500, "post_tts_cooldown_ms": 500, **wake},
         "sounds": {"wake": str(sound), "failure": str(sound), "unavailable": str(sound)},
     }
     path = tmp_path / "c.yaml"
     path.write_text(yaml.safe_dump(raw), encoding="utf-8")
-    cfg = load_config(path)
-    assert cfg.wake_word.moonshine_verifier and cfg.wake_word.moonshine_boost == 3.0
-    assert cfg.wake_word.moonshine_accept == ("koda", "coda")
-    validate_config(cfg, check_port_bind=False)
-    raw["wake_word"]["verifier"] = str(tmp_path / "v.npz")
-    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
-    with pytest.raises(ValueError, match="mutually exclusive"):
-        validate_config(load_config(path), check_port_bind=False)
+    return path
 
 
-def test_moonshine_blank_accept_entry_cannot_match_everything() -> None:
-    win = np.zeros(WINDOW_SAMPLES, dtype=np.int16)
-    v = MoonshineVerifier("Koda", accept=["", "  "], transcriber=_FakeTranscriber("Hold on."))
-    assert v.score(win) == 0.0
+def test_dma_kws_config_roundtrip_and_validation(tmp_path: Path) -> None:
+    kws = tmp_path / "dma.onnx"
+    kws.write_bytes(b"x")
+    cfg = load_config(_config(tmp_path, dma_kws_model=str(kws), dma_kws_phonemes=["K OW1 D AH0"]))
+    assert cfg.wake_word.dma_kws_model == kws
+    assert cfg.wake_word.dma_kws_phonemes == ("K OW1 D AH0",) and cfg.wake_word.dma_kws_threshold == 0.98
+    assert load_config(_config(tmp_path)).wake_word.dma_kws_model is None  # off by default
+    for extra, msg in [
+        ({"dma_kws_phonemes": ["K OW1 D AH0"], "dma_kws_model": str(tmp_path / "nope.onnx")}, "model file missing"),
+        ({"dma_kws_model": str(kws)}, "dma_kws_phonemes is required"),
+        ({"dma_kws_model": str(kws), "dma_kws_phonemes": ["K OW1 D"]}, "ARPAbet"),
+        ({"dma_kws_model": str(kws), "dma_kws_phonemes": ["K OW1 D AH0"], "dma_kws_threshold": 1.5}, "dma_kws_threshold"),
+        ({"dma_kws_model": str(kws), "dma_kws_phonemes": ["K OW1 D AH0"], "verifier": str(kws)}, "mutually exclusive"),
+    ]:
+        with pytest.raises(ValueError, match=msg):
+            load_config(_config(tmp_path, **extra))
 
 
-def test_moonshine_accept_bare_string_is_one_word(tmp_path: Path) -> None:
-    sound = Path(__file__).parents[2] / "sounds" / "wake.wav"
-    model = tmp_path / "wake.onnx"
-    model.write_bytes(b"onnx")
-    raw = {
-        "satellite": {"name": "L", "device_name": "l", "area": "L"},
-        "home_assistant": {"port": 6053},
-        "audio": {"input_device": "mic", "output_device": "spk", "sample_rate": 16000,
-                  "channels": 1, "noise_suppression": 0, "auto_gain": 0},
-        "wake_word": {"provider": "livekit", "phrase": "Koda", "model": str(model),
-                      "threshold": 0.4, "refractory_seconds": 2.0, "preroll_ms": 500,
-                      "post_tts_cooldown_ms": 500, "moonshine_accept": "koda"},
-        "sounds": {"wake": str(sound), "failure": str(sound), "unavailable": str(sound)},
-    }
-    path = tmp_path / "c.yaml"
-    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
-    assert load_config(path).wake_word.moonshine_accept == ("koda",)
-
-
-def test_moonshine_phrase_always_accepted_with_custom_accept() -> None:
-    win = np.zeros(WINDOW_SAMPLES, dtype=np.int16)
-    # Moonshine is biased toward the phrase, so "Koda" must pass even if accept omits it.
-    assert _moonshine("Koda.", accept=["kota", "coda"]).score(win) == 1.0
-    assert _moonshine("Kota.", accept=["kota", "coda"]).score(win) == 1.0
-    assert _moonshine("Hold on.", accept=["kota", "coda"]).score(win) == 0.0
-
-
-@pytest.mark.parametrize("value,expected", [(None, ()), ("koda", ("koda",)), (["a", "b"], ("a", "b")), (5, ("5",))])
-def test_moonshine_accept_tolerates_odd_yaml(value, expected) -> None:
+@pytest.mark.parametrize("value,expected", [(None, ()), ("K OW1 D AH0", ("K OW1 D AH0",)), (["a", "b"], ("a", "b")), (5, ("5",))])
+def test_str_tuple_tolerates_odd_yaml(value, expected) -> None:
     from sayso.config import _str_tuple
 
     assert _str_tuple(value) == expected
 
 
-def test_moonshine_boost_must_be_positive(tmp_path: Path) -> None:
-    sound = Path(__file__).parents[2] / "sounds" / "wake.wav"
-    model = tmp_path / "wake.onnx"
-    model.write_bytes(b"onnx")
-    raw = {
-        "satellite": {"name": "L", "device_name": "l", "area": "L"},
-        "home_assistant": {"port": 6053},
-        "audio": {"input_device": "mic", "output_device": "spk", "sample_rate": 16000,
-                  "channels": 1, "noise_suppression": 0, "auto_gain": 0},
-        "wake_word": {"provider": "livekit", "phrase": "Koda", "model": str(model),
-                      "threshold": 0.4, "refractory_seconds": 2.0, "preroll_ms": 500,
-                      "post_tts_cooldown_ms": 500, "moonshine_boost": 0,
-                      "moonshine_cache_dir": str(tmp_path / "ms")},
-        "sounds": {"wake": str(sound), "failure": str(sound), "unavailable": str(sound)},
-    }
-    path = tmp_path / "c.yaml"
-    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
-    with pytest.raises(ValueError, match="moonshine_boost"):
-        load_config(path)  # load_config validates
-    raw["wake_word"]["moonshine_boost"] = 2.5
-    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
-    cfg = load_config(path)
-    assert cfg.wake_word.moonshine_boost == 2.5
-    assert cfg.wake_word.moonshine_cache_dir == tmp_path / "ms"
+def test_real_model_smoke_if_provisioned() -> None:
+    import os
 
-
-def test_model_dir_is_pinned_never_downloaded(tmp_path: Path, monkeypatch) -> None:
-    with pytest.raises(ValueError, match="moonshine_cache_dir is required"):
-        mv._verified_model_dir(None)
-    with pytest.raises(FileNotFoundError, match="provision"):
-        mv._verified_model_dir(str(tmp_path))
-    d = tmp_path / mv.MODEL_REL
-    d.mkdir(parents=True)
-    (d / "encoder.ort").write_bytes(b"model")
-    with pytest.raises(ValueError, match="pinned SHA-256"):
-        mv._verified_model_dir(str(tmp_path))
-    monkeypatch.setattr(mv, "MODEL_SHA256", mv._model_digest(d))
-    assert mv._verified_model_dir(str(tmp_path)) == d
-    (d / "encoder.ort").write_bytes(b"tampered")
-    with pytest.raises(ValueError, match="pinned SHA-256"):
-        mv._verified_model_dir(str(tmp_path))
-
-
-def test_moonshine_enabled_requires_cache_dir(tmp_path: Path) -> None:
-    sound = Path(__file__).parents[2] / "sounds" / "wake.wav"
-    model = tmp_path / "wake.onnx"
-    model.write_bytes(b"onnx")
-    raw = {
-        "satellite": {"name": "L", "device_name": "l", "area": "L"},
-        "home_assistant": {"port": 6053},
-        "audio": {"input_device": "mic", "output_device": "spk", "sample_rate": 16000,
-                  "channels": 1, "noise_suppression": 0, "auto_gain": 0},
-        "wake_word": {"provider": "livekit", "phrase": "Koda", "model": str(model),
-                      "threshold": 0.4, "refractory_seconds": 2.0, "preroll_ms": 500,
-                      "post_tts_cooldown_ms": 500, "moonshine_verifier": True},
-        "sounds": {"wake": str(sound), "failure": str(sound), "unavailable": str(sound)},
-    }
-    path = tmp_path / "c.yaml"
-    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
-    with pytest.raises(ValueError, match="requires wake_word.moonshine_cache_dir"):
-        load_config(path)
+    path = os.environ.get("DMA_KWS_MODEL")
+    if not path:
+        pytest.skip("set DMA_KWS_MODEL to the exported ONNX to run")
+    v = DmaKwsVerifier(Path(path), KODA, 0.98)
+    assert 0.0 <= v.score(_speech()) <= 1.0

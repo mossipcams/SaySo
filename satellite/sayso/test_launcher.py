@@ -519,7 +519,7 @@ def test_configure_mpv_uses_pulse_and_recovers_from_playback_errors(
     completed.assert_called_once_with()
 
 
-def test_launcher_builds_moonshine_verifier_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_launcher_builds_dma_kws_verifier_factory(monkeypatch: pytest.MonkeyPatch) -> None:
     package = ModuleType("linux_voice_assistant")
     package.__path__ = []
     upstream = ModuleType("linux_voice_assistant.__main__")
@@ -543,8 +543,6 @@ def test_launcher_builds_moonshine_verifier_factory(monkeypatch: pytest.MonkeyPa
     assert ctor.call_args.kwargs["verifier_factory"] is None
 
     launcher._build_wake_provider(cfg(
-        moonshine_verifier=True, moonshine_boost=2.0, moonshine_accept=("coda",),
-        moonshine_cache_dir="/var/cache/ms"), None)
+        dma_kws_model="/opt/m.onnx", dma_kws_phonemes=("K OW1 D AH0",), dma_kws_threshold=0.9), None)
     factory = ctor.call_args.kwargs["verifier_factory"]
-    assert factory.args == ("Koda",)
-    assert factory.keywords == {"accept": ["coda"], "boost": 2.0, "cache_dir": "/var/cache/ms"}
+    assert factory.args == ("/opt/m.onnx", ["K OW1 D AH0"], 0.9)

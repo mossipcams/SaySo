@@ -79,24 +79,41 @@ Miss on Pi: `live_sayso_05` = 0.179 collides with `live_talk_02` = 0.178
 The 19 are verifier-train, not an unbiased FP set. Best unbiased-FP backup
 on the Pi is `sayso.onnx.bak-03e612d8`.
 
-## Moonshine second stage (optional, Koda)
+## DMA-KWS second stage (optional, Koda)
 
-Set `wake_word.moonshine_verifier: true` to run `MoonshineVerifier`
-(`sayso/wake/moonshine_verifier.py`) after LiveKit fires. It transcribes the
-last 1.2 s of the fired window (+0.5 s zero pad) with Moonshine v2
-tiny-streaming, key-term biased toward the phrase, and passes only if the text
-contains the phrase or one of `wake_word.moonshine_accept` (the phrase is always
-accepted; for Koda use `[koda, kota, coda, kohda, cota, koder]`). Mutually exclusive
-with `wake_word.verifier`. `moonshine_boost` (default 3.0) is the bias strength;
-5+ hallucinates the phrase. Load failure fails closed. The service never downloads
-the model: `wake_word.moonshine_cache_dir` (required) must hold a model provisioned
-once with network, and its files must hash to the SHA-256 pinned in
-`moonshine_verifier.py` or the verifier refuses to load:
-`python -m moonshine_voice.download --stt --language en --model-arch 2 --root <cache_dir>`.
-Transcripts are logged at DEBUG only.
+Set `wake_word.dma_kws_model` to run `DmaKwsVerifier` (`sayso/wake/dma_kws_verifier.py`) after
+LiveKit fires. It crops 0.8 s ending 0.2 s after the last loud frame of the fired window, computes
+an 80-bin log-mel filterbank (numpy, matches torchaudio), and scores it against the keyword
+phonemes with the DMA-KWS Stage II text-to-audio matcher (4.1M params, ONNX, 1 thread). The score is
+the best over `wake_word.dma_kws_phonemes`; the wake passes at `>= dma_kws_threshold`. Mutually
+exclusive with `wake_word.verifier`. Load failure fails closed.
 
-Offline numbers (Pi windows, 2026-10-06, boost 3, `/tmp` scripts since removed):
-27 real Koda wakes -> 17-19 pass (~65-70%); 57 TV false fires -> 2-3 pass;
-~98% of non-wake windows rejected. About 0.7 s per check on the Pi 4, run in
-the inference worker thread. Real-wake labels were unverified, so treat recall
-as provisional. A veto no longer starts the refractory (see `livekit.py`).
+```yaml
+wake_word:
+  dma_kws_model: /opt/sayso-satellite/models/dma-kws-stage2.onnx
+  dma_kws_phonemes: ["K OW1 D AH0", "K OW2 D AH0", "K OW1 D AA0"]   # exactly 4 ARPAbet phonemes each
+  dma_kws_threshold: 0.98
+```
+
+**Provisioning.** The service never downloads a model: the file must hash to the SHA-256 pinned in
+`dma_kws_verifier.py`. Build it on a dev machine with `scripts/export_dma_kws_onnx.py` (source:
+github.com/aizhiqi-work/DMA-KWS at commit 207d056, checkpoint `155k-v2-ft.ckpt`, torch 2.14.1 /
+onnx 1.23.2 give a reproducible file) and copy it to the satellite. The upstream repo has no
+LICENSE file, so the model is not committed here. The keyword length (4 phonemes) and crop (78
+frames) are baked into the export; another phrase needs a re-export.
+
+**Offline numbers** (851 Pi windows, 2026-10-06; 27 command-followed real Koda wakes, 808 other
+windows incl. 57 TV false fires; labels unverified, thresholds tuned on the same data):
+
+| threshold | real wakes | other windows rejected | TV false fires rejected |
+| ---: | ---: | ---: | ---: |
+| 0.90 | 22/27 | 94.2% | 84.2% |
+| 0.95 | 20/27 | 96.0% | 91.2% |
+| 0.98 (default) | 18/27 | 97.8% | 94.7% |
+| 0.99 | 14/27 | 98.6% | 94.7% |
+| 0.995 | 12/27 | 99.3% | 96.5% |
+
+AUC 0.956. Scores saturate near 1.0, so recall moves fast between 0.97 and 0.99: tune on verified
+data before relying on a threshold. About 54 ms per check on a Pi 4 (1 thread; fbank 4 ms, model
+48 ms), run in the inference worker thread. A veto no longer starts the refractory (see
+`livekit.py`). Transcript-free: only the score is logged, at DEBUG.
