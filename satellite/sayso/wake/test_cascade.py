@@ -229,7 +229,7 @@ def test_dma_kws_config_roundtrip_and_validation(tmp_path: Path, monkeypatch) ->
     monkeypatch.setattr(dk, "MODEL_SHA256", hashlib.sha256(b"x").hexdigest())
     cfg = load_config(_config(tmp_path, dma_kws_model=str(kws), dma_kws_phonemes=["K OW1 D AH0"]))
     assert cfg.wake_word.dma_kws_model == kws
-    assert cfg.wake_word.dma_kws_phonemes == ("K OW1 D AH0",) and cfg.wake_word.dma_kws_threshold == 0.98
+    assert cfg.wake_word.dma_kws_phonemes == ("K OW1 D AH0",) and cfg.wake_word.dma_kws_threshold == 0.90
     assert load_config(_config(tmp_path)).wake_word.dma_kws_model is None  # off by default
     for extra, msg in [
         ({"dma_kws_phonemes": ["K OW1 D AH0"], "dma_kws_model": str(tmp_path / "nope.onnx")}, "model file missing"),

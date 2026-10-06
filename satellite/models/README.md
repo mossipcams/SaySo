@@ -92,7 +92,7 @@ exclusive with `wake_word.verifier`. Load failure fails closed.
 wake_word:
   dma_kws_model: /opt/sayso-satellite/models/dma-kws-stage2.onnx
   dma_kws_phonemes: ["K OW1 D AH0", "K OW2 D AH0", "K OW1 D AA0"]   # exactly 4 ARPAbet phonemes each
-  dma_kws_threshold: 0.98
+  dma_kws_threshold: 0.90
 ```
 
 **Provisioning.** The service never downloads a model: the file must hash to the SHA-256 pinned in
@@ -108,11 +108,16 @@ windows incl. 57 TV false fires; labels unverified, thresholds tuned on the same
 
 | threshold | real wakes | other windows rejected | TV false fires rejected |
 | ---: | ---: | ---: | ---: |
-| 0.90 | 22/27 | 94.2% | 84.2% |
+| **0.90 (default)** | 22/27 | 94.2% | 84.2% |
 | 0.95 | 20/27 | 96.0% | 91.2% |
-| 0.98 (default) | 18/27 | 97.8% | 94.7% |
+| 0.98 | 18/27 | 97.8% | 94.7% |
 | 0.99 | 14/27 | 98.6% | 94.7% |
 | 0.995 | 12/27 | 99.3% | 96.5% |
+
+The default favours not missing real wakes. At 0.90, 9 of the 57 TV false fires still pass (chime
+and open the mic), against 3 at 0.98; Home Assistant's pipeline rejected 5 of those 9 on its own,
+so 4 reached a command. Only 2 of the 27 real wakes are missed by every model tried, so about
+25/27 is the ceiling on this data. Raise the threshold if TV chimes bother you more than missed wakes.
 
 AUC 0.956. Scores saturate near 1.0, so recall moves fast between 0.97 and 0.99: tune on verified
 data before relying on a threshold. About 54 ms per check on a Pi 4 (1 thread; fbank 4 ms, model

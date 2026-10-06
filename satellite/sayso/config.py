@@ -64,7 +64,7 @@ class WakeWordCfg:
     verifier_threshold: float | None = None
     dma_kws_model: Path | None = None
     dma_kws_phonemes: tuple[str, ...] = ()
-    dma_kws_threshold: float = 0.98
+    dma_kws_threshold: float = 0.90
 
 
 @dataclass
@@ -174,7 +174,7 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
             else None
         ),
         dma_kws_phonemes=_str_tuple(raw.get("wake_word", {}).get("dma_kws_phonemes")),
-        dma_kws_threshold=float(raw.get("wake_word", {}).get("dma_kws_threshold", 0.98)),
+        dma_kws_threshold=float(raw.get("wake_word", {}).get("dma_kws_threshold", 0.90)),
     )
     sounds = SoundsCfg(
         wake=Path(_req(raw, "sounds", "wake")),
