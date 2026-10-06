@@ -37,7 +37,7 @@ Keep (do not skip to “save time”):
 Defer if they threaten the voice path:
 
 - Extra model bake-offs
-- Expanding corpora past the reviewed `evals/cases/` and training gold sets
+- Expanding corpora past the reviewed `evals/cases/`
 - Generalized multi-satellite support beyond standard HA voice pipelines
 - Streaming optimizations and polished diagnostics
 
@@ -51,12 +51,7 @@ Defer if they threaten the voice path:
   assuming topology. It documents boundaries and the integration shape.
 - Offline eval cases and the single runner live in `evals/` (`evals/cases/`,
   `evals/suites/`, `evals/runner.py`, `evals/scorer.py`, `evals/cli.py`).
-  Evaluator tests live in `evals/tests/`. Do not train on ChatML `<tool_call>`
-  labels or on eval case IDs/utterances from `evals/cases/`.
-- SaySo model training design lives in `docs/SAYSO_LFM_TRAINING_PLAN.md`; wake-word
-  training has its own `docs/SAYSO_WAKE_WORD_TRAINING_PLAN.md`. The model target is
-  `LFM2.5-230M-Base` with schema-conditioned function calling. `ALLOWED_HASS_TOOLS`
-  validates the pinned training contract only — it does not define runtime support.
+  Evaluator tests live in `evals/tests/`.
 - Python throughout. Extend the existing test suite: `tests/`, `evals/tests/`,
   and colocated `custom_components/sayso/test_*.py`. Do not add another top-level
   `tests/` tree or a new test framework.
