@@ -62,6 +62,10 @@ class WakeWordCfg:
     mine_below_sample_rate: float = 0.002
     verifier: Path | None = None
     verifier_threshold: float | None = None
+    moonshine_verifier: bool = False
+    moonshine_boost: float = 3.0
+    moonshine_accept: tuple[str, ...] = ()
+    moonshine_cache_dir: Path | None = None
 
 
 @dataclass
@@ -90,6 +94,15 @@ def _req(d: dict, *keys: str) -> Any:
             raise ValueError(f"Missing config key: {'.'.join(path)}")
         cur = cur[k]
     return cur
+
+
+def _str_tuple(value) -> tuple[str, ...]:
+    """A bare YAML string is one entry, not a sequence of characters."""
+    if value is None:
+        return ()
+    if isinstance(value, (list, tuple)):
+        return tuple(str(v) for v in value)
+    return (str(value),)
 
 
 def load_config(path: Path = CONFIG_PATH) -> AppConfig:
@@ -154,6 +167,14 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
         verifier_threshold=(
             float(raw["wake_word"]["verifier_threshold"])
             if raw.get("wake_word", {}).get("verifier_threshold") is not None
+            else None
+        ),
+        moonshine_verifier=bool(raw.get("wake_word", {}).get("moonshine_verifier", False)),
+        moonshine_boost=float(raw.get("wake_word", {}).get("moonshine_boost", 3.0)),
+        moonshine_accept=_str_tuple(raw.get("wake_word", {}).get("moonshine_accept")),
+        moonshine_cache_dir=(
+            Path(raw["wake_word"]["moonshine_cache_dir"])
+            if raw.get("wake_word", {}).get("moonshine_cache_dir")
             else None
         ),
     )
@@ -222,6 +243,10 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         0.0 < cfg.wake_word.verifier_threshold < 1.0
     ):
         errors.append("wake_word.verifier_threshold must be between 0 and 1 exclusive")
+    if cfg.wake_word.moonshine_verifier and cfg.wake_word.verifier is not None:
+        errors.append("wake_word.moonshine_verifier and wake_word.verifier are mutually exclusive")
+    if cfg.wake_word.moonshine_boost <= 0:
+        errors.append("wake_word.moonshine_boost must be > 0")
     if cfg.wake_word.mine_dir is not None and cfg.wake_word.mine_threshold >= cfg.wake_word.threshold:
         errors.append(
             "wake_word.mine_threshold must be below wake_word.threshold; mining at or above "

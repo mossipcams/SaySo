@@ -78,3 +78,24 @@ Miss on Pi: `live_sayso_05` = 0.179 collides with `live_talk_02` = 0.178
 
 The 19 are verifier-train, not an unbiased FP set. Best unbiased-FP backup
 on the Pi is `sayso.onnx.bak-03e612d8`.
+
+## Moonshine second stage (optional, Koda)
+
+Set `wake_word.moonshine_verifier: true` to run `MoonshineVerifier`
+(`sayso/wake/moonshine_verifier.py`) after LiveKit fires. It transcribes the
+last 1.2 s of the fired window (+0.5 s zero pad) with Moonshine v2
+tiny-streaming, key-term biased toward the phrase, and passes only if the text
+contains the phrase or one of `wake_word.moonshine_accept` (the phrase is always
+accepted; for Koda use `[koda, kota, coda, kohda, cota, koder]`). Mutually exclusive
+with `wake_word.verifier`. `moonshine_boost` (default 3.0) is the bias strength;
+5+ hallucinates the phrase. Load failure fails closed. The model downloads to
+`wake_word.moonshine_cache_dir` (default: the service user's cache, which may
+not be writable for `User=sayso`). Pre-download once with network:
+`python -m moonshine_voice.download --stt --language en --model-arch 2 --root <cache_dir>`.
+Transcripts are logged at DEBUG only.
+
+Offline numbers (Pi windows, 2026-10-06, boost 3, `/tmp` scripts since removed):
+27 real Koda wakes -> 17-19 pass (~65-70%); 57 TV false fires -> 2-3 pass;
+~98% of non-wake windows rejected. About 0.7 s per check on the Pi 4, run in
+the inference worker thread. Real-wake labels were unverified, so treat recall
+as provisional. A veto no longer starts the refractory (see `livekit.py`).

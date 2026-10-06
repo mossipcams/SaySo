@@ -517,3 +517,34 @@ def test_configure_mpv_uses_pulse_and_recovers_from_playback_errors(
 
     assert not pipeline.active
     completed.assert_called_once_with()
+
+
+def test_launcher_builds_moonshine_verifier_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    package = ModuleType("linux_voice_assistant")
+    package.__path__ = []
+    upstream = ModuleType("linux_voice_assistant.__main__")
+    upstream.run = Mock()
+    upstream.process_audio = Mock()
+    satellite_module = ModuleType("linux_voice_assistant.satellite")
+    satellite_module.VoiceSatelliteProtocol = object
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant.__main__", upstream)
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant.satellite", satellite_module)
+    launcher = importlib.import_module("satellite.sayso.launcher")
+    ctor = Mock()
+    monkeypatch.setattr(launcher, "LiveKitWakeWordProvider", ctor)
+
+    def cfg(**extra):
+        return SimpleNamespace(wake_word=SimpleNamespace(
+            provider="livekit", model="wake.onnx", phrase="Koda", threshold=0.4,
+            refractory_seconds=2.0, **extra))
+
+    launcher._build_wake_provider(cfg(), None)
+    assert ctor.call_args.kwargs["verifier_factory"] is None
+
+    launcher._build_wake_provider(cfg(
+        moonshine_verifier=True, moonshine_boost=2.0, moonshine_accept=("coda",),
+        moonshine_cache_dir="/var/cache/ms"), None)
+    factory = ctor.call_args.kwargs["verifier_factory"]
+    assert factory.args == ("Koda",)
+    assert factory.keywords == {"accept": ["coda"], "boost": 2.0, "cache_dir": "/var/cache/ms"}
