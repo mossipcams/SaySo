@@ -95,6 +95,7 @@ def test_veto_on_early_hop_does_not_lock_out_a_real_wake() -> None:
 import yaml  # noqa: E402
 
 from sayso.config import load_config, validate_config  # noqa: E402
+from sayso.wake import moonshine_verifier as mv  # noqa: E402
 from sayso.wake.moonshine_verifier import MoonshineVerifier  # noqa: E402
 
 
@@ -158,7 +159,8 @@ def test_moonshine_config_roundtrip_and_exclusive_with_npz(tmp_path: Path) -> No
         "wake_word": {"provider": "livekit", "phrase": "Koda", "model": str(model),
                       "threshold": 0.4, "refractory_seconds": 2.0, "preroll_ms": 500,
                       "post_tts_cooldown_ms": 500, "moonshine_verifier": True,
-                      "moonshine_accept": ["koda", "coda"]},
+                      "moonshine_accept": ["koda", "coda"],
+                      "moonshine_cache_dir": str(tmp_path / "ms")},
         "sounds": {"wake": str(sound), "failure": str(sound), "unavailable": str(sound)},
     }
     path = tmp_path / "c.yaml"
@@ -237,3 +239,40 @@ def test_moonshine_boost_must_be_positive(tmp_path: Path) -> None:
     cfg = load_config(path)
     assert cfg.wake_word.moonshine_boost == 2.5
     assert cfg.wake_word.moonshine_cache_dir == tmp_path / "ms"
+
+
+def test_model_dir_is_pinned_never_downloaded(tmp_path: Path, monkeypatch) -> None:
+    with pytest.raises(ValueError, match="moonshine_cache_dir is required"):
+        mv._verified_model_dir(None)
+    with pytest.raises(FileNotFoundError, match="provision"):
+        mv._verified_model_dir(str(tmp_path))
+    d = tmp_path / mv.MODEL_REL
+    d.mkdir(parents=True)
+    (d / "encoder.ort").write_bytes(b"model")
+    with pytest.raises(ValueError, match="pinned SHA-256"):
+        mv._verified_model_dir(str(tmp_path))
+    monkeypatch.setattr(mv, "MODEL_SHA256", mv._model_digest(d))
+    assert mv._verified_model_dir(str(tmp_path)) == d
+    (d / "encoder.ort").write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="pinned SHA-256"):
+        mv._verified_model_dir(str(tmp_path))
+
+
+def test_moonshine_enabled_requires_cache_dir(tmp_path: Path) -> None:
+    sound = Path(__file__).parents[2] / "sounds" / "wake.wav"
+    model = tmp_path / "wake.onnx"
+    model.write_bytes(b"onnx")
+    raw = {
+        "satellite": {"name": "L", "device_name": "l", "area": "L"},
+        "home_assistant": {"port": 6053},
+        "audio": {"input_device": "mic", "output_device": "spk", "sample_rate": 16000,
+                  "channels": 1, "noise_suppression": 0, "auto_gain": 0},
+        "wake_word": {"provider": "livekit", "phrase": "Koda", "model": str(model),
+                      "threshold": 0.4, "refractory_seconds": 2.0, "preroll_ms": 500,
+                      "post_tts_cooldown_ms": 500, "moonshine_verifier": True},
+        "sounds": {"wake": str(sound), "failure": str(sound), "unavailable": str(sound)},
+    }
+    path = tmp_path / "c.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    with pytest.raises(ValueError, match="requires wake_word.moonshine_cache_dir"):
+        load_config(path)

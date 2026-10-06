@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 from pathlib import Path
@@ -10,6 +11,34 @@ import numpy as np
 _LOGGER = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
+
+# The service never downloads a model: it loads a pre-provisioned directory and
+# refuses to run unless its contents hash to this pin (the vendor manifest only
+# carries CRC32C). Provision with the command in models/README.md.
+MODEL_REL = "download.moonshine.ai/model/tiny-streaming-en/quantized_26_08_21"
+MODEL_SHA256 = "63fbfa51d35f25d23760f23828f70eb1a82cef778e7df2523b2d518b1b1324d5"
+
+
+def _model_digest(path: Path) -> str:
+    h = hashlib.sha256()
+    for f in sorted(p for p in path.rglob("*") if p.is_file()):
+        h.update(f.relative_to(path).as_posix().encode())
+        h.update(f.read_bytes())
+    return h.hexdigest()
+
+
+def _verified_model_dir(cache_dir: Optional[str]) -> Path:
+    if not cache_dir:
+        raise ValueError("wake_word.moonshine_cache_dir is required (no runtime model download)")
+    path = Path(cache_dir) / MODEL_REL
+    if not path.is_dir():
+        raise FileNotFoundError(
+            f"Moonshine model missing at {path}; provision it once with: python -m "
+            f"moonshine_voice.download --stt --language en --model-arch 2 --root {cache_dir}"
+        )
+    if _model_digest(path) != MODEL_SHA256:
+        raise ValueError(f"Moonshine model at {path} does not match the pinned SHA-256")
+    return path
 
 
 class MoonshineVerifier:
@@ -45,7 +74,7 @@ class MoonshineVerifier:
         from moonshine_voice.transcriber import Transcriber
 
         arch = ms.ModelArch.TINY_STREAMING
-        path, _ = ms.get_model_for_language("en", arch, cache_root=Path(cache_dir) if cache_dir else None)
+        path = _verified_model_dir(cache_dir)
         self._tr = Transcriber(path, arch, options={"keyterm_boost": str(boost)})
         self._tr.set_keyterms([phrase])
 

@@ -88,9 +88,10 @@ tiny-streaming, key-term biased toward the phrase, and passes only if the text
 contains the phrase or one of `wake_word.moonshine_accept` (the phrase is always
 accepted; for Koda use `[koda, kota, coda, kohda, cota, koder]`). Mutually exclusive
 with `wake_word.verifier`. `moonshine_boost` (default 3.0) is the bias strength;
-5+ hallucinates the phrase. Load failure fails closed. The model downloads to
-`wake_word.moonshine_cache_dir` (default: the service user's cache, which may
-not be writable for `User=sayso`). Pre-download once with network:
+5+ hallucinates the phrase. Load failure fails closed. The service never downloads
+the model: `wake_word.moonshine_cache_dir` (required) must hold a model provisioned
+once with network, and its files must hash to the SHA-256 pinned in
+`moonshine_verifier.py` or the verifier refuses to load:
 `python -m moonshine_voice.download --stt --language en --model-arch 2 --root <cache_dir>`.
 Transcripts are logged at DEBUG only.
 

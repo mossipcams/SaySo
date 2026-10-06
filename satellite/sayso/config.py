@@ -245,6 +245,8 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append("wake_word.verifier_threshold must be between 0 and 1 exclusive")
     if cfg.wake_word.moonshine_verifier and cfg.wake_word.verifier is not None:
         errors.append("wake_word.moonshine_verifier and wake_word.verifier are mutually exclusive")
+    if cfg.wake_word.moonshine_verifier and cfg.wake_word.moonshine_cache_dir is None:
+        errors.append("wake_word.moonshine_verifier requires wake_word.moonshine_cache_dir")
     if cfg.wake_word.moonshine_boost <= 0:
         errors.append("wake_word.moonshine_boost must be > 0")
     if cfg.wake_word.mine_dir is not None and cfg.wake_word.mine_threshold >= cfg.wake_word.threshold:
