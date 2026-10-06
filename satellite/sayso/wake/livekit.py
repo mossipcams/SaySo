@@ -214,6 +214,7 @@ class LiveKitWakeWordProvider:
         ):
             return None
 
+        verifier_note = ""
         if self._verifier is not None:
             embeddings = self._scorer.last_embeddings if self._scorer is not None else None
             verifier_score = self._verifier.score(
@@ -230,6 +231,7 @@ class LiveKitWakeWordProvider:
                     self._verifier.threshold,
                 )
                 return None
+            verifier_note = f" verifier={verifier_score:.3f}"  # margin over the veto threshold, for tuning
 
         # Stamp only on a real fire: a vetoed hop must not lock out the next one.
         if sample_index is not None:
@@ -237,7 +239,7 @@ class LiveKitWakeWordProvider:
         else:
             self._last_fire_time = now
 
-        _LOGGER.info("Wake phrase detected phrase=%r confidence=%.3f", self._phrase, score)
+        _LOGGER.info("Wake phrase detected phrase=%r confidence=%.3f%s", self._phrase, score, verifier_note)
         return Detection(
             phrase=self._phrase,
             confidence=score,
