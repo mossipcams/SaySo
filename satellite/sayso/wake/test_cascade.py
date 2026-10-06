@@ -277,3 +277,17 @@ def test_provider_rejects_factory_plus_verifier_path(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="mutually exclusive"):
         LiveKitWakeWordProvider(tmp_path / "m.onnx", "Koda", verifier_path=tmp_path / "v.npz",
                                 verifier_factory=lambda: None)
+
+
+def test_pass_log_includes_verifier_score_only_when_a_verifier_runs(caplog) -> None:
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="sayso.wake.livekit"):
+        _hops(_provider([0.5], [True]), 1)
+    assert "Wake phrase detected phrase='Koda' confidence=0.500 verifier=1.000" in caplog.text
+    caplog.clear()
+    p = _provider([0.5], [])
+    p._verifier = None
+    with caplog.at_level(logging.INFO, logger="sayso.wake.livekit"):
+        _hops(p, 1)
+    assert "Wake phrase detected phrase='Koda' confidence=0.500" in caplog.text and "verifier=" not in caplog.text
