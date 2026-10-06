@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from functools import partial
 
 from .config import load_config
 from .events import install_voice_handlers
@@ -36,8 +37,20 @@ def _build_wake_provider(
     }
     if cfg.wake_word.provider != "livekit":
         raise SystemExit(f"Unsupported wake_word.provider: {cfg.wake_word.provider}")
+    ww = cfg.wake_word
+    factory = None
+    if getattr(ww, "dma_kws_model", None) is not None:
+        from .wake.dma_kws_verifier import DmaKwsVerifier
+
+        factory = partial(
+            DmaKwsVerifier,
+            ww.dma_kws_model,
+            list(ww.dma_kws_phonemes),
+            ww.dma_kws_threshold,
+        )
     return LiveKitWakeWordProvider(
         **common,
+        verifier_factory=factory,
         verifier_path=getattr(cfg.wake_word, "verifier", None),
         verifier_threshold=getattr(cfg.wake_word, "verifier_threshold", None),
     )

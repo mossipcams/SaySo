@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
 
@@ -31,7 +31,10 @@ class LiveKitWakeWordProvider:
         miner: Optional[HardNegativeMiner] = None,
         verifier_path: Optional[Path] = None,
         verifier_threshold: Optional[float] = None,
+        verifier_factory: Optional[Callable[[], Any]] = None,
     ) -> None:
+        if verifier_factory is not None and verifier_path is not None:
+            raise ValueError("verifier_factory and verifier_path are mutually exclusive")
         self._model_path = Path(model_path)
         self._phrase = phrase
         self._threshold = float(threshold)
@@ -51,7 +54,9 @@ class LiveKitWakeWordProvider:
         self._last_score_log = 0.0
         self._max_score_window = 0.0
         self._load()
-        if self._verifier_path is not None:
+        if verifier_factory is not None:
+            self._load_verifier_factory(verifier_factory)
+        elif self._verifier_path is not None:
             self._load_verifier(verifier_threshold)
 
     def _load(self) -> None:
@@ -79,6 +84,17 @@ class LiveKitWakeWordProvider:
         except Exception:
             _LOGGER.exception("Failed to load LiveKit wake model %s (fail closed)", self._model_path)
             self._model = None
+            self._available = False
+
+    def _load_verifier_factory(self, factory: Callable[[], Any]) -> None:
+        if not self._available:
+            return
+        try:
+            self._verifier = factory()
+            _LOGGER.info("Loaded wake verifier %s", type(self._verifier).__name__)
+        except Exception:
+            _LOGGER.exception("Failed to load wake verifier (fail closed)")
+            self._verifier = None
             self._available = False
 
     def _load_verifier(self, verifier_threshold: Optional[float]) -> None:
@@ -191,15 +207,12 @@ class LiveKitWakeWordProvider:
                 and (sample_index - self._last_fire_sample) < refractory_samples
             ):
                 return None
-            self._last_fire_sample = sample_index
         elif (
             self._refractory > 0
             and self._last_fire_time is not None
             and (now - self._last_fire_time) < self._refractory
         ):
             return None
-        else:
-            self._last_fire_time = now
 
         if self._verifier is not None:
             embeddings = self._scorer.last_embeddings if self._scorer is not None else None
@@ -217,6 +230,12 @@ class LiveKitWakeWordProvider:
                     self._verifier.threshold,
                 )
                 return None
+
+        # Stamp only on a real fire: a vetoed hop must not lock out the next one.
+        if sample_index is not None:
+            self._last_fire_sample = sample_index
+        else:
+            self._last_fire_time = now
 
         _LOGGER.info("Wake phrase detected phrase=%r confidence=%.3f", self._phrase, score)
         return Detection(

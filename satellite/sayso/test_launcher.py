@@ -517,3 +517,32 @@ def test_configure_mpv_uses_pulse_and_recovers_from_playback_errors(
 
     assert not pipeline.active
     completed.assert_called_once_with()
+
+
+def test_launcher_builds_dma_kws_verifier_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    package = ModuleType("linux_voice_assistant")
+    package.__path__ = []
+    upstream = ModuleType("linux_voice_assistant.__main__")
+    upstream.run = Mock()
+    upstream.process_audio = Mock()
+    satellite_module = ModuleType("linux_voice_assistant.satellite")
+    satellite_module.VoiceSatelliteProtocol = object
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant.__main__", upstream)
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant.satellite", satellite_module)
+    launcher = importlib.import_module("satellite.sayso.launcher")
+    ctor = Mock()
+    monkeypatch.setattr(launcher, "LiveKitWakeWordProvider", ctor)
+
+    def cfg(**extra):
+        return SimpleNamespace(wake_word=SimpleNamespace(
+            provider="livekit", model="wake.onnx", phrase="Koda", threshold=0.4,
+            refractory_seconds=2.0, **extra))
+
+    launcher._build_wake_provider(cfg(), None)
+    assert ctor.call_args.kwargs["verifier_factory"] is None
+
+    launcher._build_wake_provider(cfg(
+        dma_kws_model="/opt/m.onnx", dma_kws_phonemes=("K OW1 D AH0",), dma_kws_threshold=0.9), None)
+    factory = ctor.call_args.kwargs["verifier_factory"]
+    assert factory.args == ("/opt/m.onnx", ["K OW1 D AH0"], 0.9)

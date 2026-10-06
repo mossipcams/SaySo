@@ -62,6 +62,9 @@ class WakeWordCfg:
     mine_below_sample_rate: float = 0.002
     verifier: Path | None = None
     verifier_threshold: float | None = None
+    dma_kws_model: Path | None = None
+    dma_kws_phonemes: tuple[str, ...] = ()
+    dma_kws_threshold: float = 0.90
 
 
 @dataclass
@@ -90,6 +93,15 @@ def _req(d: dict, *keys: str) -> Any:
             raise ValueError(f"Missing config key: {'.'.join(path)}")
         cur = cur[k]
     return cur
+
+
+def _str_tuple(value) -> tuple[str, ...]:
+    """A bare YAML string is one entry, not a sequence of characters."""
+    if value is None:
+        return ()
+    if isinstance(value, (list, tuple)):
+        return tuple(str(v) for v in value)
+    return (str(value),)
 
 
 def load_config(path: Path = CONFIG_PATH) -> AppConfig:
@@ -156,6 +168,13 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
             if raw.get("wake_word", {}).get("verifier_threshold") is not None
             else None
         ),
+        dma_kws_model=(
+            Path(raw["wake_word"]["dma_kws_model"])
+            if raw.get("wake_word", {}).get("dma_kws_model")
+            else None
+        ),
+        dma_kws_phonemes=_str_tuple(raw.get("wake_word", {}).get("dma_kws_phonemes")),
+        dma_kws_threshold=float(raw.get("wake_word", {}).get("dma_kws_threshold", 0.90)),
     )
     sounds = SoundsCfg(
         wake=Path(_req(raw, "sounds", "wake")),
@@ -222,6 +241,29 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         0.0 < cfg.wake_word.verifier_threshold < 1.0
     ):
         errors.append("wake_word.verifier_threshold must be between 0 and 1 exclusive")
+    if cfg.wake_word.dma_kws_model is not None:
+        if cfg.wake_word.verifier is not None:
+            errors.append("wake_word.dma_kws_model and wake_word.verifier are mutually exclusive")
+        if not cfg.wake_word.dma_kws_model.is_file():
+            errors.append(f"wake_word.dma_kws_model file missing: {cfg.wake_word.dma_kws_model}")
+        else:
+            from .wake.dma_kws_verifier import _verified_model  # local: keeps config import light
+
+            try:
+                _verified_model(cfg.wake_word.dma_kws_model)
+            except ValueError as exc:  # wrong or corrupt model: fail at startup, not silently at wake time
+                errors.append(f"wake_word.dma_kws_model: {exc}")
+        if not (0.0 < cfg.wake_word.dma_kws_threshold < 1.0):
+            errors.append("wake_word.dma_kws_threshold must be between 0 and 1 exclusive")
+        if not cfg.wake_word.dma_kws_phonemes:
+            errors.append("wake_word.dma_kws_phonemes is required with dma_kws_model")
+        from .wake.dma_kws_verifier import phoneme_ids  # local: keeps config import light
+
+        for phonemes in cfg.wake_word.dma_kws_phonemes:
+            try:
+                phoneme_ids(phonemes)
+            except ValueError as exc:
+                errors.append(f"wake_word.dma_kws_phonemes: {exc}")
     if cfg.wake_word.mine_dir is not None and cfg.wake_word.mine_threshold >= cfg.wake_word.threshold:
         errors.append(
             "wake_word.mine_threshold must be below wake_word.threshold; mining at or above "
