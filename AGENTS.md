@@ -41,6 +41,14 @@ Defer if they threaten the voice path:
 - Generalized multi-satellite support beyond standard HA voice pipelines
 - Streaming optimizations and polished diagnostics
 
+## Simplicity and reuse
+
+- You are not going to need it: do not add features, abstractions, configuration,
+  or dependencies for hypothetical future needs. Implement only what the current
+  task requires.
+- Prefer reusing existing code over writing a new equivalent. Search before you
+  write.
+
 ## Workflow
 
 - Always save an md plan before implementing. Write the plan to disk (e.g.
