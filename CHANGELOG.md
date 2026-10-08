@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.14.0](https://github.com/mossipcams/SaySo/compare/1.13.0...1.14.0) (2026-10-08)
+
+
+### Features
+
+* **wake:** default dma_kws_threshold to 0.90 (22/27 real wakes) and document the trade-off ([61fa70b](https://github.com/mossipcams/SaySo/commit/61fa70baf9b04ce528ec03716035cef5ba52eb47))
+* **wake:** log the verifier score on every wake that passes ([0333195](https://github.com/mossipcams/SaySo/commit/0333195fc93fca4efb0bdd8f3a031c1f06429dea))
+* **wake:** optional Moonshine second stage; don't lock out after a veto ([8c871fc](https://github.com/mossipcams/SaySo/commit/8c871fc3db3f1ad98c5e8f50232a638f75605b33))
+* **wake:** replace Moonshine with DMA-KWS Stage II as the second stage ([10b5b82](https://github.com/mossipcams/SaySo/commit/10b5b8242cb63633f5f603736232483ba27f2203))
+* **wake:** train Koda with stock LiveKit steps; retire Atlas files ([14de4d4](https://github.com/mossipcams/SaySo/commit/14de4d4d573a66fb0b059d68f4b87e4d0e1727ca))
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#124](https://github.com/mossipcams/SaySo/issues/124)) ([18bdae2](https://github.com/mossipcams/SaySo/commit/18bdae29b4c680938f457882f0dc6476c6082c75))
+* **wake:** pin and verify the Moonshine model; never download at runtime ([0e4d03f](https://github.com/mossipcams/SaySo/commit/0e4d03f2345cd6c1303f88d2f44524852df3cd0d))
+* **wake:** review fixes for the DMA-KWS verifier ([bc671df](https://github.com/mossipcams/SaySo/commit/bc671df44f33ac590e285d168fbb182a9278881b))
+
+
+### Documentation
+
+* **agents:** local agent runs the full delegation loop ([9f91300](https://github.com/mossipcams/SaySo/commit/9f913005693e2e055d7c5ad11e168b9b8ef8f444))
+* **agents:** remove training notes from AGENTS.md ([5390dad](https://github.com/mossipcams/SaySo/commit/5390dad610c40e540f2190bd667c28f503b87ee7))
+
 ## [1.13.0](https://github.com/mossipcams/SaySo/compare/1.12.0...1.13.0) (2026-10-02)
 
 
