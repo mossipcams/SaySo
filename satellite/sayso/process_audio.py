@@ -4,7 +4,9 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
+
+import numpy as np
 
 from .wake.capture import CaptureResampler, gain_scalar_from_db
 from .wake.hook import SaySoExternalWakeHook, install_external_wake_hook
@@ -30,12 +32,19 @@ class _ResamplingRecorder:
         channels: int,
         gain: float,
         native_clip_tally: NativeClipTally | None = None,
+        raw_sink: Callable[[bytes], None] | None = None,
     ) -> None:
         self._recorder = recorder
         self._native_rate = native_rate
         self._channels = channels
         self._gain = gain
         self._native_clip_tally = native_clip_tally
+        self._raw_sink = raw_sink
+        self._raw_resampler = (
+            CaptureResampler(native_rate, TARGET_RATE)
+            if raw_sink is not None and native_rate != TARGET_RATE
+            else None
+        )
         self._resamplers = (
             None
             if native_rate == TARGET_RATE
@@ -63,7 +72,12 @@ class _ResamplingRecorder:
 
         if self._resamplers is None:
             raw = self._recorder.record(numframes)
-            return raw if raw is None else self._apply_gain(np.asarray(raw, dtype=np.float32))
+            if raw is None:
+                return raw
+            data = np.asarray(raw, dtype=np.float32)
+            if self._raw_sink is not None:
+                self._capture_raw(data)
+            return self._apply_gain(data)
 
         native_frames = max(1, -(-numframes * self._native_rate // TARGET_RATE))
         while self._pending is None or self._pending.shape[0] < numframes:
@@ -71,7 +85,10 @@ class _ResamplingRecorder:
             if raw is None:
                 pending, self._pending = self._pending, None
                 return pending
-            block = self._resample(self._apply_gain(np.asarray(raw, dtype=np.float32)))
+            data = np.asarray(raw, dtype=np.float32)
+            if self._raw_sink is not None:
+                self._capture_raw(data)
+            block = self._resample(self._apply_gain(data))
             if block.shape[0] == 0:
                 continue
             self._pending = (
@@ -82,9 +99,15 @@ class _ResamplingRecorder:
         self._pending = self._pending[numframes:]
         return out
 
-    def _apply_gain(self, data: Any) -> Any:
-        import numpy as np
+    def _capture_raw(self, data: Any) -> None:
+        mono = data.mean(axis=1) if data.ndim > 1 else data
+        pcm = np.clip(np.rint(mono * 32767.0), -32768, 32767).astype("<i2").tobytes()
+        if self._raw_resampler is not None:
+            pcm = self._raw_resampler.process(pcm)
+        if pcm:
+            self._raw_sink(pcm)
 
+    def _apply_gain(self, data: Any) -> Any:
         if self._gain == 1.0:
             return data
         data = data * self._gain
@@ -139,6 +162,7 @@ def install_native_rate_capture(
     auto_gain: int = 0,
     noise_suppression: int = 0,
     native_clip_tally: NativeClipTally | None = None,
+    raw_sink: Callable[[bytes], None] | None = None,
 ) -> Any:
     original_process_audio = lva_main.process_audio
     gain = gain_scalar_from_db(gain_db)
@@ -162,6 +186,7 @@ def install_native_rate_capture(
                 channels=channels_arg,
                 gain=gain,
                 native_clip_tally=native_clip_tally,
+                raw_sink=raw_sink,
             )
 
         mic.recorder = recorder

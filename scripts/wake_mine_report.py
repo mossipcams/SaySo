@@ -168,6 +168,27 @@ def _record_label(meta_path: Path) -> str | None:
     return str(label) if label else None
 
 
+def _capture_counts(rows: list[dict]) -> dict[str, int]:
+    counts = {
+        "raw_available": 0,
+        "raw_missing": 0,
+        "raw_unknown": 0,
+        "processing_state_present": 0,
+        "processing_state_missing": 0,
+    }
+    for row in rows:
+        raw = (row.get("streams") or {}).get("raw")
+        if raw is None:
+            counts["raw_unknown"] += 1
+        elif raw.get("raw_missing") or not raw.get("sha256"):
+            counts["raw_missing"] += 1
+        else:
+            counts["raw_available"] += 1
+        key = "processing_state_present" if row.get("processing_state") else "processing_state_missing"
+        counts[key] += 1
+    return counts
+
+
 def _scan_wake_roots(roots: list[Path]) -> list[dict]:
     entries: list[dict] = []
     for root in roots:
@@ -228,13 +249,18 @@ def _scan_wake_roots(roots: list[Path]) -> list[dict]:
                         "label": label,
                         "capture_id": record_dir.name,
                         "action": "keep",
+                        **{
+                            key: value
+                            for key, value in json.loads(meta_path.read_text(encoding="utf-8")).items()
+                            if key in {"streams", "processing_state"}
+                        },
                     }
                 )
 
         for wav in sorted(root.rglob("*.wav")):
             if _is_under_lfm(wav):
                 continue
-            if wav.name == "window.wav" and wav.parent.parent.name == "records":
+            if wav.name in {"window.wav", "raw_pre.wav"} and wav.parent.parent.name == "records":
                 continue
             if any(part == "quarantine" for part in wav.parts):
                 continue
@@ -367,6 +393,7 @@ def inventory_wake_assets(
         "roots": [str(root) for root in roots],
         "unknown_evidence_preserved": unknown,
         "entries": entries,
+        "capture_counts": _capture_counts([entry for entry in entries if "capture_id" in entry]),
     }
     if manifest_path is None and roots:
         manifest_path = roots[0] / MANIFEST_NAME
@@ -397,6 +424,8 @@ def summarise(rows: list[dict]) -> None:
         if n:
             print(f"    {label:<10}  {n}")
     print(f"score  min {scores[0]:.4f}  p50 {scores[len(scores) // 2]:.4f}  max {scores[-1]:.4f}")
+    for key, count in _capture_counts(rows).items():
+        print(f"{key:<25} {count}")
 
 
 def main() -> int:
@@ -450,6 +479,8 @@ def main() -> int:
         print(f"  keep          {keep}")
         print(f"  quarantine    {quarantine}")
         print(f"  remove        {remove}")
+        for key, count in _capture_counts([entry for entry in entries if "capture_id" in entry]).items():
+            print(f"{key:<25} {count}")
         if manifest_path is not None:
             print(f"manifest        {manifest_path}")
         return 0
