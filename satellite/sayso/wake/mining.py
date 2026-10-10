@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import numpy as np
 
+from .ingest_record import _sha256_file, ingest_record
+
 if TYPE_CHECKING:
     from .capture import WakeCaptureRing
 
@@ -45,14 +47,6 @@ OUTCOME_STT = "stt"
 
 def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _utc_stamp() -> str:
@@ -105,6 +99,7 @@ class _Cluster:
     sampling_reason: str
     capture_id: str
     pre_context_index: int
+    processing_state: dict[str, Any] = field(default_factory=dict)
     deadline: float = field(default_factory=lambda: time.monotonic() + CLUSTER_SETTLE_S)
 
 
@@ -119,6 +114,8 @@ class _WriteJob:
     sample_end: int
     pre_pcm: bytes = b""
     pre_flags: dict[str, bool] = field(default_factory=dict)
+    raw_pre_pcm: bytes = b""
+    processing_state: dict[str, Any] = field(default_factory=dict)
     enqueue_mono: float = field(default_factory=time.monotonic)
     post_deadline_mono: float = 0.0
 
@@ -138,6 +135,8 @@ class HardNegativeMiner:
         model_path: Optional[Path] = None,
         session_id: Optional[str] = None,
         processing_settings: Optional[dict[str, Any]] = None,
+        raw_reader: Callable[[int, int], bytes] | None = None,
+        native_clip_count: Callable[[], int] | None = None,
         max_records: int = DEFAULT_MAX_RECORDS,
         max_bytes: int = DEFAULT_MAX_BYTES,
         queue_size: int = DEFAULT_QUEUE_SIZE,
@@ -167,6 +166,8 @@ class HardNegativeMiner:
         )
         self._session_id = session_id or str(uuid.uuid4())
         self._processing = dict(processing_settings or {})
+        self._raw_reader = raw_reader
+        self._native_clip_count = native_clip_count
         self._max_records = int(max_records)
         self._max_bytes = int(max_bytes)
         self._queue_size = max(1, int(queue_size))
@@ -186,7 +187,7 @@ class HardNegativeMiner:
         self._ring_reader: Optional[Callable[[int, int], bytes]] = None
         self._clusters: list[_Cluster] = []
         self._cluster_lock = threading.Lock()
-        self._pending_pre: dict[str, tuple[bytes, dict[str, bool]]] = {}
+        self._pending_pre: dict[str, tuple[bytes, dict[str, bool], bytes]] = {}
         self._latest_detection_id: Optional[str] = None
         self._losses = LossStats()
         self._spool_full = False
@@ -219,6 +220,9 @@ class HardNegativeMiner:
     def bind_ring(self, ring: Any) -> None:
         self._ring = ring
         self._ring_reader = ring.read
+
+    def bind_raw_ring(self, ring: WakeCaptureRing) -> None:
+        self._raw_reader = ring.read
 
     def start(self) -> None:
         if self._thread is not None:
@@ -279,6 +283,13 @@ class HardNegativeMiner:
             sampling_reason=reason,
             capture_id=capture_id,
             pre_context_index=idx,
+            processing_state={
+                "capture_rate": self._processing.get("capture_rate"),
+                "channels": self._processing.get("channels"),
+                "gain_db": self._processing.get("gain_db", self._processing.get("mic_gain_db")),
+                "noise_suppression": self._processing.get("noise_suppression"),
+                "auto_gain": self._processing.get("auto_gain"),
+            },
         )
         with self._cluster_lock:
             merged = self._merge_cluster(cluster)
@@ -305,7 +316,8 @@ class HardNegativeMiner:
             "pre_synthetic_padding": bool(synthetic_padding),
         }
         key = f"pre:{trigger_index}"
-        self._pending_pre[key] = (pcm, flags)
+        raw_pcm = self._raw_reader(pre_start, pre_end) if self._raw_reader else b""
+        self._pending_pre[key] = (pcm, flags, raw_pcm)
 
     def note_rearm(self) -> None:
         self._processing["last_rearm_mono"] = time.monotonic()
@@ -406,6 +418,7 @@ class HardNegativeMiner:
                     existing.sample_start = cluster.sample_start
                     existing.sample_end = cluster.sample_end
                     existing.sampling_reason = cluster.sampling_reason
+                    existing.processing_state = cluster.processing_state
                 existing.deadline = time.monotonic() + CLUSTER_SETTLE_S
                 return existing
         return None
@@ -433,19 +446,20 @@ class HardNegativeMiner:
         if self._spool_full:
             self._losses.spool_full += 1
             return
-        pre_pcm, pre_flags = self._pending_pre.pop(
-            f"pre:{cluster.pre_context_index}", (b"", {})
+        pre_pcm, pre_flags, raw_pre_pcm = self._pending_pre.pop(
+            f"pre:{cluster.pre_context_index}", (b"", {}, b"")
         )
+        pre_index = cluster.pre_context_index if pre_pcm else cluster.sample_index
+        pre_end = pre_index - self._window_samples + 1
+        pre_start = pre_end - self._pre_context_samples
         if not pre_pcm and self._ring_reader is not None and self._pre_context_samples > 0:
-            pre_start = (
-                cluster.sample_index - self._window_samples - self._pre_context_samples + 1
-            )
-            pre_end = cluster.sample_index - self._window_samples + 1
             pre_pcm = self._ring_reader(pre_start, pre_end)
             pre_flags = {
                 "pre_context_missing": len(pre_pcm) < self._pre_context_samples * 2,
                 "pre_synthetic_padding": False,
             }
+        if not raw_pre_pcm and self._raw_reader is not None and self._pre_context_samples > 0:
+            raw_pre_pcm = self._raw_reader(pre_start, pre_end)
         job = _WriteJob(
             capture_id=cluster.capture_id,
             sampling_reason=cluster.sampling_reason,
@@ -456,6 +470,8 @@ class HardNegativeMiner:
             sample_end=cluster.sample_end,
             pre_pcm=pre_pcm,
             pre_flags=pre_flags,
+            raw_pre_pcm=raw_pre_pcm,
+            processing_state=dict(cluster.processing_state),
             post_deadline_mono=time.monotonic() + self._post_deadline_s,
         )
         try:
@@ -511,6 +527,20 @@ class HardNegativeMiner:
         else:
             quality_flags["post_context_missing"] = True
 
+        raw_stream: dict[str, Any] = {
+            "raw_missing": not job.raw_pre_pcm or len(job.raw_pre_pcm) < self._pre_context_samples * 2,
+        }
+        if job.raw_pre_pcm:
+            raw_path = staging / "raw_pre.wav"
+            _write_wav(raw_path, np.frombuffer(job.raw_pre_pcm, dtype="<i2"), self._sample_rate)
+            raw_stream.update(
+                sha256=_sha256_file(raw_path), sample_rate=self._sample_rate, channels=1
+            )
+        processing_state = dict(job.processing_state)
+        processing_state["native_clips_at_publish"] = (
+            self._native_clip_count() if self._native_clip_count is not None else None
+        )
+
         record = {
             "capture_id": job.capture_id,
             "session_id": self._session_id,
@@ -527,6 +557,8 @@ class HardNegativeMiner:
             "sample_start": job.sample_start,
             "sample_end": job.sample_end,
             "processing": self._processing,
+            "processing_state": processing_state,
+            "streams": {"raw": raw_stream},
             "quality_flags": quality_flags,
             "hashes": hashes,
             "label": None,
@@ -629,34 +661,6 @@ class HardNegativeMiner:
         else:
             self._spool_full = False
             self._spool_full_logged = False
-
-
-def ingest_record(record_dir: Path) -> tuple[bool, str]:
-    meta_path = record_dir / "record.json"
-    if not meta_path.is_file():
-        return False, "missing record.json"
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        return False, f"malformed record.json: {exc}"
-    hashes = meta.get("hashes") or {}
-    window = record_dir / "window.wav"
-    if not window.is_file():
-        return False, "missing window.wav"
-    window_hash = _sha256_file(window)
-    if hashes.get("window_sha256") and hashes["window_sha256"] != window_hash:
-        return False, "window hash mismatch"
-    pre = record_dir / "pre.wav"
-    if pre.is_file():
-        pre_hash = _sha256_file(pre)
-        if hashes.get("pre_sha256") and hashes["pre_sha256"] != pre_hash:
-            return False, "pre hash mismatch"
-    post = record_dir / "post.wav"
-    if post.is_file():
-        post_hash = _sha256_file(post)
-        if hashes.get("post_sha256") and hashes["post_sha256"] != post_hash:
-            return False, "post hash mismatch"
-    return True, "ok"
 
 
 def write_ack(spool_dir: Path, capture_id: str, *, host: str = "wake_mine_report") -> Path:

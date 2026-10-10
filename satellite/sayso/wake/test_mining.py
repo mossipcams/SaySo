@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import shutil
@@ -8,6 +9,7 @@ import threading
 import time
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -53,6 +55,126 @@ def test_mined_window_is_byte_exact(tmp_path: Path) -> None:
     _publish(miner, 0.22, window, 31999)
     record = next((tmp_path / "records").iterdir())
     assert np.array_equal(_read_wav(record / "window.wav"), window)
+
+
+def test_mined_raw_context_is_pre_gain_and_has_stream_metadata(tmp_path: Path) -> None:
+    raw_pre = np.arange(1600, dtype="<i2")
+    window = _window(10)
+    ring = WakeCaptureRing(16000 * 10)
+    ring.append((raw_pre * 2).tobytes() + window.tobytes())
+    raw_ring = WakeCaptureRing(16000 * 10)
+    raw_ring.append(raw_pre.tobytes() + window.tobytes())
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        pre_context_ms=100,
+        post_context_ms=0,
+        below_sample_rate=0.0,
+    )
+    miner.bind_ring(ring)
+    miner.bind_raw_ring(raw_ring)
+    miner.start()
+    try:
+        miner.snapshot_pre_trigger(33599)
+        capture_id = miner.offer(0.8, window, sample_index=33599)
+    finally:
+        miner.stop(timeout=3.0)
+        if miner._flush_timer is not None:
+            miner._flush_timer.cancel()
+            miner._flush_timer.join(timeout=3.0)
+    assert capture_id
+    record = tmp_path / "records" / capture_id
+    raw_path = record / "raw_pre.wav"
+    assert _read_wav(raw_path).tobytes() == raw_pre.tobytes()
+    assert _read_wav(record / "pre.wav").tobytes() == (raw_pre * 2).tobytes()
+    meta = json.loads((record / "record.json").read_text())
+    assert meta["streams"]["raw"] == {
+        "sha256": hashlib.sha256(raw_path.read_bytes()).hexdigest(),
+        "sample_rate": 16000,
+        "channels": 1,
+        "raw_missing": False,
+    }
+    assert ingest_record(record) == (True, "ok")
+
+
+def test_mined_raw_context_missing_when_ring_has_no_coverage(tmp_path: Path) -> None:
+    window = _window(11)
+    ring = WakeCaptureRing(16000 * 10)
+    ring.append(np.zeros(1600, dtype="<i2").tobytes() + window.tobytes())
+    raw_ring = WakeCaptureRing(32000)
+    raw_ring.append(np.zeros(33600, dtype="<i2").tobytes())
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        pre_context_ms=100,
+        post_context_ms=0,
+        below_sample_rate=0.0,
+    )
+    miner.bind_ring(ring)
+    miner.bind_raw_ring(raw_ring)
+    miner.start()
+    try:
+        miner.snapshot_pre_trigger(33599)
+        capture_id = miner.offer(0.8, window, sample_index=33599)
+    finally:
+        miner.stop(timeout=3.0)
+        if miner._flush_timer is not None:
+            miner._flush_timer.cancel()
+            miner._flush_timer.join(timeout=3.0)
+    assert capture_id
+    record = tmp_path / "records" / capture_id
+    meta = json.loads((record / "record.json").read_text())
+    assert meta["streams"]["raw"]["raw_missing"] is True
+    assert not (record / "raw_pre.wav").exists()
+    assert ingest_record(record) == (True, "ok")
+
+
+def test_mined_processing_state_includes_live_native_clip_count(tmp_path: Path) -> None:
+    tally = SimpleNamespace(count=2)
+    settings = {
+        "capture_rate": 44100,
+        "channels": 2,
+        "gain_db": 6.0,
+        "noise_suppression": 2,
+        "auto_gain": 3,
+    }
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        post_context_ms=0,
+        below_sample_rate=0.0,
+        processing_settings=settings,
+        native_clip_count=lambda: tally.count,
+    )
+    capture_id = miner.offer(0.8, _window(12), sample_index=31999)
+    tally.count = 7
+    miner.start()
+    try:
+        miner._flush_clusters(force=True)
+    finally:
+        miner.stop(timeout=3.0)
+        if miner._flush_timer is not None:
+            miner._flush_timer.cancel()
+            miner._flush_timer.join(timeout=3.0)
+    assert capture_id
+    record = tmp_path / "records" / capture_id
+    meta = json.loads((record / "record.json").read_text())
+    assert meta["processing_state"] == {**settings, "native_clips_at_publish": 7}
+
+
+def test_legacy_record_without_streams_or_processing_state_ingests(tmp_path: Path) -> None:
+    with wave.open(str(tmp_path / "window.wav"), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(16000)
+        wf.writeframes(_window(13).tobytes())
+    (tmp_path / "record.json").write_text(
+        json.dumps({"capture_id": "legacy"}), encoding="utf-8"
+    )
+    assert ingest_record(tmp_path) == (True, "ok")
 
 
 def test_sampling_classes_and_metadata(tmp_path: Path) -> None:

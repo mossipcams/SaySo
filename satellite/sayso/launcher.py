@@ -10,6 +10,7 @@ from .config import load_config
 from .events import install_voice_handlers
 from .playback import configure_pulse_mpv, install_playback_recovery
 from .process_audio import NativeClipTally, install_native_rate_capture, install_wake_audio_path
+from .wake.capture import WakeCaptureRing
 from .wake.hook import SaySoExternalWakeHook
 from .wake.livekit import LiveKitWakeWordProvider
 from .wake.mining import HardNegativeMiner
@@ -92,6 +93,7 @@ def main() -> None:
     sys.argv = argv
 
     mine_dir = getattr(cfg.wake_word, "mine_dir", None)
+    native_clip_tally = NativeClipTally()
     miner = None
     if mine_dir is not None:
         mine_threshold = float(getattr(cfg.wake_word, "mine_threshold", 0.1))
@@ -104,10 +106,12 @@ def main() -> None:
             model_path=cfg.wake_word.model,
             processing_settings={
                 "capture_rate": cfg.audio.capture_rate,
+                "channels": cfg.audio.channels,
                 "mic_gain_db": cfg.audio.mic_gain_db,
                 "noise_suppression": cfg.audio.noise_suppression,
                 "auto_gain": cfg.audio.auto_gain,
             },
+            native_clip_count=lambda: native_clip_tally.count,
             pre_context_ms=getattr(cfg.wake_word, "mine_pre_context_ms", 500),
             post_context_ms=getattr(cfg.wake_word, "mine_post_context_ms", 500),
             post_deadline_ms=getattr(cfg.wake_word, "mine_post_deadline_ms", 1000),
@@ -143,7 +147,10 @@ def main() -> None:
         miner=miner,
     )
 
-    native_clip_tally = NativeClipTally()
+    raw_ring = None
+    if miner is not None:
+        raw_ring = WakeCaptureRing(wake_hook._ring.capacity)
+        miner.bind_raw_ring(raw_ring)
     capture = None
     if getattr(cfg.audio, "stt_capture_enabled", False):
         capture_dir = getattr(cfg.audio, "stt_capture_dir", None)
@@ -167,6 +174,7 @@ def main() -> None:
         auto_gain=cfg.audio.auto_gain,
         noise_suppression=cfg.audio.noise_suppression,
         native_clip_tally=native_clip_tally,
+        raw_sink=raw_ring.append if raw_ring is not None else None,
     )
     install_wake_audio_path(lva_main, wake_hook)
     install_voice_handlers(
