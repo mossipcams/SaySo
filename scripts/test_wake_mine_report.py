@@ -42,7 +42,9 @@ def _write_record(spool: Path, capture_id: str, *, seed: int = 0) -> Path:
     return window
 
 
-def test_inventory_cleanup_keeps_published_window_wav(tmp_path: Path) -> None:
+def test_inventory_cleanup_keeps_published_window_wav(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     spool = tmp_path / "spool"
     window = _write_record(spool, "capture-a", seed=1)
     entries = wake_mine_report.inventory_wake_assets([spool], cleanup=True)
@@ -50,6 +52,18 @@ def test_inventory_cleanup_keeps_published_window_wav(tmp_path: Path) -> None:
     keep = [entry for entry in entries if entry.get("path") == str(window)]
     assert keep
     assert all(entry.get("action") != "remove" for entry in keep)
+    manifest = json.loads((spool / wake_mine_report.MANIFEST_NAME).read_text())
+    assert manifest["capture_counts"] == {
+        "raw_available": 0,
+        "raw_missing": 0,
+        "raw_unknown": 1,
+        "processing_state_present": 0,
+        "processing_state_missing": 1,
+    }
+    wake_mine_report.summarise([json.loads((window.parent / "record.json").read_text())])
+    output = capsys.readouterr().out
+    for key in manifest["capture_counts"]:
+        assert key in output
 
 
 def test_duplicate_cleanup_keeps_retained_copy(tmp_path: Path) -> None:

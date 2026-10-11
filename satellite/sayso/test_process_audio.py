@@ -19,6 +19,7 @@ from sayso.process_audio import (
     install_wake_audio_path,
 )
 from sayso.wake.detection import Detection
+from sayso.wake.capture import gain_scalar_from_db
 from sayso.wake.hook import SaySoExternalWakeHook
 from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES
 
@@ -137,6 +138,46 @@ def test_recorder_passthrough_when_already_16k() -> None:
     rec = _ResamplingRecorder(inner, native_rate=16000, channels=1, gain=1.0)
     out = rec.record(320)
     assert out.shape == (320, 1)
+
+
+@pytest.mark.parametrize("gain_db", [0.0, 6.0])
+def test_recorder_raw_sink_receives_pre_gain_bytes(gain_db: float) -> None:
+    class _QuietRecorder(_FakeRecorder):
+        def record(self, numframes: int) -> Any:
+            return np.full((numframes, 1), 0.25, dtype=np.float32)
+
+    raw_blocks: list[bytes] = []
+    rec = _ResamplingRecorder(
+        _QuietRecorder(16000, 1, 320),
+        native_rate=16000,
+        channels=1,
+        gain=gain_scalar_from_db(gain_db),
+        raw_sink=raw_blocks.append,
+    )
+    out = rec.record(320)
+    raw_pcm = b"".join(raw_blocks)
+    expected = np.full(320, round(0.25 * 32767), dtype="<i2").tobytes()
+    assert raw_pcm == expected
+    processed_pcm = np.rint(out * 32767).astype("<i2").tobytes()
+    if gain_db > 0:
+        assert raw_pcm != processed_pcm
+    else:
+        assert raw_pcm == processed_pcm
+
+
+def test_recorder_raw_path_needs_no_resampler_at_16k() -> None:
+    raw_sink = Mock()
+    rec = _ResamplingRecorder(
+        _FakeRecorder(16000, 1, 320),
+        native_rate=16000,
+        channels=1,
+        gain=1.0,
+        raw_sink=raw_sink,
+    )
+    assert rec._raw_resampler is None
+    assert rec._resamplers is None
+    rec.record(320)
+    raw_sink.assert_called_once_with(np.zeros(320, dtype="<i2").tobytes())
 
 
 def test_shared_native_clip_tally_counts_gain_clips() -> None:

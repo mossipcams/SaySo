@@ -183,6 +183,9 @@ opt-in scored windows plus short ring context for offline transfer; capture ids
 are satellite-local and distinct from Home Assistant's pipeline trace id. Mining
 must never block capture, inference, or the voice path, and must not start
 another request while the current voice pipeline is active.
+When mining is enabled, each retained window may additionally store a bounded
+pre-processing (pre-gain) context clip and processing-state metadata alongside
+processed artifacts.
 
 ## Interaction tracing
 
