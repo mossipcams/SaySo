@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -35,7 +34,9 @@ def _read_wav(path: Path) -> np.ndarray:
         return np.frombuffer(wf.readframes(wf.getnframes()), dtype="<i2")
 
 
-def _publish(miner: HardNegativeMiner, score: float, window: np.ndarray, index: int) -> str | None:
+def _publish(
+    miner: HardNegativeMiner, score: float, window: np.ndarray, index: int
+) -> str | None:
     capture_id = miner.offer(score, window, sample_index=index)
     miner._flush_clusters(force=True)
     miner.stop(timeout=3.0)
@@ -221,7 +222,9 @@ def test_mined_processing_state_includes_live_native_clip_count(tmp_path: Path) 
     assert meta["processing_state"] == {**settings, "native_clips_at_publish": 7}
 
 
-def test_legacy_record_without_streams_or_processing_state_ingests(tmp_path: Path) -> None:
+def test_legacy_record_without_streams_or_processing_state_ingests(
+    tmp_path: Path,
+) -> None:
     with wave.open(str(tmp_path / "window.wav"), "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
@@ -246,7 +249,10 @@ def test_sampling_classes_and_metadata(tmp_path: Path) -> None:
     near_id = _publish(miner, 0.22, window, 31999)
     det_id = _publish(miner, 0.8, window, 63999)
     assert near_id and det_id and near_id != det_id
-    records = {p.name: json.loads((p / "record.json").read_text()) for p in (tmp_path / "records").iterdir()}
+    records = {
+        p.name: json.loads((p / "record.json").read_text())
+        for p in (tmp_path / "records").iterdir()
+    }
     reasons = {meta["sampling_reason"] for meta in records.values()}
     assert SAMPLING_NEAR in reasons
     assert SAMPLING_DETECTION in reasons
@@ -375,8 +381,12 @@ def test_outcomes_are_separate_and_idempotent(tmp_path: Path) -> None:
     )
     miner.start()
     capture_id = "00000000-0000-4000-8000-000000000001"
-    miner.publish_wake_outcome(capture_id, accepted=True, suppressed=False, reason="test")
-    miner.publish_wake_outcome(capture_id, accepted=True, suppressed=False, reason="test")
+    miner.publish_wake_outcome(
+        capture_id, accepted=True, suppressed=False, reason="test"
+    )
+    miner.publish_wake_outcome(
+        capture_id, accepted=True, suppressed=False, reason="test"
+    )
     miner.publish_stt_outcome(capture_id, stt_run_id="cmd-1", transcript="lights on")
     wake = json.loads((tmp_path / "outcomes" / f"{capture_id}.wake.json").read_text())
     stt = json.loads((tmp_path / "outcomes" / f"{capture_id}.stt.json").read_text())
@@ -473,5 +483,7 @@ def test_below_threshold_independent_sample(tmp_path: Path) -> None:
     miner.start()
     capture_id = _publish(miner, 0.02, window, 31999)
     assert capture_id
-    meta = json.loads((next((tmp_path / "records").iterdir()) / "record.json").read_text())
+    meta = json.loads(
+        (next((tmp_path / "records").iterdir()) / "record.json").read_text()
+    )
     assert meta["sampling_reason"] == SAMPLING_BELOW
