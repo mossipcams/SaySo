@@ -11,7 +11,7 @@ from .events import install_voice_handlers
 from .playback import configure_pulse_mpv, install_playback_recovery
 from .process_audio import NativeClipTally, install_native_rate_capture, install_wake_audio_path
 from .wake.capture import WakeCaptureRing
-from .wake.hook import SaySoExternalWakeHook
+from .wake.hook import SaySoExternalWakeHook, wake_ring_capacity
 from .wake.livekit import LiveKitWakeWordProvider
 from .wake.mining import HardNegativeMiner
 from .wake.provider import WakeWordProvider
@@ -140,16 +140,19 @@ def main() -> None:
     import linux_voice_assistant.__main__ as lva_main
     from linux_voice_assistant.satellite import VoiceSatelliteProtocol
 
+    ring_capacity = wake_ring_capacity(cfg.wake_word.preroll_ms)
+
     wake_hook = SaySoExternalWakeHook(
         provider,
         preroll_ms=cfg.wake_word.preroll_ms,
         wake_skip_ms=cfg.wake_word.wake_skip_ms,
+        capture_ring=WakeCaptureRing(ring_capacity),
         miner=miner,
     )
 
     raw_ring = None
     if miner is not None:
-        raw_ring = WakeCaptureRing(wake_hook._ring.capacity)
+        raw_ring = WakeCaptureRing(ring_capacity)
         miner.bind_raw_ring(raw_ring)
     capture = None
     if getattr(cfg.audio, "stt_capture_enabled", False):

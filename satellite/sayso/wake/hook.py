@@ -17,6 +17,12 @@ _LOGGER = logging.getLogger(__name__)
 
 _RING_HEADROOM_SAMPLES = SAMPLE_RATE * 5
 
+
+def wake_ring_capacity(preroll_ms: int) -> int:
+    return (
+        (preroll_ms * SAMPLE_RATE) // 1000 + WINDOW_SAMPLES + HOP_SAMPLES + _RING_HEADROOM_SAMPLES
+    )
+
 DEFAULT_WAKE_SKIP_MS = 120
 
 
@@ -39,12 +45,7 @@ class SaySoExternalWakeHook:
     ) -> None:
         self._provider = provider
         self._buffer = WakeAudioBuffer(WINDOW_SAMPLES, HOP_SAMPLES)
-        ring_capacity = (
-            (preroll_ms * SAMPLE_RATE) // 1000
-            + WINDOW_SAMPLES
-            + HOP_SAMPLES
-            + _RING_HEADROOM_SAMPLES
-        )
+        ring_capacity = wake_ring_capacity(preroll_ms)
         self._ring = capture_ring if capture_ring is not None else WakeCaptureRing(ring_capacity)
         self._miner = miner
         if self._miner is not None:

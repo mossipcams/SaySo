@@ -167,6 +167,8 @@ class HardNegativeMiner:
         self._session_id = session_id or str(uuid.uuid4())
         self._processing = dict(processing_settings or {})
         self._raw_reader = raw_reader
+        self._raw_ring: Optional[WakeCaptureRing] = None
+        self._last_raw_drift = 0
         self._native_clip_count = native_clip_count
         self._max_records = int(max_records)
         self._max_bytes = int(max_bytes)
@@ -223,6 +225,25 @@ class HardNegativeMiner:
 
     def bind_raw_ring(self, ring: WakeCaptureRing) -> None:
         self._raw_reader = ring.read
+        self._raw_ring = ring
+
+    def _check_raw_ring_drift(self) -> None:
+        if self._ring is None or self._raw_ring is None:
+            return
+        main_end = getattr(self._ring, "end_index", None)
+        raw_end = int(self._raw_ring.end_index)
+        if main_end is None or raw_end == int(main_end):
+            return
+        drift = raw_end - int(main_end)
+        if drift == self._last_raw_drift:
+            return
+        self._last_raw_drift = drift
+        _LOGGER.warning(
+            "Raw capture ring drifted %d samples from processed capture ring (raw=%d processed=%d); pre-context alignment may be off",
+            drift,
+            raw_end,
+            int(main_end),
+        )
 
     def start(self) -> None:
         if self._thread is not None:
@@ -318,6 +339,8 @@ class HardNegativeMiner:
         key = f"pre:{trigger_index}"
         raw_pcm = self._raw_reader(pre_start, pre_end) if self._raw_reader else b""
         self._pending_pre[key] = (pcm, flags, raw_pcm)
+
+        self._check_raw_ring_drift()
 
     def note_rearm(self) -> None:
         self._processing["last_rearm_mono"] = time.monotonic()
@@ -460,6 +483,7 @@ class HardNegativeMiner:
             }
         if not raw_pre_pcm and self._raw_reader is not None and self._pre_context_samples > 0:
             raw_pre_pcm = self._raw_reader(pre_start, pre_end)
+            self._check_raw_ring_drift()
         job = _WriteJob(
             capture_id=cluster.capture_id,
             sampling_reason=cluster.sampling_reason,
@@ -528,14 +552,14 @@ class HardNegativeMiner:
             quality_flags["post_context_missing"] = True
 
         raw_stream: dict[str, Any] = {
+            "sample_rate": self._sample_rate,
+            "channels": 1,
             "raw_missing": not job.raw_pre_pcm or len(job.raw_pre_pcm) < self._pre_context_samples * 2,
         }
         if job.raw_pre_pcm:
             raw_path = staging / "raw_pre.wav"
             _write_wav(raw_path, np.frombuffer(job.raw_pre_pcm, dtype="<i2"), self._sample_rate)
-            raw_stream.update(
-                sha256=_sha256_file(raw_path), sample_rate=self._sample_rate, channels=1
-            )
+            raw_stream["sha256"] = _sha256_file(raw_path)
         processing_state = dict(job.processing_state)
         processing_state["native_clips_at_publish"] = (
             self._native_clip_count() if self._native_clip_count is not None else None

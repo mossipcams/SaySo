@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import random
 import shutil
 import threading
@@ -57,7 +58,9 @@ def test_mined_window_is_byte_exact(tmp_path: Path) -> None:
     assert np.array_equal(_read_wav(record / "window.wav"), window)
 
 
-def test_mined_raw_context_is_pre_gain_and_has_stream_metadata(tmp_path: Path) -> None:
+def test_mined_raw_context_is_pre_gain_and_has_stream_metadata(
+    tmp_path: Path, caplog
+) -> None:
     raw_pre = np.arange(1600, dtype="<i2")
     window = _window(10)
     ring = WakeCaptureRing(16000 * 10)
@@ -76,14 +79,16 @@ def test_mined_raw_context_is_pre_gain_and_has_stream_metadata(tmp_path: Path) -
     miner.bind_raw_ring(raw_ring)
     miner.start()
     try:
-        miner.snapshot_pre_trigger(33599)
-        capture_id = miner.offer(0.8, window, sample_index=33599)
+        with caplog.at_level(logging.WARNING, logger="satellite.sayso.wake.mining"):
+            miner.snapshot_pre_trigger(33599)
+            capture_id = miner.offer(0.8, window, sample_index=33599)
     finally:
         miner.stop(timeout=3.0)
         if miner._flush_timer is not None:
             miner._flush_timer.cancel()
             miner._flush_timer.join(timeout=3.0)
     assert capture_id
+    assert not any("drifted" in rec.message for rec in caplog.records)
     record = tmp_path / "records" / capture_id
     raw_path = record / "raw_pre.wav"
     assert _read_wav(raw_path).tobytes() == raw_pre.tobytes()
@@ -126,8 +131,59 @@ def test_mined_raw_context_missing_when_ring_has_no_coverage(tmp_path: Path) -> 
     assert capture_id
     record = tmp_path / "records" / capture_id
     meta = json.loads((record / "record.json").read_text())
-    assert meta["streams"]["raw"]["raw_missing"] is True
+    assert meta["streams"]["raw"] == {
+        "sample_rate": 16000,
+        "channels": 1,
+        "raw_missing": True,
+    }
     assert not (record / "raw_pre.wav").exists()
+    assert ingest_record(record) == (True, "ok")
+
+
+def test_raw_ring_drift_warns_without_changing_outputs(tmp_path: Path, caplog) -> None:
+    raw_pre = np.arange(1600, dtype="<i2")
+    window = _window(14)
+    ring = WakeCaptureRing(16000 * 10)
+    ring.append((raw_pre * 2).tobytes())
+    ring.append(window.tobytes())
+    ring.append(np.zeros(2560, dtype="<i2").tobytes())
+    raw_ring = WakeCaptureRing(16000 * 10)
+    raw_ring.append(raw_pre.tobytes())
+    raw_ring.append(window.tobytes())
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        pre_context_ms=100,
+        post_context_ms=0,
+        below_sample_rate=0.0,
+    )
+    miner.bind_ring(ring)
+    miner.bind_raw_ring(raw_ring)
+    miner.start()
+    try:
+        with caplog.at_level(logging.WARNING, logger="satellite.sayso.wake.mining"):
+            miner.snapshot_pre_trigger(33599)
+            capture_id = miner.offer(0.8, window, sample_index=33599)
+        miner._flush_clusters(force=True)
+    finally:
+        miner.stop(timeout=3.0)
+        if miner._flush_timer is not None:
+            miner._flush_timer.cancel()
+            miner._flush_timer.join(timeout=3.0)
+    assert capture_id
+    assert any("drifted" in rec.message for rec in caplog.records)
+    record = tmp_path / "records" / capture_id
+    assert np.array_equal(_read_wav(record / "window.wav"), window)
+    assert _read_wav(record / "pre.wav").tobytes() == (raw_pre * 2).tobytes()
+    assert _read_wav(record / "raw_pre.wav").tobytes() == raw_pre.tobytes()
+    meta = json.loads((record / "record.json").read_text())
+    assert meta["streams"]["raw"] == {
+        "sha256": hashlib.sha256((record / "raw_pre.wav").read_bytes()).hexdigest(),
+        "sample_rate": 16000,
+        "channels": 1,
+        "raw_missing": False,
+    }
     assert ingest_record(record) == (True, "ok")
 
 
