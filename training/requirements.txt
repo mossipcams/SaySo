@@ -4,9 +4,9 @@
 hassil==3.12.1
 jsonschema==4.26.0
 PyYAML==6.0.3
-transformers==5.18.0
-tokenizers==0.23.2
+transformers==5.19.0
+tokenizers==0.23.3
 Jinja2==3.1.6
 requests>=2.32.0
-hypothesis==6.168.4
+hypothesis==6.169.0
 pytest==9.1.1
