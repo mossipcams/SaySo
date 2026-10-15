@@ -1,0 +1,537 @@
+{
+  "home_id": "live_home_1",
+  "satellite_area": "Hallway",
+  "sayso_entity_area": "Hallway",
+  "areas": {
+    "Hallway": [],
+    "Bedroom": [],
+    "Kitchen": [],
+    "Outside": [],
+    "Living Room": [],
+    "Rock's room": []
+  },
+  "area_aliases": {
+    "Hallway": [],
+    "Bedroom": [],
+    "Kitchen": [],
+    "Outside": [],
+    "Living Room": [],
+    "Rock's room": []
+  },
+  "entities": [
+    {
+      "entity_id": "climate.thermostat",
+      "name": "Thermostat",
+      "aliases": [
+        "Thermostat"
+      ],
+      "domain": "climate",
+      "kind": "climate",
+      "capability": "climate",
+      "device_class": null,
+      "area": "Hallway",
+      "floor": "Floor 1",
+      "state": "heat_cool",
+      "capabilities": [
+        "heat",
+        "cool",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "fan.levoit_vesync_core_300s_plus_smart_air_purifier",
+      "name": "Levoit VeSync Core 300S Plus Smart Air Purifier",
+      "aliases": [
+        "Levoit VeSync Core 300S Plus Smart Air Purifier"
+      ],
+      "domain": "fan",
+      "kind": "fan",
+      "capability": "fans",
+      "device_class": null,
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "on",
+      "capabilities": [
+        "off",
+        "on",
+        "percentage"
+      ]
+    },
+    {
+      "entity_id": "light.kitchen_light",
+      "name": "Kitchen light",
+      "aliases": [
+        "Kitchen light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "brightness",
+        "color",
+        "color_temp",
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "light.levds_switch_92d6",
+      "name": "LEVDS-Switch-92D6",
+      "aliases": [
+        "LEVDS-Switch-92D6"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Floor 1",
+      "state": "on",
+      "capabilities": [
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "light.nightstand",
+      "name": "Nightstand",
+      "aliases": [
+        "Nightstand"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "brightness",
+        "color",
+        "color_temp",
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "light.outdoor_lights",
+      "name": "Outdoor Lights",
+      "aliases": [
+        "Outdoor Lights"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Outside",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "brightness",
+        "color",
+        "color_temp",
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "light.porch_light",
+      "name": "Porch_Light",
+      "aliases": [
+        "Porch_Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "capability": "lights",
+      "device_class": null,
+      "area": "Outside",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "brightness",
+        "color",
+        "color_temp",
+        "off",
+        "on"
+      ]
+    },
+    {
+      "entity_id": "media_player.desk_echo_dot",
+      "name": "Desk Echo Dot",
+      "aliases": [
+        "Desk Echo Dot"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "state": "idle",
+      "capabilities": [
+        "mute",
+        "volume",
+        "volume_step"
+      ]
+    },
+    {
+      "entity_id": "media_player.everywhere",
+      "name": "Everywhere",
+      "aliases": [
+        "Everywhere"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "state": "idle",
+      "capabilities": [
+        "mute",
+        "volume",
+        "volume_step"
+      ]
+    },
+    {
+      "entity_id": "media_player.living_room_tv",
+      "name": "TV",
+      "aliases": [
+        "TV"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "tv",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "idle",
+      "capabilities": [
+        "mute",
+        "next",
+        "off",
+        "on",
+        "pause",
+        "play",
+        "previous",
+        "volume_step"
+      ]
+    },
+    {
+      "entity_id": "media_player.party_time",
+      "name": "Party Time",
+      "aliases": [
+        "Party Time"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "capability": "media_players",
+      "device_class": "speaker",
+      "state": "idle",
+      "capabilities": [
+        "mute",
+        "volume",
+        "volume_step"
+      ]
+    },
+    {
+      "entity_id": "scene.movie",
+      "name": "Movie",
+      "aliases": [
+        "Movie"
+      ],
+      "domain": "scene",
+      "kind": "scene",
+      "capability": "scenes",
+      "device_class": null,
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "2026-09-22T23:21:49.718325+00:00",
+      "capabilities": [
+        "activate"
+      ]
+    },
+    {
+      "entity_id": "switch.christmas_tree",
+      "name": "Christmas tree",
+      "aliases": [
+        "Christmas tree"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.corner_lamp",
+      "name": "Corner lamp",
+      "aliases": [
+        "Corner lamp"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "switch",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.humidifier_plugin",
+      "name": "Humidifier Plugin",
+      "aliases": [
+        "Humidifier Plugin"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Bedroom",
+      "floor": "Floor 1",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.living_room_lights",
+      "name": "Living room lights",
+      "aliases": [
+        "Living room lights"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.livingroom_lampshade",
+      "name": "Living room Lampshade",
+      "aliases": [
+        "Living room Lampshade"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "switch",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.rocky_room_cam",
+      "name": "Rocky room cam",
+      "aliases": [
+        "Rocky room cam"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Rock's room",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.shelf_lamp",
+      "name": "Shelf lamp",
+      "aliases": [
+        "Shelf lamp"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "outlet",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "switch.sidetable_lamp",
+      "name": "sidetable lamp",
+      "aliases": [
+        "sidetable lamp"
+      ],
+      "domain": "switch",
+      "kind": "switch",
+      "capability": "switches",
+      "device_class": "switch",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "on",
+      "capabilities": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "entity_id": "todo.reminders",
+      "name": "Reminders",
+      "aliases": [
+        "Reminders"
+      ],
+      "domain": "todo",
+      "kind": "todo",
+      "capability": "todo_lists",
+      "device_class": null,
+      "state": "2",
+      "capabilities": [
+        "add"
+      ]
+    }
+  ],
+  "context_entities": [
+    {
+      "name": "Apollo MSR-2 Radar Moving Target",
+      "domain": "binary_sensor",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Aqara Dryer Sensor",
+      "domain": "binary_sensor",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Date",
+      "domain": "sensor"
+    },
+    {
+      "name": "Date & Time",
+      "domain": "sensor"
+    },
+    {
+      "name": "Home Assistant Climate",
+      "domain": "sensor"
+    },
+    {
+      "name": "Home Assistant Lights",
+      "domain": "sensor"
+    },
+    {
+      "name": "Home Assistant Media players",
+      "domain": "sensor"
+    },
+    {
+      "name": "Home Assistant Switches",
+      "domain": "sensor"
+    },
+    {
+      "name": "Home Assistant Timers",
+      "domain": "sensor"
+    },
+    {
+      "name": "Home Assistant To-do lists",
+      "domain": "sensor"
+    },
+    {
+      "name": "Humidifier Plugin Bedroomcontrol",
+      "domain": "humidifier",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Pending Notifications",
+      "domain": "binary_sensor"
+    },
+    {
+      "name": "Person One",
+      "domain": "person"
+    },
+    {
+      "name": "Person Two",
+      "domain": "person"
+    },
+    {
+      "name": "PirateWeather Daytime High Temperature 0d",
+      "domain": "sensor"
+    },
+    {
+      "name": "PirateWeather Overnight Low Temperature 0d",
+      "domain": "sensor"
+    },
+    {
+      "name": "SaySo (local)",
+      "domain": "conversation",
+      "area": "Living Room"
+    },
+    {
+      "name": "Sonoff Sensor Humidity",
+      "domain": "sensor",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Sonoff Sensor Temperature",
+      "domain": "sensor",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Sun",
+      "domain": "sun"
+    },
+    {
+      "name": "TV Active app",
+      "domain": "sensor",
+      "area": "Living Room"
+    },
+    {
+      "name": "TV Application",
+      "domain": "select",
+      "area": "Living Room"
+    },
+    {
+      "name": "Thermo Humidity",
+      "domain": "sensor",
+      "area": "Hallway"
+    },
+    {
+      "name": "Thermostat Current Temperature",
+      "domain": "sensor",
+      "area": "Hallway"
+    },
+    {
+      "name": "Thermostat Motion",
+      "domain": "binary_sensor",
+      "area": "Hallway"
+    },
+    {
+      "name": "Third Reality Temp Temperature",
+      "domain": "sensor",
+      "area": "Office"
+    },
+    {
+      "name": "Third reality humidity",
+      "domain": "sensor",
+      "area": "Office"
+    }
+  ]
+}

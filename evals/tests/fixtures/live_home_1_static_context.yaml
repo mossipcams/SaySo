@@ -1,0 +1,126 @@
+- names: Apollo MSR-2 Radar Moving Target
+  domain: binary_sensor
+  areas: Bedroom
+- names: Aqara Dryer Sensor
+  domain: binary_sensor
+  areas: Kitchen
+- names: Christmas tree
+  domain: switch
+  areas: Living Room
+- names: Corner lamp
+  domain: switch
+  areas: Living Room
+- names: Date
+  domain: sensor
+- names: Date & Time
+  domain: sensor
+- names: Desk Echo Dot
+  domain: media_player
+- names: Everywhere
+  domain: media_player
+- names: Home Assistant Climate
+  domain: sensor
+- names: Home Assistant Lights
+  domain: sensor
+- names: Home Assistant Media players
+  domain: sensor
+- names: Home Assistant Switches
+  domain: sensor
+- names: Home Assistant Timers
+  domain: sensor
+- names: Home Assistant To-do lists
+  domain: sensor
+- names: Humidifier Plugin
+  domain: switch
+  areas: Bedroom
+- names: Humidifier Plugin Bedroomcontrol
+  domain: humidifier
+  areas: Bedroom
+- names: Kitchen light
+  domain: light
+  areas: Kitchen
+- names: LEVDS-Switch-92D6
+  domain: light
+  areas: Kitchen
+- names: Levoit VeSync Core 300S Plus Smart Air Purifier
+  domain: fan
+  areas: Bedroom
+- names: Living room Lampshade
+  domain: switch
+  areas: Living Room
+- names: Living room lights
+  domain: switch
+  areas: Living Room
+- names: Movie
+  domain: scene
+  areas: Living Room
+- names: Nightstand
+  domain: light
+  areas: Bedroom
+- names: Outdoor Lights
+  domain: light
+  areas: Outside
+- names: Party Time
+  domain: media_player
+- names: Pending Notifications
+  domain: binary_sensor
+- names: Person One
+  domain: person
+- names: Person Two
+  domain: person
+- names: PirateWeather Daytime High Temperature 0d
+  domain: sensor
+- names: PirateWeather Overnight Low Temperature 0d
+  domain: sensor
+- names: Porch_Light
+  domain: light
+  areas: Outside
+- names: Reminders
+  domain: todo
+- names: Rocky room cam
+  domain: switch
+  areas: Rock's room
+- names: SaySo (local)
+  domain: conversation
+  areas: Living Room
+- names: Shelf lamp
+  domain: switch
+  areas: Living Room
+- names: Sonoff Sensor Humidity
+  domain: sensor
+  areas: Bedroom
+- names: Sonoff Sensor Temperature
+  domain: sensor
+  areas: Bedroom
+- names: Sun
+  domain: sun
+- names: TV
+  domain: media_player
+  areas: Living Room
+- names: TV Active app
+  domain: sensor
+  areas: Living Room
+- names: TV Application
+  domain: select
+  areas: Living Room
+- names: Thermo Humidity
+  domain: sensor
+  areas: Hallway
+- names: Thermostat
+  domain: climate
+  areas: Hallway
+- names: Thermostat Current Temperature
+  domain: sensor
+  areas: Hallway
+- names: Thermostat Motion
+  domain: binary_sensor
+  areas: Hallway
+- names: Third Reality Temp Temperature
+  domain: sensor
+  areas: Office
+- names: Third reality humidity
+  domain: sensor
+  areas: Office
+- names: sidetable lamp
+  domain: switch
+  areas: Living Room

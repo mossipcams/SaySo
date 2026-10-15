@@ -1,0 +1,14 @@
+name: context
+description: "Context look-alike regressions on the live home; must pass 100%."
+cases:
+  - context_lookalikes_01
+  - context_lookalikes_02
+  - context_lookalikes_03
+  - context_lookalikes_04
+  - context_lookalikes_05
+  - context_lookalikes_06
+  - context_lookalikes_07
+  - context_lookalikes_08
+  - context_lookalikes_09
+  - context_lookalikes_10
+  - context_lookalikes_11

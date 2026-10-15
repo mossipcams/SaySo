@@ -28,6 +28,8 @@ suites:
       - status_state_change
       - excluded_entity_affected
       - transport_error
+      - wrong_domain
+      - context_entity_targeted
   smoke:
     min_overall_pass_rate: 0.7
     category_min_pass_rate: {}
@@ -43,3 +45,22 @@ suites:
       - status_state_change
       - excluded_entity_affected
       - transport_error
+      - wrong_domain
+      - context_entity_targeted
+  context:
+    min_overall_pass_rate: 1.0
+    category_min_pass_rate: {}
+    max_rates:
+      false_action_rate: 0.2
+      malformed_output_rate: 0.02
+      unknown_tool_rate: 0.02
+      invalid_argument_rate: 0.05
+    zero_tolerance_flags:
+      - action_on_ambiguity
+      - tool_call_on_unavailable
+      - malformed_treated_as_abstention
+      - status_state_change
+      - excluded_entity_affected
+      - transport_error
+      - wrong_domain
+      - context_entity_targeted

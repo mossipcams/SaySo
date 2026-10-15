@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -76,7 +75,9 @@ DYNAMIC_CONTEXT_PROMPT = (
     " knowledge.\n"
 )
 
-STATIC_CONTEXT_HEADER = "Static Context: An overview of the areas and the devices in this smart home:"
+STATIC_CONTEXT_HEADER = (
+    "Static Context: An overview of the areas and the devices in this smart home:"
+)
 
 NO_ENTITIES_PROMPT = (
     "Only if the user wants to control a device, tell them to expose entities "
@@ -128,7 +129,9 @@ _ALWAYS_OFFERED_NAMESPACES = frozenset({"llm", "homeassistant", "intent"})
 class ModelAdapter(Protocol):
     name: str
 
-    def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Any: ...
+    def complete(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> Any: ...
 
 
 @contextmanager
@@ -168,7 +171,7 @@ def _dump_yaml(data: list[dict[str, Any]]) -> str:
 
 
 def exposed_entities(home: dict[str, Any]) -> list[dict[str, Any]]:
-    entities = []
+    entities: list[tuple[str, dict[str, Any]]] = []
     for entity in sorted(home.get("entities", []), key=lambda item: item["name"]):
         if entity["domain"] in OVERVIEW_EXCLUDED_DOMAINS:
             continue
@@ -176,13 +179,25 @@ def exposed_entities(home: dict[str, Any]) -> list[dict[str, Any]]:
         info: dict[str, Any] = {"names": ", ".join(names), "domain": entity["domain"]}
         if entity.get("area"):
             info["areas"] = entity["area"]
-        entities.append(info)
-    return entities
+        entities.append((entity["name"], info))
+    for entity in home.get("context_entities") or []:
+        if entity["domain"] in OVERVIEW_EXCLUDED_DOMAINS:
+            continue
+        info = {"names": entity["name"], "domain": entity["domain"]}
+        if entity.get("area"):
+            info["areas"] = entity["area"]
+        entities.append((entity["name"], info))
+    return [info for _, info in sorted(entities, key=lambda item: item[0])]
 
 
 def home_areas(home: dict[str, Any]) -> dict[str, list[str]]:
     areas: dict[str, list[str]] = {
-        area: [] for area in [*(home.get("areas") or []), *(e.get("area") for e in home.get("entities", []))] if area
+        area: []
+        for area in [
+            *(home.get("areas") or []),
+            *(e.get("area") for e in home.get("entities", [])),
+        ]
+        if area
     }
     for area, aliases in (home.get("area_aliases") or {}).items():
         areas[area] = list(aliases)
@@ -190,7 +205,9 @@ def home_areas(home: dict[str, Any]) -> dict[str, list[str]]:
 
 
 def area_context_for(home: dict[str, Any], utterance: str) -> AreaContext:
-    return build_area_context(utterance, home_areas(home), home.get("sayso_entity_area"))
+    return build_area_context(
+        utterance, home_areas(home), home.get("sayso_entity_area")
+    )
 
 
 def _namespaced_prompt(text: str) -> str:
@@ -203,11 +220,17 @@ def serialize_context(home: dict[str, Any], utterance: str = "") -> str:
     entities = exposed_entities(home)
     if entities:
         api_prompt = "\n".join(
-            [_namespaced_prompt(DYNAMIC_CONTEXT_PROMPT), STATIC_CONTEXT_HEADER, _dump_yaml(entities)]
+            [
+                _namespaced_prompt(DYNAMIC_CONTEXT_PROMPT),
+                STATIC_CONTEXT_HEADER,
+                _dump_yaml(entities),
+            ]
         )
     else:
         api_prompt = NO_ENTITIES_PROMPT
-    api_prompt = "\n".join([api_prompt, _namespaced_prompt(DEVICE_CONTROL_TOOL_USAGE_PROMPT)])
+    api_prompt = "\n".join(
+        [api_prompt, _namespaced_prompt(DEVICE_CONTROL_TOOL_USAGE_PROMPT)]
+    )
     return render_system_prompt(
         "\n".join([SAYSO_SYSTEM_PROMPT, api_prompt]), area_context_for(home, utterance)
     )
@@ -255,18 +278,23 @@ def _script_tools(home: dict[str, Any]) -> list[dict[str, Any]]:
     return tools
 
 
-def production_catalog(home: dict[str, Any], *, removed_tools: list[str] | None = None) -> list[dict[str, Any]]:
+def production_catalog(
+    home: dict[str, Any], *, removed_tools: list[str] | None = None
+) -> list[dict[str, Any]]:
     removed = removed_tools or []
     domains = {entity["domain"] for entity in home.get("entities", [])}
     offered = [
         tool
         for tool in _v2_openai_tools()
-        if HA_TOOL_NAMESPACES[tool["function"]["name"]] in _ALWAYS_OFFERED_NAMESPACES | domains
+        if HA_TOOL_NAMESPACES[tool["function"]["name"]]
+        in _ALWAYS_OFFERED_NAMESPACES | domains
     ]
     catalog = _compile_catalog([*offered, *_script_tools(home)])
     unknown = set(removed) - {tool["function"]["name"] for tool in catalog}
     if unknown:
-        raise ValueError(f"cannot remove tools the catalog does not offer: {sorted(unknown)}")
+        raise ValueError(
+            f"cannot remove tools the catalog does not offer: {sorted(unknown)}"
+        )
     return [tool for tool in catalog if tool["function"]["name"] not in set(removed)]
 
 
@@ -304,7 +332,9 @@ def evaluate(cases: list[Case], adapter: ModelAdapter) -> list[CaseResult]:
             raw = {"transport_error": str(err)}
             transport_error = str(err)
         turn = read_completion(raw, rendered["tools"], rendered["exposed_domains"])
-        result = score(case.id, rendered["expectation"], turn)
+        result = score(
+            case.id, rendered["expectation"], turn, home=load_home(case.household)
+        )
         if transport_error:
             result.flags.append("transport_error")
         results.append(result)
@@ -341,10 +371,13 @@ def write_run(
         "run_id": run_id,
         "suite": suite,
         "adapter": adapter.name,
-        "checkpoint": getattr(adapter, "model", None) or (extra_metadata or {}).get("checkpoint"),
+        "checkpoint": getattr(adapter, "model", None)
+        or (extra_metadata or {}).get("checkpoint"),
         "code_revision": _git_revision(),
         "case_hash": fingerprint_cases(cases),
-        "suite_hash": hashlib.sha256("\n".join(case.id for case in cases).encode()).hexdigest(),
+        "suite_hash": hashlib.sha256(
+            "\n".join(case.id for case in cases).encode()
+        ).hexdigest(),
         "production_contract_fingerprint": production_contract_fingerprint(),
         "decoding": {
             "temperature": PRODUCTION_TEMPERATURE,
@@ -356,12 +389,16 @@ def write_run(
         metadata.update(extra_metadata)
     if hasattr(adapter, "server"):
         metadata["server"] = adapter.server
-    (dest / "metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (dest / "metadata.json").write_text(
+        json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     report = {
         "summary": summary,
         "promotion": {"passed": not failures, "failures": failures} if gates else None,
     }
-    (dest / "summary.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (dest / "summary.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     outcomes = dest / "outcomes.jsonl"
     with outcomes.open("w", encoding="utf-8") as handle:
         for result in results:
