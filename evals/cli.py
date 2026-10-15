@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import argparse
@@ -12,15 +11,19 @@ from evals.scorer import check_gates, summarize
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run", help="Run the shared evaluation pipeline")
-    run.add_argument("--suite", choices=("smoke", "promotion"))
+    run.add_argument("--suite", choices=("smoke", "promotion", "context"))
     run.add_argument("--category")
     run.add_argument("--tag")
     run.add_argument("--case-id")
     run.add_argument("--adapter", required=True, choices=("endpoint", "in_memory"))
-    run.add_argument("--server", help="OpenAI-compatible base URL (required for --adapter endpoint)")
+    run.add_argument(
+        "--server", help="OpenAI-compatible base URL (required for --adapter endpoint)"
+    )
     run.add_argument("--model", default="sayso")
     run.add_argument("--timeout", type=float, default=120.0)
     return parser
@@ -31,16 +34,23 @@ def main(argv: list[str] | None = None) -> int:
     if args.command != "run":
         raise SystemExit(2)
     if not any((args.suite, args.category, args.tag, args.case_id)):
-        print("error: specify --suite, --category, --tag, or --case-id", file=sys.stderr)
+        print(
+            "error: specify --suite, --category, --tag, or --case-id", file=sys.stderr
+        )
         return 2
     if args.adapter == "in_memory":
-        print("error: --adapter in_memory is the training API, not a CLI backend", file=sys.stderr)
+        print(
+            "error: --adapter in_memory is the training API, not a CLI backend",
+            file=sys.stderr,
+        )
         return 2
     if not args.server:
         print("error: --adapter endpoint requires --server", file=sys.stderr)
         return 2
     try:
-        cases = select_cases(suite=args.suite, category=args.category, tag=args.tag, case_id=args.case_id)
+        cases = select_cases(
+            suite=args.suite, category=args.category, tag=args.tag, case_id=args.case_id
+        )
     except CaseError as err:
         print(f"error: {err}", file=sys.stderr)
         return 2

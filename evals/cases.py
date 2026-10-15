@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -17,9 +16,18 @@ SUITES_DIR = EVALS_ROOT / "suites"
 GATES_PATH = EVALS_ROOT / "config" / "gates.yaml"
 ARCHIVE_DIR = EVALS_ROOT / "archive"
 
-_CASE_FILES = ("realistic_v3.jsonl", "regressions.jsonl")
+_CASE_FILES = ("realistic_v3.jsonl", "regressions.jsonl", "context_lookalikes.jsonl")
 REQUIRED_CASE_KEYS = frozenset(
-    {"id", "category", "tags", "household", "utterance", "unavailable", "expected", "provenance"}
+    {
+        "id",
+        "category",
+        "tags",
+        "household",
+        "utterance",
+        "unavailable",
+        "expected",
+        "provenance",
+    }
 )
 REQUIRED_EXPECTED_KEYS = frozenset(
     {"response_type", "calls", "clarification", "forbidden_entities", "spoken_aliases"}
@@ -64,7 +72,9 @@ def _load_yaml(path: Path) -> Any:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-def _require_keys(payload: dict[str, Any], required: frozenset[str], label: str) -> None:
+def _require_keys(
+    payload: dict[str, Any], required: frozenset[str], label: str
+) -> None:
     missing = required - payload.keys()
     if missing:
         raise CaseError(f"{label} missing keys: {sorted(missing)}")
@@ -108,7 +118,9 @@ def _parse_case(payload: dict[str, Any], *, source: str, line: int) -> Case:
 
 def _read_jsonl(path: Path) -> list[Case]:
     cases: list[Case] = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for line_number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
         if not line.strip():
             continue
         payload = json.loads(line)
@@ -128,7 +140,9 @@ def load_all_cases() -> tuple[Case, ...]:
             raise CaseError(f"missing case file {path}")
         for case in _read_jsonl(path):
             if case.id in seen:
-                raise CaseError(f"duplicate case id {case.id!r} in {seen[case.id]} and {name}")
+                raise CaseError(
+                    f"duplicate case id {case.id!r} in {seen[case.id]} and {name}"
+                )
             seen[case.id] = name
             cases.append(case)
     return tuple(cases)
@@ -164,7 +178,11 @@ def load_suite(name: str) -> list[str]:
         raise CaseError(f"unknown suite {name!r}")
     payload = _load_yaml(path)
     ids = payload.get("cases")
-    if not isinstance(ids, list) or not ids or not all(isinstance(item, str) for item in ids):
+    if (
+        not isinstance(ids, list)
+        or not ids
+        or not all(isinstance(item, str) for item in ids)
+    ):
         raise CaseError(f"{path.name} cases must be a non-empty list of ids")
     if len(ids) != len(set(ids)):
         raise CaseError(f"{path.name} has duplicate case ids")
@@ -214,7 +232,9 @@ def select_cases(
 
 
 def fingerprint_cases(cases: list[Case]) -> str:
-    payload = json.dumps([case.as_dict() for case in cases], sort_keys=True, ensure_ascii=True)
+    payload = json.dumps(
+        [case.as_dict() for case in cases], sort_keys=True, ensure_ascii=True
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
