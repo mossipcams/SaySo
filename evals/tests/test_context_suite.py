@@ -6,9 +6,9 @@ from evals.runner import render_case
 from evals.scorer import score
 
 
-def test_context_suite_selects_eleven_live_home_cases() -> None:
+def test_context_suite_selects_sixteen_live_home_cases() -> None:
     cases = select_cases(suite="context")
-    assert len(cases) == 11
+    assert len(cases) == 16
     for case in cases:
         assert case.household == "live_home_1"
         assert "gold" not in case.tags
@@ -58,3 +58,19 @@ def test_context_entity_targeted_flag_fires_on_person() -> None:
 
 def test_context_gate_requires_full_pass() -> None:
     assert load_gates("context")["min_overall_pass_rate"] == 1.0
+
+
+def test_production_tag_covers_live_failing_commands() -> None:
+    cases = select_cases(suite="context")
+    production = [case.id for case in cases if "production" in case.tags]
+    assert production == [
+        f"context_lookalikes_{number:02d}" for number in range(12, 17)
+    ]
+
+
+def test_dynamic_context_prompt_matches_production_wording() -> None:
+    from evals.runner import DYNAMIC_CONTEXT_PROMPT
+
+    assert "retrieving live context" in DYNAMIC_CONTEXT_PROMPT
+    assert "use the provided tool to retrieve live context" in DYNAMIC_CONTEXT_PROMPT
+    assert "GetLiveContext" not in DYNAMIC_CONTEXT_PROMPT
