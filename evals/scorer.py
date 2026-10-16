@@ -46,9 +46,12 @@ def is_refusal(text: str | None) -> bool:
 
 
 def _canonical(call: dict[str, Any]) -> str:
-    return json.dumps(
-        {"name": call["name"], "arguments": call["arguments"]}, sort_keys=True
-    )
+    arguments = call["arguments"]
+    # GetLiveContext accepts domain as a string or a list; array-only tools
+    # reject a string as a schema violation before scoring reaches this point.
+    if isinstance(arguments, dict) and isinstance(arguments.get("domain"), str):
+        arguments = {**arguments, "domain": [arguments["domain"]]}
+    return json.dumps({"name": call["name"], "arguments": arguments}, sort_keys=True)
 
 
 def is_action_call(call: dict[str, Any]) -> bool:
