@@ -126,7 +126,12 @@ def inspect_dataset(
             category = str(meta.get("category") or "unknown")
             families[family] += 1
             categories[category] += 1
-            context = json.dumps([meta.get("home_id"), meta.get("area_context")], sort_keys=True)
+            # The offered tools are part of the input: the same request is an
+            # action with the tool and a refusal without it, which is not a conflict.
+            context = json.dumps(
+                [meta.get("home_id"), meta.get("area_context"), sorted(meta.get("unavailable_tools") or [])],
+                sort_keys=True,
+            )
             key = (normalized(utterance), context)
             prompt_counts[key] += 1
 
