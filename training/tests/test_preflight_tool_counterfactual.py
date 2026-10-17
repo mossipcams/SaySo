@@ -19,3 +19,14 @@ def test_withheld_tool_refusal_is_not_a_conflict(tmp_path: Path) -> None:
 def test_same_tools_different_labels_still_conflict(tmp_path: Path) -> None:
     report, _ = _run(tmp_path, [_row(), _row(positive=False)], limits={"max_conflict_rate": 0.1})
     assert report["conflict_rate"] > 0
+
+
+def test_follow_up_turn_is_not_a_conflict_with_its_clarify_row(tmp_path: Path) -> None:
+    clarify = _row(positive=False)
+    follow_up = _row()
+    follow_up["messages"][1:1] = [
+        {"role": "assistant", "content": "Which TV?"},
+        {"role": "user", "content": "the living room one"},
+    ]
+    report, _ = _run(tmp_path, [clarify, follow_up], limits={"max_conflict_rate": 0.1})
+    assert report["conflict_rate"] == 0

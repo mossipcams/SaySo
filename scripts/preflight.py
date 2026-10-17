@@ -126,10 +126,12 @@ def inspect_dataset(
             category = str(meta.get("category") or "unknown")
             families[family] += 1
             categories[category] += 1
-            # The offered tools are part of the input: the same request is an
-            # action with the tool and a refusal without it, which is not a conflict.
+            # The offered tools and later turns are part of the input: the same
+            # request is an action with the tool and a refusal without it, and a
+            # clarify row differs from its follow-up; neither is a conflict.
+            later_turns = [m.get("content") for m in messages if isinstance(m, dict) and m.get("role") == "user"][1:]
             context = json.dumps(
-                [meta.get("home_id"), meta.get("area_context"), sorted(meta.get("unavailable_tools") or [])],
+                [meta.get("home_id"), meta.get("area_context"), sorted(meta.get("unavailable_tools") or []), later_turns],
                 sort_keys=True,
             )
             key = (normalized(utterance), context)
