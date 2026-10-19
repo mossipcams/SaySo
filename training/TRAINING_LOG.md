@@ -810,5 +810,8 @@ GGUF asset: `https://github.com/mossipcams/SaySo/releases/download/model-v3/SayS
 (`model-v3` release, 461,883,840 bytes, SHA-256
 `773baaff55c8aec89cc3ebe5eb57e3d472ab3208a12a111357c680d38194c1a0`).
 
-`training/configs/training_baseline.json` is intentionally unchanged and still
-records v5b as the baseline champion.
+`training/configs/training_baseline.json` now records SaySo LFM v7 as the
+champion. Its smoke block is the endpoint smoke run `20261019T020743Z-83fb9bdf`
+(20/24, tool validity 1.0, flags `action_on_ambiguity` 2, `excluded_entity_affected` 1,
+`wrong_domain` 1), and its promotion block is `20261019T011046Z-bfce0094` (86/120).
+The v5b champion is kept as `previous_champion`. The canary gates are unchanged.
