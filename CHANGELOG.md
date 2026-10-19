@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.14.0](https://github.com/mossipcams/SaySo/compare/1.13.0...1.14.0) (2026-10-19)
+
+
+### Features
+
+* **evals:** gate on Home Assistant context look-alikes ([4b525f0](https://github.com/mossipcams/SaySo/commit/4b525f06be8de97a6b8d3d9242a9cb32e0a0042d))
+* **evals:** gate on Home Assistant context look-alikes ([df49822](https://github.com/mossipcams/SaySo/commit/df49822df225a0db6ae2300d627e3c101fd9b15f))
+* **evals:** match the production prompt and gate on real failing commands ([99fa376](https://github.com/mossipcams/SaySo/commit/99fa376c337ea9035b1f4c9f8ab1e2a1d8d7d46c))
+* **model:** publish SaySo LFM v7 as the integration default ([6eac91f](https://github.com/mossipcams/SaySo/commit/6eac91f6b0cb2d973b99f366ea02b4ac1264e76c))
+* **satellite:** capture raw pre-gain context and processing state in wake mining ([78d55aa](https://github.com/mossipcams/SaySo/commit/78d55aaee0045d88c7938708fcd9bae725f520e2))
+* **wake:** default dma_kws_threshold to 0.90 (22/27 real wakes) and document the trade-off ([61fa70b](https://github.com/mossipcams/SaySo/commit/61fa70baf9b04ce528ec03716035cef5ba52eb47))
+* **wake:** log the verifier score on every wake that passes ([0333195](https://github.com/mossipcams/SaySo/commit/0333195fc93fca4efb0bdd8f3a031c1f06429dea))
+* **wake:** optional Moonshine second stage; don't lock out after a veto ([8c871fc](https://github.com/mossipcams/SaySo/commit/8c871fc3db3f1ad98c5e8f50232a638f75605b33))
+* **wake:** replace Moonshine with DMA-KWS Stage II as the second stage ([10b5b82](https://github.com/mossipcams/SaySo/commit/10b5b8242cb63633f5f603736232483ba27f2203))
+* **wake:** train Koda with stock LiveKit steps; retire Atlas files ([14de4d4](https://github.com/mossipcams/SaySo/commit/14de4d4d573a66fb0b059d68f4b87e4d0e1727ca))
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#124](https://github.com/mossipcams/SaySo/issues/124)) ([18bdae2](https://github.com/mossipcams/SaySo/commit/18bdae29b4c680938f457882f0dc6476c6082c75))
+* **deps:** update all non-major dependencies ([#133](https://github.com/mossipcams/SaySo/issues/133)) ([ff9889d](https://github.com/mossipcams/SaySo/commit/ff9889d6f4a9495f4072d254c57bddabcb017b93))
+* **evals:** accept a scalar GetLiveContext domain ([1d0eb5a](https://github.com/mossipcams/SaySo/commit/1d0eb5aacf7274e3e4b192e70fd98fe60fb154ea))
+* **satellite:** address PR 132 review notes ([58e89fa](https://github.com/mossipcams/SaySo/commit/58e89fa7c8375f186c42d5d8ad37047c93151ac5))
+* **satellite:** commit missing ingest_record module for wake mining ([ecaf676](https://github.com/mossipcams/SaySo/commit/ecaf6767bcfb1acd28cbfa8ef1c2fe3fa1c6f06c))
+* **wake:** pin and verify the Moonshine model; never download at runtime ([0e4d03f](https://github.com/mossipcams/SaySo/commit/0e4d03f2345cd6c1303f88d2f44524852df3cd0d))
+* **wake:** review fixes for the DMA-KWS verifier ([bc671df](https://github.com/mossipcams/SaySo/commit/bc671df44f33ac590e285d168fbb182a9278881b))
+
+
+### Documentation
+
+* **agents:** local agent runs the full delegation loop ([9f91300](https://github.com/mossipcams/SaySo/commit/9f913005693e2e055d7c5ad11e168b9b8ef8f444))
+* **agents:** remove training notes from AGENTS.md ([5390dad](https://github.com/mossipcams/SaySo/commit/5390dad610c40e540f2190bd667c28f503b87ee7))
+
 ## [1.13.0](https://github.com/mossipcams/SaySo/compare/1.12.0...1.13.0) (2026-10-02)
 
 
