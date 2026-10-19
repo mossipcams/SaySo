@@ -774,3 +774,41 @@ The exact evaluated F16 GGUF was published as the `model-v2` release asset
 integration default points to this asset after the model-publishing PR merges.
 The asset remains outside Git history; the PR contains its URL, filename, and
 checksum. Its manual-override and failed-gate status are unchanged.
+
+## SaySo LFM v7 integration default (2026-10-19)
+
+Source run: `20261017T203638Z-962e98a1`, recipe `full_sft_v7.yaml` at commit
+`561f38b`. The model is checkpoint-3000 of a 4,770-step run.
+
+Selection: candidates were chosen by the context step, then the smoke-plus-tags
+step. Promotion-scored candidates 2600 through 4000 all scored below checkpoint
+3000, which scored 95/120 on the HF evaluation.
+
+Endpoint promotion suite, run on the same eval code (`796aa08`):
+
+- SaySo LFM v7 (checkpoint-3000): 86/120
+- SaySo LFM v5b: 72/120 on this code; the published v5b result from 2026-09-25
+  was 73/120
+
+Failed promotion gates for v7:
+
+- ordinary: 0.6 < 0.8
+- exclusion: 0.4 < 0.6
+- ambiguity: 0.0 < 0.6
+- false_action_rate: 0.5 > 0.2
+- action_on_ambiguity: 9
+- excluded_entity_affected: 5
+- wrong_domain: 2
+- tool_call_on_unavailable: 1
+
+Manual override: v7 is published as the integration default despite the failed
+promotion gates, on the basis of the endpoint promotion suite result (86/120
+versus 72/120 for v5b on the same code). This follows the v5b precedent and does
+not mean the normal promotion gates pass.
+
+GGUF asset: `https://github.com/mossipcams/SaySo/releases/download/model-v3/SaySo-LFM-v7-F16.gguf`
+(`model-v3` release, 461,883,840 bytes, SHA-256
+`773baaff55c8aec89cc3ebe5eb57e3d472ab3208a12a111357c680d38194c1a0`).
+
+`training/configs/training_baseline.json` is intentionally unchanged and still
+records v5b as the baseline champion.
