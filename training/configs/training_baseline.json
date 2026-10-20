@@ -19,61 +19,64 @@
     }
   },
   "eval": {
-    "source": "accepted SaySo champion v5b; llama.cpp endpoint scorer run 20260925T174759Z-5ceb6471",
+    "source": "accepted SaySo champion v7 (manual override); llama.cpp endpoint scorer runs 20261019T011046Z-bfce0094 (promotion) and 20261019T020743Z-83fb9bdf (smoke), eval code 796aa08",
     "champion": {
-      "name": "SaySo LFM v5b",
-      "run_id": "v5b-20260925-adopted",
+      "name": "SaySo LFM v7",
+      "run_id": "20261017T203638Z-962e98a1",
       "promotion_mode": "manual_override",
-      "checkpoint": "/srv/llm/lfm/runs/sayso-lfm-v5-full/final",
-      "gguf": "/srv/llm/data/llama.cpp/models/sayso-lfm-v5b-f16.gguf",
-      "gguf_sha256": "7d4dff1cc6730f1494a3172b4ad8247566ff73dd5b25867be05283927e0b439e",
+      "checkpoint": "/srv/llm/lfm/runs/sayso-promotion/20261017T203638Z-962e98a1-full/checkpoint-3000",
+      "gguf": "/srv/llm/lfm/runs/sayso-promotion/SaySo-LFM-v7-ckpt3000-F16.gguf",
+      "gguf_sha256": "773baaff55c8aec89cc3ebe5eb57e3d472ab3208a12a111357c680d38194c1a0",
+      "release_asset": "https://github.com/mossipcams/SaySo/releases/download/model-v3/SaySo-LFM-v7-F16.gguf",
       "promotion_suite": {
+        "passed": 86,
+        "total": 120,
+        "overall_pass_rate": 0.7167,
+        "summary": "/srv/llm/lfm/ajax-optimization/sayso-training/vendor/SaySo/evals/results/20261019T011046Z-bfce0094/summary.json"
+      },
+      "smoke_suite": {
+        "passed": 20,
+        "total": 24,
+        "overall_pass_rate": 0.8333,
+        "summary": "/srv/llm/lfm/ajax-optimization/sayso-training/vendor/SaySo/evals/results/20261019T020743Z-83fb9bdf/summary.json"
+      },
+      "previous_champion": {
+        "name": "SaySo LFM v5b",
         "passed": 73,
         "total": 120,
         "overall_pass_rate": 0.6083,
-        "summary": "/srv/llm/data/sayso/evals/results/20260925T174759Z-5ceb6471/summary.json"
-      },
-      "smoke_suite": {
-        "passed": 17,
-        "total": 24,
-        "overall_pass_rate": 0.7083,
-        "summary": "/srv/llm/data/sayso/evals/results/20260925T181039Z-8ae231b2/summary.json"
-      },
-      "previous_champion": {
-        "name": "v3-semantic-early-20260908 step-5000",
-        "passed": 31,
-        "total": 120,
-        "overall_pass_rate": 0.2583,
-        "summary": "/srv/llm/data/sayso/evals/results/20260925T172615Z-a7492f7f/summary.json"
+        "summary": "/srv/llm/data/sayso/evals/results/20260925T174759Z-5ceb6471/summary.json",
+        "note": "published 2026-09-25 endpoint run; re-run on eval code 796aa08 gives 72/120"
       },
       "same_case_hash": "58b5892320175371677f393f4b562906f77aa49d7e39851b6744ac6ed992b5c9",
       "same_suite_hash": "1c13634d2192a74caa6e2553b6afd8672a66a14ffdbd941ed9f279f3f2341017",
       "validation_passed": false,
       "canary_passed": false,
       "final_eval_gate_passed": false,
-      "false_action_rate": 0.6,
-      "previous_champion_false_action_rate": 0.2
+      "false_action_rate": 0.5,
+      "previous_champion_false_action_rate": 0.6
     },
     "smoke": {
-      "overall_pass_rate": 0.7083,
+      "overall_pass_rate": 0.8333,
       "category_pass_rate": {
-        "ordinary": 1.0,
-        "light_fan_settings": 1.0,
+        "aliases": 1.0,
+        "ambiguity": 0.0,
         "climate": 1.0,
-        "media": 1.0,
-        "timers": 1.0,
-        "routines_vacuum": 0.5,
-        "status": 1.0,
-        "aliases": 0.0,
-        "multi_action": 1.0,
         "exclusion": 0.5,
-        "ambiguity": 0.3333,
-        "unavailable": 0.5
+        "light_fan_settings": 1.0,
+        "media": 1.0,
+        "multi_action": 1.0,
+        "ordinary": 1.0,
+        "routines_vacuum": 1.0,
+        "status": 1.0,
+        "timers": 1.0,
+        "unavailable": 1.0
       },
-      "tool_validity": 0.9583,
+      "tool_validity": 1.0,
       "flags": {
-        "action_on_ambiguity": 1,
-        "tool_call_on_unavailable": 1
+        "action_on_ambiguity": 2,
+        "excluded_entity_affected": 1,
+        "wrong_domain": 1
       }
     },
     "max_drop": 0.12
