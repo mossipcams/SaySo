@@ -1,0 +1,78 @@
+{
+  "home_id": "nonstandard_home_1",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Bedroom": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Bedroom": [],
+    "Hallway": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "name": "Bedroom Blinds",
+      "aliases": [],
+      "domain": "cover",
+      "area": "Bedroom",
+      "device_class": "blind"
+    },
+    {
+      "name": "Bedroom Lamp",
+      "aliases": [],
+      "domain": "light",
+      "area": "Bedroom"
+    },
+    {
+      "name": "Hallway Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Hallway"
+    },
+    {
+      "name": "Hallway Thermostat",
+      "aliases": [],
+      "domain": "climate",
+      "area": "Hallway"
+    },
+    {
+      "name": "Kitchen Ceiling Light",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Counter Lights",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Kitchen Satellite",
+      "aliases": [],
+      "domain": "media_player",
+      "area": "Kitchen",
+      "device_class": "speaker"
+    },
+    {
+      "name": "Living Room Floor Lamp",
+      "aliases": [],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "name": "Living Room TV",
+      "aliases": [
+        "big screen"
+      ],
+      "domain": "media_player",
+      "area": "Living Room",
+      "device_class": "tv"
+    }
+  ]
+}

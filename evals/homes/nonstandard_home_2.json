@@ -1,0 +1,43 @@
+{
+  "home_id": "nonstandard_home_2",
+  "satellite_area": "Living Room",
+  "sayso_entity_area": "Living Room",
+  "areas": {
+    "Bedroom": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Bedroom": [],
+    "Kitchen": [],
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "name": "Bedroom TV",
+      "aliases": [],
+      "domain": "media_player",
+      "area": "Bedroom",
+      "device_class": "tv"
+    },
+    {
+      "name": "Kitchen Lights",
+      "aliases": [],
+      "domain": "light",
+      "area": "Kitchen"
+    },
+    {
+      "name": "Living Room Lamp",
+      "aliases": [],
+      "domain": "light",
+      "area": "Living Room"
+    },
+    {
+      "name": "Living Room TV",
+      "aliases": [],
+      "domain": "media_player",
+      "area": "Living Room",
+      "device_class": "tv"
+    }
+  ]
+}

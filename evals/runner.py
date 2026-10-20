@@ -289,7 +289,9 @@ def render_case(case: Case) -> dict[str, Any]:
     return {
         "messages": [
             {"role": "system", "content": serialize_context(home, case.utterance)},
+            *case.history,
             {"role": "user", "content": case.utterance},
+            *case.after_utterance,
         ],
         "tools": production_catalog(home, removed_tools=removed),
         "exposed_domains": frozenset(entity["domain"] for entity in home["entities"]),

@@ -16,7 +16,12 @@ SUITES_DIR = EVALS_ROOT / "suites"
 GATES_PATH = EVALS_ROOT / "config" / "gates.yaml"
 ARCHIVE_DIR = EVALS_ROOT / "archive"
 
-_CASE_FILES = ("realistic_v3.jsonl", "regressions.jsonl", "context_lookalikes.jsonl")
+_CASE_FILES = (
+    "realistic_v3.jsonl",
+    "regressions.jsonl",
+    "context_lookalikes.jsonl",
+    "nonstandard_v1.jsonl",
+)
 REQUIRED_CASE_KEYS = frozenset(
     {
         "id",
@@ -50,9 +55,11 @@ class Case:
     expected: dict[str, Any]
     provenance: dict[str, Any]
     source: str
+    history: tuple[dict[str, Any], ...] = ()
+    after_utterance: tuple[dict[str, Any], ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "id": self.id,
             "category": self.category,
             "tags": list(self.tags),
@@ -62,6 +69,11 @@ class Case:
             "expected": self.expected,
             "provenance": self.provenance,
         }
+        if self.history:
+            result["history"] = list(self.history)
+        if self.after_utterance:
+            result["after_utterance"] = list(self.after_utterance)
+        return result
 
 
 def _load_yaml(path: Path) -> Any:
@@ -78,6 +90,21 @@ def _require_keys(
     missing = required - payload.keys()
     if missing:
         raise CaseError(f"{label} missing keys: {sorted(missing)}")
+
+
+_MESSAGE_ROLES = frozenset({"user", "assistant", "tool"})
+
+
+def _parse_messages(value: Any, key: str, label: str) -> tuple[dict[str, Any], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(
+        isinstance(message, dict)
+        and message.get("role") in _MESSAGE_ROLES
+        for message in value
+    ):
+        raise CaseError(f"{label} {key} must be a list of user/assistant/tool messages")
+    return tuple(value)
 
 
 def _parse_case(payload: dict[str, Any], *, source: str, line: int) -> Case:
@@ -103,6 +130,10 @@ def _parse_case(payload: dict[str, Any], *, source: str, line: int) -> Case:
     provenance = payload["provenance"]
     if not isinstance(provenance, dict) or "source" not in provenance:
         raise CaseError(f"{label} provenance.source is required")
+    history = _parse_messages(payload.get("history"), "history", label)
+    after_utterance = _parse_messages(
+        payload.get("after_utterance"), "after_utterance", label
+    )
     return Case(
         id=payload["id"],
         category=str(payload["category"]),
@@ -113,6 +144,8 @@ def _parse_case(payload: dict[str, Any], *, source: str, line: int) -> Case:
         expected=expected,
         provenance=provenance,
         source=source,
+        history=history,
+        after_utterance=after_utterance,
     )
 
 
