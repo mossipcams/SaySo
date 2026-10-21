@@ -20,50 +20,58 @@
       "aliases": [],
       "domain": "cover",
       "area": "Bedroom",
-      "device_class": "blind"
+      "device_class": "blind",
+      "entity_id": "cover.bedroom_blinds"
     },
     {
       "name": "Bedroom Lamp",
       "aliases": [],
       "domain": "light",
-      "area": "Bedroom"
+      "area": "Bedroom",
+      "entity_id": "light.bedroom_lamp"
     },
     {
       "name": "Hallway Light",
       "aliases": [],
       "domain": "light",
-      "area": "Hallway"
+      "area": "Hallway",
+      "entity_id": "light.hallway_light"
     },
     {
       "name": "Hallway Thermostat",
       "aliases": [],
       "domain": "climate",
-      "area": "Hallway"
+      "area": "Hallway",
+      "entity_id": "climate.hallway_thermostat"
     },
     {
       "name": "Kitchen Ceiling Light",
       "aliases": [],
       "domain": "light",
-      "area": "Kitchen"
+      "area": "Kitchen",
+      "entity_id": "light.kitchen_ceiling_light"
     },
     {
       "name": "Kitchen Counter Lights",
       "aliases": [],
       "domain": "light",
-      "area": "Kitchen"
+      "area": "Kitchen",
+      "entity_id": "light.kitchen_counter_lights"
     },
     {
       "name": "Kitchen Satellite",
       "aliases": [],
       "domain": "media_player",
       "area": "Kitchen",
-      "device_class": "speaker"
+      "device_class": "speaker",
+      "entity_id": "media_player.kitchen_satellite"
     },
     {
       "name": "Living Room Floor Lamp",
       "aliases": [],
       "domain": "light",
-      "area": "Living Room"
+      "area": "Living Room",
+      "entity_id": "light.living_room_floor_lamp"
     },
     {
       "name": "Living Room TV",
@@ -72,7 +80,8 @@
       ],
       "domain": "media_player",
       "area": "Living Room",
-      "device_class": "tv"
+      "device_class": "tv",
+      "entity_id": "media_player.living_room_tv"
     }
   ]
 }

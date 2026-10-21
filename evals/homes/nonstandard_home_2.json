@@ -18,26 +18,30 @@
       "aliases": [],
       "domain": "media_player",
       "area": "Bedroom",
-      "device_class": "tv"
+      "device_class": "tv",
+      "entity_id": "media_player.bedroom_tv"
     },
     {
       "name": "Kitchen Lights",
       "aliases": [],
       "domain": "light",
-      "area": "Kitchen"
+      "area": "Kitchen",
+      "entity_id": "light.kitchen_lights"
     },
     {
       "name": "Living Room Lamp",
       "aliases": [],
       "domain": "light",
-      "area": "Living Room"
+      "area": "Living Room",
+      "entity_id": "light.living_room_lamp"
     },
     {
       "name": "Living Room TV",
       "aliases": [],
       "domain": "media_player",
       "area": "Living Room",
-      "device_class": "tv"
+      "device_class": "tv",
+      "entity_id": "media_player.living_room_tv"
     }
   ]
 }
