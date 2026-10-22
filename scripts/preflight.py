@@ -41,6 +41,7 @@ def inspect_dataset(
         for wire_name in (name, namespaced_tool_name(name))
     }
     errors: list[str] = []
+    warnings: list[str] = []
     row_count = valid_rows = 0
     invalid_rows = invalid_calls = 0
     positive_tools: Counter[str] = Counter()
@@ -196,6 +197,7 @@ def inspect_dataset(
         "duplicate_rate": duplicates / row_count if row_count else 0,
         "conflict_rate": conflicts / row_count if row_count else 0,
         "contaminated": contaminated,
+        "warnings": warnings,
     }
 
     if row_count < requirements["minimum_rows"]:
@@ -221,12 +223,18 @@ def inspect_dataset(
             errors.append(f"required tool has zero positive examples: {tool}")
     for capability, maximum in limits.get("max_negative_ratio_by_capability", {}).items():
         ratio = negatives[capability] / max(1, positives[capability])
+        target = limits.get("target_negative_ratio_by_capability", {}).get(capability)
         if ratio > maximum:
             errors.append(f"negative/positive ratio for {capability}: {ratio:.3f} > {maximum:.3f}")
+        elif target is not None and ratio > target:
+            warnings.append(f"negative/positive ratio for {capability}: {ratio:.3f} above target {target:.3f}")
     for tool, maximum in limits.get("max_negative_ratio_by_tool", {}).items():
         ratio = negative_tools[tool] / max(1, positive_tools[tool])
+        target = limits.get("target_negative_ratio_by_tool", {}).get(tool)
         if ratio > maximum:
             errors.append(f"negative/positive ratio for {tool}: {ratio:.3f} > {maximum:.3f}")
+        elif target is not None and ratio > target:
+            warnings.append(f"negative/positive ratio for {tool}: {ratio:.3f} above target {target:.3f}")
     if report["duplicate_rate"] > limits["max_duplicate_rate"]:
         errors.append(f"duplicate rate {report['duplicate_rate']:.3%} > {limits['max_duplicate_rate']:.3%}")
     if report["conflict_rate"] > limits["max_conflict_rate"]:
@@ -272,6 +280,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Distribution drift:   {'FAIL' if any('distribution shift' in e for e in errors) else 'PASS'}")
     for error in errors:
         print(f"FAIL: {error}", file=sys.stderr)
+    for warning in report.get("warnings", []):
+        print(f"WARN: {warning}", file=sys.stderr)
     print(f"STATIC PREFLIGHT: {'FAIL' if errors else 'PASS'}")
     return 1 if errors else 0
 
