@@ -83,8 +83,10 @@ Identifying it requires the audio.
 - Sampling classes: detections (`score >= threshold`), near-threshold
   (`mine_threshold <= score < threshold`), and a small independent below-threshold
   sample. Overlapping hop windows are grouped; the highest-scoring triggering
-  window is published. Per-class caps and byte/count spool limits stop new
-  collection and count drops instead of evicting unacknowledged records.
+  window is published. When a per-class cap or the byte/count spool limit is
+  reached, the oldest record (by `published_utc`; the oldest of that class for
+  a class cap) is evicted, including unacknowledged ones, to make room for the
+  new record. The new record is never evicted.
 - The scored `window.wav` is the exact `np.ndarray` handed to the classifier.
   Optional `pre.wav` / `post.wav` come from `WakeCaptureRing` with explicit
   offsets; missing context and synthetic rearm padding are flagged in
@@ -98,10 +100,11 @@ Identifying it requires the audio.
   Assistant's pipeline trace id). STT command recordings remain a byte-exact tap
   correlated via `wake_capture_id` metadata only.
 - Disk writes run on a bounded stdlib queue off capture/inference threads.
-  Queue-full and spool-full losses are counted; shutdown drains are bounded.
+  Queue-full losses and evictions (`evicted`) are counted; spool-full counts only
+  a record that cannot fit even after eviction. Shutdown drains are bounded.
 - Host ingest: `python scripts/wake_mine_report.py <mine_dir> --ingest` verifies
-  hashes and writes `acks/`; the satellite deletes only acknowledged ids via
-  `drain_acks()` and resumes after drain without restart.
+  hashes and writes `acks/`; the satellite deletes acknowledged ids via
+  `drain_acks()`, and an ack for an already-evicted id is consumed harmlessly.
 
 Live config (`/etc/sayso-satellite/config.yaml`): `mine_dir:
 /var/lib/sayso-satellite/wake-mining`, `mine_threshold: 0.1`. Review and label
