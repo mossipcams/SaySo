@@ -90,9 +90,9 @@ without degrading the voice path.
    draining and exclude incomplete crash leftovers. Recording failures must
    leave wake detection and the voice pipeline operational.
 6. Enforce spool byte/count caps. Transfer finalized records, verify host
-   hashes, then delete only acknowledged IDs. At capacity, stop new collection
-   and count drops instead of evicting unacknowledged data. Resume after drain
-   without restart. Age retention applies to acknowledged local remnants and
+   hashes, then delete acknowledged IDs. At capacity, evict the oldest record
+   (even if unacknowledged) to save the new one, and count evictions. Acks for
+   evicted IDs are harmless. Resume after drain without restart. Age retention applies to acknowledged local remnants and
    unpinned host-side unknown records; protect pinned datasets and run inputs.
 
 **Files:** `satellite/sayso/wake/{mining,livekit,hook}.py`,

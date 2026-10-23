@@ -83,8 +83,11 @@ Wake acceptance/suppression and later HA/STT outcomes are separate files under
 `outcomes/`, linked by `capture_id` (distinct from Home Assistant's pipeline
 trace id and from STT `run_id`). Transfer is offline: run
 `python scripts/wake_mine_report.py <mine_dir> --ingest` on the host to verify
-hashes and write `acks/`; the satellite deletes only acknowledged records via
-`drain_acks()` and resumes collection after drain without restart.
+hashes and write `acks/`; the satellite deletes acknowledged records via
+`drain_acks()` and resumes collection after drain without restart. When a
+per-class cap or the spool record/byte limit is reached, the satellite evicts the
+oldest record (by `published_utc`, unacknowledged ones included) to save the new
+one; evictions are counted as `evicted` in the losses stats.
 
 ## Service
 

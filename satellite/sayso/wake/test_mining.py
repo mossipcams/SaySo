@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import logging
 import random
@@ -12,6 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from satellite.sayso.wake.capture import WakeCaptureRing
 from satellite.sayso.wake.mining import (
@@ -326,7 +328,22 @@ def test_queue_full_counts_loss_without_evicting_published(tmp_path: Path) -> No
     assert len(list((tmp_path / "records").iterdir())) >= 1
 
 
-def test_spool_full_stops_collection_and_resumes_after_drain(tmp_path: Path) -> None:
+def _ordered_stamps(monkeypatch: pytest.MonkeyPatch) -> None:
+    ticks = itertools.count()
+    monkeypatch.setattr(
+        "satellite.sayso.wake.mining._utc_stamp",
+        lambda: f"2026-01-01T00:00:{next(ticks):02d}Z",
+    )
+
+
+def _record_ids(root: Path) -> set[str]:
+    return {p.name for p in (root / "records").iterdir()}
+
+
+def test_spool_full_evicts_oldest_and_resumes_after_drain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ordered_stamps(monkeypatch)
     window = _window(6)
     miner = HardNegativeMiner(
         tmp_path,
@@ -337,17 +354,131 @@ def test_spool_full_stops_collection_and_resumes_after_drain(tmp_path: Path) -> 
         rng=random.Random(0),
     )
     miner.start()
-    _publish(miner, 0.2, window, 31999)
-    before = miner.losses.spool_full
-    _publish(miner, 0.25, window, 63999)
-    assert miner.losses.spool_full > before
-    record_dir = next((tmp_path / "records").iterdir())
-    write_ack(tmp_path, record_dir.name)
+    first = _publish(miner, 0.2, window, 31999)
+    second = _publish(miner, 0.25, window, 63999)
+    assert _record_ids(tmp_path) == {second}
+    assert miner.losses.evicted == 1
+    assert miner._spool_full
+    write_ack(tmp_path, second)
     miner.drain_acks()
     miner._reconcile_spool_state()
     assert not miner._spool_full
-    _publish(miner, 0.26, window, 95999)
-    assert len(list((tmp_path / "records").iterdir())) >= 1
+    third = _publish(miner, 0.26, window, 95999)
+    assert _record_ids(tmp_path) == {third}
+    assert not (tmp_path / "records" / first).exists()
+
+
+def test_class_cap_evicts_oldest_of_class_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ordered_stamps(monkeypatch)
+    window = _window(15)
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        near_cap=2,
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    miner.start()
+    detection = _publish(miner, 0.8, window, 31999)
+    near_old = _publish(miner, 0.22, window, 63999)
+    miner.publish_wake_outcome(near_old, accepted=False, reason="test")
+    miner.publish_stt_outcome(near_old, stt_run_id="cmd-old", transcript="lamp")
+    near_mid = _publish(miner, 0.23, window, 95999)
+    near_new = _publish(miner, 0.24, window, 127999)
+
+    assert _record_ids(tmp_path) == {detection, near_mid, near_new}
+    assert not (tmp_path / "outcomes" / f"{near_old}.wake.json").exists()
+    assert not (tmp_path / "outcomes" / f"{near_old}.stt.json").exists()
+    assert miner._class_counts == {SAMPLING_DETECTION: 1, SAMPLING_NEAR: 2, SAMPLING_BELOW: 0}
+    assert miner.published_record_count == 3
+    assert miner.losses.evicted == 1
+    assert miner.losses.spool_full == 0
+
+
+def test_record_and_byte_limits_evict_oldest_overall(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ordered_stamps(monkeypatch)
+    window = _window(16)
+    probe = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    probe.start()
+    first = _publish(probe, 0.2, window, 31999)
+    record_size = sum(p.stat().st_size for p in (tmp_path / "records" / first).iterdir())
+
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        max_bytes=int(record_size * 2.5),
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    miner.start()
+    second = _publish(miner, 0.25, window, 63999)
+    third = _publish(miner, 0.26, window, 95999)
+    assert _record_ids(tmp_path) == {second, third}
+    assert miner._published_bytes == sum(
+        p.stat().st_size for d in (tmp_path / "records").iterdir() for p in d.iterdir()
+    )
+    assert miner.losses.evicted == 1
+
+
+def test_record_that_cannot_fit_is_dropped_without_evicting(tmp_path: Path) -> None:
+    window = _window(17)
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        max_bytes=1,
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    miner.start()
+    _publish(miner, 0.2, window, 31999)
+    assert _record_ids(tmp_path) == set()
+    assert miner.losses.spool_full == 1
+
+
+def test_drain_and_reconcile_after_eviction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ordered_stamps(monkeypatch)
+    window = _window(18)
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        max_records=2,
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    miner.start()
+    evicted = _publish(miner, 0.2, window, 31999)
+    kept = _publish(miner, 0.25, window, 63999)
+    newest = _publish(miner, 0.26, window, 95999)
+    assert _record_ids(tmp_path) == {kept, newest}
+    miner.stop(timeout=3.0)
+    write_ack(tmp_path, evicted)
+    write_ack(tmp_path, newest)
+    assert miner.drain_acks() == 1
+    assert _record_ids(tmp_path) == {kept}
+    miner._reconcile_spool_state()
+    assert miner.published_record_count == 1
+    assert miner._class_counts[SAMPLING_NEAR] == 1
+    assert not miner._spool_full
+    miner.start()
+    resumed = _publish(miner, 0.27, window, 127999)
+    assert _record_ids(tmp_path) == {kept, resumed}
+    assert miner.losses.evicted == 1
 
 
 def test_ingest_verifies_hashes_and_partial_writes_ignored(tmp_path: Path) -> None:

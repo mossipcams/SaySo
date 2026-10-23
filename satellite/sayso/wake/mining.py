@@ -75,7 +75,7 @@ def _write_wav(path: Path, samples: np.ndarray, sample_rate: int) -> None:
 class LossStats:
     queue_full: int = 0
     spool_full: int = 0
-    class_cap: int = 0
+    evicted: int = 0
     write_failed: int = 0
     post_context_timeout: int = 0
 
@@ -83,7 +83,7 @@ class LossStats:
         return {
             "queue_full": self.queue_full,
             "spool_full": self.spool_full,
-            "class_cap": self.class_cap,
+            "evicted": self.evicted,
             "write_failed": self.write_failed,
             "post_context_timeout": self.post_context_timeout,
         }
@@ -101,6 +101,14 @@ class _Cluster:
     pre_context_index: int
     processing_state: dict[str, Any] = field(default_factory=dict)
     deadline: float = field(default_factory=lambda: time.monotonic() + CLUSTER_SETTLE_S)
+
+
+@dataclass
+class _Published:
+    capture_id: str
+    sampling_reason: str
+    size: int
+    order: tuple[str, int]
 
 
 @dataclass
@@ -279,15 +287,9 @@ class HardNegativeMiner:
             return None
         if not self._ensure_dirs():
             return None
-        if self._spool_full:
-            self._losses.spool_full += 1
-            return None
 
         reason = self._classify(score)
         if reason is None:
-            return None
-        if self._class_counts[reason] >= self._class_caps[reason]:
-            self._losses.class_cap += 1
             return None
 
         idx = int(sample_index if sample_index is not None else 0)
@@ -401,12 +403,8 @@ class HardNegativeMiner:
             except (OSError, json.JSONDecodeError):
                 continue
             capture_id = str(meta.get("capture_id") or ack_path.stem)
-            record_dir = self._records / capture_id
-            if record_dir.is_dir():
-                shutil.rmtree(record_dir, ignore_errors=True)
+            if self._remove_record(capture_id):
                 removed += 1
-            for outcome in self._outcomes.glob(f"{capture_id}.*.json"):
-                outcome.unlink(missing_ok=True)
             if max_age_days > 0:
                 try:
                     if time.time() - ack_path.stat().st_mtime > max_age_days * 86400.0:
@@ -415,6 +413,15 @@ class HardNegativeMiner:
                     pass
         if removed:
             self._reconcile_spool_state()
+        return removed
+
+    def _remove_record(self, capture_id: str) -> bool:
+        record_dir = self._records / capture_id
+        removed = record_dir.is_dir()
+        if removed:
+            shutil.rmtree(record_dir, ignore_errors=True)
+        for outcome in self._outcomes.glob(f"{capture_id}.*.json"):
+            outcome.unlink(missing_ok=True)
         return removed
 
     def _classify(self, score: float) -> Optional[str]:
@@ -466,9 +473,6 @@ class HardNegativeMiner:
             self._enqueue_cluster(cluster)
 
     def _enqueue_cluster(self, cluster: _Cluster) -> None:
-        if self._spool_full:
-            self._losses.spool_full += 1
-            return
         pre_pcm, pre_flags, raw_pre_pcm = self._pending_pre.pop(
             f"pre:{cluster.pre_context_index}", (b"", {}, b"")
         )
@@ -592,6 +596,13 @@ class HardNegativeMiner:
         }
         _safe_json_write(staging / "record.json", record)
 
+        new_bytes = sum(p.stat().st_size for p in staging.iterdir() if p.is_file())
+        self._make_room(job.capture_id, job.sampling_reason, new_bytes)
+        if not self._fits(job.sampling_reason, new_bytes):
+            shutil.rmtree(staging, ignore_errors=True)
+            self._losses.spool_full += 1
+            return
+
         published = self._records / job.capture_id
         if published.exists():
             shutil.rmtree(published, ignore_errors=True)
@@ -599,14 +610,12 @@ class HardNegativeMiner:
 
         self._class_counts[job.sampling_reason] += 1
         self._published_records += 1
-        self._published_bytes += sum(
-            p.stat().st_size for p in published.iterdir() if p.is_file()
-        )
+        self._published_bytes += new_bytes
         if self._published_records >= self._max_records or self._published_bytes >= self._max_bytes:
             self._spool_full = True
             if not self._spool_full_logged:
                 _LOGGER.warning(
-                    "Wake mining spool full (%d records, %d bytes in %s); counting drops.",
+                    "Wake mining spool full (%d records, %d bytes in %s); evicting oldest records.",
                     self._published_records,
                     self._published_bytes,
                     self._root,
@@ -656,6 +665,58 @@ class HardNegativeMiner:
             _LOGGER.exception("Cannot create wake mining dir %s; mining disabled", self._root)
             return False
         return True
+
+    def _fits(self, sampling_reason: str, incoming_bytes: int) -> bool:
+        return self._class_has_room(sampling_reason) and self._within_spool_limits(incoming_bytes)
+
+    def _class_has_room(self, sampling_reason: str) -> bool:
+        return self._class_counts[sampling_reason] < self._class_caps[sampling_reason]
+
+    def _within_spool_limits(self, incoming_bytes: int) -> bool:
+        return (
+            self._published_records < self._max_records
+            and self._published_bytes + incoming_bytes <= self._max_bytes
+        )
+
+    def _make_room(self, capture_id: str, sampling_reason: str, incoming_bytes: int) -> None:
+        if self._fits(sampling_reason, incoming_bytes):
+            return
+        entries = [e for e in self._published_oldest_first() if e.capture_id != capture_id]
+        for entry in [e for e in entries if e.sampling_reason == sampling_reason]:
+            if self._class_has_room(sampling_reason):
+                break
+            self._evict(entry)
+            entries.remove(entry)
+        while entries and not self._within_spool_limits(incoming_bytes):
+            self._evict(entries.pop(0))
+
+    def _published_oldest_first(self) -> list[_Published]:
+        entries = []
+        for record_dir in self._records.iterdir():
+            meta_path = record_dir / "record.json"
+            if not record_dir.is_dir() or not meta_path.is_file():
+                continue
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            entries.append(
+                _Published(
+                    capture_id=record_dir.name,
+                    sampling_reason=str(meta.get("sampling_reason")),
+                    size=sum(p.stat().st_size for p in record_dir.iterdir() if p.is_file()),
+                    order=(str(meta.get("published_utc") or ""), record_dir.stat().st_mtime_ns),
+                )
+            )
+        return sorted(entries, key=lambda e: e.order)
+
+    def _evict(self, entry: _Published) -> None:
+        self._remove_record(entry.capture_id)
+        if entry.sampling_reason in self._class_counts:
+            self._class_counts[entry.sampling_reason] -= 1
+        self._published_records -= 1
+        self._published_bytes -= entry.size
+        self._losses.evicted += 1
 
     def _reconcile_spool_state(self) -> None:
         for partial in list(self._staging.iterdir()):
@@ -769,8 +830,8 @@ def demo() -> None:
         third = capped.offer(0.5, window, sample_index=95999)
         capped._flush_clusters(force=True)
         capped.stop(timeout=3.0)
-        assert third is None, "spool full must stop new offers"
-        assert capped.losses.spool_full >= 1
+        assert third is not None, "spool full must still accept new offers"
+        assert capped.losses.evicted == 1
         assert len(list((Path(tmp) / "records").iterdir())) == 2
 
     print("mining self-check ok")

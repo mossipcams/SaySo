@@ -60,8 +60,10 @@ Each capture is a directory:
 ```
 
 Host ingest: `scripts/wake_mine_report.py` (`--ingest`, `--label`,
-`--inventory`). The satellite deletes **only** host-acked records. Caps:
-`mine_max_records` (default 2000).
+`--inventory`). The satellite deletes host-acked records. Caps:
+`mine_max_records` (default 2000). At a cap, the satellite evicts the oldest
+record (including unacknowledged ones) to save the new one; evictions are
+counted as `evicted` in the losses stats.
 
 This is the path that matches inference. Labelling is still manual and
 easy to skip. Unlabelled spool must **not** go into the classifier.
