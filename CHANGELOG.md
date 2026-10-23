@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/mossipcams/SaySo/compare/1.14.0...1.15.0) (2026-10-23)
+
+
+### Features
+
+* **wake:** evict oldest mining records when the spool is full ([f0786be](https://github.com/mossipcams/SaySo/commit/f0786befebbdb6feb93b4bcdcef203c1ffa9a222))
+
 ## [1.14.0](https://github.com/mossipcams/SaySo/compare/1.13.0...1.14.0) (2026-10-19)
 
 
