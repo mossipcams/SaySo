@@ -41,12 +41,15 @@ scripts/verify_embedded_backend.sh
 1. Go to **Settings → Devices & services → Add integration**.
 2. Search for **SaySo**.
 3. Leave the URL field empty and submit. That is the whole local setup.
-4. Adjust options (CPU threads, context window, system prompt, temperature,
+4. Adjust options (model, CPU threads, context window, system prompt, temperature,
    token limits, tool iterations, trace retention) from the **Configure** menu.
 
 First setup downloads a few hundred megabytes, so the entry may sit in
-"retrying" for a few minutes. To use your own weights instead, drop a `.gguf`
-into `/config/sayso/models/` and set **Model file** in the options.
+"retrying" for a few minutes. To switch models, choose **Model** in the options
+(SaySo LFM v11 Q4_K_M is the default; v11 F16 and v7 F16 are also available).
+Saving reloads the entry, which downloads the chosen file on first use. To use
+your own weights instead, drop a `.gguf` into `/config/sayso/models/` and set
+**Model file** in the options; it takes precedence over **Model**.
 
 ## Advanced: use an external llama.cpp server
 

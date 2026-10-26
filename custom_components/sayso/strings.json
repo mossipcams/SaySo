@@ -48,7 +48,7 @@
         "description": "Adjust model, timeout, Home Assistant LLM API, generation settings, and interaction trace retention.",
         "data": {
           "model": "Model",
-          "model_path": "Model file (leave empty to use the downloaded default)",
+          "model_path": "Custom model file (leave empty to use the model above)",
           "n_threads": "CPU threads for inference",
           "n_ctx": "Context window (tokens)",
           "timeout": "Request timeout (seconds)",

@@ -59,6 +59,7 @@ from .const import (
     DEFAULT_TRACE_RETENTION_DAYS,
     DEFAULT_TRACE_STORE_UTTERANCES,
     DOMAIN,
+    EMBEDDED_MODELS,
     MAX_TRACE_INTERACTIONS,
 )
 from .inference import default_thread_count, entry_backend
@@ -206,6 +207,17 @@ def _model_fields(
     if isinstance(current, str) and current and current not in choices:
         choices.insert(0, current)
     return {
+        vol.Required(
+            CONF_MODEL,
+            description=_suggest(options, CONF_MODEL, DEFAULT_MODEL_FILENAME),
+        ): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(label=model.label, value=filename)
+                    for filename, model in EMBEDDED_MODELS.items()
+                ]
+            )
+        ),
         vol.Optional(
             CONF_MODEL_PATH, description=_suggest(options, CONF_MODEL_PATH, "")
         ): SelectSelector(
