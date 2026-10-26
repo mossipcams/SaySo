@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.1](https://github.com/mossipcams/SaySo/compare/1.15.0...1.15.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **integration:** sync stored model option to the shipped default ([47307e1](https://github.com/mossipcams/SaySo/commit/47307e1aef1141306b78fade10e40c72512d75df))
+
 ## [1.15.0](https://github.com/mossipcams/SaySo/compare/1.14.0...1.15.0) (2026-10-26)
 
 
