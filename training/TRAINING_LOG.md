@@ -859,3 +859,18 @@ GGUF asset: `https://github.com/mossipcams/SaySo/releases/download/model-v4/SayS
 `training/configs/training_baseline.json` is intentionally unchanged and still
 records v5b as the baseline champion. Rolling back to v7 means reverting the
 `const.py` change; the v7 asset remains on `model-v3`.
+
+### Q4_K_M quant of v11 (2026-10-26)
+
+Q4_K_M quant of the same `final` checkpoint, produced from the v11 F16 GGUF
+(`SaySo-LFM-v11-F16.gguf`, SHA-256 `be029dbd…98c8`) with llama.cpp's quantizer:
+
+```
+llama quantize SaySo-LFM-v11-F16.gguf SaySo-LFM-v11-Q4_K_M.gguf Q4_K_M 8
+```
+
+Run inside `sayso/llama.cpp:d280808-fa2pack-mo` (`/app/llama quantize`). Output
+153,405,536 bytes (144.02 MiB quant size), SHA-256
+`728cae4cf693498b9bd8ab128751848e8560ce75a061409703490e09f38fc972`. Asset:
+`https://github.com/mossipcams/SaySo/releases/download/model-v4/SaySo-LFM-v11-Q4_K_M.gguf`.
+Endpoint and context scores for this file are pending and will be posted on the PR.
