@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.1](https://github.com/mossipcams/SaySo/compare/1.16.0...1.16.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **integration:** use one model control for embedded entries ([b8c2b20](https://github.com/mossipcams/SaySo/commit/b8c2b209fdf45c56727b1080605fbe506457e533))
+
 ## [1.16.0](https://github.com/mossipcams/SaySo/compare/1.15.1...1.16.0) (2026-10-26)
 
 
