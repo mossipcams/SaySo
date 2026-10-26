@@ -28,6 +28,7 @@ from homeassistant.helpers.llm import LLM_API_ASSIST
 
 from .client import LlamaCppClient
 from .const import (
+    BACKEND_EMBEDDED,
     BACKEND_EXTERNAL,
     CONF_MAX_OUTPUT_TOKENS,
     CONF_MAX_TOOL_ITERATIONS,
@@ -164,6 +165,15 @@ def _async_register_trace_services(hass: HomeAssistant) -> None:
     )
 
 
+def _synced_embedded_options(entry: SaySoConfigEntry) -> dict[str, Any] | None:
+    options = entry.options
+    if entry_backend(entry) != BACKEND_EMBEDDED or options.get(CONF_MODEL_PATH):
+        return None
+    if options.get(CONF_MODEL) == DEFAULT_MODEL_FILENAME:
+        return None
+    return {**options, CONF_MODEL: DEFAULT_MODEL_FILENAME}
+
+
 async def _async_build_engine(
     hass: HomeAssistant, entry: SaySoConfigEntry
 ) -> tuple[SaySoInferenceEngine, LlamaCppClient | None]:
@@ -213,6 +223,9 @@ async def _async_build_engine(
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bool:
+    synced_options = _synced_embedded_options(entry)
+    if synced_options is not None:
+        hass.config_entries.async_update_entry(entry, options=synced_options)
     options = entry.options
     engine, client = await _async_build_engine(hass, entry)
 
