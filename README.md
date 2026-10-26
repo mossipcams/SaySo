@@ -11,7 +11,7 @@ SaySo has two independently deployable components: the Home Assistant conversati
 - No server, URL, port, or API key
 
 On first setup SaySo installs a prebuilt `llama-cpp-python` wheel and downloads
-**SaySo LFM v11** (`SaySo-LFM-v11-F16.gguf`, 462 MB, an LFM2.5-230M
+**SaySo LFM v11** (`SaySo-LFM-v11-Q4_K_M.gguf`, 153 MB, an LFM2.5-230M
 fine-tune) into `/config/sayso/models/`. The download is checksum-verified.
 The model stays in memory while SaySo is loaded and runs on a dedicated worker
 thread, off Home Assistant’s event loop.
