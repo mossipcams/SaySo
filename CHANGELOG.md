@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.0](https://github.com/mossipcams/SaySo/compare/1.14.0...1.15.0) (2026-10-26)
+
+
+### Features
+
+* **model:** publish SaySo LFM v11 as the integration default (manual override) ([46c6af2](https://github.com/mossipcams/SaySo/commit/46c6af2cf1d58ca055060c5f8a8cae0c54497498))
+* **wake:** evict oldest mining records when the spool is full ([f0786be](https://github.com/mossipcams/SaySo/commit/f0786befebbdb6feb93b4bcdcef203c1ffa9a222))
+
 ## [1.14.0](https://github.com/mossipcams/SaySo/compare/1.13.0...1.14.0) (2026-10-19)
 
 
