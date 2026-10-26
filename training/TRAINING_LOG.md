@@ -812,3 +812,50 @@ GGUF asset: `https://github.com/mossipcams/SaySo/releases/download/model-v3/SayS
 
 `training/configs/training_baseline.json` is intentionally unchanged and still
 records v5b as the baseline champion.
+
+## SaySo LFM v11 integration default (2026-10-26)
+
+Source run: `20261026T020054Z-cd2a0275`, `final` checkpoint, trained from
+`ajax-optimization` (nonstandard) at commit `8e6606e`.
+
+Selection: manual override at the user's direction. v11 did not pass the normal
+promotion gates. It was published as the integration default on the basis of
+its GGUF endpoint promotion result (99/120, versus 86/120 for v7), and it ties
+v7 on the CPU harness (95/120).
+
+CPU harness, HF checkpoint (v7 in parentheses):
+
+- promotion: 95/120 (95/120)
+- non-overlap: 36/47 (38/47)
+- context: 13/16
+- ambiguity: 9/10
+- false_action_rate: 0.20 (0.50)
+
+GGUF endpoint, F16 served by llama.cpp on CPU (v7 endpoint run used Vulkan, so
+the backends differ):
+
+- promotion: 99/120 (86/120)
+- context: 13/16
+
+Failed promotion gates, CPU harness: ordinary 0.7 < 0.8; aliases 0.6 < 0.7;
+exclusion 0.5 < 0.6; action_on_ambiguity 1; tool_call_on_unavailable 3;
+excluded_entity_affected 1; wrong_domain 5.
+
+Failed promotion gates, GGUF endpoint: ordinary 0.7 < 0.8; aliases 0.6 < 0.7;
+exclusion 0.4 < 0.6; action_on_ambiguity 1; tool_call_on_unavailable 2;
+excluded_entity_affected 1; wrong_domain 4.
+
+Failed context gates, CPU harness: overall 0.8125 < 1.0; false_action_rate
+0.333 > 0.2; invalid_argument_rate 0.0625 > 0.05; tool_call_on_unavailable 1;
+context_entity_targeted 1.
+
+This does not mean the normal promotion gates pass. The override is recorded in
+`promoted_model.json` as `manual_override`, with `final_eval_passed: false`.
+
+GGUF asset: `https://github.com/mossipcams/SaySo/releases/download/model-v4/SaySo-LFM-v11-F16.gguf`
+(`model-v4` release, 461,883,488 bytes, SHA-256
+`be029dbd6c60d968f663296bf4897444ea7ecebd87201f1c04b3ecfc160798c8`).
+
+`training/configs/training_baseline.json` is intentionally unchanged and still
+records v5b as the baseline champion. Rolling back to v7 means reverting the
+`const.py` change; the v7 asset remains on `model-v3`.

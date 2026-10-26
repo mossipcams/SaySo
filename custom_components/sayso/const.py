@@ -23,11 +23,11 @@ LLAMA_CPP_MIN_VERSION = "0.3.33"
 LLAMA_CPP_WHEEL_INDEX = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 
 DEFAULT_MODEL_URL = (
-    "https://github.com/mossipcams/SaySo/releases/download/model-v3/"
-    "SaySo-LFM-v7-F16.gguf"
+    "https://github.com/mossipcams/SaySo/releases/download/model-v4/"
+    "SaySo-LFM-v11-F16.gguf"
 )
-DEFAULT_MODEL_FILENAME = "SaySo-LFM-v7-F16.gguf"
-DEFAULT_MODEL_SHA256: str | None = "773baaff55c8aec89cc3ebe5eb57e3d472ab3208a12a111357c680d38194c1a0"
+DEFAULT_MODEL_FILENAME = "SaySo-LFM-v11-F16.gguf"
+DEFAULT_MODEL_SHA256: str | None = "be029dbd6c60d968f663296bf4897444ea7ecebd87201f1c04b3ecfc160798c8"
 
 MODEL_STORAGE_SUBDIR = "sayso/models"
 
