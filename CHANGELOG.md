@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0](https://github.com/mossipcams/SaySo/compare/1.15.1...1.16.0) (2026-10-26)
+
+
+### Features
+
+* **integration:** let embedded users choose the SaySo model ([4389d7b](https://github.com/mossipcams/SaySo/commit/4389d7b601ca6c2fe1fbae68e5cbb19261ea1cfb))
+
 ## [1.15.1](https://github.com/mossipcams/SaySo/compare/1.15.0...1.15.1) (2026-10-26)
 
 
