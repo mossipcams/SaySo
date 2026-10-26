@@ -39,7 +39,6 @@ from .const import (
     CONF_BACKEND,
     CONF_MAX_OUTPUT_TOKENS,
     CONF_MAX_TOOL_ITERATIONS,
-    CONF_MODEL_PATH,
     CONF_N_CTX,
     CONF_N_THREADS,
     CONF_PROMPT,
@@ -151,7 +150,6 @@ _CONNECTION_ERROR_KEYS: tuple[tuple[type[SaySoError], str], ...] = (
 def _default_embedded_options() -> dict[str, Any]:
     return {
         CONF_MODEL: DEFAULT_MODEL_FILENAME,
-        CONF_MODEL_PATH: "",
         CONF_N_CTX: DEFAULT_N_CTX,
         CONF_N_THREADS: default_thread_count(),
         **_OPTION_DEFAULTS,
@@ -202,10 +200,7 @@ def _model_fields(
             )
         }
 
-    choices = list(models)
-    current = options.get(CONF_MODEL_PATH)
-    if isinstance(current, str) and current and current not in choices:
-        choices.insert(0, current)
+    local_models = [path for path in models if Path(path).name not in EMBEDDED_MODELS]
     return {
         vol.Required(
             CONF_MODEL,
@@ -213,18 +208,14 @@ def _model_fields(
         ): SelectSelector(
             SelectSelectorConfig(
                 options=[
-                    SelectOptionDict(label=model.label, value=filename)
-                    for filename, model in EMBEDDED_MODELS.items()
-                ]
-            )
-        ),
-        vol.Optional(
-            CONF_MODEL_PATH, description=_suggest(options, CONF_MODEL_PATH, "")
-        ): SelectSelector(
-            SelectSelectorConfig(
-                options=[
-                    SelectOptionDict(label=Path(path).name, value=path)
-                    for path in choices
+                    *(
+                        SelectOptionDict(label=model.label, value=filename)
+                        for filename, model in EMBEDDED_MODELS.items()
+                    ),
+                    *(
+                        SelectOptionDict(label=Path(path).name, value=path)
+                        for path in local_models
+                    ),
                 ],
                 custom_value=True,
             )

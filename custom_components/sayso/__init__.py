@@ -56,14 +56,14 @@ from .const import (
     SERVICE_GET_TRACE,
     SERVICE_LIST_TRACES,
 )
-from .exceptions import SaySoError
+from .exceptions import SaySoError, SaySoModelLoadError
 from .inference import (
     EmbeddedEngine,
     ExternalEngine,
     SaySoInferenceEngine,
     entry_backend,
 )
-from .model_store import async_ensure_llama_cpp, async_ensure_model
+from .model_store import async_ensure_llama_cpp, async_ensure_model, models_dir
 from .trace_store import TraceRecorder, TraceStore
 from .vad_sensitivity import (
     VadSensitivitySetup,
@@ -168,9 +168,25 @@ def _synced_embedded_options(entry: SaySoConfigEntry) -> dict[str, Any] | None:
     options = entry.options
     if entry_backend(entry) != BACKEND_EMBEDDED or options.get(CONF_MODEL_PATH):
         return None
-    if options.get(CONF_MODEL) in EMBEDDED_MODELS:
+    model = options.get(CONF_MODEL)
+    if model in EMBEDDED_MODELS or (model and Path(model).is_absolute()):
         return None
     return {**options, CONF_MODEL: DEFAULT_MODEL_FILENAME}
+
+
+def _migrated_embedded_options(
+    hass: HomeAssistant, entry: SaySoConfigEntry
+) -> dict[str, Any] | None:
+    options = entry.options
+    legacy_path = options.get(CONF_MODEL_PATH)
+    if entry_backend(entry) != BACKEND_EMBEDDED or not legacy_path:
+        return None
+    path = Path(legacy_path)
+    if path.parent == models_dir(hass) and path.name in EMBEDDED_MODELS:
+        model = path.name
+    else:
+        model = legacy_path
+    return {**options, CONF_MODEL: model, CONF_MODEL_PATH: ""}
 
 
 async def _async_build_engine(
@@ -195,17 +211,19 @@ async def _async_build_engine(
     else:
         try:
             await async_ensure_llama_cpp(hass)
-            if options.get(CONF_MODEL_PATH):
-                model_path = Path(options[CONF_MODEL_PATH])
-            else:
-                filename = options[CONF_MODEL]
-                model = EMBEDDED_MODELS[filename]
+            model = options[CONF_MODEL]
+            if model in EMBEDDED_MODELS:
+                catalog = EMBEDDED_MODELS[model]
                 model_path = await async_ensure_model(
                     hass,
-                    url=model.url,
-                    filename=filename,
-                    sha256=model.sha256,
+                    url=catalog.url,
+                    filename=model,
+                    sha256=catalog.sha256,
                 )
+            else:
+                model_path = Path(model)
+                if not await hass.async_add_executor_job(model_path.is_file):
+                    raise SaySoModelLoadError(f"Model file not found: {model_path}")
         except SaySoError as err:
             raise ConfigEntryNotReady(str(err)) from err
 
@@ -228,6 +246,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     synced_options = _synced_embedded_options(entry)
     if synced_options is not None:
         hass.config_entries.async_update_entry(entry, options=synced_options)
+    migrated_options = _migrated_embedded_options(hass, entry)
+    if migrated_options is not None:
+        hass.config_entries.async_update_entry(entry, options=migrated_options)
     options = entry.options
     engine, client = await _async_build_engine(hass, entry)
 
