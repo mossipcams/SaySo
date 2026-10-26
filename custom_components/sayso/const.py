@@ -1,3 +1,4 @@
+from typing import NamedTuple
 
 from homeassistant.const import CONF_LLM_HASS_API, CONF_MODEL, CONF_PROMPT
 
@@ -28,6 +29,31 @@ DEFAULT_MODEL_URL = (
 )
 DEFAULT_MODEL_FILENAME = "SaySo-LFM-v11-Q4_K_M.gguf"
 DEFAULT_MODEL_SHA256: str | None = "728cae4cf693498b9bd8ab128751848e8560ce75a061409703490e09f38fc972"
+
+
+class EmbeddedModel(NamedTuple):
+    label: str
+    url: str
+    sha256: str | None
+
+
+EMBEDDED_MODELS: dict[str, EmbeddedModel] = {
+    DEFAULT_MODEL_FILENAME: EmbeddedModel(
+        "SaySo LFM v11 Q4_K_M (153 MB, default)",
+        DEFAULT_MODEL_URL,
+        DEFAULT_MODEL_SHA256,
+    ),
+    "SaySo-LFM-v11-F16.gguf": EmbeddedModel(
+        "SaySo LFM v11 F16 (462 MB)",
+        "https://github.com/mossipcams/SaySo/releases/download/model-v4/SaySo-LFM-v11-F16.gguf",
+        "be029dbd6c60d968f663296bf4897444ea7ecebd87201f1c04b3ecfc160798c8",
+    ),
+    "SaySo-LFM-v7-F16.gguf": EmbeddedModel(
+        "SaySo LFM v7 F16 (462 MB, previous)",
+        "https://github.com/mossipcams/SaySo/releases/download/model-v3/SaySo-LFM-v7-F16.gguf",
+        "773baaff55c8aec89cc3ebe5eb57e3d472ab3208a12a111357c680d38194c1a0",
+    ),
+}
 
 MODEL_STORAGE_SUBDIR = "sayso/models"
 

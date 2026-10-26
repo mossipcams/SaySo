@@ -15,7 +15,7 @@ from custom_components.sayso.const import (
     DEFAULT_MODEL_FILENAME,
 )
 
-STALE_MODEL = "SaySo-LFM-v7-F16.gguf"
+STALE_MODEL = "SaySo-LFM-v5-F16.gguf"
 
 
 def _entry(data: dict[str, Any], options: dict[str, Any]) -> SimpleNamespace:

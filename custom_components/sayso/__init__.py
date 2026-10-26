@@ -44,8 +44,6 @@ from .const import (
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_TOOL_ITERATIONS,
     DEFAULT_MODEL_FILENAME,
-    DEFAULT_MODEL_SHA256,
-    DEFAULT_MODEL_URL,
     DEFAULT_N_CTX,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
@@ -54,6 +52,7 @@ from .const import (
     DEFAULT_TRACE_RETENTION_DAYS,
     DEFAULT_TRACE_STORE_UTTERANCES,
     DOMAIN,
+    EMBEDDED_MODELS,
     SERVICE_GET_TRACE,
     SERVICE_LIST_TRACES,
 )
@@ -169,7 +168,7 @@ def _synced_embedded_options(entry: SaySoConfigEntry) -> dict[str, Any] | None:
     options = entry.options
     if entry_backend(entry) != BACKEND_EMBEDDED or options.get(CONF_MODEL_PATH):
         return None
-    if options.get(CONF_MODEL) == DEFAULT_MODEL_FILENAME:
+    if options.get(CONF_MODEL) in EMBEDDED_MODELS:
         return None
     return {**options, CONF_MODEL: DEFAULT_MODEL_FILENAME}
 
@@ -196,14 +195,17 @@ async def _async_build_engine(
     else:
         try:
             await async_ensure_llama_cpp(hass)
-            model_path = Path(options[CONF_MODEL_PATH]) if options.get(
-                CONF_MODEL_PATH
-            ) else await async_ensure_model(
-                hass,
-                url=DEFAULT_MODEL_URL,
-                filename=DEFAULT_MODEL_FILENAME,
-                sha256=DEFAULT_MODEL_SHA256,
-            )
+            if options.get(CONF_MODEL_PATH):
+                model_path = Path(options[CONF_MODEL_PATH])
+            else:
+                filename = options[CONF_MODEL]
+                model = EMBEDDED_MODELS[filename]
+                model_path = await async_ensure_model(
+                    hass,
+                    url=model.url,
+                    filename=filename,
+                    sha256=model.sha256,
+                )
         except SaySoError as err:
             raise ConfigEntryNotReady(str(err)) from err
 
