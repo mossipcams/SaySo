@@ -48,8 +48,8 @@ First setup downloads a few hundred megabytes, so the entry may sit in
 "retrying" for a few minutes. To switch models, choose **Model** in the options
 (SaySo LFM v11 Q4_K_M is the default; v11 F16 and v7 F16 are also available).
 Saving reloads the entry, which downloads the chosen file on first use. To use
-your own weights instead, drop a `.gguf` into `/config/sayso/models/` and set
-**Model file** in the options; it takes precedence over **Model**.
+your own weights instead, drop a `.gguf` into `/config/sayso/models/`; it appears
+in the same **Model** list, or you can type its path.
 
 ## Advanced: use an external llama.cpp server
 

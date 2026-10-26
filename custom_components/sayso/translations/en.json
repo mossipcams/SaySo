@@ -48,7 +48,6 @@
         "description": "Adjust model, timeout, Home Assistant LLM API, generation settings, and interaction trace retention.",
         "data": {
           "model": "Model",
-          "model_path": "Custom model file (leave empty to use the model above)",
           "n_threads": "CPU threads for inference",
           "n_ctx": "Context window (tokens)",
           "timeout": "Request timeout (seconds)",
@@ -60,6 +59,9 @@
           "trace_retention_days": "Trace retention (days)",
           "trace_max_interactions": "Maximum stored interactions",
           "trace_store_utterances": "Store transcribed utterances in traces"
+        },
+        "data_description": {
+          "model": "Choose a published SaySo model (downloaded and checksum-verified) or a .gguf file in /config/sayso/models; you can also type a path."
         }
       }
     },
