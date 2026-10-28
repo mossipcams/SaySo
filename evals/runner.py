@@ -304,6 +304,19 @@ def render_case(case: Case) -> dict[str, Any]:
     }
 
 
+def fingerprint_inputs(cases: list[Case]) -> str:
+    digest = hashlib.sha256()
+    for case in cases:
+        rendered = render_case(case)
+        payload = json.dumps(
+            {"messages": rendered["messages"], "tools": rendered["tools"]},
+            sort_keys=True,
+        )
+        digest.update(payload.encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def evaluate(cases: list[Case], adapter: ModelAdapter) -> list[CaseResult]:
     results: list[CaseResult] = []
     for case in cases:
@@ -358,6 +371,7 @@ def write_run(
         or (extra_metadata or {}).get("checkpoint"),
         "code_revision": _git_revision(),
         "case_hash": fingerprint_cases(cases),
+        "input_hash": fingerprint_inputs(cases),
         "suite_hash": hashlib.sha256(
             "\n".join(case.id for case in cases).encode()
         ).hexdigest(),
