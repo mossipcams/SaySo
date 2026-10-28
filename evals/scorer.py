@@ -45,12 +45,44 @@ def is_refusal(text: str | None) -> bool:
     )
 
 
-def _canonical(call: dict[str, Any]) -> str:
+def _label_index(home: dict | None) -> dict[str, str]:
+    owners: dict[str, set[str]] = defaultdict(set)
+    for entity in (home or {}).get("entities") or []:
+        entity_id = entity.get("entity_id")
+        if not isinstance(entity_id, str):
+            continue
+        for label in [entity.get("name"), *(entity.get("aliases") or [])]:
+            if isinstance(label, str):
+                owners[label.casefold()].add(entity_id)
+    return {label: next(iter(ids)) for label, ids in owners.items() if len(ids) == 1}
+
+
+def _script_form(call: dict[str, Any], labels: dict[str, str]) -> dict[str, Any] | None:
+    if call.get("name") != "intent__HassTurnOn":
+        return None
+    arguments = call.get("arguments")
+    if not isinstance(arguments, dict) or set(arguments) - {"name", "domain"}:
+        return None
+    name = arguments.get("name")
+    if not isinstance(name, str):
+        return None
+    entity_id = labels.get(name.casefold(), "")
+    if not entity_id.startswith("script."):
+        return None
+    if "domain" in arguments and arguments["domain"] not in ("script", ["script"]):
+        return None
+    return {"name": entity_id.removeprefix("script."), "arguments": {}}
+
+
+def _canonical(call: dict[str, Any], labels: dict[str, str]) -> str:
+    call = _script_form(call, labels) or call
     arguments = call["arguments"]
-    # GetLiveContext accepts domain as a string or a list; array-only tools
-    # reject a string as a schema violation before scoring reaches this point.
-    if isinstance(arguments, dict) and isinstance(arguments.get("domain"), str):
-        arguments = {**arguments, "domain": [arguments["domain"]]}
+    if isinstance(arguments, dict):
+        if isinstance(arguments.get("domain"), str):
+            arguments = {**arguments, "domain": [arguments["domain"]]}
+        name = arguments.get("name")
+        if is_action_call(call) and isinstance(name, str) and name.casefold() in labels:
+            arguments = {**arguments, "name": {"entity_id": labels[name.casefold()]}}
     return json.dumps({"name": call["name"], "arguments": arguments}, sort_keys=True)
 
 
@@ -76,7 +108,8 @@ def _affects(call: dict[str, Any], entity: dict[str, Any]) -> bool:
     return not domains or entity.get("domain") in domains
 
 
-def classify(expectation: Expectation, turn: Turn) -> Outcome:
+def classify(expectation: Expectation, turn: Turn, home: dict | None = None) -> Outcome:
+    labels = _label_index(home)
     if turn.parse_error is not None:
         return Outcome.MALFORMED_OUTPUT
     if any(violation["code"] == "unknown_tool" for violation in turn.violations):
@@ -90,8 +123,8 @@ def classify(expectation: Expectation, turn: Turn) -> Outcome:
     if turn.calls:
         if not wants_calls:
             return Outcome.UNEXPECTED_TOOL_CALL
-        actual = Counter(_canonical(call) for call in turn.calls)
-        expected = Counter(_canonical(call) for call in expectation.calls)
+        actual = Counter(_canonical(call, labels) for call in turn.calls)
+        expected = Counter(_canonical(call, labels) for call in expectation.calls)
         if actual == expected:
             return (
                 Outcome.VALID_MULTI_TOOL_CALL
@@ -144,7 +177,7 @@ def _home_entity_domains(home: dict[str, Any]) -> dict[str, str]:
 def score(
     case_id: str, expectation: Expectation, turn: Turn, *, home: dict | None = None
 ) -> CaseResult:
-    outcome = classify(expectation, turn)
+    outcome = classify(expectation, turn, home=home)
     flags = []
     category = expectation.category
     expected = expectation.response_type
