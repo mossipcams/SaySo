@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.16.2](https://github.com/mossipcams/SaySo/compare/1.16.1...1.16.2) (2026-10-28)
+
+
+### Bug Fixes
+
+* **evals:** accept alias and script-equivalent calls; fix contradictory cases ([c7703c5](https://github.com/mossipcams/SaySo/commit/c7703c547cf24bfb43e60785a4570c5f5bd7ca2e))
+* **integration:** accept Any-wrapped required slot names ([0734a6a](https://github.com/mossipcams/SaySo/commit/0734a6a31b5de47cef3b5889f74f1ea82b80867e))
+* **integration:** keep domain contract detection unchanged ([f74f3a0](https://github.com/mossipcams/SaySo/commit/f74f3a0c0b982be3c87bd1a5f18f982a39de84d6))
+
 ## [1.16.1](https://github.com/mossipcams/SaySo/compare/1.16.0...1.16.1) (2026-10-26)
 
 
