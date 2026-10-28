@@ -82,14 +82,19 @@ class ToolRoutingMetadata:
 
 
 def _vol_in_allowed_values(validator: Any) -> frozenset[str] | None:
-    if isinstance(validator, vol.In):
-        container = validator.container
-        if isinstance(container, dict):
-            return frozenset(str(key) for key in container)
-        return frozenset(str(value) for value in container)
+    if type(validator).__name__ == "In":
+        container = getattr(validator, "container", None)
+        if container is not None:
+            if isinstance(container, dict):
+                return frozenset(str(key) for key in container)
+            try:
+                return frozenset(str(value) for value in container)
+            except TypeError:
+                return None
 
-    if isinstance(validator, vol.All):
-        for sub_validator in validator.validators:
+    sub_validators = getattr(validator, "validators", None)
+    if sub_validators is not None:
+        for sub_validator in sub_validators:
             allowed = _vol_in_allowed_values(sub_validator)
             if allowed is not None:
                 return allowed
@@ -269,28 +274,42 @@ def build_tool_availability_names(tools: list[llm.Tool]) -> set[str]:
     return set(build_tool_map(tools))
 
 
+def _any_like_names(validators: Any) -> list[str]:
+    if not validators:
+        return []
+    names: list[str] = []
+    for sub in validators:
+        if isinstance(sub, str):
+            names.append(sub)
+            continue
+        schema = getattr(sub, "schema", None)
+        if isinstance(schema, str):
+            names.append(schema)
+    return names
+
+
 def _schema_marker_name(marker: Any) -> str | None:
-    if isinstance(marker, (vol.Required, vol.Optional)):
-        schema = marker.schema
-        return schema if isinstance(schema, str) else None
     if isinstance(marker, str):
         return marker
-    if isinstance(marker, vol.Any):
-        for sub_marker in marker.validators:
-            name = _schema_marker_name(sub_marker)
-            if name is not None:
-                return name
+    schema = getattr(marker, "schema", None)
+    if isinstance(schema, str):
+        return schema
+    for name in _any_like_names(getattr(schema, "validators", ())):
+        return name
+    for name in _any_like_names(getattr(marker, "validators", ())):
+        return name
     return None
 
 
 def _collect_allowed_argument_names(schema: vol.Schema) -> set[str]:
     allowed: set[str] = set()
     for marker in schema.schema:
-        if isinstance(marker, vol.Any):
-            for sub_marker in marker.validators:
-                name = _schema_marker_name(sub_marker)
-                if name is not None:
-                    allowed.add(name)
+        inner = getattr(marker, "schema", None)
+        validators = getattr(inner, "validators", None)
+        if validators is None:
+            validators = getattr(marker, "validators", None)
+        if validators is not None:
+            allowed.update(_any_like_names(validators))
             continue
         name = _schema_marker_name(marker)
         if name is not None:
@@ -308,7 +327,7 @@ def _classify_voluptuous_error(error: vol.Invalid) -> ToolArgumentFailureCode:
     message = str(error).lower()
     if "extra keys not allowed" in message:
         return ToolArgumentFailureCode.SCHEMA_MISMATCH
-    if "required key not provided" in message:
+    if "required key not provided" in message or "at least one of" in message:
         return ToolArgumentFailureCode.SCHEMA_MISMATCH
     return ToolArgumentFailureCode.INVALID_ARGUMENTS
 
