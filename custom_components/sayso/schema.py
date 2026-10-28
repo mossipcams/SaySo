@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -76,25 +75,19 @@ def _convert_parameters(
 
 @dataclass(frozen=True, slots=True)
 class ToolRoutingMetadata:
-
     declared_domains: frozenset[str] | None = None
     retain_always: bool = False
 
 
 def _vol_in_allowed_values(validator: Any) -> frozenset[str] | None:
-    if type(validator).__name__ == "In":
-        container = getattr(validator, "container", None)
-        if container is not None:
-            if isinstance(container, dict):
-                return frozenset(str(key) for key in container)
-            try:
-                return frozenset(str(value) for value in container)
-            except TypeError:
-                return None
+    if isinstance(validator, vol.In):
+        container = validator.container
+        if isinstance(container, dict):
+            return frozenset(str(key) for key in container)
+        return frozenset(str(value) for value in container)
 
-    sub_validators = getattr(validator, "validators", None)
-    if sub_validators is not None:
-        for sub_validator in sub_validators:
+    if isinstance(validator, vol.All):
+        for sub_validator in validator.validators:
             allowed = _vol_in_allowed_values(sub_validator)
             if allowed is not None:
                 return allowed
@@ -163,9 +156,7 @@ def sanitize_openapi_schema(node: Any) -> Any:
         return dict(_UNSUPPORTED_OPENAPI_FALLBACK)
 
     if isinstance(node, dict):
-        return {
-            key: sanitize_openapi_schema(value) for key, value in node.items()
-        }
+        return {key: sanitize_openapi_schema(value) for key, value in node.items()}
 
     if isinstance(node, list):
         return [sanitize_openapi_schema(item) for item in node]
@@ -253,14 +244,12 @@ def compile_tools(
 
 
 class ToolArgumentFailureCode(StrEnum):
-
     SCHEMA_MISMATCH = "schema_mismatch"
     INVALID_ARGUMENTS = "invalid_arguments"
 
 
 @dataclass(frozen=True, slots=True)
 class ToolArgumentValidationError:
-
     code: ToolArgumentFailureCode
     message: str
     tool_name: str
