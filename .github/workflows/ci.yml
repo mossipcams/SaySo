@@ -92,16 +92,11 @@ jobs:
         id: lva_pin
         run: |
           LVA_SHA=$(python3 -c "
-          import re
-          from pathlib import Path
-          text = Path('satellite/pyproject.toml').read_text(encoding='utf-8')
-          m = re.search(
-              r'linux-voice-assistant @ git\+https://github.com/OHF-Voice/linux-voice-assistant\.git@([0-9a-f]+)',
-              text,
-          )
-          if not m:
-              raise SystemExit('linux-voice-assistant pin not found in satellite/pyproject.toml')
-          print(m.group(1))
+          import tomllib
+          with open('satellite/uv.lock', 'rb') as f:
+              lock = tomllib.load(f)
+          pkg = next(p for p in lock['package'] if p['name'] == 'linux-voice-assistant')
+          print(pkg['source']['git'].rsplit('#', 1)[1])
           ")
           echo "sha=${LVA_SHA}" >> "${GITHUB_OUTPUT}"
 
