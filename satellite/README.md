@@ -136,6 +136,31 @@ its group as well: `sudo usermod -aG pulse-access sayso`.
 configured source and sink appear, so startup fails fast and loudly when the
 audio server is not reachable.
 
+## Deploying
+
+`/opt/sayso-satellite` is not a git checkout. Deploy from a clone on the
+satellite, such as `~/SaySo`:
+
+1. Run `git pull --ff-only origin main` in the clone.
+2. Copy `satellite/sayso/`, `satellite/patches/`, `pyproject.toml` and `uv.lock`
+   into `/opt/sayso-satellite/`. Leave `models/` alone.
+3. Rebuild `/opt/sayso-satellite/linux-voice-assistant` at the tag in
+   `pyproject.toml`, then apply `patches/0001-*` and `patches/0002-*` in order with
+   `git apply`. Build it beside the live tree and swap it in, so a failed build
+   leaves the running code untouched.
+4. Update dependencies from `/opt/sayso-satellite`:
+
+   ```bash
+   uv sync --frozen --inexact --no-install-package linux-voice-assistant
+   ```
+
+   Do not run plain `uv sync` here. It replaces the patched LVA install with the
+   unpatched tag from `uv.lock`, and the satellite no longer starts.
+5. Restart with `sudo systemctl restart sayso-satellite`.
+
+Importing LVA opens the audio server, so checks run outside the service need the
+same `XDG_RUNTIME_DIR` and `PULSE_SERVER` values as the service.
+
 ## Commands
 
 Operational commands (also `/usr/local/bin/sayso-satellite`):
