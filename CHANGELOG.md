@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.4](https://github.com/mossipcams/SaySo/compare/1.16.3...1.16.4) (2026-10-30)
+
+
+### Documentation
+
+* **satellite:** document the Pi deploy and safe uv sync ([e842d00](https://github.com/mossipcams/SaySo/commit/e842d00ddb12012ab4ce3256fb14bd4cf4fd0ab8))
+
 ## [1.16.3](https://github.com/mossipcams/SaySo/compare/1.16.2...1.16.3) (2026-10-30)
 
 
