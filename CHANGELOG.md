@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.3](https://github.com/mossipcams/SaySo/compare/1.16.2...1.16.3) (2026-10-30)
+
+
+### Bug Fixes
+
+* **satellite:** upgrade linux-voice-assistant to v1.1.18 ([9843212](https://github.com/mossipcams/SaySo/commit/9843212d2b4de34adb1ea3e01dd63cd82e97a6cb))
+
 ## [1.16.2](https://github.com/mossipcams/SaySo/compare/1.16.1...1.16.2) (2026-10-28)
 
 
