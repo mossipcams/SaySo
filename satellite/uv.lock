@@ -275,7 +275,7 @@ wheels = [
 [[package]]
 name = "linux-voice-assistant"
 version = "0.0.0"
-source = { git = "https://github.com/OHF-Voice/linux-voice-assistant.git?rev=99ee08f7b136f5a57a3da59d5f7c73e7ed62ed68#99ee08f7b136f5a57a3da59d5f7c73e7ed62ed68" }
+source = { git = "https://github.com/OHF-Voice/linux-voice-assistant.git?rev=b55d36af522c263eeed4e023d6ebf30da47e4710#b55d36af522c263eeed4e023d6ebf30da47e4710" }
 dependencies = [
     { name = "aioesphomeapi" },
     { name = "getmac" },
@@ -591,7 +591,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "linux-voice-assistant", git = "https://github.com/OHF-Voice/linux-voice-assistant.git?rev=99ee08f7b136f5a57a3da59d5f7c73e7ed62ed68" },
+    { name = "linux-voice-assistant", git = "https://github.com/OHF-Voice/linux-voice-assistant.git?rev=b55d36af522c263eeed4e023d6ebf30da47e4710" },
     { name = "livekit-wakeword", specifier = "==0.3.0" },
     { name = "numpy", specifier = ">=2,<3" },
     { name = "onnxruntime", specifier = "==1.31.0" },

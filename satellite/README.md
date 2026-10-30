@@ -53,7 +53,7 @@ Upstream LVA lives in `linux-voice-assistant/` and must stay mergeable. Custom
 code is only under `sayso/` plus patches:
 
 - `patches/0001-sayso-stable-device-name.patch` (`--device-name` for stable HA device id)
-- `patches/0002-lva-external-wake-provider.patch` (processed PCM external wake hook + `--disable-built-in-wake-word`)
+- `patches/0002-lva-external-wake-provider.patch` (processed PCM external wake hook, `--disable-built-in-wake-word`, and `linux_voice_assistant/events.py` re-exporting `LVAEvent`)
 
 CI on this repo applies the patches to the pinned LVA tree; a running satellite still needs its `/opt/sayso-satellite` venv rebuilt from that patched tree.
 

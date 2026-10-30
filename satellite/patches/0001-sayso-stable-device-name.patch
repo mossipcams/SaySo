@@ -1,8 +1,8 @@
 diff --git a/linux_voice_assistant/__main__.py b/linux_voice_assistant/__main__.py
-index 1a9b069..9e263af 100644
+index bb86eb3..cc703b8 100644
 --- a/linux_voice_assistant/__main__.py
 +++ b/linux_voice_assistant/__main__.py
-@@ -48,6 +48,10 @@ async def main() -> None:
+@@ -52,6 +52,10 @@ async def main() -> None:
          "--name",
          help="Real name for the device",
      )
@@ -13,12 +13,12 @@ index 1a9b069..9e263af 100644
      parser.add_argument(
          "--audio-input-device",
          help="Name for the audio input device (see --list-input-devices)",
-@@ -314,6 +318,8 @@ async def main() -> None:
+@@ -334,6 +338,8 @@ async def main() -> None:
          friendly_name = args.name
  
      device_name = f"lva-{mac_address_clean}"
 +    if args.device_name:
 +        device_name = args.device_name
  
-     print(f"Device name: {device_name}")
+     _LOGGER.info("Device name: %s", device_name)
  

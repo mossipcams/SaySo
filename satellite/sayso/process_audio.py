@@ -167,12 +167,7 @@ def install_native_rate_capture(
     original_process_audio = lva_main.process_audio
     gain = gain_scalar_from_db(gain_db)
 
-    def process_audio(state: Any, mic: Any, blocksize: int) -> None:
-        _pin_audio_settings(
-            state, auto_gain=auto_gain, noise_suppression=noise_suppression
-        )
-        original_recorder = mic.recorder
-
+    def wrap_recorder(original_recorder: Any, blocksize: int) -> Callable[..., _ResamplingRecorder]:
         def recorder(*args: Any, **kwargs: Any) -> _ResamplingRecorder:
             channels_arg = int(kwargs.get("channels", channels))
             inner = original_recorder(
@@ -189,13 +184,32 @@ def install_native_rate_capture(
                 raw_sink=raw_sink,
             )
 
-        mic.recorder = recorder
+        return recorder
+
+    def process_audio(state: Any, mic: Any, blocksize: int) -> None:
+        _pin_audio_settings(
+            state, auto_gain=auto_gain, noise_suppression=noise_suppression
+        )
+        original_recorder = mic.recorder
+        mic.recorder = wrap_recorder(original_recorder, blocksize)
         try:
             original_process_audio(state, mic, blocksize)
         finally:
             mic.recorder = original_recorder
 
     lva_main.process_audio = process_audio
+
+    reconnecting = getattr(lva_main, "_ReconnectingRecorder", None)
+    if reconnecting is not None:
+        original_refresh_mic = reconnecting._refresh_mic
+
+        def refresh_mic(self: Any) -> None:
+            previous_mic = self._mic
+            original_refresh_mic(self)
+            if self._mic is not previous_mic:
+                self._mic.recorder = wrap_recorder(self._mic.recorder, self._block_size)
+
+        reconnecting._refresh_mic = refresh_mic
     _LOGGER.info(
         "Native-rate capture installed: device=%s Hz, transport=%s Hz, gain=%.2f dB, "
         "agc=%s, ns=%s (pinned from config; HA mic entities cannot override)",

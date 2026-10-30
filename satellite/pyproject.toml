@@ -9,7 +9,7 @@ description = "SaySo overlay for OHF-Voice/linux-voice-assistant"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "linux-voice-assistant @ git+https://github.com/OHF-Voice/linux-voice-assistant.git@99ee08f7b136f5a57a3da59d5f7c73e7ed62ed68",
+    "linux-voice-assistant @ git+https://github.com/OHF-Voice/linux-voice-assistant.git@b55d36af522c263eeed4e023d6ebf30da47e4710",
     "livekit-wakeword==0.3.0",
     "numpy>=2,<3",
     "onnxruntime==1.31.0",
