@@ -16,6 +16,8 @@ _LOGGER = logging.getLogger(__name__)
 
 _capture_counter = itertools.count()
 
+_DUPLICATE_WAKE_UP_CODE = "duplicate_wake_up_detected"
+
 
 def _chain_chime_play(player: Any, path: str, done_callback: Callable[[], None] | None) -> None:
     existing = getattr(player, "_done_callback", None)
@@ -172,6 +174,7 @@ def install_voice_handlers(
         wake_word_phrase = wake_word.wake_word
         _LOGGER.debug("Detected wake word: %s", wake_word_phrase)
         trace.wake(wake_word_phrase)
+        self._wake_word_phrase = wake_word_phrase
 
         if wake_hook is not None:
             wake_hook.suspend()
@@ -301,12 +304,15 @@ def install_voice_handlers(
                 _LOGGER.debug("Playing failure sound after empty STT transcript")
                 _fail_turn(self, "stt", "stt_failed", "empty_transcript")
         elif event_type == event_error:
+            if data.get("code") == _DUPLICATE_WAKE_UP_CODE:
+                _LOGGER.debug("Wake race lost to another satellite; no failure sound")
+                return
             _LOGGER.debug("Playing failure sound after voice pipeline error")
             _fail_turn(self, "pipeline", "pipeline_error", "pipeline_error")
 
-    def _tts_finished(self) -> None:
+    def _tts_finished(self, *args: Any, **kwargs: Any) -> None:
         _cancel_vad_warmup(self)
-        original_tts_finished(self)
+        original_tts_finished(self, *args, **kwargs)
         trace.playback_completed()
         trace.finish()
         _finish_capture(self, transcript="", failed_reason="no_stt_end")

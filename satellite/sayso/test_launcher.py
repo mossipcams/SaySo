@@ -14,7 +14,7 @@ import pytest
 
 _PATCH_PATH = Path(__file__).resolve().parents[1] / "patches" / "0001-sayso-stable-device-name.patch"
 _PATCH_0002_PATH = Path(__file__).resolve().parents[1] / "patches" / "0002-lva-external-wake-provider.patch"
-_PATCH_0002_WAKE_HUNK = "@@ -792,55 +802,57 @@"
+_PATCH_0002_WAKE_HUNK = "@@ -831,55 +841,57 @@"
 
 
 def _satellite_cfg(

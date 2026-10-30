@@ -1,5 +1,5 @@
 diff --git a/linux_voice_assistant/__main__.py b/linux_voice_assistant/__main__.py
-index 8fcfc71..ce17b4a 100644
+index cc703b8..97f20c3 100644
 --- a/linux_voice_assistant/__main__.py
 +++ b/linux_voice_assistant/__main__.py
 @@ -31,6 +31,7 @@ from .util import (
@@ -10,7 +10,7 @@ index 8fcfc71..ce17b4a 100644
  
  _LOGGER = logging.getLogger(__name__)
  
-@@ -229,6 +230,12 @@ async def main() -> None:
+@@ -234,6 +235,12 @@ async def main() -> None:
          action="store_true",
          help="Disable the peripheral WebSocket API entirely",
      )
@@ -23,7 +23,7 @@ index 8fcfc71..ce17b4a 100644
      parser.add_argument(
          "--peripheral-startup-wait",
          type=float,
-@@ -482,6 +489,7 @@ async def main() -> None:
+@@ -505,6 +512,7 @@ async def main() -> None:
          timer_max_ring_seconds=args.timer_max_ring_seconds,
          listen_during_wake_sound=args.listen_during_wake_sound,
      )
@@ -31,7 +31,7 @@ index 8fcfc71..ce17b4a 100644
  
      if fallback_used:
          # Fallback to the default model was used, save as active wake words
-@@ -703,6 +711,8 @@ def process_audio(state: ServerState, mic, block_size: int):
+@@ -742,6 +750,8 @@ def process_audio(state: ServerState, mic, block_size: int):
                      if not audio_chunk:
                          continue
  
@@ -40,7 +40,7 @@ index 8fcfc71..ce17b4a 100644
                  if state.satellite is None or not hasattr(state.satellite, "_is_streaming_audio"):
                      continue
  
-@@ -792,55 +802,57 @@ def process_audio(state: ServerState, mic, block_size: int):
+@@ -831,55 +841,57 @@ def process_audio(state: ServerState, mic, block_size: int):
                  try:
                      # Both channels travel in one message: data=ch0 (enhanced), data2=ch1 (raw reference)
                      audio_chunk_2 = channel_chunks[1] if n_channels >= 2 else None
@@ -141,6 +141,13 @@ index 8fcfc71..ce17b4a 100644
  
                      # Always process to keep state correct
                      stopped = False
+diff --git a/linux_voice_assistant/events.py b/linux_voice_assistant/events.py
+new file mode 100644
+index 0000000..a998650
+--- /dev/null
++++ b/linux_voice_assistant/events.py
+@@ -0,0 +1 @@
++from .peripheral_api import LVAEvent
 diff --git a/linux_voice_assistant/external_wake.py b/linux_voice_assistant/external_wake.py
 new file mode 100644
 index 0000000..a625d11

@@ -6,6 +6,7 @@ import os
 import sys
 from functools import partial
 
+from .cli import _pulse_device
 from .config import load_config
 from .events import install_voice_handlers
 from .playback import configure_pulse_mpv, install_playback_recovery
@@ -71,7 +72,7 @@ def main() -> None:
         "--audio-input-device",
         cfg.audio.input_device,
         "--audio-output-device",
-        cfg.audio.output_device,
+        f"pulse/{_pulse_device(cfg.audio.output_device)}",
         "--audio-input-channels",
         str(cfg.audio.channels),
         "--mic-noise-suppression",
@@ -84,6 +85,8 @@ def main() -> None:
         str(cfg.wake_word.post_tts_cooldown_ms / 1000.0),
         "--disable-peripheral-api",
         "--disable-built-in-wake-word",
+        "--pipeline-ended-sound",
+        "",
     ]
     if os.environ.get("SAYSO_DEBUG") == "1":
         argv.append("--debug")
