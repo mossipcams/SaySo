@@ -11,11 +11,14 @@ from typing import Any, Protocol
 
 from homeassistant.const import CONF_URL
 
+from .area_context import tools_before_area_messages
 from .client import ChatCompletionResult, LlamaCppClient
 from .completion import (
     extract_tool_calls,
     parse_completion_result,
     parse_completion_result as _parse_embedded_result,
+    prefix_hash,
+    prompt_tokens_of,
 )
 from .const import (
     BACKEND_EMBEDDED,
@@ -75,6 +78,140 @@ def _messages_for_embedded_template(
 
 def default_thread_count() -> int:
     return max(1, min(MAX_DEFAULT_THREADS, os.cpu_count() or 1))
+
+
+MAX_PREFIX_CHECKPOINTS = 4
+
+
+def _last_user_turn_start(tokens: list[int], marker: list[int]) -> int | None:
+    width = len(marker)
+    for start in range(len(tokens) - width, -1, -1):
+        if tokens[start : start + width] == marker:
+            return start
+    return None
+
+
+def _shared_prefix_len(left: list[int], right: list[int]) -> int:
+    count = 0
+    for a, b in zip(left, right):
+        if a != b:
+            break
+        count += 1
+    return count
+
+
+def _checkpoint_boundaries(
+    prompt: list[int], area_marker: list[int], user_marker: list[int]
+) -> list[int]:
+    boundaries: set[int] = set()
+    for marker in (area_marker, user_marker):
+        start = _last_user_turn_start(prompt, marker)
+        if start is not None and start > 0:
+            boundaries.add(start)
+    return sorted(boundaries)
+
+
+def _longest_checkpoint(
+    checkpoints: list[list[int]], prompt: list[int], limit: int
+) -> int | None:
+    best: int | None = None
+    for index, tokens in enumerate(checkpoints):
+        if len(tokens) > limit or prompt[: len(tokens)] != tokens:
+            continue
+        if best is None or len(tokens) > len(checkpoints[best]):
+            best = index
+    return best
+
+
+def _checkpointing_llama_class() -> type:
+    import ctypes
+
+    import llama_cpp
+    from llama_cpp import Llama
+
+    flags = llama_cpp.LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY
+
+    class CheckpointingLlama(Llama):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            self._area_context_marker = self.tokenize(
+                b"Area context:\n", add_bos=False, special=True
+            )
+            self._user_turn_marker = self.tokenize(
+                b"<|im_start|>user", add_bos=False, special=True
+            )
+            self._checkpoints: list[tuple[list[int], bytes]] = []
+            self.prefill_evaluated = 0
+            self._prefilling = False
+
+        def eval(self, tokens: Any) -> None:
+            if self._prefilling:
+                self.prefill_evaluated += len(tokens)
+            super().eval(tokens)
+
+        def sample(self, *args: Any, **kwargs: Any) -> Any:
+            self._prefilling = False
+            return super().sample(*args, **kwargs)
+
+        def _save_checkpoint(self, tokens: list[int]) -> None:
+            size = llama_cpp.llama_state_seq_get_size_ext(self._ctx.ctx, 0, flags)
+            buffer = (ctypes.c_uint8 * size)()
+            written = llama_cpp.llama_state_seq_get_data_ext(
+                self._ctx.ctx, buffer, size, 0, flags
+            )
+            if len(self._checkpoints) >= MAX_PREFIX_CHECKPOINTS:
+                self._checkpoints.pop(0)
+            self._checkpoints.append((tokens, bytes(buffer[:written])))
+
+        def _restore_checkpoint(self, index: int) -> bool:
+            tokens, data = self._checkpoints[index]
+            buffer = (ctypes.c_uint8 * len(data)).from_buffer_copy(data)
+            read = llama_cpp.llama_state_seq_set_data_ext(
+                self._ctx.ctx, buffer, len(data), 0, flags
+            )
+            if read != len(data) or not self._ctx.kv_cache_seq_rm(0, len(tokens), -1):
+                return False
+            self.n_tokens = len(tokens)
+            self._requires_eval = True
+            return True
+
+        def generate(self, tokens: Any, *args: Any, **kwargs: Any) -> Any:
+            self.prefill_evaluated = 0
+            self._prefilling = True
+            prompt = list(tokens)
+            boundaries = _checkpoint_boundaries(
+                prompt, self._area_context_marker, self._user_turn_marker
+            )
+            if (
+                not boundaries
+                or not kwargs.get("reset", True)
+                or not (self._is_recurrent or self._is_hybrid)
+            ):
+                return super().generate(prompt, *args, **kwargs)
+
+            live = self.input_ids[: self.n_tokens].tolist()
+            shared = _shared_prefix_len(live, prompt)
+            if self.n_tokens > 0 and shared == self.n_tokens:
+                return super().generate(prompt, *args, **kwargs)
+
+            index = _longest_checkpoint(
+                [tokens for tokens, _ in self._checkpoints],
+                prompt,
+                min(shared, boundaries[-1]),
+            )
+            if index is None or not self._restore_checkpoint(index):
+                self.reset()
+            for boundary in boundaries:
+                if boundary < self.n_tokens:
+                    continue
+                if self.n_tokens < boundary:
+                    self.eval(prompt[self.n_tokens : boundary])
+                prefix = prompt[:boundary]
+                if prefix not in [tokens for tokens, _ in self._checkpoints]:
+                    self._save_checkpoint(prefix)
+            return super().generate(prompt, *args, **kwargs)
+
+    return CheckpointingLlama
 
 
 def entry_backend(entry: Any) -> str:
@@ -166,9 +303,7 @@ class EmbeddedEngine:
         return self._model_path.stem
 
     def _load(self) -> Any:
-        from llama_cpp import Llama
-
-        return Llama(
+        return _checkpointing_llama_class()(
             model_path=str(self._model_path),
             n_ctx=self._n_ctx,
             n_threads=self._n_threads,
@@ -212,15 +347,22 @@ class EmbeddedEngine:
         max_tokens: int,
     ) -> dict[str, Any]:
         assert self._llm is not None
-        kwargs: dict[str, Any] = {
-            "messages": _messages_for_embedded_template(messages),
-            "temperature": temperature,
-            "max_tokens": max_tokens,
+        raw = self._llm.create_chat_completion(
+            messages=_messages_for_embedded_template(
+                tools_before_area_messages(messages, tools)
+            ),
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        prompt_tokens = prompt_tokens_of(raw)
+        reused = None
+        if prompt_tokens is not None:
+            reused = prompt_tokens - self._llm.prefill_evaluated
+        raw["sayso_cache"] = {
+            "prefix_hash": prefix_hash(messages, tools),
+            "reused_tokens": reused,
         }
-        if tools:
-            kwargs["tools"] = tools
-            kwargs["tool_choice"] = "auto"
-        return self._llm.create_chat_completion(**kwargs)
+        return raw
 
     async def async_chat_completion(
         self,

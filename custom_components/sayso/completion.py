@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import uuid
@@ -8,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from .area_context import _AREA_BLOCK_MARKER
 from .exceptions import SaySoInvalidResponseError
 from .lfm_parse import LfmPythonParseError, parse_lfm_python_tool_calls
 
@@ -27,6 +29,8 @@ class ChatCompletionResult:
     request_payload: dict[str, Any] | None = None
     request_bytes: int | None = None
     prompt_tokens: int | None = None
+    prefix_hash: str | None = None
+    reused_tokens: int | None = None
 
 
 def parse_tool_calls(
@@ -103,6 +107,30 @@ def prompt_tokens_of(raw: Any) -> int | None:
     return tokens if isinstance(tokens, int) else None
 
 
+def cache_trace_of(raw: dict[str, Any]) -> tuple[str | None, int | None]:
+    cache = raw.get("sayso_cache")
+    if not isinstance(cache, dict):
+        return None, None
+    prefix = cache.get("prefix_hash")
+    reused = cache.get("reused_tokens")
+    return (
+        prefix if isinstance(prefix, str) else None,
+        reused if isinstance(reused, int) and not isinstance(reused, bool) else None,
+    )
+
+
+def prefix_hash(
+    messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None
+) -> str:
+    system = ""
+    if messages and messages[0].get("role") == "system":
+        system = messages[0].get("content") or ""
+    index = system.rfind(_AREA_BLOCK_MARKER)
+    stable = system[:index] if index >= 0 else system
+    digest = hashlib.sha256((stable + json.dumps(tools, sort_keys=True)).encode())
+    return digest.hexdigest()[:12]
+
+
 _TOOL_CALL_START = "<|tool_call_start|>"
 _TOOL_CALL_END = "<|tool_call_end|>"
 
@@ -169,8 +197,11 @@ def parse_completion_result(raw: Any) -> ChatCompletionResult:
             "Local inference returned neither content nor tool calls"
         )
 
+    prefix, reused = cache_trace_of(raw)
     return ChatCompletionResult(
         content=text,
         tool_calls=tool_calls,
         prompt_tokens=prompt_tokens_of(raw),
+        prefix_hash=prefix,
+        reused_tokens=reused,
     )

@@ -1904,9 +1904,9 @@ def _reset_boundary_diagnostics() -> None:
     clear_boundary_diagnostics()
 
 
-class TestFilteredSchemaRecovery:
+class TestCompleteSchemaOffer:
 
-    async def test_confident_routing_uses_filtered_schema_with_exact_counts(
+    async def test_complete_schema_offered_when_domain_hint_found(
         self,
         hass: HomeAssistant,
         mock_llama_client: None,
@@ -1919,150 +1919,19 @@ class TestFilteredSchemaRecovery:
             LlamaCppClient,
             "chat_completion",
             new=AsyncMock(
-                side_effect=[
-                    ChatCompletionResult(
-                        content=None,
-                        tool_calls=[
-                            ToolCall(
-                                id="call_1",
-                                name="HassTurnOn",
-                                arguments={"name": "Living Room"},
-                            )
-                        ],
-                    ),
-                    ChatCompletionResult(
-                        content="The living room light is on.",
-                        tool_calls=[],
-                    ),
-                ]
+                return_value=ChatCompletionResult(
+                    content="The living room light is on.",
+                    tool_calls=[],
+                )
             ),
-        ) as mock_chat, patch.object(
-            intent,
-            "async_handle",
-            wraps=intent.async_handle,
-        ) as mock_handle:
-            result = await _converse(
-                hass,
-                entry,
-                "Turn on the living room light",
-            )
+        ) as mock_chat:
+            await _converse(hass, entry, "Turn on the living room light")
 
-        initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
-        initial_names = {tool["function"]["name"] for tool in initial_tools}
-        complete_names = {tool["function"]["name"] for tool in complete_tools}
-
-        assert len(initial_names) < len(complete_names)
-        assert "HassFanSetSpeed" not in initial_names
-        assert "HassTurnOn" in initial_names
-        assert mock_chat.await_count == 1
-        assert mock_handle.await_count == 1
-        assert hass.states.get("light.living_room").state == "on"
-        assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
-        assert _speech(result) == "Done."
-
-    async def test_ambiguous_routing_uses_complete_schema_with_exact_counts(
-        self,
-        hass: HomeAssistant,
-        mock_llama_client: None,
-        assist_ambiguous_kitchen: None,
-    ) -> None:
-        entry = await _create_entry(hass)
-        complete_tools = await _complete_llm_tools(hass, entry)
-
-        with patch.object(
-            LlamaCppClient,
-            "chat_completion",
-            new=AsyncMock(
-                side_effect=[
-                    ChatCompletionResult(
-                        content=None,
-                        tool_calls=[
-                            ToolCall(
-                                id="call_1",
-                                name="HassTurnOn",
-                                arguments={"name": "Kitchen Light"},
-                            )
-                        ],
-                    ),
-                    ChatCompletionResult(
-                        content="The kitchen light is on.",
-                        tool_calls=[],
-                    ),
-                ]
-            ),
-        ) as mock_chat, patch.object(
-            intent,
-            "async_handle",
-            wraps=intent.async_handle,
-        ) as mock_handle:
-            result = await _converse(hass, entry, "Turn on the kitchen")
-
-        initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
-        assert initial_tools == complete_tools
-        assert mock_chat.await_count == 1
-        assert mock_handle.await_count == 1
-        assert hass.states.get("light.kitchen_light").state == "on"
-        assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
-        assert _speech(result) == "Done."
-
-    async def test_filtered_schema_miss_correction_uses_complete_schema(
-        self,
-        hass: HomeAssistant,
-        mock_llama_client: None,
-        assist_light_and_fan: None,
-    ) -> None:
-        entry = await _create_entry(hass)
-        complete_tools = await _complete_llm_tools(hass, entry)
-        filtered_call = ToolCall(
-            id="call_fan",
-            name="HassFanSetSpeed",
-            arguments={"name": "Bedroom Fan", "percentage": 50},
-        )
-        corrected_call = ToolCall(
-            id="call_light",
-            name="HassTurnOn",
-            arguments={"name": "Living Room"},
-        )
-
-        with patch.object(
-            LlamaCppClient,
-            "chat_completion",
-            new=AsyncMock(
-                side_effect=[
-                    ChatCompletionResult(content=None, tool_calls=[filtered_call]),
-                    ChatCompletionResult(content=None, tool_calls=[corrected_call]),
-                ]
-            ),
-        ) as mock_chat, patch.object(
-            intent,
-            "async_handle",
-            wraps=intent.async_handle,
-        ) as mock_handle:
-            result = await _converse(
-                hass,
-                entry,
-                "Turn on the living room light",
-            )
-
-        initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
-        correction_tools = mock_chat.await_args_list[1].kwargs["tools"]
-        initial_names = {tool["function"]["name"] for tool in initial_tools}
-
-        assert "HassFanSetSpeed" not in initial_names
-        assert correction_tools == complete_tools
-        assert mock_chat.await_count == 2
-        assert mock_handle.await_count == 1
-        assert hass.states.get("light.living_room").state == "on"
-        assert hass.states.get("fan.bedroom_fan").state == "off"
-        assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
-        assert _speech(result) == "Done."
-
-        correction_messages = mock_chat.await_args_list[1].args[0]
-        tool_results = _tool_results_by_id(correction_messages)
-        assert set(tool_results) == {"call_fan"}
-        assert tool_results["call_fan"]["error"]["code"] == (
-            ToolArgumentFailureCode.SCHEMA_MISMATCH
-        )
+        offered_tools = mock_chat.await_args_list[0].kwargs["tools"]
+        assert offered_tools == complete_tools
+        assert "HassFanSetSpeed" in {
+            tool["function"]["name"] for tool in offered_tools
+        }
 
     async def test_unavailable_tool_reports_boundary_without_execution(
         self,
@@ -2106,54 +1975,3 @@ class TestFilteredSchemaRecovery:
         diagnostics = await async_get_config_entry_diagnostics(hass, entry)
         assert diagnostics["boundary"]["counts"]["unavailable_tool"] == 1
         assert diagnostics["boundary"]["last"]["code"] == "unavailable_tool"
-
-    async def test_false_route_recovers_with_single_complete_schema_correction(
-        self,
-        hass: HomeAssistant,
-        mock_llama_client: None,
-        assist_light_and_fan: None,
-    ) -> None:
-        entry = await _create_entry(hass)
-        complete_tools = await _complete_llm_tools(hass, entry)
-
-        with patch.object(
-            LlamaCppClient,
-            "chat_completion",
-            new=AsyncMock(
-                side_effect=[
-                    ChatCompletionResult(
-                        content=None,
-                        tool_calls=[
-                            ToolCall(
-                                id="call_fan",
-                                name="HassFanSetSpeed",
-                                arguments={"name": "Bedroom Fan", "percentage": 25},
-                            )
-                        ],
-                    ),
-                    ChatCompletionResult(
-                        content=None,
-                        tool_calls=[
-                            ToolCall(
-                                id="call_light",
-                                name="HassTurnOn",
-                                arguments={"name": "Living Room"},
-                            )
-                        ],
-                    ),
-                ]
-            ),
-        ) as mock_chat, patch.object(
-            intent,
-            "async_handle",
-            wraps=intent.async_handle,
-        ) as mock_handle:
-            result = await _converse(hass, entry, "Turn on the living room")
-
-        assert mock_chat.await_count == 2
-        assert mock_handle.await_count == 1
-        assert mock_chat.await_args_list[1].kwargs["tools"] == complete_tools
-        assert hass.states.get("fan.bedroom_fan").state == "off"
-        assert hass.states.get("light.living_room").state == "on"
-        assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
-        assert _speech(result) == "Done."
