@@ -23,7 +23,7 @@ def wake_ring_capacity(preroll_ms: int) -> int:
         (preroll_ms * SAMPLE_RATE) // 1000 + WINDOW_SAMPLES + HOP_SAMPLES + _RING_HEADROOM_SAMPLES
     )
 
-DEFAULT_WAKE_SKIP_MS = 120
+DEFAULT_WAKE_SKIP_MS = 220
 
 
 class _WakePhrase:
