@@ -1,9 +1,13 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import numpy as np
 
-from satellite.sayso.wake.buffer import WakePrerollLookback
+from satellite.sayso.wake.buffer import PrerollFlush, WakePrerollLookback
+from satellite.sayso.wake.capture import WakeCaptureRing
+from satellite.sayso.wake.hook import SaySoExternalWakeHook, wake_ring_capacity
 
 
 def test_preroll_trim_is_relative_to_detection_index_not_flush_time() -> None:
@@ -91,3 +95,52 @@ def test_detection_index_tracks_the_window_not_the_chunk_boundary() -> None:
 
     for index in reference:
         assert (index - WINDOW_SAMPLES) % HOP_SAMPLES == 0
+
+
+def _stt_hook(ring_samples: int) -> SaySoExternalWakeHook:
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    return SaySoExternalWakeHook(
+        provider,
+        preroll_ms=750,
+        wake_skip_ms=50,
+        capture_ring=WakeCaptureRing(ring_samples),
+    )
+
+
+def test_stt_preroll_is_identical_with_detection_sized_ring() -> None:
+    small = _stt_hook(wake_ring_capacity(750))
+    large = _stt_hook(wake_ring_capacity(max(750, 10000)))
+
+    audio = np.arange(48800, dtype="<i2")
+    for hook in (small, large):
+        for offset in range(0, audio.size, 512):
+            hook._ring.append(audio[offset : offset + 512].tobytes())
+        hook._detection_index = audio.size
+
+    short_result = small.flush_preroll(None)
+    large_result = large.flush_preroll(None)
+
+    assert large_result.pcm == short_result.pcm
+    assert np.frombuffer(large_result.pcm, dtype="<i2").size == 800
+    assert large_result.start_index == short_result.start_index
+    assert large_result.end_index == short_result.end_index
+    assert large_result.underflow is False
+
+
+def test_stt_preroll_underflow_is_identical_with_detection_sized_ring() -> None:
+    capacities = (wake_ring_capacity(750), wake_ring_capacity(max(750, 10000)))
+    results: list[PrerollFlush] = []
+    for capacity in capacities:
+        hook = _stt_hook(capacity)
+        total = capacity + 8192
+        audio = (np.arange(total) % 30000).astype("<i2")
+        for offset in range(0, audio.size, 8192):
+            hook._ring.append(audio[offset : offset + 8192].tobytes())
+        hook._detection_index = hook._ring.available_span()[0]
+        results.append(hook.flush_preroll(None))
+
+    for capacity, result in zip(capacities, results):
+        assert result.underflow is True
+        expected = ((np.arange(total - capacity, total) % 30000).astype("<i2")).tobytes()
+        assert result.pcm == expected

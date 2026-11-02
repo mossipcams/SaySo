@@ -598,7 +598,6 @@ def test_launcher_miner_gets_livekit_hop(monkeypatch: pytest.MonkeyPatch) -> Non
     ctor, _ = _run_launcher_miner(monkeypatch, _miner_cfg(detection_pre_ms=10000))
     livekit_mod = importlib.import_module("satellite.sayso.wake.livekit")
     assert ctor.call_args.kwargs["hop_samples"] == livekit_mod.HOP_SAMPLES
-    assert ctor.call_args.kwargs["hop_samples"] == 2560
 
 
 def test_launcher_miner_follows_patched_livekit_hop(monkeypatch: pytest.MonkeyPatch) -> None:

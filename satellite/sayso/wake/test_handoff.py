@@ -1,6 +1,10 @@
 
 from __future__ import annotations
 
+import json
+import random
+import wave
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -9,6 +13,7 @@ import numpy as np
 from satellite.sayso.config import WakeWordCfg
 from satellite.sayso.wake.hook import DEFAULT_WAKE_SKIP_MS, SaySoExternalWakeHook
 from satellite.sayso.wake.livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
+from satellite.sayso.wake.mining import HardNegativeMiner
 
 
 class _RecordingSatellite:
@@ -219,3 +224,77 @@ def test_genuine_ring_overwrite_is_still_reported_as_underflow() -> None:
 
     result = hook.flush_preroll(satellite)
     assert result.underflow is True
+
+
+def test_feed_pcm_forwards_every_chunk_to_miner() -> None:
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    miner = MagicMock()
+    hook = SaySoExternalWakeHook(provider, preroll_ms=1000, wake_skip_ms=500, miner=miner)
+    state = SimpleNamespace(satellite=_RecordingSatellite())
+
+    chunk_size = 384
+    total_samples = 1920
+    audio = np.arange(total_samples, dtype="<i2")
+    for offset in range(0, total_samples, chunk_size):
+        hook.feed_pcm(state, audio[offset : offset + chunk_size].tobytes())
+
+    calls = miner.feed_audio.call_args_list
+    assert len(calls) == total_samples // chunk_size
+    for i, call in enumerate(calls):
+        expected_pcm = audio[i * chunk_size : (i + 1) * chunk_size].tobytes()
+        assert call.args[0] == expected_pcm
+        assert call.args[1] == (i + 1) * chunk_size
+
+
+def _read_wav(path: Path) -> np.ndarray:
+    with wave.open(str(path), "rb") as wf:
+        return np.frombuffer(wf.readframes(wf.getnframes()), dtype="<i2")
+
+
+def test_detection_post_context_survives_rearm(tmp_path: Path) -> None:
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.05,
+        detect_threshold=0.5,
+        detection_post_context_ms=2000,
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    miner.start()
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    hook = SaySoExternalWakeHook(provider, preroll_ms=750, wake_skip_ms=500, miner=miner)
+    state = SimpleNamespace(satellite=_RecordingSatellite())
+
+    def feed(samples: np.ndarray) -> None:
+        for offset in range(0, samples.size, 512):
+            hook.feed_pcm(state, samples[offset : offset + 512].tobytes())
+
+    stt_end = pre_samples = WINDOW_SAMPLES + 1
+    stt_end += int(1000 * SAMPLE_RATE // 1000)
+    total = stt_end + 24000
+    audio = np.arange(total, dtype="<i2")
+    feed(audio[:pre_samples])
+    sample_index = pre_samples - 1
+    window_start = sample_index + 1 - WINDOW_SAMPLES
+    capture_id = miner.offer(
+        0.9, audio[window_start : sample_index + 1], sample_index=sample_index
+    )
+    hook._detection_index = sample_index
+
+    feed(audio[pre_samples:stt_end])
+    hook.rearm()
+    feed(audio[stt_end:])
+
+    miner.stop(timeout=5.0)
+
+    assert capture_id is not None
+    record = tmp_path / "records" / capture_id
+    meta = json.loads((record / "record.json").read_text(encoding="utf-8"))
+    assert meta["sampling_reason"] == "detection"
+    assert meta["quality_flags"]["post_context_missing"] is False
+    sample_end = meta["sample_end"]
+    post = _read_wav(record / "post.wav")
+    assert post.size == SAMPLE_RATE * 2
+    np.testing.assert_array_equal(post, audio[sample_end : sample_end + SAMPLE_RATE * 2])
