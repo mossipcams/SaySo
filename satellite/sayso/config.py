@@ -52,6 +52,8 @@ class WakeWordCfg:
     mine_threshold: float = 0.1
     mine_pre_context_ms: int = 500
     mine_post_context_ms: int = 500
+    mine_detection_pre_context_ms: int | None = None
+    mine_detection_post_context_ms: int | None = None
     mine_post_deadline_ms: int = 1000
     mine_queue_size: int = 32
     mine_max_records: int = 2000
@@ -65,6 +67,12 @@ class WakeWordCfg:
     dma_kws_model: Path | None = None
     dma_kws_phonemes: tuple[str, ...] = ()
     dma_kws_threshold: float = 0.90
+
+    def __post_init__(self) -> None:
+        if self.mine_detection_pre_context_ms is None:
+            self.mine_detection_pre_context_ms = self.mine_pre_context_ms
+        if self.mine_detection_post_context_ms is None:
+            self.mine_detection_post_context_ms = self.mine_post_context_ms
 
 
 @dataclass
@@ -150,6 +158,16 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
         mine_threshold=float(raw.get("wake_word", {}).get("mine_threshold", 0.1)),
         mine_pre_context_ms=int(raw.get("wake_word", {}).get("mine_pre_context_ms", 500)),
         mine_post_context_ms=int(raw.get("wake_word", {}).get("mine_post_context_ms", 500)),
+        mine_detection_pre_context_ms=(
+            int(raw["wake_word"]["mine_detection_pre_context_ms"])
+            if raw.get("wake_word", {}).get("mine_detection_pre_context_ms") is not None
+            else None
+        ),
+        mine_detection_post_context_ms=(
+            int(raw["wake_word"]["mine_detection_post_context_ms"])
+            if raw.get("wake_word", {}).get("mine_detection_post_context_ms") is not None
+            else None
+        ),
         mine_post_deadline_ms=int(raw.get("wake_word", {}).get("mine_post_deadline_ms", 1000)),
         mine_queue_size=int(raw.get("wake_word", {}).get("mine_queue_size", 32)),
         mine_max_records=int(raw.get("wake_word", {}).get("mine_max_records", 2000)),
@@ -237,6 +255,10 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         errors.append("wake_word.wake_skip_ms must be >= 0")
     if not (0.0 < cfg.wake_word.mine_threshold < 1.0):
         errors.append("wake_word.mine_threshold must be between 0 and 1 exclusive")
+    if cfg.wake_word.mine_detection_pre_context_ms < 0:
+        errors.append("wake_word.mine_detection_pre_context_ms must be >= 0")
+    if cfg.wake_word.mine_detection_post_context_ms < 0:
+        errors.append("wake_word.mine_detection_post_context_ms must be >= 0")
     if cfg.wake_word.verifier_threshold is not None and not (
         0.0 < cfg.wake_word.verifier_threshold < 1.0
     ):
