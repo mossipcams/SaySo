@@ -13,6 +13,7 @@ from .playback import configure_pulse_mpv, install_playback_recovery
 from .process_audio import NativeClipTally, install_native_rate_capture, install_wake_audio_path
 from .wake.capture import WakeCaptureRing
 from .wake.hook import SaySoExternalWakeHook, wake_ring_capacity
+from .wake import livekit
 from .wake.livekit import LiveKitWakeWordProvider
 from .wake.mining import HardNegativeMiner
 from .wake.provider import WakeWordProvider
@@ -106,6 +107,7 @@ def main() -> None:
             detect_threshold=cfg.wake_word.threshold,
             sample_rate=cfg.audio.sample_rate,
             provider=cfg.wake_word.provider,
+            hop_samples=livekit.HOP_SAMPLES,
             model_path=cfg.wake_word.model,
             processing_settings={
                 "capture_rate": cfg.audio.capture_rate,

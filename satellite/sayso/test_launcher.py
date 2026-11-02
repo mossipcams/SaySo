@@ -519,6 +519,114 @@ def test_configure_mpv_uses_pulse_and_recovers_from_playback_errors(
     completed.assert_called_once_with()
 
 
+def _stub_lva(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    package = ModuleType("linux_voice_assistant")
+    package.__path__ = []
+    upstream = ModuleType("linux_voice_assistant.__main__")
+    upstream.run = Mock()
+    upstream.process_audio = Mock()
+    satellite_module = ModuleType("linux_voice_assistant.satellite")
+    satellite_module.VoiceSatelliteProtocol = object
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant", package)
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant.__main__", upstream)
+    monkeypatch.setitem(sys.modules, "linux_voice_assistant.satellite", satellite_module)
+    return upstream
+
+
+def _miner_cfg(*, preroll_ms: int = 750, detection_pre_ms: int | None) -> SimpleNamespace:
+    wake_word: dict[str, object] = {
+        "provider": "livekit",
+        "model": "wake.onnx",
+        "phrase": "SaySo",
+        "threshold": 0.5,
+        "refractory_seconds": 2.0,
+        "post_tts_cooldown_ms": 500,
+        "preroll_ms": preroll_ms,
+        "wake_skip_ms": 500,
+        "mine_dir": "/tmp/sayso-mine",
+    }
+    if detection_pre_ms is not None:
+        wake_word["mine_detection_pre_context_ms"] = detection_pre_ms
+        wake_word["mine_detection_post_context_ms"] = 2000
+    return SimpleNamespace(
+        satellite=_satellite_cfg(),
+        home_assistant=SimpleNamespace(port=6053),
+        audio=SimpleNamespace(
+            input_device="mic",
+            output_device="pulse/speaker",
+            sample_rate=16000,
+            channels=1,
+            noise_suppression=0,
+            auto_gain=0,
+            capture_rate=16000,
+            mic_gain_db=0.0,
+        ),
+        wake_word=SimpleNamespace(**wake_word),
+        sounds=SimpleNamespace(wake="ack.wav", failure="failure.wav", unavailable="unavailable.wav"),
+    )
+
+
+def _run_launcher_miner(
+    monkeypatch: pytest.MonkeyPatch, cfg: SimpleNamespace
+) -> tuple[Mock, list[int]]:
+    _stub_lva(monkeypatch)
+    launcher = importlib.import_module("satellite.sayso.launcher")
+    miner_ctor = Mock()
+    ring_caps: list[int] = []
+
+    def fake_ring(capacity: int) -> Mock:
+        ring_caps.append(int(capacity))
+        return Mock()
+
+    monkeypatch.setattr(launcher, "load_config", lambda: cfg)
+    monkeypatch.setattr(launcher, "HardNegativeMiner", miner_ctor)
+    monkeypatch.setattr(launcher, "WakeCaptureRing", fake_ring)
+    monkeypatch.setattr(
+        launcher,
+        "LiveKitWakeWordProvider",
+        lambda **_kwargs: SimpleNamespace(available=True, predict_window=Mock(return_value=None)),
+    )
+    monkeypatch.setattr(launcher, "install_wake_audio_path", Mock())
+    monkeypatch.setattr(launcher, "install_voice_handlers", Mock())
+    monkeypatch.setattr(launcher, "_configure_mpv", Mock())
+
+    launcher.main()
+    return miner_ctor, ring_caps
+
+
+def test_launcher_miner_gets_livekit_hop(monkeypatch: pytest.MonkeyPatch) -> None:
+    ctor, _ = _run_launcher_miner(monkeypatch, _miner_cfg(detection_pre_ms=10000))
+    livekit_mod = importlib.import_module("satellite.sayso.wake.livekit")
+    assert ctor.call_args.kwargs["hop_samples"] == livekit_mod.HOP_SAMPLES
+    assert ctor.call_args.kwargs["hop_samples"] == 2560
+
+
+def test_launcher_miner_follows_patched_livekit_hop(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("satellite.sayso.wake.livekit.HOP_SAMPLES", 1280)
+    ctor, _ = _run_launcher_miner(monkeypatch, _miner_cfg(detection_pre_ms=10000))
+    assert ctor.call_args.kwargs["hop_samples"] == 1280
+
+
+def test_launcher_rings_cover_detection_pre_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    _, ring_caps = _run_launcher_miner(monkeypatch, _miner_cfg(preroll_ms=750, detection_pre_ms=10000))
+    launcher = importlib.import_module("satellite.sayso.launcher")
+    livekit_mod = importlib.import_module("satellite.sayso.wake.livekit")
+
+    assert len(ring_caps) == 2
+    for cap in ring_caps:
+        assert cap >= 16 * 160 + livekit_mod.WINDOW_SAMPLES
+        assert cap == launcher.wake_ring_capacity(10000)
+
+
+def test_launcher_ring_uses_preroll_when_detection_unset_in_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, ring_caps = _run_launcher_miner(monkeypatch, _miner_cfg(preroll_ms=750, detection_pre_ms=500))
+    launcher = importlib.import_module("satellite.sayso.launcher")
+
+    assert ring_caps == [launcher.wake_ring_capacity(750)] * 2
+
+
 def test_launcher_builds_dma_kws_verifier_factory(monkeypatch: pytest.MonkeyPatch) -> None:
     package = ModuleType("linux_voice_assistant")
     package.__path__ = []
