@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.1](https://github.com/mossipcams/SaySo/compare/1.17.0...1.17.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **integration:** evict the least recently used prompt checkpoint ([39a7533](https://github.com/mossipcams/SaySo/commit/39a7533155a61b7226718cde38f5ad4772e65039))
+
 ## [1.17.0](https://github.com/mossipcams/SaySo/compare/1.16.3...1.17.0) (2026-11-02)
 
 
