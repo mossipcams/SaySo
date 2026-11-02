@@ -224,6 +224,7 @@ def replay_session_to_spool(
         spool_dir,
         mine_threshold=mine_threshold,
         detect_threshold=detect_threshold,
+        hop_samples=HOP_SAMPLES,
         model_path=model_path,
         session_id=session.session_id,
         below_sample_rate=below_sample_rate,

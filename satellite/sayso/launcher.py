@@ -13,6 +13,7 @@ from .playback import configure_pulse_mpv, install_playback_recovery
 from .process_audio import NativeClipTally, install_native_rate_capture, install_wake_audio_path
 from .wake.capture import WakeCaptureRing
 from .wake.hook import SaySoExternalWakeHook, wake_ring_capacity
+from .wake import livekit
 from .wake.livekit import LiveKitWakeWordProvider
 from .wake.mining import HardNegativeMiner
 from .wake.provider import WakeWordProvider
@@ -106,6 +107,7 @@ def main() -> None:
             detect_threshold=cfg.wake_word.threshold,
             sample_rate=cfg.audio.sample_rate,
             provider=cfg.wake_word.provider,
+            hop_samples=livekit.HOP_SAMPLES,
             model_path=cfg.wake_word.model,
             processing_settings={
                 "capture_rate": cfg.audio.capture_rate,
@@ -117,6 +119,8 @@ def main() -> None:
             native_clip_count=lambda: native_clip_tally.count,
             pre_context_ms=getattr(cfg.wake_word, "mine_pre_context_ms", 500),
             post_context_ms=getattr(cfg.wake_word, "mine_post_context_ms", 500),
+            detection_pre_context_ms=cfg.wake_word.mine_detection_pre_context_ms,
+            detection_post_context_ms=cfg.wake_word.mine_detection_post_context_ms,
             post_deadline_ms=getattr(cfg.wake_word, "mine_post_deadline_ms", 1000),
             queue_size=getattr(cfg.wake_word, "mine_queue_size", 32),
             max_records=getattr(cfg.wake_word, "mine_max_records", 2000),
@@ -143,7 +147,11 @@ def main() -> None:
     import linux_voice_assistant.__main__ as lva_main
     from linux_voice_assistant.satellite import VoiceSatelliteProtocol
 
-    ring_capacity = wake_ring_capacity(cfg.wake_word.preroll_ms)
+    ring_pre_ms = max(
+        cfg.wake_word.preroll_ms,
+        getattr(cfg.wake_word, "mine_detection_pre_context_ms", 0),
+    )
+    ring_capacity = wake_ring_capacity(ring_pre_ms)
 
     wake_hook = SaySoExternalWakeHook(
         provider,

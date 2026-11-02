@@ -11,16 +11,15 @@ import threading
 import time
 import uuid
 import wave
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
 
+from .capture import WakeCaptureRing
 from .ingest_record import _sha256_file, ingest_record
-
-if TYPE_CHECKING:
-    from .capture import WakeCaptureRing
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +35,9 @@ DEFAULT_POST_CONTEXT_MS = 500
 DEFAULT_POST_DEADLINE_MS = 1000
 CLUSTER_SETTLE_S = 0.35
 DEFAULT_BELOW_SAMPLE_RATE = 0.002
+POST_RING_HEADROOM_S = 5
+SCORE_TRACE_HEADROOM_HOPS = 8
+MAX_PENDING_PRE = 16
 
 SAMPLING_DETECTION = "detection"
 SAMPLING_NEAR = "near_threshold"
@@ -57,6 +59,10 @@ def _safe_json_write(path: Path, payload: dict) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     tmp.replace(path)
+
+
+def _tail_bytes(pcm: bytes, samples: int) -> bytes:
+    return pcm[max(0, len(pcm) - samples * 2) :]
 
 
 def _write_wav(path: Path, samples: np.ndarray, sample_rate: int) -> None:
@@ -150,6 +156,8 @@ class HardNegativeMiner:
         queue_size: int = DEFAULT_QUEUE_SIZE,
         pre_context_ms: int = DEFAULT_PRE_CONTEXT_MS,
         post_context_ms: int = DEFAULT_POST_CONTEXT_MS,
+        detection_pre_context_ms: int | None = None,
+        detection_post_context_ms: int | None = None,
         post_deadline_ms: int = DEFAULT_POST_DEADLINE_MS,
         detection_cap: int = 800,
         near_cap: int = 1000,
@@ -181,8 +189,28 @@ class HardNegativeMiner:
         self._max_records = int(max_records)
         self._max_bytes = int(max_bytes)
         self._queue_size = max(1, int(queue_size))
+        if detection_pre_context_ms is None:
+            detection_pre_context_ms = pre_context_ms
+        if detection_post_context_ms is None:
+            detection_post_context_ms = post_context_ms
         self._pre_context_samples = max(0, pre_context_ms * sample_rate // 1000)
+        self._detection_pre_context_samples = max(0, detection_pre_context_ms * sample_rate // 1000)
+        self._pre_read_samples = max(self._pre_context_samples, self._detection_pre_context_samples)
         self._post_context_samples = max(0, post_context_ms * sample_rate // 1000)
+        self._detection_post_context_samples = max(0, detection_post_context_ms * sample_rate // 1000)
+        self._post_ring = WakeCaptureRing(
+            2 * max(self._post_context_samples, self._detection_post_context_samples)
+            + POST_RING_HEADROOM_S * sample_rate
+        )
+        trace_span = (
+            self._pre_read_samples
+            + self._window_samples
+            + max(self._post_context_samples, self._detection_post_context_samples)
+        )
+        self._score_trace: deque[tuple[int, float]] = deque(
+            maxlen=trace_span // self._hop_samples + SCORE_TRACE_HEADROOM_HOPS
+        )
+        self._score_trace_lock = threading.Lock()
         self._post_deadline_s = max(0.0, post_deadline_ms / 1000.0)
         self._class_caps = {
             SAMPLING_DETECTION: int(detection_cap),
@@ -288,11 +316,12 @@ class HardNegativeMiner:
         if not self._ensure_dirs():
             return None
 
+        idx = int(sample_index if sample_index is not None else 0)
+        self._record_hop(idx, score)
         reason = self._classify(score)
         if reason is None:
             return None
 
-        idx = int(sample_index if sample_index is not None else 0)
         sample_end = idx + 1
         sample_start = sample_end - int(window.size)
         capture_id = str(uuid.uuid4())
@@ -328,19 +357,27 @@ class HardNegativeMiner:
             self._schedule_cluster_flush()
         return published_id
 
-    def snapshot_pre_trigger(self, trigger_index: int, *, synthetic_padding: bool = False) -> None:
-        if self._ring_reader is None or self._pre_context_samples <= 0:
+    def feed_audio(self, pcm_s16le: bytes, end_index: int) -> None:
+        samples = len(pcm_s16le) // 2
+        if samples == 0:
             return
-        pre_start = trigger_index - self._window_samples - self._pre_context_samples + 1
+        start = int(end_index) - samples
+        if self._post_ring.end_index != start:
+            self._post_ring.reset(end_index=start)
+        self._post_ring.append(pcm_s16le)
+
+    def snapshot_pre_trigger(self, trigger_index: int, *, synthetic_padding: bool = False) -> None:
+        if self._ring_reader is None or self._pre_read_samples <= 0:
+            return
+        pre_start = trigger_index - self._window_samples - self._pre_read_samples + 1
         pre_end = trigger_index - self._window_samples + 1
         pcm = self._ring_reader(pre_start, pre_end)
-        flags = {
-            "pre_context_missing": len(pcm) < self._pre_context_samples * 2,
-            "pre_synthetic_padding": bool(synthetic_padding),
-        }
+        flags = {"pre_synthetic_padding": bool(synthetic_padding)}
         key = f"pre:{trigger_index}"
         raw_pcm = self._raw_reader(pre_start, pre_end) if self._raw_reader else b""
         self._pending_pre[key] = (pcm, flags, raw_pcm)
+        while len(self._pending_pre) > MAX_PENDING_PRE:
+            self._pending_pre.pop(next(iter(self._pending_pre)))
 
         self._check_raw_ring_drift()
 
@@ -424,6 +461,22 @@ class HardNegativeMiner:
             outcome.unlink(missing_ok=True)
         return removed
 
+    def _record_hop(self, sample_index: int, score: float) -> None:
+        with self._score_trace_lock:
+            self._score_trace.append((sample_index + 1, round(float(score), 6)))
+
+    def _score_trace_for(self, job: _WriteJob) -> dict[str, Any]:
+        lo = job.sample_start - self._pre_samples_for(job.sampling_reason) - job.sample_end
+        hi = self._post_samples_for(job.sampling_reason)
+        with self._score_trace_lock:
+            hops = list(self._score_trace)
+        points = [
+            [end - job.sample_end, score]
+            for end, score in hops
+            if lo <= end - job.sample_end <= hi
+        ]
+        return {"hop_samples": self._hop_samples, "points": points}
+
     def _classify(self, score: float) -> Optional[str]:
         if score >= self._detect_threshold:
             return SAMPLING_DETECTION
@@ -473,21 +526,26 @@ class HardNegativeMiner:
             self._enqueue_cluster(cluster)
 
     def _enqueue_cluster(self, cluster: _Cluster) -> None:
+        pre_samples = self._pre_samples_for(cluster.sampling_reason)
         pre_pcm, pre_flags, raw_pre_pcm = self._pending_pre.pop(
             f"pre:{cluster.pre_context_index}", (b"", {}, b"")
         )
         pre_index = cluster.pre_context_index if pre_pcm else cluster.sample_index
         pre_end = pre_index - self._window_samples + 1
-        pre_start = pre_end - self._pre_context_samples
-        if not pre_pcm and self._ring_reader is not None and self._pre_context_samples > 0:
+        pre_start = pre_end - self._pre_read_samples
+        if not pre_pcm and self._ring_reader is not None and self._pre_read_samples > 0:
             pre_pcm = self._ring_reader(pre_start, pre_end)
-            pre_flags = {
-                "pre_context_missing": len(pre_pcm) < self._pre_context_samples * 2,
-                "pre_synthetic_padding": False,
-            }
-        if not raw_pre_pcm and self._raw_reader is not None and self._pre_context_samples > 0:
+            pre_flags = {"pre_synthetic_padding": False}
+        if not raw_pre_pcm and self._raw_reader is not None and self._pre_read_samples > 0:
             raw_pre_pcm = self._raw_reader(pre_start, pre_end)
             self._check_raw_ring_drift()
+        pre_pcm = _tail_bytes(pre_pcm, pre_samples)
+        raw_pre_pcm = _tail_bytes(raw_pre_pcm, pre_samples)
+        pre_flags = {
+            "pre_context_missing": len(pre_pcm) < pre_samples * 2,
+            "pre_synthetic_padding": bool(pre_flags.get("pre_synthetic_padding")),
+        }
+        post_seconds = self._post_samples_for(cluster.sampling_reason) / self._sample_rate
         job = _WriteJob(
             capture_id=cluster.capture_id,
             sampling_reason=cluster.sampling_reason,
@@ -500,7 +558,7 @@ class HardNegativeMiner:
             pre_flags=pre_flags,
             raw_pre_pcm=raw_pre_pcm,
             processing_state=dict(cluster.processing_state),
-            post_deadline_mono=time.monotonic() + self._post_deadline_s,
+            post_deadline_mono=time.monotonic() + self._post_deadline_s + post_seconds,
         )
         try:
             self._queue.put_nowait(job)
@@ -525,6 +583,7 @@ class HardNegativeMiner:
 
     def _publish_job(self, job: _WriteJob) -> None:
         post_pcm, post_flags = self._collect_post_context(job)
+        score_trace = self._score_trace_for(job)
         staging = self._staging / job.capture_id
         if staging.exists():
             shutil.rmtree(staging, ignore_errors=True)
@@ -558,7 +617,8 @@ class HardNegativeMiner:
         raw_stream: dict[str, Any] = {
             "sample_rate": self._sample_rate,
             "channels": 1,
-            "raw_missing": not job.raw_pre_pcm or len(job.raw_pre_pcm) < self._pre_context_samples * 2,
+            "raw_missing": not job.raw_pre_pcm
+            or len(job.raw_pre_pcm) < self._pre_samples_for(job.sampling_reason) * 2,
         }
         if job.raw_pre_pcm:
             raw_path = staging / "raw_pre.wav"
@@ -589,6 +649,7 @@ class HardNegativeMiner:
             "streams": {"raw": raw_stream},
             "quality_flags": quality_flags,
             "hashes": hashes,
+            "score_trace": score_trace,
             "label": None,
             "transcript": None,
             "notes": None,
@@ -625,23 +686,39 @@ class HardNegativeMiner:
             self._spool_full = False
             self._spool_full_logged = False
 
+    def _pre_samples_for(self, sampling_reason: str) -> int:
+        if sampling_reason == SAMPLING_DETECTION:
+            return self._detection_pre_context_samples
+        return self._pre_context_samples
+
+    def _post_samples_for(self, sampling_reason: str) -> int:
+        if sampling_reason == SAMPLING_DETECTION:
+            return self._detection_post_context_samples
+        return self._post_context_samples
+
+    def _read_post(self, start: int, end: int) -> bytes:
+        ring_pcm = self._ring_reader(start, end) if self._ring_reader is not None else b""
+        kept_pcm = self._post_ring.read(start, end)
+        return kept_pcm if len(kept_pcm) > len(ring_pcm) else ring_pcm
+
     def _collect_post_context(self, job: _WriteJob) -> tuple[bytes, dict[str, bool]]:
         flags = {"post_context_missing": True, "post_synthetic_padding": False}
-        if self._ring_reader is None or self._post_context_samples <= 0:
+        post_samples = self._post_samples_for(job.sampling_reason)
+        if post_samples <= 0 or (self._ring_reader is None and self._post_ring.end_index == 0):
             return b"", flags
         post_start = job.sample_end
-        post_end = post_start + self._post_context_samples
+        post_end = post_start + post_samples
         while time.monotonic() < job.post_deadline_mono:
-            pcm = self._ring_reader(post_start, post_end)
-            if len(pcm) >= self._post_context_samples * 2:
+            pcm = self._read_post(post_start, post_end)
+            if len(pcm) >= post_samples * 2:
                 flags["post_context_missing"] = False
                 return pcm, flags
             if self._stop.is_set():
                 break
             time.sleep(0.01)
         self._losses.post_context_timeout += 1
-        pcm = self._ring_reader(post_start, post_end)
-        flags["post_context_missing"] = len(pcm) < self._post_context_samples * 2
+        pcm = self._read_post(post_start, post_end)
+        flags["post_context_missing"] = len(pcm) < post_samples * 2
         return pcm, flags
 
     def _publish_outcome(self, capture_id: str, kind: str, payload: dict[str, Any]) -> None:

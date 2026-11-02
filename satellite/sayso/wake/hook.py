@@ -135,6 +135,8 @@ class SaySoExternalWakeHook:
         if not pcm_s16le:
             return
         end_index = self._ring.append(pcm_s16le)
+        if self._miner is not None:
+            self._miner.feed_audio(pcm_s16le, end_index)
         if self._detection_index is None:
             self._forward_live(state)
         if self._suspended:

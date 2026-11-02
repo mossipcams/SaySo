@@ -618,3 +618,279 @@ def test_below_threshold_independent_sample(tmp_path: Path) -> None:
         (next((tmp_path / "records").iterdir()) / "record.json").read_text()
     )
     assert meta["sampling_reason"] == SAMPLING_BELOW
+
+
+def _records_by_reason(tmp_path: Path) -> dict[str, Path]:
+    return {
+        json.loads((p / "record.json").read_text())["sampling_reason"]: p
+        for p in (tmp_path / "records").iterdir()
+    }
+
+
+def test_default_record_layout_gets_half_second_context_and_score_trace(
+    tmp_path: Path,
+) -> None:
+    n = 16000 * 12
+    pcm = (np.arange(n) % 30000).astype("<i2")
+    ring = WakeCaptureRing(16000 * 24)
+    ring.append(pcm.tobytes())
+    raw_ring = WakeCaptureRing(16000 * 24)
+    raw_ring.append((pcm // 4).tobytes())
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    miner.bind_ring(ring)
+    miner.bind_raw_ring(raw_ring)
+    miner.start()
+    try:
+        tail = ((np.arange(n, n + 8000, dtype=np.int64)) % 30011).astype("<i2")
+        miner.feed_audio(tail.tobytes(), end_index=n + tail.size)
+        capture_id = miner.offer(0.22, pcm[-32000:], sample_index=n - 1)
+        miner._flush_clusters(force=True)
+    finally:
+        miner.stop(timeout=3.0)
+    assert capture_id
+    record = tmp_path / "records" / capture_id
+    assert _read_wav(record / "window.wav").size == 32000
+    assert _read_wav(record / "pre.wav").tobytes() == pcm[n - 40000 : n - 32000].tobytes()
+    assert _read_wav(record / "raw_pre.wav").tobytes() == (pcm // 4)[n - 40000 : n - 32000].tobytes()
+    assert _read_wav(record / "post.wav").tobytes() == tail.tobytes()
+    meta = json.loads((record / "record.json").read_text())
+    assert meta["sampling_reason"] == SAMPLING_NEAR
+    assert meta["quality_flags"] == {
+        "pre_context_missing": False,
+        "post_context_missing": False,
+        "pre_synthetic_padding": False,
+        "post_synthetic_padding": False,
+    }
+    for key in ("window_sha256", "pre_sha256", "post_sha256"):
+        assert meta["hashes"][key]
+    trace = meta["score_trace"]
+    assert trace["hop_samples"] == 2560
+    assert trace["points"] == [[0, 0.22]]
+    ok, _ = ingest_record(record)
+    assert ok
+
+
+def test_detection_record_gets_long_pre_roll(tmp_path: Path) -> None:
+    n = 16000 * 96
+    pcm = (np.arange(n) % 30000).astype("<i2")
+    ring = WakeCaptureRing(16000 * 96)
+    ring.append(pcm.tobytes())
+    raw_ring = WakeCaptureRing(16000 * 96)
+    raw_ring.append((pcm // 4).tobytes())
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        detection_pre_context_ms=10000,
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    miner.bind_ring(ring)
+    miner.bind_raw_ring(raw_ring)
+    miner.start()
+    try:
+        det_id = miner.offer(0.8, pcm[-32000:], sample_index=n - 1)
+        near_idx = n - 240002
+        near_id = miner.offer(0.2, pcm[near_idx : near_idx + 32000], sample_index=near_idx)
+        miner._flush_clusters(force=True)
+    finally:
+        miner.stop(timeout=3.0)
+    assert det_id and near_id
+    by_reason = _records_by_reason(tmp_path)
+    det = tmp_path / "records" / by_reason[SAMPLING_DETECTION].name
+    near = tmp_path / "records" / by_reason[SAMPLING_NEAR].name
+    det_end = n
+    assert _read_wav(det / "pre.wav").tobytes() == pcm[det_end - 192000 : det_end - 32000].tobytes()
+    assert (
+        _read_wav(det / "raw_pre.wav").tobytes()
+        == (pcm // 4)[det_end - 192000 : det_end - 32000].tobytes()
+    )
+    assert _read_wav(near / "pre.wav").size == 8000
+    assert _read_wav(near / "raw_pre.wav").size == 8000
+    det_meta = json.loads((det / "record.json").read_text())
+    near_meta = json.loads((near / "record.json").read_text())
+    assert det_meta["quality_flags"]["pre_context_missing"] is False
+    assert near_meta["quality_flags"]["pre_context_missing"] is False
+    for record in (det, near):
+        ok, _ = ingest_record(record)
+        assert ok
+
+
+def test_detection_pre_context_partial_when_ring_short(tmp_path: Path) -> None:
+    n = 16000 * 12
+    pcm = (np.arange(n) % 30000).astype("<i2")
+    ring = WakeCaptureRing(48000)
+    ring.append(pcm.tobytes())
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        detection_pre_context_ms=10000,
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    miner.bind_ring(ring)
+    miner.start()
+    try:
+        capture_id = miner.offer(0.8, pcm[-32000:], sample_index=n - 1)
+        miner._flush_clusters(force=True)
+    finally:
+        miner.stop(timeout=3.0)
+    assert capture_id
+    record = tmp_path / "records" / capture_id
+    meta = json.loads((record / "record.json").read_text())
+    assert meta["quality_flags"]["pre_context_missing"] is True
+    pre = _read_wav(record / "pre.wav")
+    assert pre.size == 16000
+    assert pre.tobytes() == pcm[n - 48000 : n - 32000].tobytes()
+    ok, _ = ingest_record(record)
+    assert ok
+
+
+def test_detection_post_context_survives_ring_reset(tmp_path: Path) -> None:
+    end = 16000 * 8
+    pre_pcm = (np.arange(end) % 30000).astype("<i2")
+    post_pcm = ((np.arange(end, end + 48001, dtype=np.int64)) % 30011).astype("<i2")
+    ring = WakeCaptureRing(16000 * 16)
+    ring.append(pre_pcm.tobytes())
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        detection_post_context_ms=2000,
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    miner.bind_ring(ring)
+    miner.start()
+    try:
+        near_idx = 60000
+        near_id = miner.offer(0.2, pre_pcm[near_idx : near_idx + 32000], sample_index=near_idx)
+        det_id = miner.offer(0.8, pre_pcm[end - 32001 : end - 1], sample_index=end - 1)
+        miner.feed_audio(pre_pcm.tobytes() + post_pcm.tobytes(), end_index=end + post_pcm.size)
+        ring.reset()
+        miner._flush_clusters(force=True)
+    finally:
+        miner.stop(timeout=3.0)
+    assert det_id and near_id
+    by_reason = _records_by_reason(tmp_path)
+    det = tmp_path / "records" / by_reason[SAMPLING_DETECTION].name
+    near = tmp_path / "records" / by_reason[SAMPLING_NEAR].name
+    det_post = _read_wav(det / "post.wav")
+    assert det_post.tobytes() == post_pcm[:32000].tobytes()
+    assert _read_wav(near / "post.wav").tobytes() == pre_pcm[near_idx + 1 : near_idx + 8001].tobytes()
+    det_meta = json.loads((det / "record.json").read_text())
+    near_meta = json.loads((near / "record.json").read_text())
+    assert det_meta["quality_flags"]["post_context_missing"] is False
+    assert near_meta["quality_flags"]["post_context_missing"] is False
+    for record in (det, near):
+        ok, _ = ingest_record(record)
+        assert ok
+
+
+def _publish_trace_record(tmp_path: Path, hop: int) -> None:
+    # Detection sits at offset 0; hops run from pre-context start (-192000) to post end (+32000).
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        hop_samples=hop,
+        detection_pre_context_ms=10000,
+        detection_post_context_ms=2000,
+        below_sample_rate=0.0,
+        rng=random.Random(0),
+    )
+    miner.start()
+    try:
+        for i, idx in enumerate(range(-192000, 32001, hop)):
+            if idx == 0:
+                miner.offer(0.8, np.zeros(32000, dtype="<i2"), sample_index=idx)
+            elif i % 7 == 3:
+                miner.offer(0.35, np.zeros(1, dtype="<i2"), sample_index=idx)
+            else:
+                miner.offer(0.02, np.zeros(1, dtype="<i2"), sample_index=idx)
+        miner._flush_clusters(force=True)
+    finally:
+        miner.stop(timeout=3.0)
+
+
+def _assert_score_trace(tmp_path: Path, hop: int) -> None:
+    record = _records_by_reason(tmp_path)[SAMPLING_DETECTION]
+    meta = json.loads((record / "record.json").read_text())
+    assert meta["sampling_reason"] == SAMPLING_DETECTION
+    trace = meta["score_trace"]
+    assert trace["hop_samples"] == hop
+    offsets = [offset for offset, _ in trace["points"]]
+    scores = dict(trace["points"])
+    assert offsets[0] == -192000
+    assert 32000 - hop < offsets[-1] <= 32000
+    assert offsets == list(range(offsets[0], offsets[-1] + 1, hop))
+    assert 0.02 in scores.values()
+    assert 0.35 in scores.values()
+    assert scores[0] == meta["score"] == 0.8
+    assert ingest_record(record) == (True, "ok")
+
+
+def test_score_trace_follows_1280_hop(tmp_path: Path) -> None:
+    _publish_trace_record(tmp_path, 1280)
+    _assert_score_trace(tmp_path, 1280)
+
+
+def test_score_trace_follows_2560_hop(tmp_path: Path) -> None:
+    _publish_trace_record(tmp_path, 2560)
+    _assert_score_trace(tmp_path, 2560)
+
+
+def _long_pre_roll_miner(tmp_path: Path, **kwargs) -> tuple[HardNegativeMiner, np.ndarray]:
+    n = 16000 * 40
+    pcm = (np.arange(n) % 30000).astype("<i2")
+    ring = WakeCaptureRing(n)
+    ring.append(pcm.tobytes())
+    miner = HardNegativeMiner(
+        tmp_path,
+        mine_threshold=0.1,
+        detect_threshold=0.5,
+        detection_pre_context_ms=10000,
+        below_sample_rate=1.0,
+        rng=random.Random(0),
+        **kwargs,
+    )
+    miner.bind_ring(ring)
+    miner.start()
+    return miner, pcm
+
+
+def test_each_sampling_class_ingests_with_long_pre_roll(tmp_path: Path) -> None:
+    miner, pcm = _long_pre_roll_miner(tmp_path, max_records=3)
+    detection = _publish(miner, 0.8, pcm[319999 - 31999 : 320000], 319999)
+    near = _publish(miner, 0.2, pcm[383999 - 31999 : 384000], 383999)
+    below = _publish(miner, 0.02, pcm[447999 - 31999 : 448000], 447999)
+    assert detection and near and below
+    by_reason = _records_by_reason(tmp_path)
+    assert set(by_reason) == {SAMPLING_DETECTION, SAMPLING_NEAR, SAMPLING_BELOW}
+    assert _read_wav(by_reason[SAMPLING_DETECTION] / "pre.wav").size == 160000
+    assert _read_wav(by_reason[SAMPLING_NEAR] / "pre.wav").size == 8000
+    assert _read_wav(by_reason[SAMPLING_BELOW] / "pre.wav").size == 8000
+    for record in by_reason.values():
+        assert ingest_record(record) == (True, "ok")
+
+
+def test_long_detection_records_evict_oldest_and_drain(tmp_path: Path) -> None:
+    miner, pcm = _long_pre_roll_miner(tmp_path, max_records=2)
+    first = _publish(miner, 0.8, pcm[319999 - 31999 : 320000], 319999)
+    second = _publish(miner, 0.8, pcm[383999 - 31999 : 384000], 383999)
+    third = _publish(miner, 0.8, pcm[447999 - 31999 : 448000], 447999)
+    assert first and second and third
+    assert _record_ids(tmp_path) == {second, third}
+    assert miner.losses.evicted == 1
+    write_ack(tmp_path, second)
+    assert miner.drain_acks() == 1
+    assert _record_ids(tmp_path) == {third}
+    miner._reconcile_spool_state()
+    assert miner.published_record_count == 1

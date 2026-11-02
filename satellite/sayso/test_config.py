@@ -314,6 +314,114 @@ def test_load_config_reads_optional_verifier(tmp_path: Path) -> None:
     assert cfg.wake_word.verifier_threshold == 0.44
 
 
+def test_wake_detection_context_defaults_follow_mine_context() -> None:
+    cfg = WakeWordCfg(
+        provider="livekit",
+        phrase="SaySo",
+        model=Path("wake.onnx"),
+        threshold=0.5,
+        refractory_seconds=2.0,
+        preroll_ms=750,
+        post_tts_cooldown_ms=500,
+        mine_pre_context_ms=750,
+        mine_post_context_ms=650,
+    )
+
+    assert cfg.mine_detection_pre_context_ms == 750
+    assert cfg.mine_detection_post_context_ms == 650
+
+
+def test_load_config_reads_mine_detection_context(tmp_path: Path) -> None:
+    sound = Path(__file__).parents[1] / "sounds" / "wake.wav"
+    model = tmp_path / "wake.onnx"
+    model.write_bytes(b"onnx")
+
+    def dump(wake_word_extra: dict, name: str) -> AppConfig:
+        config_path = tmp_path / f"{name}.yaml"
+        base_wake_word = {
+            "provider": "livekit",
+            "phrase": "SaySo",
+            "model": str(model),
+            "threshold": 0.5,
+            "refractory_seconds": 2.0,
+            "preroll_ms": 750,
+            "post_tts_cooldown_ms": 500,
+        }
+        base_wake_word.update(wake_word_extra)
+        config_path.write_text(
+            yaml.safe_dump(
+                {
+                    "satellite": {
+                        "name": "Living Room",
+                        "device_name": "sayso-living-room",
+                        "area": "Living Room",
+                    },
+                    "home_assistant": {"port": 6053},
+                    "audio": {
+                        "input_device": "mic",
+                        "output_device": "pulse/speaker",
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "noise_suppression": 0,
+                        "auto_gain": 0,
+                    },
+                    "wake_word": base_wake_word,
+                    "sounds": {
+                        "wake": str(sound),
+                        "failure": str(sound),
+                        "unavailable": str(sound),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return load_config(config_path)
+
+    explicit = dump(
+        {"mine_detection_pre_context_ms": 10000, "mine_detection_post_context_ms": 2000},
+        "explicit",
+    )
+    assert explicit.wake_word.mine_detection_pre_context_ms == 10000
+    assert explicit.wake_word.mine_detection_post_context_ms == 2000
+
+    fallback = dump({"mine_pre_context_ms": 750, "mine_post_context_ms": 650}, "fallback")
+    assert fallback.wake_word.mine_detection_pre_context_ms == 750
+    assert fallback.wake_word.mine_detection_post_context_ms == 650
+
+
+def test_validate_config_rejects_negative_mine_detection_context(tmp_path: Path) -> None:
+    sound = Path(__file__).parents[1] / "sounds" / "wake.wav"
+    cfg = AppConfig(
+        satellite=SatelliteCfg(
+            name="Living Room", device_name="sayso-living-room", area="Living Room"
+        ),
+        home_assistant=HomeAssistantCfg(port=6053),
+        audio=AudioCfg(
+            input_device="mic",
+            output_device="pulse/speaker",
+            sample_rate=16000,
+            channels=1,
+            noise_suppression=0,
+            auto_gain=0,
+        ),
+        wake_word=WakeWordCfg(
+            provider="livekit",
+            phrase="SaySo",
+            model=tmp_path / "wake.onnx",
+            threshold=0.5,
+            refractory_seconds=2.0,
+            preroll_ms=500,
+            post_tts_cooldown_ms=500,
+            mine_detection_pre_context_ms=-1,
+        ),
+        sounds=SoundsCfg(wake=sound, failure=sound, unavailable=sound),
+        secrets={},
+    )
+
+    with pytest.raises(ValueError, match="mine_detection"):
+        validate_config(cfg, check_port_bind=False)
+
+
 def test_validate_config_rejects_unknown_wake_provider(tmp_path: Path) -> None:
     sound = Path(__file__).parents[1] / "sounds" / "wake.wav"
     model = tmp_path / "wake.onnx"
