@@ -130,7 +130,7 @@ def test_stt_preroll_is_identical_with_detection_sized_ring() -> None:
 
 def test_stt_preroll_underflow_is_identical_with_detection_sized_ring() -> None:
     capacities = (wake_ring_capacity(750), wake_ring_capacity(max(750, 10000)))
-    results: list[PrerollFlush] = []
+    results: list[tuple[int, int, PrerollFlush]] = []
     for capacity in capacities:
         hook = _stt_hook(capacity)
         total = capacity + 8192
@@ -138,9 +138,9 @@ def test_stt_preroll_underflow_is_identical_with_detection_sized_ring() -> None:
         for offset in range(0, audio.size, 8192):
             hook._ring.append(audio[offset : offset + 8192].tobytes())
         hook._detection_index = hook._ring.available_span()[0]
-        results.append(hook.flush_preroll(None))
+        results.append((capacity, total, hook.flush_preroll(None)))
 
-    for capacity, result in zip(capacities, results):
+    for capacity, total, result in results:
         assert result.underflow is True
         expected = ((np.arange(total - capacity, total) % 30000).astype("<i2")).tobytes()
         assert result.pcm == expected
