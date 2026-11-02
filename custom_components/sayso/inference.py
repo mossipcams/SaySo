@@ -173,6 +173,7 @@ def _checkpointing_llama_class() -> type:
                 return False
             self.n_tokens = len(tokens)
             self._requires_eval = True
+            self._checkpoints.append(self._checkpoints.pop(index))
             return True
 
         def generate(self, tokens: Any, *args: Any, **kwargs: Any) -> Any:
