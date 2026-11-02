@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.17.0](https://github.com/mossipcams/SaySo/compare/1.16.3...1.17.0) (2026-11-02)
+
+
+### Features
+
+* **integration:** reuse the cached prompt across embedded voice commands ([382623c](https://github.com/mossipcams/SaySo/commit/382623c320569b91edcb468a4f0adc64910eb666))
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#165](https://github.com/mossipcams/SaySo/issues/165)) ([b62bb4a](https://github.com/mossipcams/SaySo/commit/b62bb4a91ab60c0aba411247b343e0b9792b9e28))
+
+
+### Documentation
+
+* **satellite:** document the Pi deploy and safe uv sync ([e842d00](https://github.com/mossipcams/SaySo/commit/e842d00ddb12012ab4ce3256fb14bd4cf4fd0ab8))
+
 ## [1.16.3](https://github.com/mossipcams/SaySo/compare/1.16.2...1.16.3) (2026-10-30)
 
 
