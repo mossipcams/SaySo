@@ -85,7 +85,7 @@ def test_detection_index_tracks_the_window_not_the_chunk_boundary() -> None:
 
     reference = indices_for(320)
     assert reference, "no windows were submitted"
-    for chunk in (371, 512, 2560):
+    for chunk in (371, 512, HOP_SAMPLES):
         common = min(len(reference), len(indices_for(chunk)))
         assert indices_for(chunk)[:common] == reference[:common], f"chunk {chunk}"
 

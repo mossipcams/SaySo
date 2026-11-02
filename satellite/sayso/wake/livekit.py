@@ -18,7 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
 WINDOW_SAMPLES = SAMPLE_RATE * 2
-HOP_SAMPLES = 2560
+HOP_SAMPLES = 1280
 
 
 class LiveKitWakeWordProvider:

@@ -32,12 +32,16 @@ The overlay owns one deliberate resample and the capture timeline:
 - `wake_word.wake_skip_ms` is a **lookback**, not a skip: it starts the handoff
   that far *before* the detection boundary so a command spoken straight through
   the wake word ("SaySo turn on the TV") keeps its onset. It is bounded on both
-  sides: below by the detection lag (0-240 ms, median 80, measured by re-scoring
-  `wake_word.mine_dir` clips under a growing tail cut), above by Home
+  sides: below by the detection lag (v9b at an 80 ms hop: a 0-60 ms lower
+  bound from a front-pad tail cut and an 80-220 ms upper bound from an end-pad
+  tail cut; at the old 160 ms hop these were 40-140 / 160-280 ms), above by Home
   Assistant's VAD, which opens on any prepended wake-word audio and then times
   out during the speaker's pause, closing STT before the command arrives.
-  **The two bounds do not overlap**, so the 120 ms default only picks the
-  recoverable failure (a clipped onset) over the total one (a dropped command).
+  The 220 ms default covers the detection lag's upper bound so a pauseless
+  command keeps its onset. The worst-case prepended wake audio (220 ms if the
+  lag were 0) stays under the 280 ms burst that closed HA's STT window.
+  Running inference every 80 ms costs about 45% of one Pi core versus 33% at
+  160 ms.
   Trimming to the real phrase end is the actual fix — see issue #49.
 - The microphone does not open until any in-flight playback has genuinely
   finished, plus an optional `audio.aec_gate_ms` delay. That delay only

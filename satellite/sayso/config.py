@@ -47,7 +47,7 @@ class WakeWordCfg:
     refractory_seconds: float
     preroll_ms: int
     post_tts_cooldown_ms: int
-    wake_skip_ms: int = 120
+    wake_skip_ms: int = 220
     mine_dir: Path | None = None
     mine_threshold: float = 0.1
     mine_pre_context_ms: int = 500
