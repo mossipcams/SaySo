@@ -392,7 +392,7 @@ def write_run(
     if extra_metadata:
         metadata.update(extra_metadata)
     if hasattr(adapter, "server"):
-        metadata["server"] = adapter.server
+        metadata["server"] = getattr(adapter, "server")
     (dest / "metadata.json").write_text(
         json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
