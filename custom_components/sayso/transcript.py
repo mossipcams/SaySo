@@ -8,7 +8,6 @@ from homeassistant.components import conversation
 
 from .client import ToolCall
 from .schema import (
-    ToolArgumentFailureCode,
     ToolArgumentValidationError,
     format_synthetic_validation_error,
 )
@@ -55,24 +54,6 @@ def chat_log_to_messages(
                 }
             )
     return messages
-
-
-def filtered_miss_failures(
-    tool_calls: list[ToolCall],
-) -> list[tuple[ToolCall, ToolArgumentValidationError]]:
-    return [
-        (
-            tool_call,
-            ToolArgumentValidationError(
-                code=ToolArgumentFailureCode.SCHEMA_MISMATCH,
-                message=(
-                    f"Tool {tool_call.name} is not available in the active schema subset"
-                ),
-                tool_name=tool_call.name,
-            ),
-        )
-        for tool_call in tool_calls
-    ]
 
 
 def build_correction_messages(

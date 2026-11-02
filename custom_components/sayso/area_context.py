@@ -1,14 +1,16 @@
 
 from __future__ import annotations
 
+import json
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
 AreaSource = Literal["explicit", "multiple", "satellite", "none"]
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
+_AREA_BLOCK_MARKER = "\nArea context:\n"
 
 _LEGACY_AREA_LINES = (
     re.compile(
@@ -117,3 +119,18 @@ def apply_area_context(
         {"role": "system", "content": render_area_context(context)},
         *messages,
     ]
+
+
+def tools_before_area_messages(
+    messages: list[dict[str, Any]], tools: Sequence[dict[str, Any]] | None
+) -> list[dict[str, Any]]:
+    if not tools or not messages or messages[0].get("role") != "system":
+        return messages
+    content = messages[0].get("content") or ""
+    index = content.rfind(_AREA_BLOCK_MARKER)
+    if index < 0:
+        return messages
+    head, block = content[:index], content[index + 1 :]
+    rendered = ", ".join(json.dumps(tool, ensure_ascii=False) for tool in tools)
+    content = f"{head}\nList of tools: [{rendered}]\n{block}"
+    return [{**messages[0], "content": content}, *messages[1:]]

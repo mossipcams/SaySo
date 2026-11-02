@@ -20,9 +20,7 @@ from custom_components.sayso.diagnostics import (
     async_get_config_entry_diagnostics,
     clear_boundary_diagnostics,
 )
-from custom_components.sayso.routing import select_schema_for_domain
 from custom_components.sayso.schema import (
-    ToolArgumentFailureCode,
     clear_compile_cache,
     compile_llm_tools,
     schema_fingerprint,
@@ -146,11 +144,7 @@ async def _converse(hass: HomeAssistant, entry: Any, text: str) -> conversation.
     )
 
 
-async def _schemas_for_command(
-    hass: HomeAssistant,
-    entry: Any,
-    command: str,
-) -> tuple[Any, Any]:
+async def _complete_schema(hass: HomeAssistant, entry: Any) -> Any:
     llm_context = llm.LLMContext(
         platform=DOMAIN,
         context=None,
@@ -161,25 +155,7 @@ async def _schemas_for_command(
     llm_api = await llm.async_get_api(hass, entry.runtime_data.llm_api, llm_context)
     complete_schema = compile_llm_tools(llm_api)
     assert complete_schema is not None
-    from custom_components.sayso.routing import (
-        build_routing_catalog,
-        build_routing_preferences,
-        build_routing_registries,
-        identify_command_domain,
-    )
-
-    domain_hint = identify_command_domain(
-        command,
-        build_routing_catalog(hass, assistant=llm_context.assistant),
-        registries=build_routing_registries(hass),
-        preferences=build_routing_preferences(hass, llm_context),
-    )
-    active_schema = select_schema_for_domain(
-        complete_schema,
-        llm_api.tools,
-        domain_hint,
-    )
-    return complete_schema, active_schema
+    return complete_schema
 
 
 def _tool_results_by_id(messages: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -201,12 +177,7 @@ async def test_initial_request_sends_active_schema_identity(
     assist_light_and_fan: None,
 ) -> None:
     entry = await _create_entry(hass)
-    complete_schema, active_schema = await _schemas_for_command(
-        hass,
-        entry,
-        "Turn on the living room light",
-    )
-    assert active_schema.fingerprint != complete_schema.fingerprint
+    complete_schema = await _complete_schema(hass, entry)
 
     with patch.object(
         LlamaCppClient,
@@ -218,8 +189,7 @@ async def test_initial_request_sends_active_schema_identity(
         await _converse(hass, entry, "Turn on the living room light")
 
     initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
-    assert schema_fingerprint(initial_tools) == active_schema.fingerprint
-    assert schema_fingerprint(initial_tools) != complete_schema.fingerprint
+    assert schema_fingerprint(initial_tools) == complete_schema.fingerprint
 
 
 async def test_successful_action_skips_follow_up_request(
@@ -258,11 +228,7 @@ async def test_argument_correction_sends_complete_schema_identity(
     assist_light_and_fan: None,
 ) -> None:
     entry = await _create_entry(hass)
-    complete_schema, active_schema = await _schemas_for_command(
-        hass,
-        entry,
-        "Turn on the living room light",
-    )
+    complete_schema = await _complete_schema(hass, entry)
     invalid_call = ToolCall(
         id="call_bad",
         name="HassTurnOn",
@@ -289,7 +255,7 @@ async def test_argument_correction_sends_complete_schema_identity(
     assert mock_chat.await_count == 2
     initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
     correction_tools = mock_chat.await_args_list[1].kwargs["tools"]
-    assert schema_fingerprint(initial_tools) == active_schema.fingerprint
+    assert schema_fingerprint(initial_tools) == complete_schema.fingerprint
     assert schema_fingerprint(correction_tools) == complete_schema.fingerprint
 
     correction_messages = mock_chat.await_args_list[1].args[0]
@@ -300,68 +266,13 @@ async def test_argument_correction_sends_complete_schema_identity(
     )
 
 
-async def test_filtered_miss_correction_sends_complete_schema_identity(
-    hass: HomeAssistant,
-    mock_llama_client: None,
-    assist_light_and_fan: None,
-) -> None:
-    entry = await _create_entry(hass)
-    complete_schema, active_schema = await _schemas_for_command(
-        hass,
-        entry,
-        "Turn on the living room light",
-    )
-    filtered_call = ToolCall(
-        id="call_fan",
-        name="HassFanSetSpeed",
-        arguments={"name": "Bedroom Fan", "percentage": 50},
-    )
-    corrected_call = ToolCall(
-        id="call_light",
-        name="HassTurnOn",
-        arguments={"name": "Living Room"},
-    )
-
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            side_effect=[
-                ChatCompletionResult(content=None, tool_calls=[filtered_call]),
-                ChatCompletionResult(content=None, tool_calls=[corrected_call]),
-            ]
-        ),
-    ) as mock_chat:
-        await _converse(hass, entry, "Turn on the living room light")
-
-    assert mock_chat.await_count == 2
-    initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
-    correction_tools = mock_chat.await_args_list[1].kwargs["tools"]
-    assert schema_fingerprint(initial_tools) == active_schema.fingerprint
-    assert schema_fingerprint(correction_tools) == complete_schema.fingerprint
-
-    correction_messages = mock_chat.await_args_list[1].args[0]
-    tool_results = _tool_results_by_id(correction_messages)
-    assert tool_results["call_fan"]["error"]["code"] == (
-        ToolArgumentFailureCode.SCHEMA_MISMATCH
-    )
-    assert (
-        tool_results["call_fan"]["error"]["schema_fingerprint"]
-        == complete_schema.fingerprint
-    )
-
-
 async def test_initial_boundary_diagnostic_uses_active_schema_fingerprint(
     hass: HomeAssistant,
     mock_llama_client: None,
     assist_light_and_fan: None,
 ) -> None:
     entry = await _create_entry(hass)
-    complete_schema, active_schema = await _schemas_for_command(
-        hass,
-        entry,
-        "Turn on the living room light",
-    )
+    complete_schema = await _complete_schema(hass, entry)
 
     with patch.object(
         LlamaCppClient,
@@ -382,5 +293,4 @@ async def test_initial_boundary_diagnostic_uses_active_schema_fingerprint(
         await _converse(hass, entry, "Turn on the living room light")
 
     diagnostics = await async_get_config_entry_diagnostics(hass, entry)
-    assert diagnostics["boundary"]["last"]["fingerprint"] == active_schema.fingerprint
-    assert diagnostics["boundary"]["last"]["fingerprint"] != complete_schema.fingerprint
+    assert diagnostics["boundary"]["last"]["fingerprint"] == complete_schema.fingerprint

@@ -49,7 +49,6 @@ from .routing import (
     build_routing_preferences,
     build_routing_registries,
     identify_command_domain,
-    select_schema_for_domain,
 )
 from .schema import (
     CompiledToolSchema,
@@ -65,7 +64,6 @@ from .tool_contract import check_tool_call, tools_by_name
 from .transcript import (
     build_correction_messages,
     chat_log_to_messages as _chat_log_to_messages,
-    filtered_miss_failures,
 )
 from .tracing import ErrorType, Stage, TraceContext
 
@@ -206,6 +204,10 @@ class _Turn:
         span.metadata["tool_calls"] = len(result.tool_calls)
         if result.prompt_tokens is not None:
             span.metadata["prompt_tokens"] = result.prompt_tokens
+        if result.prefix_hash is not None:
+            span.metadata["prefix_hash"] = result.prefix_hash
+        if result.reused_tokens is not None:
+            span.metadata["reused_tokens"] = result.reused_tokens
         trace.close(span)
         return result
 
@@ -342,13 +344,7 @@ class SaySoConversationEntity(
                     satellite_id=getattr(turn.user_input, "satellite_id", None),
                 ),
             )
-            turn.active_schema = (
-                select_schema_for_domain(
-                    turn.complete_schema, chat_log.llm_api.tools, domain_hint
-                )
-                if turn.complete_schema is not None
-                else None
-            )
+            turn.active_schema = turn.complete_schema
             turn.area_context = build_area_context(
                 turn.user_input.text,
                 {
@@ -397,11 +393,6 @@ class SaySoConversationEntity(
             )
 
         available_tools = build_tool_availability_names(chat_log.llm_api.tools)
-        offered_tools = (
-            {tool["function"]["name"] for tool in turn.active_schema.tools}
-            if turn.active_schema is not None
-            else available_tools
-        )
         compiled_tools = tools_by_name(
             turn.complete_schema.tools if turn.complete_schema is not None else ()
         )
@@ -423,13 +414,10 @@ class SaySoConversationEntity(
                     BoundaryFailureCode.UNAVAILABLE_TOOL, phase
                 )
 
-            misses = [call for call in current if call.name not in offered_tools]
             contract_failures = _contract_failures(
                 current, compiled_tools, turn.exposed_domains
             )
-            if misses:
-                validated, failures = [], filtered_miss_failures(misses)
-            elif contract_failures:
+            if contract_failures:
                 validated, failures = [], contract_failures
             else:
                 validated, failures = validate_arguments(current, tool_map, trace)
@@ -465,7 +453,6 @@ class SaySoConversationEntity(
                     )
 
                 turn.correction_used = True
-                offered_tools = available_tools
                 if not corrected.tool_calls:
                     return turn.error(
                         ERROR_ACTION_FAILED,

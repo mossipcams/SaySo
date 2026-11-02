@@ -9,7 +9,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from custom_components.sayso.area_context import tools_before_area_messages
 from custom_components.sayso.client import ChatCompletionResult
+from custom_components.sayso.completion import prefix_hash
 from custom_components.sayso.const import BACKEND_EMBEDDED, BACKEND_EXTERNAL
 from custom_components.sayso.exceptions import (
     SaySoInvalidResponseError,
@@ -19,8 +21,13 @@ from custom_components.sayso.exceptions import (
 from custom_components.sayso.inference import (
     EmbeddedEngine,
     ExternalEngine,
+    _checkpoint_boundaries,
+    _checkpointing_llama_class,
+    _last_user_turn_start,
+    _longest_checkpoint,
     _messages_for_embedded_template,
     _parse_embedded_result,
+    _shared_prefix_len,
     default_thread_count,
     entry_backend,
     extract_tool_calls,
@@ -148,6 +155,33 @@ class TestParseEmbeddedResult:
         )
         assert result.prompt_tokens == 42
 
+    def test_cache_trace_recorded(self) -> None:
+        result = _parse_embedded_result(
+            _completion(
+                {"content": "hi"},
+                sayso_cache={"prefix_hash": "abc123def456", "reused_tokens": 40},
+            )
+        )
+        assert result.prefix_hash == "abc123def456"
+        assert result.reused_tokens == 40
+
+    @pytest.mark.parametrize(
+        ("cache", "prefix"),
+        [
+            ("not a dict", None),
+            ({"prefix_hash": 5, "reused_tokens": True}, None),
+            ({"prefix_hash": "abc", "reused_tokens": 1.5}, "abc"),
+        ],
+    )
+    def test_malformed_cache_trace_ignored(
+        self, cache: Any, prefix: str | None
+    ) -> None:
+        result = _parse_embedded_result(
+            _completion({"content": "hi"}, sayso_cache=cache)
+        )
+        assert result.prefix_hash == prefix
+        assert result.reused_tokens is None
+
     @pytest.mark.parametrize(
         "raw",
         [
@@ -247,13 +281,22 @@ class TestEmbeddedEngine:
         await engine.async_start()
         try:
             result = await engine.async_chat_completion(
-                [{"role": "user", "content": "turn on the lamp"}],
+                [
+                    {"role": "system", "content": "SaySo.\nArea context:\nKitchen"},
+                    {"role": "user", "content": "turn on the lamp"},
+                ],
                 tools=[{"type": "function", "function": {"name": "HassTurnOn"}}],
             )
         finally:
             await engine.async_shutdown()
         assert result.tool_calls[0].arguments == {"name": "lamp"}
-        assert llm.create_chat_completion.call_args.kwargs["tools"]
+        kwargs = llm.create_chat_completion.call_args.kwargs
+        assert "tools" not in kwargs
+        system_content = kwargs["messages"][0]["content"]
+        assert "List of tools: [" in system_content
+        assert system_content.index("List of tools: [") < system_content.index(
+            "Area context:"
+        )
 
     async def test_inference_runs_off_the_event_loop(
         self, monkeypatch: pytest.MonkeyPatch
@@ -544,3 +587,256 @@ class TestEntryBackend:
 
     def test_entry_without_url_is_embedded(self) -> None:
         assert entry_backend(SimpleNamespace(data={})) == BACKEND_EMBEDDED
+
+
+class TestEmbeddedPrefixCheckpointDecision:
+    def test_boundary_shared_prefix_and_longest_checkpoint(self) -> None:
+        marker = [9, 4]
+        prompt = [1, 2, 9, 4, 7, 9, 4, 8, 9, 4, 5]
+        boundary = _last_user_turn_start(prompt, marker)
+        assert boundary == 8
+        assert _last_user_turn_start([1, 2, 3], marker) is None
+        assert _last_user_turn_start([9, 4], marker) == 0
+
+        assert _shared_prefix_len(prompt[:boundary] + [0], prompt) == boundary
+        assert _shared_prefix_len([1, 3], prompt) == 1
+
+        checkpoints = [prompt[:2], prompt[:8], [1, 3], prompt[:5]]
+        assert _longest_checkpoint(checkpoints, prompt, 8) == 1
+        assert _longest_checkpoint(checkpoints, prompt, 7) == 3
+        assert _longest_checkpoint(checkpoints, prompt, 1) is None
+        assert _longest_checkpoint([], prompt, 8) is None
+
+        area_marker = [3]
+        assert _checkpoint_boundaries(prompt, area_marker, marker) == [8]
+        area_prompt = [1, 2, 3, 7, 9, 4, 8]
+        assert _checkpoint_boundaries(area_prompt, area_marker, marker) == [2, 4]
+        assert _checkpoint_boundaries([9, 4], marker, marker) == []
+        assert _checkpoint_boundaries([1, 2], area_marker, marker) == []
+        assert _checkpoint_boundaries([1, 3, 7], area_marker, marker) == [1]
+        repeated = [1, 3, 7, 9, 4, 8, 3, 6, 9, 4, 5]
+        assert _checkpoint_boundaries(repeated, area_marker, marker) == [6, 8]
+
+        checkpoints = [area_prompt[:2], area_prompt[:4]]
+        changed_area = [1, 2, 3, 6, 9, 4, 8]
+        boundaries = _checkpoint_boundaries(changed_area, area_marker, marker)
+        shared = _shared_prefix_len(area_prompt, changed_area)
+        assert _longest_checkpoint(
+            checkpoints, changed_area, min(shared, boundaries[-1])
+        ) == 0
+        assert _longest_checkpoint(checkpoints, area_prompt, boundaries[-1]) == 1
+
+
+_TURN_ON_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "HassTurnOn",
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+_TURN_OFF_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "HassTurnOff",
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+_AREA_BLOCK = "\n".join(
+    [
+        "Area context:",
+        "satellite_area: kitchen",
+        "target_area: kitchen",
+        "target_area_source: satellite",
+    ]
+)
+
+
+class TestToolsBeforeArea:
+
+    def test_tool_list_moves_before_area_block(self) -> None:
+        messages = [
+            {"role": "system", "content": f"You are SaySo.\n{_AREA_BLOCK}"},
+            {"role": "user", "content": "turn on the lamp"},
+        ]
+        tools = [_TURN_ON_TOOL, _TURN_OFF_TOOL]
+
+        laid_out = tools_before_area_messages(messages, tools)
+
+        expected_list = (
+            'List of tools: [{"type": "function", "function": {"name": "HassTurnOn", '
+            '"parameters": {"type": "object", "properties": {}}}}, {"type": '
+            '"function", "function": {"name": "HassTurnOff", "parameters": '
+            '{"type": "object", "properties": {}}}}]'
+        )
+        assert laid_out == [
+            {
+                "role": "system",
+                "content": f"You are SaySo.\n{expected_list}\n{_AREA_BLOCK}",
+            },
+            {"role": "user", "content": "turn on the lamp"},
+        ]
+        assert messages[0]["content"] == f"You are SaySo.\n{_AREA_BLOCK}"
+
+    def test_tool_text_escapes_non_ascii_like_template(self) -> None:
+        tool = {
+            "type": "function",
+            "function": {"name": "HassTurnOn", "description": "café lamp"},
+        }
+        messages = [{"role": "system", "content": f"Head\n{_AREA_BLOCK}"}]
+
+        content = tools_before_area_messages(messages, [tool])[0]["content"]
+
+        assert content.startswith(
+            'Head\nList of tools: [{"type": "function", "function": '
+            '{"name": "HassTurnOn", "description": "café lamp"}}]\n'
+        )
+
+    def test_unchanged_without_tools_or_area_block(self) -> None:
+        with_area = [
+            {"role": "system", "content": f"Head\n{_AREA_BLOCK}"},
+            {"role": "user", "content": "hi"},
+        ]
+        assert tools_before_area_messages(with_area, None) is with_area
+        assert tools_before_area_messages(with_area, []) is with_area
+
+        without_area = [
+            {"role": "system", "content": "Head"},
+            {"role": "user", "content": "hi"},
+        ]
+        assert tools_before_area_messages(without_area, [_TURN_ON_TOOL]) is (
+            without_area
+        )
+
+
+class TestEmbeddedToolListLayout:
+
+    async def test_tools_rendered_in_system_prompt_not_passed_to_llama(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        engine = EmbeddedEngine(Path("/model.gguf"))
+        llm = MagicMock()
+        llm.create_chat_completion.return_value = _completion({"content": "ok"})
+        monkeypatch.setattr(engine, "_load", MagicMock(return_value=llm))
+        await engine.async_start()
+        messages = [
+            {"role": "system", "content": f"You are SaySo.\n{_AREA_BLOCK}"},
+            {"role": "user", "content": "turn on the lamp"},
+        ]
+        try:
+            await engine.async_chat_completion(messages, tools=[_TURN_ON_TOOL])
+        finally:
+            await engine.async_shutdown()
+
+        kwargs = llm.create_chat_completion.call_args.kwargs
+        assert "tools" not in kwargs
+        assert "tool_choice" not in kwargs
+        system = kwargs["messages"][0]["content"]
+        assert system.index("List of tools: [") < system.index("Area context:")
+        assert system.endswith(_AREA_BLOCK)
+
+
+class _FakeLlama:
+
+    def __init__(self, prompt_tokens: int, prefill_evaluated: int) -> None:
+        self.prompt_tokens = prompt_tokens
+        self.prefill_evaluated = prefill_evaluated
+
+    def create_chat_completion(self, **_kwargs: Any) -> dict[str, Any]:
+        return _completion(
+            {"content": "ok"}, usage={"prompt_tokens": self.prompt_tokens}
+        )
+
+
+class TestPrefixHash:
+
+    def test_stable_when_area_block_or_user_message_changes(self) -> None:
+        tools = [_TURN_ON_TOOL]
+        before = [
+            {"role": "system", "content": f"You are SaySo.\n{_AREA_BLOCK}"},
+            {"role": "user", "content": "turn on the lamp"},
+        ]
+        other_area = "\n".join(
+            [
+                "Area context:",
+                "satellite_area: hall",
+                "target_area: hall",
+                "target_area_source: satellite",
+            ]
+        )
+        after = [
+            {"role": "system", "content": f"You are SaySo.\n{other_area}"},
+            {"role": "user", "content": "turn off the fan"},
+        ]
+        assert prefix_hash(before, tools) == prefix_hash(after, tools)
+
+    def test_changes_when_tools_change(self) -> None:
+        messages = [{"role": "system", "content": f"You are SaySo.\n{_AREA_BLOCK}"}]
+        assert prefix_hash(messages, [_TURN_ON_TOOL]) != prefix_hash(
+            messages, [_TURN_OFF_TOOL]
+        )
+
+
+class TestEmbeddedCacheTrace:
+
+    async def test_reused_tokens_are_prompt_minus_prefill(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        engine = EmbeddedEngine(Path("/model.gguf"))
+        llm = _FakeLlama(prompt_tokens=1000, prefill_evaluated=40)
+        monkeypatch.setattr(engine, "_load", MagicMock(return_value=llm))
+        await engine.async_start()
+        messages = [
+            {"role": "system", "content": f"You are SaySo.\n{_AREA_BLOCK}"},
+            {"role": "user", "content": "turn on the lamp"},
+        ]
+        try:
+            result = await engine.async_chat_completion(
+                messages, tools=[_TURN_ON_TOOL]
+            )
+        finally:
+            await engine.async_shutdown()
+
+        assert result.prompt_tokens == 1000
+        assert result.reused_tokens == 960
+        assert result.prefix_hash == prefix_hash(messages, [_TURN_ON_TOOL])
+
+
+class TestCheckpointingLlamaPrefill:
+
+    def test_counts_prompt_evals_but_not_decode(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        llama_cpp = pytest.importorskip("llama_cpp")
+
+        def fake_eval(self: Any, tokens: list[int]) -> None:
+            self.n_tokens += len(tokens)
+
+        def fake_sample(self: Any, **_kwargs: Any) -> int:
+            return 7
+
+        def fake_generate(self: Any, tokens: list[int], **_kwargs: Any) -> Any:
+            self.eval(tokens[self.n_tokens :])
+            yield self.sample()
+            self.eval([7])
+
+        monkeypatch.setattr(llama_cpp.Llama, "eval", fake_eval)
+        monkeypatch.setattr(llama_cpp.Llama, "sample", fake_sample)
+        monkeypatch.setattr(llama_cpp.Llama, "generate", fake_generate)
+        monkeypatch.setattr(llama_cpp.Llama, "close", lambda self: None)
+
+        cls = _checkpointing_llama_class()
+        llm = cls.__new__(cls)
+        llm._area_context_marker = [3]
+        llm._user_turn_marker = [9, 4]
+        llm._checkpoints = []
+        llm._is_recurrent = False
+        llm._is_hybrid = False
+        llm.n_tokens = 4
+        llm.prefill_evaluated = 0
+        llm._prefilling = False
+
+        prompt = [1, 2, 3, 5, 6, 9, 4, 7, 8]
+        assert list(llm.generate(prompt)) == [7]
+
+        assert llm.prefill_evaluated == 5
+        assert len(prompt) - llm.prefill_evaluated == 4
