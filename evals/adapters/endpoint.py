@@ -30,13 +30,14 @@ class EndpointAdapter:
         self.max_tokens = max_tokens
 
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Any:
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": PRODUCTION_TEMPERATURE,
             "max_tokens": self.max_tokens,
-            "tools": tools,
         }
+        if tools:
+            payload["tools"] = tools
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
