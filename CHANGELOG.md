@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.18.0](https://github.com/mossipcams/SaySo/compare/1.17.1...1.18.0) (2026-11-03)
+
+
+### Features
+
+* **satellite:** restore wake miss-capture (detection pre/post context, score trace) ([659441e](https://github.com/mossipcams/SaySo/commit/659441ef7515f41c8b47a347fae05f373952a749))
+
+
+### Bug Fixes
+
+* **evals:** prompt the model with the embedded runtime tool layout ([d531eaa](https://github.com/mossipcams/SaySo/commit/d531eaaafa26d08c641d1729ffa4c97121bbe712))
+* **integration:** inline the tool list in the key order the model trained on ([b5f615f](https://github.com/mossipcams/SaySo/commit/b5f615f8a8f0902467772d7f159fc62d7be29845))
+* **satellite:** detect the wake word every 80 ms and widen the lookback to 220 ms ([2cfabdb](https://github.com/mossipcams/SaySo/commit/2cfabdb30476f9cf23883fb92505bc73d6098cb2))
+* **satellite:** miner follows the detection provider hop ([fa524db](https://github.com/mossipcams/SaySo/commit/fa524db62f00aece8ae3baaecbeef5eaa6808b29))
+
 ## [1.17.1](https://github.com/mossipcams/SaySo/compare/1.17.0...1.17.1) (2026-11-02)
 
 
