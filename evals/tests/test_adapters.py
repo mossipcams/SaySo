@@ -1,6 +1,10 @@
 
 from __future__ import annotations
 
+import json
+from typing import Any
+from urllib import request as urlrequest
+
 from evals.adapters.endpoint import EndpointAdapter
 from evals.adapters.in_memory import InMemoryAdapter
 from evals.cases import select_cases
@@ -41,6 +45,47 @@ def test_malformed_in_memory_cannot_pass_as_abstention() -> None:
     result = evaluate([case], InMemoryAdapter(ask))[0]
     assert result.outcome == Outcome.MALFORMED_OUTPUT
     assert not result.passed
+
+
+def test_evaluate_sends_tools_inlined_before_area_context() -> None:
+    case = select_cases(case_id="realistic_eval_20260908_ordinary_01")[0]
+    seen: dict[str, Any] = {}
+
+    def ask(messages, tools):
+        seen["messages"] = messages
+        seen["tools"] = tools
+        return {
+            "choices": [{"message": {"role": "assistant", "content": "ok"}}]
+        }
+
+    evaluate([case], InMemoryAdapter(ask))
+    assert seen["tools"] == []
+    content = seen["messages"][0]["content"]
+    assert content.index("List of tools:") < content.index("Area context:")
+
+
+def test_endpoint_adapter_omits_tools_key_for_empty_list(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class _Response:
+        def read(self):
+            return b"{}"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(request, timeout=None):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return _Response()
+
+    monkeypatch.setattr(urlrequest, "urlopen", fake_urlopen)
+    EndpointAdapter("http://127.0.0.1:9").complete(
+        [{"role": "user", "content": "hi"}], []
+    )
+    assert "tools" not in captured["payload"]
 
 
 def test_endpoint_adapter_requires_a_server() -> None:

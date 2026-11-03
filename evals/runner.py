@@ -321,8 +321,15 @@ def evaluate(cases: list[Case], adapter: ModelAdapter) -> list[CaseResult]:
     results: list[CaseResult] = []
     for case in cases:
         rendered = render_case(case)
+        prompt_messages = _area_context.tools_before_area_messages(
+            rendered["messages"], rendered["tools"]
+        )
+        if prompt_messages is rendered["messages"]:
+            sent_tools: list[dict[str, Any]] = rendered["tools"]
+        else:
+            sent_tools = []
         try:
-            raw = adapter.complete(rendered["messages"], rendered["tools"])
+            raw = adapter.complete(prompt_messages, sent_tools)
             transport_error = None
         except (urllib.error.URLError, TimeoutError, OSError, ConnectionError) as err:
             raw = {"transport_error": str(err)}
@@ -385,7 +392,7 @@ def write_run(
     if extra_metadata:
         metadata.update(extra_metadata)
     if hasattr(adapter, "server"):
-        metadata["server"] = adapter.server
+        metadata["server"] = getattr(adapter, "server")
     (dest / "metadata.json").write_text(
         json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
