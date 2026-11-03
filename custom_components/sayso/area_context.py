@@ -121,6 +121,24 @@ def apply_area_context(
     ]
 
 
+def _ordered(node: dict[str, Any], order: tuple[str, ...]) -> dict[str, Any]:
+    return {
+        **{key: node[key] for key in order if key in node},
+        **{key: value for key, value in node.items() if key not in order},
+    }
+
+
+def _training_key_order(tool: dict[str, Any]) -> dict[str, Any]:
+    # Compiled tools arrive with sorted keys; the model trained on the chat
+    # template's order (type, then function name, description, parameters).
+    function = tool.get("function")
+    if not isinstance(function, dict):
+        return tool
+    ordered = _ordered(tool, ("type", "function"))
+    ordered["function"] = _ordered(function, ("name", "description", "parameters"))
+    return ordered
+
+
 def tools_before_area_messages(
     messages: list[dict[str, Any]], tools: Sequence[dict[str, Any]] | None
 ) -> list[dict[str, Any]]:
@@ -131,6 +149,8 @@ def tools_before_area_messages(
     if index < 0:
         return messages
     head, block = content[:index], content[index + 1 :]
-    rendered = ", ".join(json.dumps(tool, ensure_ascii=False) for tool in tools)
+    rendered = ", ".join(
+        json.dumps(_training_key_order(tool), ensure_ascii=False) for tool in tools
+    )
     content = f"{head}\nList of tools: [{rendered}]\n{block}"
     return [{**messages[0], "content": content}, *messages[1:]]

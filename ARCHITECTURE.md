@@ -95,8 +95,9 @@ For each request, the integration:
 4. Sends the conversation to llama.cpp through the active inference engine:
    in-process by default, or the OpenAI-compatible HTTP API when the external
    backend is configured. The embedded engine renders the tool list into the
-   system message before the area-context block, byte-identical to the model's
-   chat template, so every command in a home shares the prompt prefix; it keeps
+   system message before the area-context block, in the key order the model
+   trained on (`type`, then `function` `name`, `description`, `parameters`),
+   so every command in a home shares the prompt prefix; it keeps
    recurrent-state checkpoints at that boundary and at the last user message.
    The external backend sends tools through the API.
 5. Treats every model tool call as untrusted and validates it against the tools
