@@ -136,7 +136,6 @@ python3 scripts/wake_make_ensemble.py \
 The staging and real-voice recipes are `scripts/wake_stage_tv.py`
 (`python3 scripts/wake_stage_tv.py --variant v10k REALNEG CLIPS OUT SCORER.onnx`) and
 `scripts/wake_eval_realtv.py` (`python3 scripts/wake_eval_realtv.py real --pos POS_DIR --tv TV_DIR MODEL.onnx`,
-with an `fa` subcommand for holdout false wakes/h).
 with an `fa` subcommand for holdout false wakes/h). They import
 `livekit.wakeword.eval.stream`, which exists only in the patched livekit checkout in the VM
 run dir, so run them as:
