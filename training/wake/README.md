@@ -113,3 +113,53 @@ After an LFM wrapper and Docker client both crash, `gpu status` reports
 command restarts Unsloth under the lock before reusing the GPU; restart failure
 leaves it blocked. An interrupted launch with no recorded worker PID stays
 blocked for process inspection instead of assuming the GPU is idle.
+
+## TV-on: logit ensemble
+
+TV-only models (real room Kodas mixed over training TV) fix real-voice-over-TV
+recall, but every single one false-wakes 1-2.5/h on holdout TV at 0.65. Logit
+averaging with v9b fixes that; prob-averaging does not.
+
+Recipe: the user's own room Kodas mixed over training TV at -30..-16 dBFS, in
+two runs (v10k, v10l), ensembled with deployed v9b. Build the ensemble ONNX
+(same interface as members, `embeddings [batch,16,96]` -> `score [batch,1]`,
+with a built-in self-check and sha256):
+
+```bash
+python3 scripts/wake_make_ensemble.py \
+  koda-phonics-lg_9b_10k_10l.onnx \
+  v9b.onnx v10k.onnx v10l.onnx
+```
+
+`--prob` gives the mean of member sigmoids instead; use logit averaging.
+
+The staging and real-voice recipes are `scripts/wake_stage_tv.py`
+(`python3 scripts/wake_stage_tv.py --variant v10k REALNEG CLIPS OUT SCORER.onnx`) and
+`scripts/wake_eval_realtv.py` (`python3 scripts/wake_eval_realtv.py real --pos POS_DIR --tv TV_DIR MODEL.onnx`,
+with an `fa` subcommand for holdout false wakes/h). They import
+`livekit.wakeword.eval.stream`, which exists only in the patched livekit checkout in the VM
+run dir, so run them as:
+
+```bash
+CUDA_VISIBLE_DEVICES= HIP_VISIBLE_DEVICES= \
+PYTHONPATH=/srv/llm/data/wake/runs/koda-phonics-v6-20261018/src \
+  /srv/llm/wake/runs/koda-phonics-v3-20261008/.venv/bin/python scripts/wake_eval_realtv.py ...
+```
+
+(`wake_make_ensemble.py` needs only onnx + onnxruntime and no PYTHONPATH.)
+
+At threshold 0.65:
+
+| | v9b (previous) | ensemble 9b+10k+10l (deployed 2026-11-04) |
+| --- | --- | --- |
+| Holdout TV false wakes | 0 | 0 (also 0 at 0.55) |
+| LiveKit FPPH | 0.31 | 0.22 |
+| Real TV-on, user (n=7) | 2/7 (expected 1.8) | 4/7 (expected 3.6) |
+| Real room voice x holdout TV (n=132) | 41 | 57 |
+| Synthetic clean (n=1000) | 869 | 908 |
+| Quiet room, user (n=16) | 11/16 (expected 10.1) | 10/16 (expected 9.4) |
+| CPU per window (VM) | 0.08 ms | 0.25 ms |
+| CPU per 80 ms hop (Pi) | 2.1 ms | 6.0 ms |
+
+See [docs/PLAN_WAKE_TV_ENSEMBLE.md](../../docs/PLAN_WAKE_TV_ENSEMBLE.md) for the
+run-up, the open quiet-room gap, and the Pi deploy steps.
