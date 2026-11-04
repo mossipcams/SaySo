@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.19.0](https://github.com/mossipcams/SaySo/compare/1.18.0...1.19.0) (2026-11-04)
+
+
+### Features
+
+* **wake:** add the TV-on logit ensemble builder, staging and real-TV eval ([213b7fe](https://github.com/mossipcams/SaySo/commit/213b7fe65b20a4efd1c4dfb750f5b8c8b039c18f))
+
+
+### Bug Fixes
+
+* **integration:** step the volume of players without VOLUME_SET ([9e65737](https://github.com/mossipcams/SaySo/commit/9e657374ec7df0d5ddd37b14e238b887719f37a3))
+* **integration:** step the volume of players without VOLUME_SET ([e7aaf93](https://github.com/mossipcams/SaySo/commit/e7aaf93d4117315cc3e7289b069cd6052c903186))
+
+
+### Documentation
+
+* **wake:** fix duplicated line in the TV-on README section ([aaae6ba](https://github.com/mossipcams/SaySo/commit/aaae6bac5f3db0e4263631f9e5a08c050ebc14e8))
+* **wake:** plan the TV-on logit ensemble (v9b + v10k + v10l) ([008b859](https://github.com/mossipcams/SaySo/commit/008b85956ebb6e7cbcedc91231d4ac0f6e826d9c))
+
 ## [1.18.0](https://github.com/mossipcams/SaySo/compare/1.17.1...1.18.0) (2026-11-03)
 
 
