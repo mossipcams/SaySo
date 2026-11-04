@@ -70,6 +70,7 @@ from .vad_sensitivity import (
     async_setup_vad_sensitivity,
     async_teardown_vad_sensitivity,
 )
+from .volume_step import async_register_volume_step
 
 PLATFORMS: list[Platform] = [Platform.CONVERSATION]
 
@@ -107,6 +108,7 @@ class SaySoRuntimeData:
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
     _async_register_trace_services(hass)
+    async_register_volume_step(hass)
     return True
 
 
