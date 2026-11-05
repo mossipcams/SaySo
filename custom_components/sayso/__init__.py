@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -70,7 +71,7 @@ from .vad_sensitivity import (
     async_setup_vad_sensitivity,
     async_teardown_vad_sensitivity,
 )
-from .volume_step import async_register_volume_step
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.CONVERSATION]
 
@@ -108,8 +109,19 @@ class SaySoRuntimeData:
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
     _async_register_trace_services(hass)
-    async_register_volume_step(hass)
+    _async_register_volume_step(hass)
     return True
+
+
+def _async_register_volume_step(hass: HomeAssistant) -> None:
+    try:
+        from .volume_step import async_register_volume_step
+
+        async_register_volume_step(hass)
+    except Exception:
+        _LOGGER.exception(
+            "Volume step fallback disabled; Home Assistant's default relative volume handler stays active"
+        )
 
 
 def _async_trace_stores(hass: HomeAssistant) -> list[TraceStore]:
