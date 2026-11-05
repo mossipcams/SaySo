@@ -1,0 +1,229 @@
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta
+from typing import Any
+
+from homeassistant.components.media_player import (
+    ATTR_MEDIA_VOLUME_LEVEL,
+    ATTR_MEDIA_VOLUME_MUTED,
+    DOMAIN as MEDIA_PLAYER_DOMAIN,
+    SERVICE_MEDIA_PAUSE,
+    SERVICE_MEDIA_PLAY,
+    SERVICE_VOLUME_MUTE,
+    SERVICE_VOLUME_SET,
+    MediaPlayerEntityFeature,
+    MediaPlayerState,
+)
+from homeassistant.const import (
+    ATTR_ENTITY_ID,
+    ATTR_SUPPORTED_FEATURES,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+)
+from homeassistant.core import (
+    CALLBACK_TYPE,
+    Event,
+    EventStateChangedData,
+    HomeAssistant,
+    State,
+    callback,
+)
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_state_added_domain,
+    async_track_state_change_event,
+)
+from homeassistant.util import dt as dt_util
+
+from .const import DUCK_TIMEOUT
+from .conversation import area_id_for
+from .vad_sensitivity import SATELLITE_DOMAIN
+
+SATELLITE_LISTENING = "listening"
+DUCK_LEVEL_TOLERANCE = 0.005
+INACTIVE_STATES = (
+    MediaPlayerState.OFF,
+    MediaPlayerState.STANDBY,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+)
+
+Call = tuple[str, str, dict[str, Any]]
+
+
+class MediaDucker:
+    def __init__(self, hass: HomeAssistant, duck_volume: float) -> None:
+        self._hass = hass
+        self._duck_volume = duck_volume
+        self._originals: dict[str, tuple[str, dict[str, Any]]] = {}
+        self._restored: dict[str, tuple[float, datetime]] = {}
+        self._counts: dict[str, int] = {}
+        self._holds: dict[str, set[str]] = {}
+        self._timers: dict[str, CALLBACK_TYPE] = {}
+        self._unsubs: list[CALLBACK_TYPE] = []
+        self._satellite_unsubs: dict[str, CALLBACK_TYPE] = {}
+
+    def start(self) -> None:
+        self._unsubs.append(
+            async_track_state_added_domain(
+                self._hass, SATELLITE_DOMAIN, self._async_satellite_added
+            )
+        )
+        for entity_id in self._hass.states.async_entity_ids(SATELLITE_DOMAIN):
+            self._track(entity_id)
+
+    async def async_teardown(self) -> None:
+        for unsub in self._unsubs:
+            unsub()
+        self._unsubs.clear()
+        for unsub in self._satellite_unsubs.values():
+            unsub()
+        self._satellite_unsubs.clear()
+        for satellite_id in list(self._holds):
+            await self._async_send(self._release(satellite_id))
+
+    @callback
+    def _async_satellite_added(self, event: Event[EventStateChangedData]) -> None:
+        self._track(event.data["entity_id"])
+
+    def _track(self, satellite_id: str) -> None:
+        if satellite_id in self._satellite_unsubs:
+            return
+        self._satellite_unsubs[satellite_id] = async_track_state_change_event(
+            self._hass, satellite_id, self._async_on_satellite_change
+        )
+
+    async def _async_on_satellite_change(
+        self, event: Event[EventStateChangedData]
+    ) -> None:
+        satellite_id = event.data["entity_id"]
+        new_state = event.data["new_state"]
+        if new_state is not None and new_state.state == SATELLITE_LISTENING:
+            await self._async_duck(satellite_id)
+        else:
+            await self._async_send(self._release(satellite_id))
+
+    async def _async_duck(self, satellite_id: str) -> None:
+        if satellite_id in self._holds:
+            return
+        area_id = area_id_for(self._hass, satellite_id)
+        if area_id is None:
+            return
+        calls = self._claim(satellite_id, area_id)
+        if self._holds[satellite_id]:
+            self._timers[satellite_id] = async_call_later(
+                self._hass, DUCK_TIMEOUT, self._make_timeout(satellite_id)
+            )
+        await self._async_send(calls)
+
+    def _make_timeout(self, satellite_id: str) -> Callable[[datetime], Awaitable[None]]:
+        async def _async_timed_out(_now: datetime) -> None:
+            restores = self._release(satellite_id)
+            self._holds[satellite_id] = set()
+            await self._async_send(restores)
+
+        return _async_timed_out
+
+    def _claim(self, satellite_id: str, area_id: str) -> list[Call]:
+        holds = self._holds[satellite_id] = set()
+        satellite_device_id = self._device_id(satellite_id)
+        calls: list[Call] = []
+        for state in self._hass.states.async_all(MEDIA_PLAYER_DOMAIN):
+            if not self._is_target(state, area_id, satellite_device_id):
+                continue
+            entity_id = state.entity_id
+            if entity_id in self._originals:
+                self._counts[entity_id] += 1
+            else:
+                plan = self._duck_plan(state)
+                if plan is None:
+                    continue
+                restore, duck = plan
+                self._originals[entity_id] = restore
+                self._counts[entity_id] = 1
+                calls.append((entity_id, *duck))
+            holds.add(entity_id)
+        return calls
+
+    def _release(self, satellite_id: str) -> list[Call]:
+        timer = self._timers.pop(satellite_id, None)
+        if timer is not None:
+            timer()
+        holds = self._holds.pop(satellite_id, None)
+        if holds is None:
+            return []
+        restores: list[Call] = []
+        for entity_id in holds:
+            self._counts[entity_id] -= 1
+            if self._counts[entity_id] == 0:
+                del self._counts[entity_id]
+                service, data = self._originals.pop(entity_id)
+                if service == SERVICE_VOLUME_SET:
+                    self._restored[entity_id] = (
+                        data[ATTR_MEDIA_VOLUME_LEVEL],
+                        dt_util.utcnow(),
+                    )
+                restores.append((entity_id, service, data))
+        return restores
+
+    def _is_target(
+        self, state: State, area_id: str, satellite_device_id: str | None
+    ) -> bool:
+        if state.state in INACTIVE_STATES:
+            return False
+        device_id = self._device_id(state.entity_id)
+        if satellite_device_id is not None and device_id == satellite_device_id:
+            return False
+        return area_id_for(self._hass, state.entity_id) == area_id
+
+    def _device_id(self, entity_id: str) -> str | None:
+        entry = er.async_get(self._hass).async_get(entity_id)
+        return entry.device_id if entry is not None else None
+
+    def _duck_plan(
+        self, state: State
+    ) -> tuple[tuple[str, dict[str, Any]], tuple[str, dict[str, Any]]] | None:
+        remembered = self._restored.pop(state.entity_id, None)
+        level = state.attributes.get(ATTR_MEDIA_VOLUME_LEVEL)
+        if level is not None:
+            if (
+                remembered is not None
+                and abs(level - self._duck_volume) <= DUCK_LEVEL_TOLERANCE
+                and dt_util.utcnow() - remembered[1] < timedelta(seconds=DUCK_TIMEOUT)
+            ):
+                level = remembered[0]
+            return (
+                (SERVICE_VOLUME_SET, {ATTR_MEDIA_VOLUME_LEVEL: level}),
+                (SERVICE_VOLUME_SET, {ATTR_MEDIA_VOLUME_LEVEL: self._duck_volume}),
+            )
+        features = state.attributes.get(ATTR_SUPPORTED_FEATURES) or 0
+        if (
+            features & MediaPlayerEntityFeature.PAUSE
+            and state.state == MediaPlayerState.PLAYING
+        ):
+            return ((SERVICE_MEDIA_PLAY, {}), (SERVICE_MEDIA_PAUSE, {}))
+        if features & MediaPlayerEntityFeature.VOLUME_MUTE and not state.attributes.get(
+            ATTR_MEDIA_VOLUME_MUTED
+        ):
+            return (
+                (SERVICE_VOLUME_MUTE, {ATTR_MEDIA_VOLUME_MUTED: False}),
+                (SERVICE_VOLUME_MUTE, {ATTR_MEDIA_VOLUME_MUTED: True}),
+            )
+        return None
+
+    async def _async_send(self, calls: list[Call]) -> None:
+        for entity_id, service, data in calls:
+            await self._hass.services.async_call(
+                MEDIA_PLAYER_DOMAIN,
+                service,
+                {ATTR_ENTITY_ID: entity_id, **data},
+                blocking=False,
+            )
+
+
+async def async_setup_ducking(hass: HomeAssistant, duck_volume: float) -> MediaDucker:
+    ducker = MediaDucker(hass, duck_volume)
+    ducker.start()
+    return ducker

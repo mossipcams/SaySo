@@ -37,6 +37,7 @@ from .client import LlamaCppClient, normalize_base_url
 from .const import (
     BACKEND_EMBEDDED,
     CONF_BACKEND,
+    CONF_DUCK_VOLUME,
     CONF_MAX_OUTPUT_TOKENS,
     CONF_MAX_TOOL_ITERATIONS,
     CONF_N_CTX,
@@ -47,6 +48,7 @@ from .const import (
     CONF_TRACE_MAX_INTERACTIONS,
     CONF_TRACE_RETENTION_DAYS,
     CONF_TRACE_STORE_UTTERANCES,
+    DEFAULT_DUCK_VOLUME,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_TOOL_ITERATIONS,
     DEFAULT_MODEL_FILENAME,
@@ -134,6 +136,7 @@ _OPTIONS: tuple[tuple[Any, str, Any, Any], ...] = (
         DEFAULT_TRACE_STORE_UTTERANCES,
         BooleanSelector(),
     ),
+    (vol.Required, CONF_DUCK_VOLUME, DEFAULT_DUCK_VOLUME, _number(0, 1, 0.01)),
 )
 
 _OPTION_DEFAULTS: dict[str, Any] = {key: default for _m, key, default, _s in _OPTIONS}
