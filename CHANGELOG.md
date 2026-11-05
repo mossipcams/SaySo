@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.20.0](https://github.com/mossipcams/SaySo/compare/1.19.0...1.20.0) (2026-11-05)
+
+
+### Features
+
+* **integration:** duck media players while a satellite listens ([a7e4ce2](https://github.com/mossipcams/SaySo/commit/a7e4ce2d1e24322aed0626786b6217e49e710067))
+* **wake:** livekit-wakeword v2 on local Piper + v10u/v10v/eval tools ([d7e4d06](https://github.com/mossipcams/SaySo/commit/d7e4d06e230921a7ee2efe5919d04ff083b2b854))
+* **wake:** synthetic voices over TV for Koda TV-on wakes (v10t) ([b1ebc9a](https://github.com/mossipcams/SaySo/commit/b1ebc9a3f3c398b7e3c4ca7b8af81930a409d3ed))
+
+
+### Bug Fixes
+
+* **integration:** keep SaySo loading when the volume-step override fails to import ([189c971](https://github.com/mossipcams/SaySo/commit/189c9713bcf35f4cd8cf2efc0429cce82fcfd40d))
+
+
+### Documentation
+
+* **wake:** round 3 results, deploy v10u ensemble ([3701c7c](https://github.com/mossipcams/SaySo/commit/3701c7c254cf7026c8c96921478b8243714a883a))
+
 ## [1.19.0](https://github.com/mossipcams/SaySo/compare/1.18.0...1.19.0) (2026-11-04)
 
 
