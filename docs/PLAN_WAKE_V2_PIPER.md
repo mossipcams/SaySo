@@ -68,14 +68,50 @@ Out of scope: the VM run scripts (`run_x*.sh`, `chain.sh`), the one-off
 diagnostics (`hop_gap.py`, `fa_hop40.py`, superseded by `wake_eval_audio.py`),
 satellite runtime changes, deploys, and threshold changes.
 
-## Next (after this commit)
+## Results (2026-11-05)
 
-- Add VoxCPM2 as a second local TTS for v2 (Apache-2.0, already in the venv,
-  weights in `koda-phonics-v3-20261008/data/voxcpm/VoxCPM2`). Clone LibriSpeech
-  speakers and the user's real Kodas, and check the /koʊdə/ pronunciation
-  first. Compare v2+Piper vs v2+Piper+VoxCPM2.
-- Finish v10u/v10x evals. Round 2 combines v10v with whichever helps, targeting
-  the "Hello." fire.
+All runs use the v10t2 recipe (seed 7) with one change. Each ensemble is the
+new model + v10k + v10l. Thresholds are 0.65. FA is on the 2 h holdout TV at
+the 80 ms hop.
+
+| | deployed 10t2 | **10u** | 10v | 10w (10u+10v data) | 10u+10v (4 members) | v2a (v2, Piper) | v2b (v2, +VoxCPM2) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Voice x TV -48..-38 / -38..-28 / -28..-18 (n=132 each) | 108 / 100 / 65 | **117 / 104 / 70** | 116 / 106 / 85 | 119 / 102 / 81 | 115 / 104 / 74 | 116 / 106 / 89 | lower |
+| TV-on, expected (n=7) | 4.25 | **4.56** | 4.94 | 5.25 | 4.62 | 5.25 | 2.81 |
+| Quiet room, expected (n=16) | 9.19 | **9.38** | 9.44 | 9.31 | 9.62 | 8.94 | 4.25 |
+| FA/h at 0.35 / 0.45 / 0.55 / 0.65 | 2 / 1 / 0 / 0 | **0 / 0 / 0 / 0** | 2.5 / 2 / 0.5 / 0 | 1 / 0 / 0 / 0 | 0.5 / 0.5 / 0 / 0 | 19 / 10.5 / 5 / 2 | 19 / 10 / 5 / 2 |
+| Quiet-room "Hello." (f5a1d96e) score | 0.52 | 0.54 | 0.67 (fires) | 0.69 (fires) | - | - | - |
+
+- **v10u wins on every row and is deployed.** It adds 1264 hard negatives
+  mined from the train TV hours (`scripts/wake_mine_tv_hard.py`).
+- **v10v and v10w buy loud-TV recall at the cost of the "Hello." fire.** The
+  shift-jittered positives cause it. At 0.75 the fire goes away, but recall
+  falls back to the deployed level.
+- **v10x** (TTS-over-TV v2 staging) ties the deployed ensemble.
+- **livekit-wakeword v2 (v2a) has strong recall** but 2 FA/h on our TV, with
+  top holdout score 0.83. It saw only 1.6 h of generated data and none of our
+  TV.
+- **v2b is worse.** It adds VoxCPM2 voices to about 30% of the voice pool:
+  LibriSpeech and user clones plus voice design, with a CTC gate keeping only
+  /k o d a/ readings. The likely cause is that the user-voice clones also
+  speak hard negatives ("Kawda", "Kowda"), which match how the user actually
+  says Koda. Leave user clones out of negatives if v2 is retried.
+
+## Deployed (2026-11-05, 5:21 AM CT)
+
+`/opt/sayso-satellite/models/koda-phonics-ens-10u-10k-10l-20261105.onnx`
+(sha256 `e0e7268f…`, v10u + v10k + v10l), threshold 0.65. It takes about 7 ms
+per window on the Pi. Config backup:
+`/etc/sayso-satellite/config.yaml.bak-pre-ens-10u-20261105`.
+
+Rollback: point `wake_word.model` back at
+`koda-phonics-ens-10t2-10k-10l-20261104.onnx` and restart `sayso-satellite`.
+
+## Next
+
+- Live Pi test: Kodas with the TV on, Kodas in a quiet room, and 1 h of TV
+  with nobody speaking.
+- v2 needs our TV hours as negatives before it can compete on false wakes.
 
 ## Verification
 

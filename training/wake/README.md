@@ -248,6 +248,22 @@ alone has 0.5 false wakes/h at 0.65. Ship them only inside an ensemble.
   over three holdout-TV bands (the realtv draws and seeds), TV-on and quiet
   records at 16 hop phases, 1000 raw TTS clips, holdout TV FA/h at 80 and 40 ms.
 
+## Round 3 result: mined TV hard negatives (v10u)
+
+- v10u = the v10t2 recipe (seed 7) + 1264 hard negatives mined from the train
+  TV hours with `scripts/wake_mine_tv_hard.py`.
+- Ensemble 10u+10k+10l at 0.65 vs deployed 10t2+10k+10l:
+  - Real voice x holdout TV (n=132 each): 117/104/70 vs 108/100/65.
+  - TV-on expected (n=7): 4.56 vs 4.25. Quiet room expected (n=16): 9.38 vs 9.19.
+  - Holdout TV false wakes/h at 0.35/0.45/0.55/0.65: 0/0/0/0 vs 2/1/0/0.
+- Deployed on the Pi 2026-11-05 as
+  `/opt/sayso-satellite/models/koda-phonics-ens-10u-10k-10l-20261105.onnx`
+  at threshold 0.65.
+- Rollback: point `wake_word.model` back at
+  `koda-phonics-ens-10t2-10k-10l-20261104.onnx` and restart `sayso-satellite`.
+- Shift-jittered positives (v10v/v10w) and livekit-wakeword v2 (v2a/v2b) were
+  tried and lost. Full table: [PLAN_WAKE_V2_PIPER](../../docs/PLAN_WAKE_V2_PIPER.md).
+
 ## livekit-wakeword v2 on local TTS (no LiveKit Cloud)
 
 livekit-wakeword 0.2.1 (v2 trainer) normally synthesizes positives with LiveKit
