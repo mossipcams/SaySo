@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 import pytest
@@ -131,3 +132,21 @@ async def test_registered_handler_keeps_ha_tool_schema(hass: HomeAssistant) -> N
     assert isinstance(handler, StepVolumeRelativeHandler)
     assert isinstance(handler, MediaSetVolumeRelativeHandler)
     assert handler.slot_schema is MediaSetVolumeRelativeHandler.slot_schema
+
+
+async def test_volume_step_import_failure_logs_and_keeps_ha_handler(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setitem(sys.modules, "custom_components.sayso.volume_step", None)
+
+    await _async_setup_players(hass, [])
+
+    assert any(
+        record.levelname == "ERROR"
+        and "Volume step fallback disabled" in record.getMessage()
+        for record in caplog.records
+    )
+    handler = hass.data[intent.DATA_KEY][INTENT_SET_VOLUME_RELATIVE]
+    assert type(handler) is MediaSetVolumeRelativeHandler
