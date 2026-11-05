@@ -163,3 +163,71 @@ At threshold 0.65:
 
 See [docs/PLAN_WAKE_TV_ENSEMBLE.md](../../docs/PLAN_WAKE_TV_ENSEMBLE.md) for the
 run-up, the open quiet-room gap, and the Pi deploy steps.
+
+## Prefix negatives
+
+`scripts/wake_stage_prefix.py` cuts raw TTS Kodas at 35-70% of the spoken
+span ("Ko".."Kod", final vowel dropped), runs them through LiveKit's augmentor,
+end-aligns them like positives, and writes `prefix_negative_features_train.npy`
+for appending to a run's `negative_features_train.npy`. End alignment matters:
+v9b scores a raw Koda ~0.9 at the window end and ~0.02 mid-window, despite
+`common_window: true` in its recipe.
+
+2026-11-04, 5,000 v6 clips, threshold 0.65 (full-word control: v9b 85.5%,
+ensemble 87.2%):
+
+| prefix kept | v9b fires | ensemble fires |
+| --- | --- | --- |
+| 35-50% | 14.5% | 14.6% |
+| 50-60% | 34.7% | 36.2% |
+| 60-70% | 50.2% | 51.8% |
+
+v10r (v9b recipe + these 5,000 rows in the adversarial negatives, one seed;
+`run_v10r.sh` on the VM) at 0.65, with held-out prefixes cut from `positive_test`:
+
+| | v9b | v10r | ens 9b+10k+10l | ens 10r+10k+10l |
+| --- | --- | --- | --- | --- |
+| Held-out prefixes fired (35-50 / 50-60 / 60-70%) | 15 / 31 / 51% | 0.2 / 0 / 2.7% | 12 / 28 / 52% | 0.5 / 1.9 / 12% |
+| Synthetic clean (n=1000) | 869 | 781 | 908 | 888 |
+| LiveKit FPPH | 0.31 | 0.04 | | |
+| Real room voice x TV -48..-38 / -38..-28 / -28..-18 (n=132 each) | 89 / 66 / 41 | 76 / 59 / 37 | 102 / 86 / 57 | 105 / 82 / 54 |
+| Real TV-on, user (n=7, expected) | 1.81 | 1.56 | 3.62 | 3.81 |
+| Quiet room, user (n=16, expected) | 10.12 | 9.75 | 9.44 | 9.56 |
+| Holdout TV false wakes (2 h) | 0 | 0 | 0 | 0 |
+| 2026-11-03 TV windows fired (n=1323) | 0 | 1 | 0 | 0 |
+
+Prefix negatives remove prefix firing but cost the single model ~10% synthetic
+recall and real-voice-over-TV recall in every band: it now waits for the final
+vowel, the phoneme TV masks most. In the ensemble the swap is a wash within
+noise. Not deployed; no real false wake has been traced to a prefix.
+
+## TV-on: synthetic voices over TV (v10t)
+
+v10t = v9b + 25,000 TTS Kodas over the train TV hours (positives) + 25,000 TTS
+"distant" phrases over the same TV (adversarial negatives). Staging:
+
+- `scripts/wake_stage_tts_tv.py`: end-aligned TTS, voice at -21..-11 dBFS
+  active, TV as recorded +(-3..+9) dB (levels independent), and TTS EQ'd onto
+  the room Kodas' average spectrum (`--match`).
+- `scripts/wake_tts_distant.py`: Piper TTS of 1-3 word chunks from the train
+  TV hours' ASR, keeping only chunks more than 2 phone edits from K OW D AH.
+
+Don't pair the TV positives with near-miss words over TV (v10s). The frozen
+embedding can't tell Koda from its near-misses under TV (probe AUC 0.78 vs 0.96
+clean), so the model rejects all of it.
+
+Two seeds (v10t default 42, v10t2 seed 7) at 0.65; each ensemble swaps the
+new model in for v9b alongside v10k + v10l:
+
+| | deployed 9b+10k+10l | 10t+10k+10l | 10t2+10k+10l |
+| --- | --- | --- | --- |
+| Real room voice x holdout TV -48..-38 / -38..-28 / -28..-18 (n=132 each) | 102 / 86 / 57 | 112 / 100 / 65 | 108 / 100 / 65 |
+| Real TV-on, user (n=7, expected) | 3.62 | 3.94 | 4.25 |
+| Quiet room, user (n=16, expected) | 9.44 | 9.38 | 9.19 |
+| Synthetic clean (n=1000) | 908 | 901 | 901 |
+| Holdout TV false wakes/h at 0.65 / 0.55 (2 h) | 0 / 0 | 0 / 0.5 | 0 / 0 |
+| 2026-11-03 TV windows fired (n=1323) | 0 | 0 | 0 |
+| Room speech over holdout TV fired (n=327) | 0 | 0 | 0 |
+
+Single v10t/v10t2 models reach the deployed ensemble's TV-on numbers, but v10t2
+alone has 0.5 false wakes/h at 0.65. Ship them only inside an ensemble.
