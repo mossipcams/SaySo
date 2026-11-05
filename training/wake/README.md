@@ -231,3 +231,61 @@ new model in for v9b alongside v10k + v10l:
 
 Single v10t/v10t2 models reach the deployed ensemble's TV-on numbers, but v10t2
 alone has 0.5 false wakes/h at 0.65. Ship them only inside an ensemble.
+
+## Round 3 staging and eval tools
+
+- `scripts/wake_stage_shift.py` (v10v): each real Koda window (361 v6b clips)
+  shifted left by d ~ U(10, 160) ms, the gap filled with the window head.
+  Four variants per clip: 2 clean, 2 over TRAIN TV at -30..-16 dBFS. Out:
+  `staging/v10v/` (features `.npy` + manifest).
+- `scripts/wake_mine_tv_hard.py` (v10u): mines the TRAIN TV hours
+  (realneg `tv-20261008` + `podcast-tv-20261009`; holdout-tv is never touched)
+  with `lg_10t2_10k_10l` at the 80 ms hop. Keeps the top window per 1 s with
+  score >= 0.02, up to 6000 rows, re-featurised exactly. Out: `staging/v10u/`.
+- `scripts/wake_eval_audio.py MODEL...`: one audio-level eval for v1 heads
+  (`koda-phonics-NAME`, 16x96 windows every 80 ms) and v2 streaming ONNX (`*.onnx`,
+  1280-sample chunks + state) on identical audio. Sets: real room Kodas clean and
+  over three holdout-TV bands (the realtv draws and seeds), TV-on and quiet
+  records at 16 hop phases, 1000 raw TTS clips, holdout TV FA/h at 80 and 40 ms.
+
+## Round 3 result: mined TV hard negatives (v10u)
+
+- v10u = the v10t2 recipe (seed 7) + 1264 hard negatives mined from the train
+  TV hours with `scripts/wake_mine_tv_hard.py`.
+- Ensemble 10u+10k+10l at 0.65 vs deployed 10t2+10k+10l:
+  - Real voice x holdout TV (n=132 each): 117/104/70 vs 108/100/65.
+  - TV-on expected (n=7): 4.56 vs 4.25. Quiet room expected (n=16): 9.38 vs 9.19.
+  - Holdout TV false wakes/h at 0.35/0.45/0.55/0.65: 0/0/0/0 vs 2/1/0/0.
+- Deployed on the Pi 2026-11-05 as
+  `/opt/sayso-satellite/models/koda-phonics-ens-10u-10k-10l-20261105.onnx`
+  at threshold 0.65.
+- Rollback: point `wake_word.model` back at
+  `koda-phonics-ens-10t2-10k-10l-20261104.onnx` and restart `sayso-satellite`.
+- Shift-jittered positives (v10v/v10w) and livekit-wakeword v2 (v2a/v2b) were
+  tried and lost. Full table: [PLAN_WAKE_V2_PIPER](../../docs/PLAN_WAKE_V2_PIPER.md).
+
+## livekit-wakeword v2 on local TTS (no LiveKit Cloud)
+
+livekit-wakeword 0.2.1 (v2 trainer) normally synthesizes positives with LiveKit
+Cloud TTS, after a `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` check in
+`setup`. `scripts/wake_lk2_piper.py` is a shim, imported before the drivers, that
+patches bench's `Synthesizer.synthesize` to local Piper (`en-us-libritts-high`,
+cached per text/voice/speed), `load_voices` and `voices_for_language` to 800
+random Piper speaker/length combinations, `speed_kwargs` to Piper's
+`length_scale`, and `adversarial_phrases` to an empty list (bench's confusables
+target cloud TTS and split "Koda" into "ko da"). The drivers also force
+`phoneme_steered` to False, so text is plain, not bench's phoneme markup. The
+`LIVEKIT_*` values that `wake_lk2_setup.py` sets are dummies: they satisfy the
+check and are never sent.
+
+- Setup: `scripts/wake_lk2_setup.py DATA N_POS N_CONF N_SENT [--eval]`. PYTHONPATH
+  holds the dir with the shim, a dir containing only `livekit/wakeword_train`
+  (v2), bench's `src`, and the 0.2.1 livekit `src`, so `livekit.wakeword` is 0.2.1
+  with Piper.
+- Train: `scripts/wake_lk2_train.py DATA OUT N_POS N_CONF N_SENT STEPS [MODEL]`.
+  PYTHONPATH is v2's `client/python/src` then bench's `src`. The shim is not
+  loaded here.
+- Both: `HOME=/srv/llm/data/wake/lk2/home` (bench and Piper caches). Hard
+  negatives come from the recipe YAML (`--hard-yaml`, v10t2 by default).
+
+Plan and open items: [docs/PLAN_WAKE_V2_PIPER.md](../../docs/PLAN_WAKE_V2_PIPER.md).
