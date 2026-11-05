@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -80,7 +79,6 @@ async def async_setup_entry(
 
 @dataclass(slots=True)
 class _Turn:
-
     entry_id: str
     agent_id: str
     runtime: SaySoRuntimeData
@@ -164,9 +162,7 @@ class _Turn:
             )
         if not isinstance(err, SaySoError):
             raise err
-        _LOGGER.debug(
-            "trace_id=%s %s error: %s", self.trace.trace_id, log_label, err
-        )
+        _LOGGER.debug("trace_id=%s %s error: %s", self.trace.trace_id, log_label, err)
         return self.error(
             ERROR_MODEL_UNAVAILABLE,
             stage=Stage.INFERENCE,
@@ -250,7 +246,6 @@ class SaySoConversationEntity(
     conversation.ConversationEntity,
     conversation.AbstractConversationAgent,
 ):
-
     _attr_has_entity_name = True
     _attr_name = None
     _attr_supported_features = conversation.ConversationEntityFeature.CONTROL
@@ -489,9 +484,7 @@ class SaySoConversationEntity(
                     turn.messages, tools=_tools_of(turn.active_schema)
                 )
             except SaySoError as err:
-                return turn.model_failure(
-                    err, phase, log_label="llama.cpp follow-up"
-                )
+                return turn.model_failure(err, phase, log_label="llama.cpp follow-up")
 
             if follow_up.tool_calls:
                 if iteration >= turn.runtime.max_tool_iterations:
@@ -519,27 +512,34 @@ def _tools_of(
     return schema.tools if schema is not None else None
 
 
+def area_id_for(
+    hass: HomeAssistant,
+    entity_id: str | None,
+    device_id: str | None = None,
+) -> str | None:
+    entry = er.async_get(hass).async_get(entity_id) if entity_id else None
+    if entry is not None and getattr(entry, "area_id", None):
+        return entry.area_id
+    device_reg = dr.async_get(hass)
+    for candidate in (device_id, entry.device_id if entry is not None else None):
+        if not candidate:
+            continue
+        device = device_reg.async_get(candidate)
+        if device is not None and device.area_id:
+            return device.area_id
+    return None
+
+
 def _satellite_area_name(
     hass: HomeAssistant,
     user_input: conversation.ConversationInput,
 ) -> str | None:
-    device_reg = dr.async_get(hass)
-    device_ids = [user_input.device_id]
     satellite_id = getattr(user_input, "satellite_id", None)
-    if satellite_id:
-        satellite = er.async_get(hass).async_get(satellite_id)
-        if satellite is not None and satellite.device_id is not None:
-            device_ids.append(satellite.device_id)
-    for device_id in device_ids:
-        if not device_id:
-            continue
-        device = device_reg.async_get(device_id)
-        if device is None or device.area_id is None:
-            continue
-        area = ar.async_get(hass).async_get_area(device.area_id)
-        if area is not None:
-            return area.name
-    return None
+    area_id = area_id_for(hass, satellite_id, user_input.device_id)
+    if area_id is None:
+        return None
+    area = ar.async_get(hass).async_get_area(area_id)
+    return area.name if area is not None else None
 
 
 def _contract_failures(

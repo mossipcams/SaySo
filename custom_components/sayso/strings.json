@@ -58,10 +58,12 @@
           "max_tool_iterations": "Maximum tool iterations",
           "trace_retention_days": "Trace retention (days)",
           "trace_max_interactions": "Maximum stored interactions",
-          "trace_store_utterances": "Store transcribed utterances in traces"
+          "trace_store_utterances": "Store transcribed utterances in traces",
+          "duck_volume": "Duck volume"
         },
         "data_description": {
-          "model": "Choose a published SaySo model (downloaded and checksum-verified) or a .gguf file in /config/sayso/models; you can also type a path."
+          "model": "Choose a published SaySo model (downloaded and checksum-verified) or a .gguf file in /config/sayso/models; you can also type a path.",
+          "duck_volume": "Media players in the satellite's area are lowered to this volume while it listens. Players without a volume level are paused if playing, otherwise muted."
         }
       }
     },
