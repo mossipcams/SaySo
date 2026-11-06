@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.2](https://github.com/mossipcams/SaySo/compare/1.20.1...1.20.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **integration:** send earlier turns to the model only after a clarifying question ([5d6a1de](https://github.com/mossipcams/SaySo/commit/5d6a1dea16d5940adf9e722dd2230d2dec6ab4b4))
+
 ## [1.20.1](https://github.com/mossipcams/SaySo/compare/1.20.0...1.20.1) (2026-11-06)
 
 
