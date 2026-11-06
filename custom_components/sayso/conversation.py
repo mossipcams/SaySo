@@ -43,6 +43,7 @@ from .exceptions import (
     SaySoInvalidToolEnvelopeError,
     SaySoTimeoutError,
 )
+from .history import model_history
 from .routing import (
     build_routing_catalog,
     build_routing_preferences,
@@ -93,7 +94,7 @@ class _Turn:
 
     @property
     def messages(self) -> list[dict[str, Any]]:
-        messages = _chat_log_to_messages(self.chat_log.content)
+        messages = model_history(_chat_log_to_messages(self.chat_log.content))
         if self.area_context is None:
             return messages
         return apply_area_context(messages, self.area_context)

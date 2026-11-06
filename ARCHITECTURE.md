@@ -86,7 +86,10 @@ backed `ConversationEntity`.
 For each request, the integration:
 
 1. Receives the transcript or text, conversation history, request context, and
-   currently available tools from Home Assistant.
+   currently available tools from Home Assistant. The model receives earlier
+   turns only when SaySo's previous reply asked a question, matching Home
+   Assistant's `continue_conversation` rule; otherwise only the system prompt and
+   the current request.
 2. Compiles Home Assistant’s tool definitions into deterministic,
    OpenAI-compatible function schemas.
 3. Records a domain hint from Home Assistant entity, area, floor, and device
