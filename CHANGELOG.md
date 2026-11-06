@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.1](https://github.com/mossipcams/SaySo/compare/1.20.0...1.20.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **integration:** mute non-playing TVs instead of restoring stale volume ([a139728](https://github.com/mossipcams/SaySo/commit/a139728e244e8111bd9182dd69a1c65972c19579))
+
 ## [1.20.0](https://github.com/mossipcams/SaySo/compare/1.19.0...1.20.0) (2026-11-05)
 
 
