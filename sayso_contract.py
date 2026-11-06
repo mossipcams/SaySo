@@ -15,5 +15,6 @@ if _PACKAGE not in sys.modules:
 area_context = importlib.import_module(f"{_PACKAGE}.area_context")
 completion = importlib.import_module(f"{_PACKAGE}.completion")
 exceptions = importlib.import_module(f"{_PACKAGE}.exceptions")
+history = importlib.import_module(f"{_PACKAGE}.history")
 tool_contract = importlib.import_module(f"{_PACKAGE}.tool_contract")
 tool_schema = importlib.import_module(f"{_PACKAGE}.tool_schema")
