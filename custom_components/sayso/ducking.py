@@ -187,7 +187,7 @@ class MediaDucker:
     ) -> tuple[tuple[str, dict[str, Any]], tuple[str, dict[str, Any]]] | None:
         remembered = self._restored.pop(state.entity_id, None)
         level = state.attributes.get(ATTR_MEDIA_VOLUME_LEVEL)
-        if level is not None:
+        if level is not None and state.state == MediaPlayerState.PLAYING:
             if (
                 remembered is not None
                 and abs(level - self._duck_volume) <= DUCK_LEVEL_TOLERANCE

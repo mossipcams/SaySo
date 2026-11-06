@@ -430,3 +430,37 @@ async def test_device_area_fallback_and_later_added_satellite(
     await ducker.async_teardown()
     await hass.async_block_till_done()
     assert _data(volume_calls)[-1] == {"entity_id": tv, "volume_level": 0.5}
+
+
+async def test_on_state_tv_with_stale_volume_level_is_muted_not_set(
+    hass: HomeAssistant,
+) -> None:
+    kitchen = _area(hass, "Kitchen")
+    satellite = _register(hass, "assist_satellite", "kitchen_sat", area_id=kitchen)
+    tv = _register(hass, "media_player", "kitchen_tv", area_id=kitchen)
+    await _set(hass, satellite, "idle")
+    await _set(
+        hass,
+        tv,
+        "on",
+        {
+            ATTR_MEDIA_VOLUME_LEVEL: 0.19,
+            ATTR_MEDIA_VOLUME_MUTED: False,
+            ATTR_SUPPORTED_FEATURES: (
+                MediaPlayerEntityFeature.VOLUME_SET
+                | MediaPlayerEntityFeature.VOLUME_MUTE
+            ),
+        },
+    )
+    volume_calls = async_mock_service(hass, "media_player", "volume_set")
+    mute_calls = async_mock_service(hass, "media_player", "volume_mute")
+    await async_setup_ducking(hass, 0.02)
+
+    await _set(hass, satellite, "listening")
+    assert volume_calls == []
+    assert _data(mute_calls) == [{"entity_id": tv, ATTR_MEDIA_VOLUME_MUTED: True}]
+
+    await _set(hass, satellite, "idle")
+    assert _data(mute_calls)[-1] == {"entity_id": tv, ATTR_MEDIA_VOLUME_MUTED: False}
+    assert volume_calls == []
+    assert len(mute_calls) == 2
