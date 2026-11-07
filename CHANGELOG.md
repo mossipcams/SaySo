@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.3](https://github.com/mossipcams/SaySo/compare/1.20.2...1.20.3) (2026-11-07)
+
+
+### Bug Fixes
+
+* **wake:** score every wake window on the Pi satellite ([8ddd013](https://github.com/mossipcams/SaySo/commit/8ddd013698064462dd6abfc695274e125e0ee646))
+
 ## [1.20.2](https://github.com/mossipcams/SaySo/compare/1.20.1...1.20.2) (2026-11-06)
 
 
