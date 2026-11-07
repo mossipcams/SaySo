@@ -36,6 +36,32 @@ def single_threaded_ort() -> Iterator[None]:
     finally:
         ort.InferenceSession = original
 
+
+def rebuild_embedding_session(session: Any) -> Optional[Any]:
+    try:
+        import onnxruntime as ort
+
+        base = session.get_session_options()
+        model = getattr(session, "_model_bytes", None)
+        if model is None:
+            model = getattr(session, "_model_path", None)
+        if model is None:
+            return None
+    except Exception:
+        return None
+    opts = base if base is not None else ort.SessionOptions()
+    opts.intra_op_num_threads = 2
+    opts.inter_op_num_threads = 1
+    opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
+    try:
+        return ort.InferenceSession(
+            model, sess_options=opts, providers=["CPUExecutionProvider"]
+        )
+    except Exception:
+        return None
+
+
 EMBEDDING_WINDOW = 76
 EMBEDDING_STRIDE = 8
 MIN_EMBEDDINGS = 16

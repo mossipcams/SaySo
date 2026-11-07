@@ -11,7 +11,11 @@ import numpy as np
 from .buffer import WakeAudioBuffer
 from .detection import Detection
 from .mining import HardNegativeMiner
-from .streaming import CachedEmbeddingScorer, single_threaded_ort
+from .streaming import (
+    CachedEmbeddingScorer,
+    rebuild_embedding_session,
+    single_threaded_ort,
+)
 from .verifier import WakeVerifier, load_wake_verifier
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,6 +77,7 @@ class LiveKitWakeWordProvider:
 
             with single_threaded_ort():
                 self._model = WakeWordModel(models=[str(self._model_path)])
+            self._retune_embedding_session()
             self._scorer = CachedEmbeddingScorer(self._model)
             self._score_key = self._model_path.stem
             self._available = True
@@ -85,6 +90,23 @@ class LiveKitWakeWordProvider:
             _LOGGER.exception("Failed to load LiveKit wake model %s (fail closed)", self._model_path)
             self._model = None
             self._available = False
+
+    def _retune_embedding_session(self) -> None:
+        wrapper: Any = getattr(self._model, "_speech_embedding", None)
+        session = getattr(wrapper, "_session", None)
+        if session is None:
+            _LOGGER.warning(
+                "Speech-embedding ONNX session not found; keeping the single-threaded session"
+            )
+            return
+        replacement = rebuild_embedding_session(session)
+        if replacement is None:
+            _LOGGER.warning(
+                "Could not rebuild the speech-embedding ONNX session with 2 threads; "
+                "keeping the single-threaded session"
+            )
+            return
+        wrapper._session = replacement
 
     def _load_verifier_factory(self, factory: Callable[[], Any]) -> None:
         if not self._available:

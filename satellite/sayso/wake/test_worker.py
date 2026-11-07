@@ -1,19 +1,90 @@
-
 from __future__ import annotations
 
 import threading
+import time
 from types import SimpleNamespace
 
 import numpy as np
 
-from satellite.sayso.wake.worker import LatestWindowQueue, WakeInferenceWorker
+from satellite.sayso.wake.worker import FifoWindowQueue, WakeInferenceWorker
 
 
-def test_latest_window_queue_replaces_stale_window() -> None:
-    queue = LatestWindowQueue()
+def test_fifo_queue_keeps_order_and_does_not_drop_below_capacity() -> None:
+    queue = FifoWindowQueue()
+    for i in range(25):
+        queue.offer(np.array([i], dtype=np.int16), 100 + i)
+    assert queue.dropped == 0
+    taken = [queue.take(timeout=0.1) for _ in range(25)]
+    assert all(job is not None for job in taken)
+    assert [int(job[0][0]) for job in taken] == list(range(25))
+    assert [job[1] for job in taken] == [100 + i for i in range(25)]
+
+
+def test_fifo_queue_stores_independent_copy() -> None:
+    queue = FifoWindowQueue()
+    source = np.array([1, 2, 3], dtype=np.int16)
+    queue.offer(source)
+    source[...] = 9
+    window, _index = queue.take(timeout=0.1)
+    assert list(window) == [1, 2, 3]
+
+
+def test_fifo_queue_drops_oldest_when_full() -> None:
+    queue = FifoWindowQueue(capacity=3)
+    for i in range(5):
+        queue.offer(np.array([i], dtype=np.int16))
+    assert queue.dropped == 2
+    taken = [int(queue.take(timeout=0.1)[0][0]) for _ in range(3)]
+    assert taken == [2, 3, 4]
+
+
+def test_fifo_queue_clear_empties() -> None:
+    queue = FifoWindowQueue()
     queue.offer(np.array([1], dtype=np.int16))
-    queue.offer(np.array([2], dtype=np.int16))
-    assert queue.take(timeout=0.1)[0] == 2
+    queue.clear()
+    assert queue.take(timeout=0.1) is None
+
+
+def test_worker_clear_empties_pending_windows() -> None:
+    started = threading.Event()
+
+    def predict(_window: np.ndarray):
+        started.set()
+        return None
+
+    worker = WakeInferenceWorker(predict, poll_timeout=0.5)
+    worker.submit(np.array([1], dtype=np.int16))
+    worker.clear()
+    worker.start(lambda _detection: None)
+    try:
+        assert not started.wait(timeout=0.3)
+    finally:
+        worker.shutdown()
+
+
+def test_slow_predict_scores_every_window_in_order() -> None:
+    seen: list[tuple[int, int | None]] = []
+    calls = {"n": 0}
+
+    def predict(window: np.ndarray, sample_index: int | None = None):
+        calls["n"] += 1
+        time.sleep(0.27 if calls["n"] % 10 == 0 else 0.04)
+        seen.append((int(window[0]), sample_index))
+        return None
+
+    worker = WakeInferenceWorker(predict, poll_timeout=0.05)
+    worker.start(lambda _detection: None)
+    try:
+        for i in range(100):
+            window = np.array([i], dtype=np.int16)
+            worker.submit(window, 200 * i)
+            time.sleep(0.064)
+        deadline = time.monotonic() + 20.0
+        while len(seen) < 100 and time.monotonic() < deadline:
+            time.sleep(0.05)
+    finally:
+        worker.shutdown()
+    assert seen == [(i, 200 * i) for i in range(100)]
 
 
 def test_worker_runs_predict_off_capture_thread() -> None:

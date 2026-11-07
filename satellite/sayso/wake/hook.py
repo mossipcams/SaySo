@@ -56,6 +56,7 @@ class SaySoExternalWakeHook:
         self._suspended = False
         self._get_satellite: Callable[[], Any] | None = None
         self._detection_index: int | None = None
+        self._wake_boundary: int | None = None
 
     def bind_satellite(self, getter: Callable[[], Any]) -> None:
         self._get_satellite = getter
@@ -74,10 +75,12 @@ class SaySoExternalWakeHook:
 
     def suspend(self) -> None:
         self._suspended = True
+        self._mark_wake_boundary()
         self._provider.suspend()
 
     def resume(self) -> None:
         self._suspended = False
+        self._mark_wake_boundary()
         self._provider.resume()
 
     def rearm(self) -> None:
@@ -89,7 +92,12 @@ class SaySoExternalWakeHook:
         self._ring.reset()
         self._detection_index = None
         self._provider.reset()
+        self._mark_wake_boundary()
         self.resume()
+
+    def _mark_wake_boundary(self) -> None:
+        self._worker.clear()
+        self._wake_boundary = self._ring.end_index
 
     def discard_detection(self) -> None:
         self._detection_index = None
@@ -155,6 +163,19 @@ class SaySoExternalWakeHook:
             satellite.handle_audio(pending, None)
 
     def _on_detection(self, detection: Detection) -> None:
+        if (
+            detection.sample_index is not None
+            and self._wake_boundary is not None
+            and detection.sample_index <= self._wake_boundary
+        ):
+            if self._miner is not None and self._miner.latest_detection_capture_id is not None:
+                self._miner.publish_wake_outcome(
+                    self._miner.latest_detection_capture_id,
+                    accepted=False,
+                    suppressed=True,
+                    reason="stale_before_wake_boundary",
+                )
+            return
         if detection.sample_index is not None:
             self._detection_index = detection.sample_index
             if self._miner is not None:

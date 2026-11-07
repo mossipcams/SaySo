@@ -1,9 +1,9 @@
-
 from __future__ import annotations
 
 import logging
 import queue
 import threading
+import time
 from inspect import Parameter, signature
 from typing import Callable, Optional
 
@@ -24,26 +24,51 @@ def _accepts_sample_index(predict: Callable[..., Optional[Detection]]) -> bool:
     return any(p.kind is Parameter.VAR_KEYWORD for p in params.values())
 
 
-class LatestWindowQueue:
-
-    def __init__(self) -> None:
-        self._queue: queue.Queue[tuple[np.ndarray, int | None]] = queue.Queue(maxsize=1)
+class FifoWindowQueue:
+    def __init__(self, capacity: int = 25) -> None:
+        self._queue: queue.Queue[tuple[np.ndarray, int | None]] = queue.Queue(
+            maxsize=capacity
+        )
         self._lock = threading.Lock()
+        self._dropped = 0
+        self._last_drop_log = 0.0
 
     def offer(self, window: np.ndarray, sample_index: int | None = None) -> None:
+        with self._lock:
+            if self._queue.full():
+                try:
+                    self._queue.get_nowait()
+                except queue.Empty:
+                    pass
+                self._dropped += 1
+                now = time.monotonic()
+                if now - self._last_drop_log >= 1.0:
+                    _LOGGER.warning(
+                        "wake window dropped; total dropped %d", self._dropped
+                    )
+                    self._last_drop_log = now
+            self._queue.put_nowait((np.array(window), sample_index))
+
+    def take(
+        self, timeout: float | None = None
+    ) -> Optional[tuple[np.ndarray, int | None]]:
+        try:
+            return self._queue.get(timeout=timeout)
+        except queue.Empty:
+            return None
+
+    def clear(self) -> None:
         with self._lock:
             while True:
                 try:
                     self._queue.get_nowait()
                 except queue.Empty:
                     break
-            self._queue.put_nowait((window, sample_index))
 
-    def take(self, timeout: float | None = None) -> Optional[tuple[np.ndarray, int | None]]:
-        try:
-            return self._queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
+    @property
+    def dropped(self) -> int:
+        with self._lock:
+            return self._dropped
 
 
 class WakeInferenceWorker:
@@ -55,7 +80,7 @@ class WakeInferenceWorker:
     ) -> None:
         self._predict = predict
         self._poll_timeout = poll_timeout
-        self._queue = LatestWindowQueue()
+        self._queue = FifoWindowQueue()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._on_detection: Callable[[Detection], None] | None = None
@@ -64,7 +89,9 @@ class WakeInferenceWorker:
     def start(self, on_detection: Callable[[Detection], None]) -> None:
         self._on_detection = on_detection
         self._stop.clear()
-        self._thread = threading.Thread(target=self._run, name="sayso-wake-worker", daemon=True)
+        self._thread = threading.Thread(
+            target=self._run, name="sayso-wake-worker", daemon=True
+        )
         self._thread.start()
 
     def shutdown(self) -> None:
@@ -75,6 +102,13 @@ class WakeInferenceWorker:
 
     def submit(self, window: np.ndarray, sample_index: int | None = None) -> None:
         self._queue.offer(window, sample_index)
+
+    def clear(self) -> None:
+        self._queue.clear()
+
+    @property
+    def dropped_count(self) -> int:
+        return self._queue.dropped
 
     def _run(self) -> None:
         while not self._stop.is_set():

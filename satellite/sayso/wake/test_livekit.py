@@ -1,9 +1,11 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 import time
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -301,3 +303,96 @@ def test_predict_window_wall_clock_refractory_without_sample_index(
 
     assert first is not None
     assert second is None
+
+
+def _classifier_onnx_candidates() -> list[Path]:
+    models_dir = _SATELLITE_ROOT / "models"
+    if not models_dir.is_dir():
+        return []
+    return [
+        path
+        for path in sorted(models_dir.glob("*.onnx"))
+        if "mel" not in path.name.lower() and "embedding" not in path.name.lower()
+    ]
+
+
+def test_live_model_embedding_session_uses_two_threads(tmp_path: Path) -> None:
+    pytest.importorskip("livekit")
+    candidates = _classifier_onnx_candidates()
+    if not candidates:
+        pytest.skip("no livekit wake classifier .onnx in satellite/models")
+
+    provider = LiveKitWakeWordProvider(
+        model_path=candidates[0],
+        phrase="koda",
+        threshold=0.99,
+    )
+    if not provider.available:
+        pytest.skip("livekit wake model failed to load")
+
+    model: Any = provider._model
+    embedding_opts = model._speech_embedding._session.get_session_options()
+    assert embedding_opts.intra_op_num_threads == 2
+    assert embedding_opts.inter_op_num_threads == 1
+    assert (
+        embedding_opts.get_session_config_entry("session.intra_op.allow_spinning")
+        == "0"
+    )
+
+    mel_opts = provider._model._mel_frontend._onnx_session.get_session_options()
+    assert mel_opts.intra_op_num_threads == 1
+    assert mel_opts.inter_op_num_threads == 1
+
+    classifier_sessions = [
+        session for session, _ in provider._model._classifiers.values()
+    ]
+    assert classifier_sessions, "no classifier sessions loaded"
+    for session in classifier_sessions:
+        opts = session.get_session_options()
+        assert opts.intra_op_num_threads == 1
+        assert opts.inter_op_num_threads == 1
+
+
+def test_missing_embedding_session_falls_back_to_single_threaded(
+    mock_wake_model: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    model_path = tmp_path / "hey_ferra.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    _attach_cached_scorer_internals(mock_wake_model)
+    embedding = mock_wake_model._speech_embedding
+
+    with caplog.at_level(logging.WARNING, logger="sayso.wake.livekit"):
+        provider = LiveKitWakeWordProvider(
+            model_path=model_path,
+            phrase="hey ferra",
+            threshold=0.99,
+        )
+
+    assert provider.available
+    assert mock_wake_model._speech_embedding is embedding
+    assert any("not found" in message for message in caplog.messages)
+
+
+def test_unrebuildable_embedding_session_keeps_single_threaded(
+    mock_wake_model: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    model_path = tmp_path / "hey_ferra.onnx"
+    model_path.write_bytes(b"fake-onnx")
+    _attach_cached_scorer_internals(mock_wake_model)
+    session = MagicMock(name="fake-ort-session")
+    mock_wake_model._speech_embedding._session = session
+
+    with caplog.at_level(logging.WARNING, logger="sayso.wake.livekit"):
+        provider = LiveKitWakeWordProvider(
+            model_path=model_path,
+            phrase="hey ferra",
+            threshold=0.99,
+        )
+
+    assert provider.available
+    assert mock_wake_model._speech_embedding._session is session
+    assert any("2 threads" in message for message in caplog.messages)
