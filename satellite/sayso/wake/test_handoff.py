@@ -11,7 +11,12 @@ from unittest.mock import MagicMock
 import numpy as np
 
 from satellite.sayso.config import WakeWordCfg
-from satellite.sayso.wake.hook import DEFAULT_WAKE_SKIP_MS, SaySoExternalWakeHook
+from satellite.sayso.wake.detection import Detection
+from satellite.sayso.wake.hook import (
+    DEFAULT_WAKE_SKIP_MS,
+    SaySoExternalWakeHook,
+    wake_ring_capacity,
+)
 from satellite.sayso.wake.livekit import HOP_SAMPLES, SAMPLE_RATE, WINDOW_SAMPLES
 from satellite.sayso.wake.mining import HardNegativeMiner
 
@@ -298,3 +303,95 @@ def test_detection_post_context_survives_rearm(tmp_path: Path) -> None:
     post = _read_wav(record / "post.wav")
     assert post.size == SAMPLE_RATE * 2
     np.testing.assert_array_equal(post, audio[sample_end : sample_end + SAMPLE_RATE * 2])
+
+
+MAX_SUPPORTED_WAKE_SKIP_MS = OBSERVED_VAD_LATCH_BURST_MS
+WORKER_QUEUE_LAG_MS = 25 * HOP_SAMPLES * 1000 // SAMPLE_RATE
+
+
+def _wake_hook(wake_skip_ms: int = 500) -> tuple[SaySoExternalWakeHook, _RecordingSatellite]:
+    provider = MagicMock(available=True)
+    provider.predict_window.return_value = None
+    hook = SaySoExternalWakeHook(provider, preroll_ms=1000, wake_skip_ms=wake_skip_ms)
+    satellite = _RecordingSatellite()
+    hook.bind_satellite(lambda: satellite)
+    return hook, satellite
+
+
+def _detection(sample_index: int) -> Detection:
+    return Detection(phrase="SaySo", confidence=0.9, timestamp=0.0, sample_index=sample_index)
+
+
+def test_wake_ring_holds_queue_lag_skip_and_preroll() -> None:
+    preroll_ms = 2000
+    required = (WORKER_QUEUE_LAG_MS + MAX_SUPPORTED_WAKE_SKIP_MS + preroll_ms) * SAMPLE_RATE // 1000
+    assert wake_ring_capacity(preroll_ms) >= required
+
+
+def test_rearm_clears_pending_windows() -> None:
+    hook, _ = _wake_hook()
+    hook._worker.submit(np.zeros(WINDOW_SAMPLES, dtype="<i2"), WINDOW_SAMPLES)
+    hook.rearm()
+    assert hook._worker._queue.take(timeout=0.0) is None
+
+
+def test_detection_at_or_before_rearm_boundary_does_not_wake() -> None:
+    hook, satellite = _wake_hook()
+    state = SimpleNamespace(satellite=satellite)
+    hook.feed_pcm(state, np.zeros(WINDOW_SAMPLES, dtype="<i2").tobytes())
+    boundary = hook._ring.end_index
+    hook.rearm()
+
+    hook._on_detection(_detection(boundary))
+    hook._on_detection(_detection(boundary - HOP_SAMPLES))
+
+    assert satellite.wakeups == []
+    assert hook.last_detection_index is None
+
+
+def test_detection_after_rearm_boundary_still_wakes() -> None:
+    hook, satellite = _wake_hook()
+    state = SimpleNamespace(satellite=satellite)
+    hook.feed_pcm(state, np.zeros(WINDOW_SAMPLES, dtype="<i2").tobytes())
+    hook.rearm()
+    hook.feed_pcm(state, np.zeros(HOP_SAMPLES, dtype="<i2").tobytes())
+
+    hook._on_detection(_detection(hook._ring.end_index))
+
+    assert len(satellite.wakeups) == 1
+
+
+def test_suspend_and_resume_clear_pending_windows_and_bound_detections() -> None:
+    hook, satellite = _wake_hook()
+    state = SimpleNamespace(satellite=satellite)
+    hook.feed_pcm(state, np.zeros(WINDOW_SAMPLES, dtype="<i2").tobytes())
+    boundary = hook._ring.end_index
+    hook.suspend()
+    assert hook._worker._queue.take(timeout=0.0) is None
+
+    hook.resume()
+    hook._on_detection(_detection(boundary))
+
+    assert satellite.wakeups == []
+
+
+def test_detection_delivered_after_queue_lag_keeps_command_onset() -> None:
+    hook, satellite = _wake_hook(DEFAULT_WAKE_SKIP_MS)
+    satellite._is_streaming_audio = False
+    state = SimpleNamespace(satellite=satellite)
+    window_end = WINDOW_SAMPLES
+    total = window_end + WORKER_QUEUE_LAG_MS * SAMPLE_RATE // 1000
+    ramp = (np.arange(total) % 30000).astype("<i2")
+    hook.feed_pcm(state, ramp[:window_end].tobytes())
+    hook.feed_pcm(state, ramp[window_end:].tobytes())
+
+    hook._on_detection(_detection(window_end))
+    result = hook.flush_preroll(satellite)
+
+    lookback = DEFAULT_WAKE_SKIP_MS * SAMPLE_RATE // 1000
+    assert len(satellite.wakeups) == 1
+    assert result.underflow is False
+    assert result.start_index == window_end - lookback
+    assert np.array_equal(
+        np.frombuffer(result.pcm, dtype="<i2"), ramp[window_end - lookback : total]
+    )
