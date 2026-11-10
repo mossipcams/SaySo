@@ -289,12 +289,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
         await engine.async_shutdown()
         raise
 
-    from .ducking import async_setup_ducking
+    from .ducking import async_release_ducking, async_setup_ducking
 
-    ducker = await async_setup_ducking(
+    await async_setup_ducking(
         hass, float(options.get(CONF_DUCK_VOLUME, DEFAULT_DUCK_VOLUME))
     )
-    entry.async_on_unload(ducker.async_teardown)
+    entry.async_on_unload(async_release_ducking(hass))
 
     entry.runtime_data = SaySoRuntimeData(
         engine=engine,
