@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import timedelta
 from typing import Any
 from unittest.mock import patch
@@ -30,6 +31,7 @@ from custom_components.sayso.ducking import (
     ENTRY_COUNT_KEY,
     async_release_ducking,
     async_setup_ducking,
+    async_wait_for_restores,
 )
 
 VOLUME_ATTRS = {
@@ -765,4 +767,151 @@ async def test_wait_restores_respects_timeout_cap(hass: HomeAssistant) -> None:
         gate.set()
         await hass.async_block_till_done()
     assert restore_finished.is_set()
+    assert not ducker._restore_tasks
+
+
+async def test_hung_restore_is_abandoned_after_timeout(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    kitchen = _area(hass, "Kitchen")
+    satellite = _register(hass, "assist_satellite", "kitchen_sat", area_id=kitchen)
+    tv = _register(hass, "media_player", "kitchen_tv", area_id=kitchen)
+    await _set(hass, satellite, "idle")
+    await _set(hass, tv, "playing", VOLUME_ATTRS)
+    hang = asyncio.Event()
+
+    async def _volume_set(call) -> None:
+        if call.data["volume_level"] == 0.5:
+            await hang.wait()
+
+    hass.services.async_register("media_player", "volume_set", _volume_set)
+    ducker = await async_setup_ducking(hass, 0.02)
+
+    with patch("custom_components.sayso.ducking.RESTORE_CALL_TIMEOUT", 0.05):
+        await _set(hass, satellite, "listening")
+        await _set(hass, satellite, "idle")
+
+    assert not ducker._restore_tasks
+    assert any(
+        record.levelno == logging.WARNING
+        and "timed out" in record.message
+        and tv in record.message
+        and "volume_set" in record.message
+        for record in caplog.records
+    )
+
+
+async def test_rewake_ducks_only_after_pending_restore(hass: HomeAssistant) -> None:
+    kitchen = _area(hass, "Kitchen")
+    satellite = _register(hass, "assist_satellite", "kitchen_sat", area_id=kitchen)
+    tv = _register(hass, "media_player", "kitchen_tv", area_id=kitchen)
+    await _set(hass, satellite, "idle")
+    await _set(hass, tv, "playing", VOLUME_ATTRS)
+    restore_started = asyncio.Event()
+    restore_gate = asyncio.Event()
+    volume_calls = []
+
+    async def _volume_set(call) -> None:
+        if call.data["volume_level"] == 0.5:
+            restore_started.set()
+            await restore_gate.wait()
+        volume_calls.append(call)
+
+    hass.services.async_register("media_player", "volume_set", _volume_set)
+    ducker = await async_setup_ducking(hass, 0.02)
+
+    await _set(hass, satellite, "listening")
+    hass.states.async_set(satellite, "idle")
+    await asyncio.wait_for(restore_started.wait(), timeout=1.0)
+
+    hass.states.async_set(tv, "playing", VOLUME_ATTRS)
+    hass.states.async_set(satellite, "listening")
+    for _ in range(5):
+        await asyncio.sleep(0)
+
+    assert _data(volume_calls) == [{"entity_id": tv, "volume_level": 0.02}]
+    assert tv in ducker._restore_tasks
+    restore_gate.set()
+    await hass.async_block_till_done()
+    assert _data(volume_calls) == [
+        {"entity_id": tv, "volume_level": 0.02},
+        {"entity_id": tv, "volume_level": 0.5},
+        {"entity_id": tv, "volume_level": 0.02},
+    ]
+
+
+async def test_stop_event_then_teardown_does_not_remove_fired_listener(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    kitchen = _area(hass, "Kitchen")
+    satellite = _register(hass, "assist_satellite", "kitchen_sat", area_id=kitchen)
+    tv = _register(hass, "media_player", "kitchen_tv", area_id=kitchen)
+    await _set(hass, satellite, "idle")
+    await _set(hass, tv, "playing", VOLUME_ATTRS)
+    ducker = await async_setup_ducking(hass, 0.02)
+
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
+    await hass.async_block_till_done()
+    with caplog.at_level(logging.WARNING):
+        await ducker.async_teardown()
+
+    assert "Unable to remove unknown job listener" not in caplog.text
+
+
+async def test_wait_for_restores_is_noop_without_ducker(
+    hass: HomeAssistant,
+) -> None:
+    await async_wait_for_restores(hass)
+    shared_data = hass.data.setdefault(DOMAIN, {})
+    shared_data["unrelated"] = object()
+    await async_wait_for_restores(hass)
+
+
+async def test_rewake_then_leave_before_restore_does_not_reduck(
+    hass: HomeAssistant,
+) -> None:
+    kitchen = _area(hass, "Kitchen")
+    satellite = _register(hass, "assist_satellite", "kitchen_sat", area_id=kitchen)
+    tv = _register(hass, "media_player", "kitchen_tv", area_id=kitchen)
+    await _set(hass, satellite, "idle")
+    await _set(hass, tv, "playing", VOLUME_ATTRS)
+    restore_started = asyncio.Event()
+    restore_gate = asyncio.Event()
+
+    volume_calls = []
+
+    async def _gated_and_recorded(call) -> None:
+        if call.data["volume_level"] == 0.5:
+            restore_started.set()
+            await restore_gate.wait()
+        volume_calls.append(dict(call.data))
+
+    hass.services.async_register("media_player", "volume_set", _gated_and_recorded)
+    ducker = await async_setup_ducking(hass, 0.02)
+
+    await _set(hass, satellite, "listening")
+    assert volume_calls == [{"entity_id": tv, "volume_level": 0.02}]
+
+    hass.states.async_set(satellite, "idle")
+    await asyncio.wait_for(restore_started.wait(), timeout=1.0)
+
+    hass.states.async_set(tv, "playing", {**VOLUME_ATTRS, ATTR_MEDIA_VOLUME_LEVEL: 0.02})
+    hass.states.async_set(satellite, "listening")
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert len(volume_calls) == 1
+    assert tv in ducker._originals
+
+    hass.states.async_set(satellite, "idle")
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert tv not in ducker._originals
+    restore_gate.set()
+    await hass.async_block_till_done()
+
+    levels = [c["volume_level"] for c in volume_calls]
+    assert levels.count(0.02) == 1
+    restores = [i for i, level in enumerate(levels) if level == 0.5]
+    assert restores and min(restores) > levels.index(0.02)
+    assert levels == [0.02, 0.5, 0.5]
     assert not ducker._restore_tasks

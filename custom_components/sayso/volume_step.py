@@ -4,11 +4,17 @@ import asyncio
 import logging
 from typing import override
 
+import voluptuous as vol
+
 from homeassistant.components.media_player import (
+    ATTR_MEDIA_VOLUME_LEVEL,
     DATA_COMPONENT,
     DOMAIN,
+    MediaPlayerDeviceClass,
     MediaPlayerEntityFeature,
+    SERVICE_VOLUME_SET,
 )
+from homeassistant.components.media_player.const import INTENT_SET_VOLUME
 from homeassistant.components.media_player.intent import MediaSetVolumeRelativeHandler
 from homeassistant.const import STATE_PLAYING
 from homeassistant.core import HomeAssistant
@@ -22,6 +28,9 @@ class StepVolumeRelativeHandler(MediaSetVolumeRelativeHandler):
 
     @override
     async def async_handle(self, intent_obj: intent.Intent) -> intent.IntentResponse:
+        from .ducking import async_wait_for_restores
+
+        await async_wait_for_restores(intent_obj.hass)
         try:
             return await super().async_handle(intent_obj)
         except intent.MatchFailedError as err:
@@ -95,5 +104,37 @@ class StepVolumeRelativeHandler(MediaSetVolumeRelativeHandler):
             return response
 
 
+class StepSetVolumeHandler(intent.ServiceIntentHandler):
+    def __init__(self) -> None:
+        super().__init__(
+            INTENT_SET_VOLUME,
+            DOMAIN,
+            SERVICE_VOLUME_SET,
+            required_domains={DOMAIN},
+            required_features=MediaPlayerEntityFeature.VOLUME_SET,
+            required_slots={
+                ATTR_MEDIA_VOLUME_LEVEL: intent.IntentSlotInfo(
+                    description="The volume percentage of the media player",
+                    value_schema=vol.All(
+                        vol.Coerce(int),
+                        vol.Range(min=0, max=100),
+                        lambda val: val / 100,
+                    ),
+                ),
+            },
+            description="Sets the volume percentage of a media player",
+            platforms={DOMAIN},
+            device_classes={MediaPlayerDeviceClass},
+        )
+
+    @override
+    async def async_handle(self, intent_obj: intent.Intent) -> intent.IntentResponse:
+        from .ducking import async_wait_for_restores
+
+        await async_wait_for_restores(intent_obj.hass)
+        return await super().async_handle(intent_obj)
+
+
 def async_register_volume_step(hass: HomeAssistant) -> None:
     intent.async_register(hass, StepVolumeRelativeHandler())
+    intent.async_register(hass, StepSetVolumeHandler())

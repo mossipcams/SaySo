@@ -50,6 +50,7 @@ DUCKER_KEY = "ducker"
 ENTRY_COUNT_KEY = "ducker_entries"
 SATELLITE_LISTENING = "listening"
 RESTORE_WAIT_TIMEOUT = 2.0
+RESTORE_CALL_TIMEOUT = 10.0
 DUCK_LEVEL_TOLERANCE = 0.005
 INACTIVE_STATES = (
     MediaPlayerState.OFF,
@@ -71,15 +72,16 @@ class MediaDucker:
         self._holds: dict[str, set[str]] = {}
         self._timers: dict[str, CALLBACK_TYPE] = {}
         self._unsubs: list[CALLBACK_TYPE] = []
-        self._restore_tasks: set[asyncio.Task[None]] = set()
+        self._stop_unsub: CALLBACK_TYPE | None = None
+        self._restore_tasks: dict[str, asyncio.Task[None]] = {}
         self._satellite_unsubs: dict[str, CALLBACK_TYPE] = {}
 
     def set_duck_volume(self, duck_volume: float) -> None:
         self._duck_volume = duck_volume
 
     def start(self) -> None:
-        self._unsubs.append(
-            self._hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._async_stop)
+        self._stop_unsub = self._hass.bus.async_listen_once(
+            EVENT_HOMEASSISTANT_STOP, self._async_stop
         )
         self._unsubs.append(
             async_track_state_added_domain(
@@ -91,6 +93,7 @@ class MediaDucker:
 
     @callback
     def _async_stop(self, _event: Event) -> None:
+        self._stop_unsub = None
         self._schedule_restores(self._async_all_restores())
 
     def _async_all_restores(self) -> list[Call]:
@@ -102,18 +105,35 @@ class MediaDucker:
     def _schedule_restores(self, restores: list[Call]) -> None:
         for call in restores:
             task = self._hass.async_create_task(self._async_send([call], blocking=True))
-            self._restore_tasks.add(task)
-            task.add_done_callback(self._restore_tasks.discard)
+            self._restore_tasks[call[0]] = task
+            task.add_done_callback(
+                lambda finished, entity_id=call[0]: self._forget_restore(entity_id, finished)
+            )
+
+    def _forget_restore(self, entity_id: str, finished: asyncio.Task[None]) -> None:
+        if self._restore_tasks.get(entity_id) is finished:
+            del self._restore_tasks[entity_id]
+
+    async def _async_duck_after_restore(
+        self, restore: asyncio.Task[None], call: Call
+    ) -> None:
+        await asyncio.wait([restore], timeout=RESTORE_WAIT_TIMEOUT)
+        if call[0] not in self._originals:
+            return
+        await self._async_send([call])
 
     async def async_wait_restores(self, timeout: float = RESTORE_WAIT_TIMEOUT) -> None:
         if not self._restore_tasks:
             return
-        await asyncio.wait(list(self._restore_tasks), timeout=timeout)
+        await asyncio.wait(list(self._restore_tasks.values()), timeout=timeout)
 
     async def async_teardown(self) -> None:
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
+        if self._stop_unsub is not None:
+            self._stop_unsub()
+            self._stop_unsub = None
         for unsub in self._satellite_unsubs.values():
             unsub()
         self._satellite_unsubs.clear()
@@ -179,7 +199,13 @@ class MediaDucker:
                 restore, duck = plan
                 self._originals[entity_id] = restore
                 self._counts[entity_id] = 1
-                calls.append((entity_id, *duck))
+                pending = self._restore_tasks.get(entity_id)
+                if pending is not None:
+                    self._hass.async_create_task(
+                        self._async_duck_after_restore(pending, (entity_id, *duck))
+                    )
+                else:
+                    calls.append((entity_id, *duck))
             holds.add(entity_id)
         return calls
 
@@ -258,12 +284,15 @@ class MediaDucker:
     async def _async_send(self, calls: list[Call], blocking: bool = False) -> None:
         for entity_id, service, data in calls:
             try:
-                await self._hass.services.async_call(
-                    MEDIA_PLAYER_DOMAIN,
-                    service,
-                    {ATTR_ENTITY_ID: entity_id, **data},
-                    blocking=blocking,
-                )
+                async with asyncio.timeout(RESTORE_CALL_TIMEOUT):
+                    await self._hass.services.async_call(
+                        MEDIA_PLAYER_DOMAIN,
+                        service,
+                        {ATTR_ENTITY_ID: entity_id, **data},
+                        blocking=blocking,
+                    )
+            except TimeoutError:
+                _LOGGER.warning("Ducking restore timed out %s %s", entity_id, service)
             except Exception:
                 _LOGGER.exception("Ducking call failed %s %s", entity_id, service)
 
@@ -279,6 +308,15 @@ async def async_setup_ducking(hass: HomeAssistant, duck_volume: float) -> MediaD
         ducker.set_duck_volume(duck_volume)
     data[ENTRY_COUNT_KEY] = data.get(ENTRY_COUNT_KEY, 0) + 1
     return ducker
+
+
+async def async_wait_for_restores(hass: HomeAssistant) -> None:
+    data = hass.data.get(DOMAIN)
+    if not isinstance(data, dict):
+        return
+    ducker = data.get(DUCKER_KEY)
+    if ducker is not None:
+        await ducker.async_wait_restores()
 
 
 def async_release_ducking(

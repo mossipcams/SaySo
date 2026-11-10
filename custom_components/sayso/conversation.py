@@ -214,12 +214,9 @@ class _Turn:
         tool_map: dict[str, llm.Tool],
         span: Any,
     ) -> tuple[bool, str | None]:
-        from .ducking import DUCKER_KEY
+        from .ducking import async_wait_for_restores
 
-        data = self.chat_log.hass.data.get(DOMAIN)
-        ducker = data.get(DUCKER_KEY) if isinstance(data, dict) else None
-        if ducker is not None:
-            await ducker.async_wait_restores()
+        await async_wait_for_restores(self.chat_log.hass)
         content = conversation.AssistantContent(
             agent_id=self.agent_id,
             content=None,
