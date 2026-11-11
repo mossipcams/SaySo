@@ -57,6 +57,22 @@ def _label_index(home: dict | None) -> dict[str, str]:
     return {label: next(iter(ids)) for label, ids in owners.items() if len(ids) == 1}
 
 
+def _label_domains(home: dict | None) -> dict[str, str]:
+    owners: dict[str, set[tuple[int, str]]] = defaultdict(set)
+    for index, entity in enumerate((home or {}).get("entities") or []):
+        domain = entity.get("domain")
+        if not isinstance(domain, str):
+            continue
+        for label in [entity.get("name"), *(entity.get("aliases") or [])]:
+            if isinstance(label, str):
+                owners[label.casefold()].add((index, domain))
+    return {
+        label: next(iter(pairs))[1]
+        for label, pairs in owners.items()
+        if len(pairs) == 1
+    }
+
+
 def _script_form(call: dict[str, Any], labels: dict[str, str]) -> dict[str, Any] | None:
     if call.get("name") != "intent__HassTurnOn":
         return None
@@ -74,15 +90,23 @@ def _script_form(call: dict[str, Any], labels: dict[str, str]) -> dict[str, Any]
     return {"name": entity_id.removeprefix("script."), "arguments": {}}
 
 
-def _canonical(call: dict[str, Any], labels: dict[str, str]) -> str:
+def _canonical(
+    call: dict[str, Any], labels: dict[str, str], domains: dict[str, str]
+) -> str:
     call = _script_form(call, labels) or call
     arguments = call["arguments"]
     if isinstance(arguments, dict):
         if isinstance(arguments.get("domain"), str):
             arguments = {**arguments, "domain": [arguments["domain"]]}
         name = arguments.get("name")
-        if is_action_call(call) and isinstance(name, str) and name.casefold() in labels:
-            arguments = {**arguments, "name": {"entity_id": labels[name.casefold()]}}
+        label = name.casefold() if isinstance(name, str) else None
+        if is_action_call(call) and label is not None:
+            if label in labels:
+                arguments = {**arguments, "name": {"entity_id": labels[label]}}
+            if label in domains and arguments.get("domain") == [domains[label]]:
+                arguments = {
+                    key: value for key, value in arguments.items() if key != "domain"
+                }
     return json.dumps({"name": call["name"], "arguments": arguments}, sort_keys=True)
 
 
@@ -110,6 +134,7 @@ def _affects(call: dict[str, Any], entity: dict[str, Any]) -> bool:
 
 def classify(expectation: Expectation, turn: Turn, home: dict | None = None) -> Outcome:
     labels = _label_index(home)
+    domains = _label_domains(home)
     if turn.parse_error is not None:
         return Outcome.MALFORMED_OUTPUT
     if any(violation["code"] == "unknown_tool" for violation in turn.violations):
@@ -123,8 +148,10 @@ def classify(expectation: Expectation, turn: Turn, home: dict | None = None) -> 
     if turn.calls:
         if not wants_calls:
             return Outcome.UNEXPECTED_TOOL_CALL
-        actual = Counter(_canonical(call, labels) for call in turn.calls)
-        expected = Counter(_canonical(call, labels) for call in expectation.calls)
+        actual = Counter(_canonical(call, labels, domains) for call in turn.calls)
+        expected = Counter(
+            _canonical(call, labels, domains) for call in expectation.calls
+        )
         if actual == expected:
             return (
                 Outcome.VALID_MULTI_TOOL_CALL
@@ -137,11 +164,13 @@ def classify(expectation: Expectation, turn: Turn, home: dict | None = None) -> 
     if wants_calls:
         return Outcome.MISSING_TOOL_CALL
     if expectation.response_type == ResponseType.CLARIFICATION:
-        return (
-            Outcome.VALID_CLARIFICATION
-            if is_clarification(turn.text)
-            else Outcome.WRONG_RESPONSE_TYPE
-        )
+        reply = _plain(turn.text).casefold()
+        if is_clarification(turn.text) and all(
+            candidate.casefold() in reply
+            for candidate in expectation.clarification_candidates
+        ):
+            return Outcome.VALID_CLARIFICATION
+        return Outcome.WRONG_RESPONSE_TYPE
     return (
         Outcome.VALID_REFUSAL if is_refusal(turn.text) else Outcome.WRONG_RESPONSE_TYPE
     )
