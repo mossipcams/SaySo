@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.20.3](https://github.com/mossipcams/SaySo/compare/1.20.2...1.20.3) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** update dependency livekit-wakeword to v2 ([8888dd7](https://github.com/mossipcams/SaySo/commit/8888dd79e6902dc1590834384c5d159c15ff1b9a))
+* **evals:** grade clarifications by their candidates and accept redundant domains ([41efaec](https://github.com/mossipcams/SaySo/commit/41efaec191d1ce009a312e3e41bc5edc8d81c344))
+* **integration:** execute tools with the model's original arguments ([dfd761f](https://github.com/mossipcams/SaySo/commit/dfd761fa3d61802458f8b624a90e6e09bdad6073))
+* **integration:** execute tools with the model's original arguments ([ce8c119](https://github.com/mossipcams/SaySo/commit/ce8c119bb0bd0f6846a39ba5a53fec664b59b8ed))
+* **integration:** harden media ducking restores ([b59f649](https://github.com/mossipcams/SaySo/commit/b59f649e294d0ef29eb0fcd575c87e28b5928a11))
+* **integration:** make volume intents wait for ducking restores ([ca660de](https://github.com/mossipcams/SaySo/commit/ca660de7377b840935dd94e49f024fe9b8d31bee))
+* **wake:** score every wake window on the Pi satellite ([8ddd013](https://github.com/mossipcams/SaySo/commit/8ddd013698064462dd6abfc695274e125e0ee646))
+
 ## [1.20.2](https://github.com/mossipcams/SaySo/compare/1.20.1...1.20.2) (2026-11-06)
 
 
