@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.4](https://github.com/mossipcams/SaySo/compare/1.20.3...1.20.4) (2026-11-12)
+
+
+### Bug Fixes
+
+* **integration:** say why a Home Assistant target match failed ([b5e20f6](https://github.com/mossipcams/SaySo/commit/b5e20f6bf5973f2acbfcd7791d272841439e33bb))
+
 ## [1.20.3](https://github.com/mossipcams/SaySo/compare/1.20.2...1.20.3) (2026-11-12)
 
 
