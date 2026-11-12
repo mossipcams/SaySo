@@ -30,11 +30,14 @@ from .boundary import (
 from .client import ChatCompletionResult, ToolCall
 from .const import (
     DOMAIN,
+    DOMAIN_PLURALS,
     ERROR_ACTION_FAILED,
+    ERROR_AREA_HAS_NO_DOMAIN,
     ERROR_EMPTY_RESPONSE,
     ERROR_MODEL_UNAVAILABLE,
     ERROR_REQUEST_TIMEOUT,
     ERROR_TOOL_ITERATION_LIMIT,
+    HA_MATCH_FAILED_ERROR,
 )
 from .diagnostics import BoundaryFailureCode, BoundaryPhase
 from .exceptions import (
@@ -476,6 +479,12 @@ class SaySoConversationEntity(
                     BoundaryFailureCode.TOOL_EXECUTION_FAILED,
                     BoundaryPhase.EXECUTION,
                     ha_error=ha_error,
+                    speech=execution_failure_speech(
+                        self.hass,
+                        turn.user_input.as_llm_context(DOMAIN).assistant,
+                        validated,
+                        ha_error,
+                    ),
                 )
 
             tools_executed = True
@@ -532,6 +541,43 @@ def area_id_for(
         if device is not None and device.area_id:
             return device.area_id
     return None
+
+
+def execution_failure_speech(
+    hass: HomeAssistant,
+    assistant_id: str | None,
+    validated: list[tuple[ToolCall, dict[str, Any]]],
+    ha_error: str | None,
+) -> str:
+    if ha_error != HA_MATCH_FAILED_ERROR or len(validated) != 1:
+        return ERROR_ACTION_FAILED
+    args = validated[0][1]
+    domain = args.get("domain")
+    if isinstance(domain, list):
+        domain = domain[0] if len(domain) == 1 else None
+    area_name = args.get("area")
+    if (
+        args.get("name")
+        or not isinstance(domain, str)
+        or not domain
+        or not isinstance(area_name, str)
+        or not area_name
+        or assistant_id is None
+    ):
+        return ERROR_ACTION_FAILED
+    area = ar.async_get(hass).async_get_area_by_name(area_name)
+    if area is None:
+        return ERROR_ACTION_FAILED
+    if any(
+        area_id_for(hass, state.entity_id) == area.id
+        and async_should_expose(hass, assistant_id, state.entity_id)
+        for state in hass.states.async_all(domain)
+    ):
+        return ERROR_ACTION_FAILED
+    return ERROR_AREA_HAS_NO_DOMAIN.format(
+        area=area.name.lower(),
+        domains=DOMAIN_PLURALS.get(domain, f"{domain.replace('_', ' ')}s"),
+    )
 
 
 def _satellite_area_name(

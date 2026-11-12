@@ -84,6 +84,19 @@ ERROR_REQUEST_TIMEOUT = "That request took too long."
 ERROR_EMPTY_RESPONSE = "I didn't get a response from the local model."
 ERROR_ACTION_FAILED = "I couldn't complete that action."
 ERROR_TOOL_ITERATION_LIMIT = "I couldn't complete that action."
+HA_MATCH_FAILED_ERROR = "MatchFailedError"
+DOMAIN_PLURALS = {
+    "light": "lights",
+    "fan": "fans",
+    "switch": "switches",
+    "media_player": "media players",
+    "cover": "covers",
+    "climate": "thermostats",
+    "lock": "locks",
+    "vacuum": "vacuums",
+    "humidifier": "humidifiers",
+}
+ERROR_AREA_HAS_NO_DOMAIN = "The {area} has no {domains} available."
 
 CHAT_COMPLETIONS_PATH = "/chat/completions"
 MODELS_PATH = "/models"
