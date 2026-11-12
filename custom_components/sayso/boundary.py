@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -136,11 +135,11 @@ def validate_arguments(
     validated: list[tuple[ToolCall, dict[str, Any]]] = []
     failures: list[tuple[ToolCall, ToolArgumentValidationError]] = []
     for tool_call in tool_calls:
-        normalized_args, error = validate_tool_arguments(
+        _, error = validate_tool_arguments(
             tool_map[tool_call.name], tool_call.arguments
         )
         if error is None:
-            validated.append((tool_call, normalized_args))
+            validated.append((tool_call, dict(tool_call.arguments)))
             continue
         _LOGGER.debug(
             "trace_id=%s tool argument validation failed for %s (%s): %s",
@@ -174,16 +173,16 @@ def action_metadata(
 ) -> dict[str, Any]:
     if not validated_tool_calls:
         return {}
-    tool_call, normalized_args = validated_tool_calls[0]
+    tool_call, tool_args = validated_tool_calls[0]
     metadata: dict[str, Any] = {"tool": tool_map[tool_call.name].name}
     if len(validated_tool_calls) > 1:
         metadata["batch"] = len(validated_tool_calls)
-    domain = normalized_args.get("domain")
+    domain = tool_args.get("domain")
     if isinstance(domain, list) and domain:
         domain = domain[0]
     if isinstance(domain, str) and domain:
         metadata["domain"] = domain
-    name = normalized_args.get("name")
+    name = tool_args.get("name")
     if isinstance(name, str) and name:
         metadata["target"] = name
     return metadata
