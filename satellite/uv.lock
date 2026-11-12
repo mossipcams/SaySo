@@ -293,15 +293,15 @@ dependencies = [
 
 [[package]]
 name = "livekit-wakeword"
-version = "0.3.0"
+version = "2.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "onnxruntime" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/16/9a/3af06750535bbe90e2b0c65018ddc514465e76398ab4f2a4d7f0c625c0e9/livekit_wakeword-0.3.0.tar.gz", hash = "sha256:0a5d22e3434fa87cc09ce8ee3c6a140790971b64a6a1c084e3a390e3b6c2ec0e", size = 1895594, upload-time = "2026-09-30T21:07:42.039Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/63/8b/d160961b3e2beec11d1fa85428940e42a8b6a4a8fce0c5838dff52a33dfa/livekit_wakeword-2.1.2.tar.gz", hash = "sha256:8c6022e1d585285dd13ba8a473a3d7ded48aba511caeb5a0ecb3960578413020", size = 56997, upload-time = "2026-11-11T17:10:23.594Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/33/cc1682755d3e626faefa1def3b761f6b6826a0498a514246b54bd5e9ecbc/livekit_wakeword-0.3.0-py3-none-any.whl", hash = "sha256:6bb00b832c21720ebb94410e005854740b2d36b20970c7cecc74b5e889d94f4b", size = 1917287, upload-time = "2026-09-30T21:07:37.831Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/34/31704323309b31e322305a4c620ffd100e236f302d92c56154aa756e8b6b/livekit_wakeword-2.1.2-py3-none-any.whl", hash = "sha256:4af701c032dd439f9b5c847c534f7d67fe61bc18cda8daab2efa7586709d82e5", size = 66841, upload-time = "2026-11-11T17:10:22.067Z" },
 ]
 
 [[package]]
@@ -592,7 +592,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "linux-voice-assistant", git = "https://github.com/OHF-Voice/linux-voice-assistant.git?tag=v1.1.18" },
-    { name = "livekit-wakeword", specifier = "==0.3.0" },
+    { name = "livekit-wakeword", specifier = "==2.1.2" },
     { name = "numpy", specifier = ">=2,<3" },
     { name = "onnxruntime", specifier = "==1.31.1" },
     { name = "python-mpv", specifier = ">=1,<2" },

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "linux-voice-assistant",
-    "livekit-wakeword==0.3.0",
+    "livekit-wakeword==2.1.2",
     "numpy>=2,<3",
     "onnxruntime==1.31.1",
     "python-mpv>=1,<2",
