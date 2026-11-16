@@ -167,6 +167,12 @@ def first_target(tool_result: dict[str, Any]) -> str | None:
     return None
 
 
+def tool_result_data(content: Any) -> dict[str, Any]:
+    if hasattr(content, "result"):
+        return content.result.data
+    return content.tool_result
+
+
 def action_metadata(
     validated_tool_calls: list[tuple[ToolCall, dict[str, Any]]],
     tool_map: dict[str, llm.Tool],

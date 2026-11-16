@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -6,6 +5,7 @@ from typing import Any
 
 from homeassistant.components import conversation
 
+from .boundary import tool_result_data
 from .client import ToolCall
 from .schema import (
     ToolArgumentValidationError,
@@ -13,7 +13,9 @@ from .schema import (
 )
 
 
-def _tool_call_message(call_id: str, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+def _tool_call_message(
+    call_id: str, name: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
     return {
         "id": call_id,
         "type": "function",
@@ -50,7 +52,7 @@ def chat_log_to_messages(
                 {
                     "role": "tool",
                     "tool_call_id": item.tool_call_id,
-                    "content": json.dumps(item.tool_result),
+                    "content": json.dumps(tool_result_data(item)),
                 }
             )
     return messages
