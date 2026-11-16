@@ -84,11 +84,16 @@ ERROR_REQUEST_TIMEOUT = "That request took too long."
 ERROR_EMPTY_RESPONSE = "I didn't get a response from the local model."
 ERROR_ACTION_FAILED = "I couldn't complete that action."
 ERROR_NOT_UNDERSTOOD = "Sorry, I didn't understand that."
+ERROR_DID_YOU_MEAN = "Did you mean the {name}?"
+ERROR_CHOOSE = "The {first} or the {second}?"
+ERROR_AREA_HAS_NO_DOMAIN = "The {area} has no {domains} available."
 ERROR_NO_TIMERS = "There are no timers running."
 ERROR_NAME_NOT_FOUND = "I couldn't find {name}."
 ERROR_MEDIA_NOT_PLAYING = "The {name} isn't playing."
 ERROR_MEDIA_NOT_PAUSED = "The {name} isn't paused."
 ERROR_TOOL_ITERATION_LIMIT = "I couldn't complete that action."
+ERROR_CANCELLED = "Okay."
+HELD_CALL_TTL = 300
 HA_MATCH_FAILED_ERROR = "MatchFailedError"
 DOMAIN_PLURALS = {
     "light": "lights",
@@ -101,7 +106,7 @@ DOMAIN_PLURALS = {
     "vacuum": "vacuums",
     "humidifier": "humidifiers",
 }
-ERROR_AREA_HAS_NO_DOMAIN = "The {area} has no {domains} available."
+
 
 CHAT_COMPLETIONS_PATH = "/chat/completions"
 MODELS_PATH = "/models"
