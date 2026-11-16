@@ -35,6 +35,11 @@ from .const import (
     ERROR_AREA_HAS_NO_DOMAIN,
     ERROR_EMPTY_RESPONSE,
     ERROR_MODEL_UNAVAILABLE,
+    ERROR_MEDIA_NOT_PAUSED,
+    ERROR_MEDIA_NOT_PLAYING,
+    ERROR_NAME_NOT_FOUND,
+    ERROR_NO_TIMERS,
+    ERROR_NOT_UNDERSTOOD,
     ERROR_REQUEST_TIMEOUT,
     ERROR_TOOL_ITERATION_LIMIT,
     HA_MATCH_FAILED_ERROR,
@@ -43,6 +48,7 @@ from .diagnostics import BoundaryFailureCode, BoundaryPhase
 from .exceptions import (
     SaySoError,
     SaySoInvalidResponseError,
+    SaySoInvalidToolCallsError,
     SaySoInvalidToolEnvelopeError,
     SaySoTimeoutError,
 )
@@ -134,7 +140,7 @@ class _Turn:
         phase: BoundaryPhase,
         *,
         ha_error: str | None = None,
-        speech: str = ERROR_ACTION_FAILED,
+        speech: str = ERROR_NOT_UNDERSTOOD,
     ) -> conversation.ConversationResult:
         record_boundary(
             self.entry_id,
@@ -168,7 +174,9 @@ class _Turn:
             raise err
         _LOGGER.debug("trace_id=%s %s error: %s", self.trace.trace_id, log_label, err)
         return self.error(
-            ERROR_MODEL_UNAVAILABLE,
+            ERROR_NOT_UNDERSTOOD
+            if isinstance(err, SaySoInvalidToolCallsError)
+            else ERROR_MODEL_UNAVAILABLE,
             stage=Stage.INFERENCE,
             error_type=(
                 ErrorType.INVALID_MODEL_OUTPUT
@@ -216,7 +224,7 @@ class _Turn:
         validated: list[tuple[ToolCall, dict[str, Any]]],
         tool_map: dict[str, llm.Tool],
         span: Any,
-    ) -> tuple[bool, str | None]:
+    ) -> tuple[bool, str | None, str | None]:
         from .ducking import async_wait_for_restores
 
         await async_wait_for_restores(self.chat_log.hass)
@@ -234,6 +242,7 @@ class _Turn:
         )
         batch_failed = False
         ha_error: str | None = None
+        ha_error_text: str | None = None
         resolved_target: str | None = None
         async for result in self.chat_log.async_add_assistant_content(content):
             if is_tool_execution_failure(result.tool_result):
@@ -242,11 +251,14 @@ class _Turn:
                     error = result.tool_result.get("error")
                     if isinstance(error, str) and error:
                         ha_error = error
+                        error_text = result.tool_result.get("error_text")
+                        if isinstance(error_text, str):
+                            ha_error_text = error_text
             elif resolved_target is None:
                 resolved_target = first_target(result.tool_result)
         if resolved_target is not None:
             span.metadata["target"] = resolved_target
-        return batch_failed, ha_error
+        return batch_failed, ha_error, ha_error_text
 
 
 class SaySoConversationEntity(
@@ -331,7 +343,7 @@ class SaySoConversationEntity(
                 turn.complete_schema = compile_llm_tools(chat_log.llm_api)
             except SaySoInvalidToolEnvelopeError:
                 return turn.error(
-                    ERROR_ACTION_FAILED,
+                    ERROR_NOT_UNDERSTOOD,
                     stage=Stage.CONTEXT,
                     error_type=ErrorType.SCHEMA_MISMATCH,
                 )
@@ -389,7 +401,7 @@ class SaySoConversationEntity(
         chat_log, trace = turn.chat_log, turn.trace
         if chat_log.llm_api is None:
             return turn.error(
-                ERROR_ACTION_FAILED,
+                ERROR_NOT_UNDERSTOOD,
                 stage=Stage.TOOL_PARSE,
                 error_type=ErrorType.UNAVAILABLE_TOOL,
             )
@@ -457,7 +469,7 @@ class SaySoConversationEntity(
                 turn.correction_used = True
                 if not corrected.tool_calls:
                     return turn.error(
-                        ERROR_ACTION_FAILED,
+                        ERROR_NOT_UNDERSTOOD,
                         stage=Stage.TOOL_PARSE,
                         error_type=ErrorType.INVALID_MODEL_OUTPUT,
                     )
@@ -468,7 +480,7 @@ class SaySoConversationEntity(
             action_span = trace.open(
                 Stage.HA_ACTION, **action_metadata(validated, tool_map)
             )
-            batch_failed, ha_error = await turn.execute(
+            batch_failed, ha_error, ha_error_text = await turn.execute(
                 validated, tool_map, action_span
             )
             apply_action_summary(trace, action_span.metadata)
@@ -484,6 +496,8 @@ class SaySoConversationEntity(
                         turn.user_input.as_llm_context(DOMAIN).assistant,
                         validated,
                         ha_error,
+                        ha_error_text,
+                        turn.user_input.text,
                     ),
                 )
 
@@ -548,13 +562,46 @@ def execution_failure_speech(
     assistant_id: str | None,
     validated: list[tuple[ToolCall, dict[str, Any]]],
     ha_error: str | None,
+    ha_error_text: str | None = None,
+    user_text: str = "",
 ) -> str:
-    if ha_error != HA_MATCH_FAILED_ERROR or len(validated) != 1:
+    if len(validated) != 1:
         return ERROR_ACTION_FAILED
-    args = validated[0][1]
+    call, args = validated[0]
+    tool_name = call.name.rsplit("__", 1)[-1]
+    name = args.get("name")
+    if ha_error == "TimerNotFoundError" and tool_name in {
+        intent.INTENT_START_TIMER,
+        intent.INTENT_CANCEL_TIMER,
+        intent.INTENT_CANCEL_ALL_TIMERS,
+        intent.INTENT_INCREASE_TIMER,
+        intent.INTENT_DECREASE_TIMER,
+        intent.INTENT_PAUSE_TIMER,
+        intent.INTENT_UNPAUSE_TIMER,
+        intent.INTENT_TIMER_STATUS,
+    } and not name:
+        return ERROR_NO_TIMERS
+    if ha_error != HA_MATCH_FAILED_ERROR:
+        return ERROR_ACTION_FAILED
+    error_text = ha_error_text or ""
+    if "MatchFailedReason.NAME" in error_text or error_text.startswith(
+        "No entities matched the name"
+    ):
+        if isinstance(name, str) and name and name.casefold() in user_text.casefold():
+            return ERROR_NAME_NOT_FOUND.format(name=name)
+        return ERROR_NOT_UNDERSTOOD
     domain = args.get("domain")
     if isinstance(domain, list):
         domain = domain[0] if len(domain) == 1 else None
+    if "MatchFailedReason.STATE" in error_text or error_text.startswith(
+        "No entities were in the required state"
+    ):
+        if isinstance(name, str) and name:
+            if tool_name == "HassMediaPause":
+                return ERROR_MEDIA_NOT_PLAYING.format(name=name)
+            if tool_name == "HassMediaUnpause":
+                return ERROR_MEDIA_NOT_PAUSED.format(name=name)
+        return ERROR_ACTION_FAILED
     area_name = args.get("area")
     if (
         args.get("name")

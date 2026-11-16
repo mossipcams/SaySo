@@ -22,6 +22,10 @@ class SaySoInvalidResponseError(SaySoError):
     pass
 
 
+class SaySoInvalidToolCallsError(SaySoInvalidResponseError):
+    pass
+
+
 class SaySoHttpError(SaySoError):
 
     def __init__(self, status: int, message: str | None = None) -> None:

@@ -249,6 +249,6 @@ async def test_invalid_tool_envelope_returns_action_failed(
         )
 
     assert result.response.response_type == intent.IntentResponseType.ERROR
-    assert _speech(result) == ERROR_ACTION_FAILED
+    assert _speech(result) == "Sorry, I didn't understand that."
     assert _speech(result) != ERROR_MODEL_UNAVAILABLE
     mock_chat.assert_not_called()

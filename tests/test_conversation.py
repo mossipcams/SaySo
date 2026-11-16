@@ -775,7 +775,7 @@ async def test_batched_tool_calls_transcript_and_follow_up(
         assert _speech(result) == follow_up.content
     else:
         assert result.response.response_type == intent.IntentResponseType.ERROR
-        assert _speech(result) == ERROR_ACTION_FAILED
+        assert _speech(result) == ("Sorry, I didn't understand that." if len(tool_calls) == 1 else ERROR_ACTION_FAILED)
 
 
 async def test_multi_tool_follow_up_inference_payload(
@@ -1153,7 +1153,7 @@ async def test_unknown_tool_fails_closed(
 
     mock_chat.assert_awaited_once()
     assert result.response.response_type == intent.IntentResponseType.ERROR
-    assert _speech(result) == ERROR_ACTION_FAILED
+    assert _speech(result) == "Sorry, I didn't understand that."
 
 
 async def test_sequential_tool_calls_succeed(
@@ -1428,7 +1428,7 @@ async def test_invalid_batch_prevalidation_executes_no_tools(
     mock_handle.assert_not_called()
     assert hass.states.get("light.living_room").state == "off"
     assert result.response.response_type == intent.IntentResponseType.ERROR
-    assert _speech(result) == ERROR_ACTION_FAILED
+    assert _speech(result) == "Sorry, I didn't understand that."
 
 
 async def test_malformed_tool_arguments_fails_closed(
@@ -1457,7 +1457,7 @@ async def test_malformed_tool_arguments_fails_closed(
 
     mock_chat.assert_awaited_once()
     assert result.response.response_type == intent.IntentResponseType.ERROR
-    assert _speech(result) == ERROR_ACTION_FAILED
+    assert _speech(result) == "Sorry, I didn't understand that."
 
 
 async def test_non_object_tool_arguments_fails_closed(
@@ -1486,7 +1486,7 @@ async def test_non_object_tool_arguments_fails_closed(
 
     mock_chat.assert_awaited_once()
     assert result.response.response_type == intent.IntentResponseType.ERROR
-    assert _speech(result) == ERROR_ACTION_FAILED
+    assert _speech(result) == "Sorry, I didn't understand that."
 
 
 async def test_pre_execution_correction_repairs_invalid_call(
@@ -1603,7 +1603,7 @@ async def test_tool_validation_failure_fails_closed(
     mock_handle.assert_not_called()
     assert hass.states.get("light.living_room").state == "off"
     assert result.response.response_type == intent.IntentResponseType.ERROR
-    assert _speech(result) == ERROR_ACTION_FAILED
+    assert _speech(result) == "Sorry, I didn't understand that."
 
 
 async def test_tool_schema_mismatch_fails_closed_before_execution(
@@ -1642,7 +1642,7 @@ async def test_tool_schema_mismatch_fails_closed_before_execution(
     mock_handle.assert_not_called()
     assert hass.states.get("light.living_room").state == "off"
     assert result.response.response_type == intent.IntentResponseType.ERROR
-    assert _speech(result) == ERROR_ACTION_FAILED
+    assert _speech(result) == "Sorry, I didn't understand that."
 
 
 async def test_tool_execution_failure_fails_closed(
@@ -1672,7 +1672,7 @@ async def test_tool_execution_failure_fails_closed(
 
     mock_chat.assert_awaited_once()
     assert result.response.response_type == intent.IntentResponseType.ERROR
-    assert _speech(result) == ERROR_ACTION_FAILED
+    assert _speech(result) == "I couldn't find Nonexistent Room."
 
 
 async def test_connection_error(
@@ -1745,7 +1745,7 @@ async def test_second_invalid_response_fails_after_one_correction(
     mock_handle.assert_not_called()
     assert hass.states.get("light.living_room").state == "off"
     assert result.response.response_type == intent.IntentResponseType.ERROR
-    assert _speech(result) == ERROR_ACTION_FAILED
+    assert _speech(result) == "Sorry, I didn't understand that."
 
 
 async def test_correction_timeout_never_retries(
@@ -1894,7 +1894,7 @@ async def test_invalid_follow_up_after_tool_execution_never_retries(
     assert mock_handle.await_count == 2
     assert hass.states.get("light.living_room").state == "on"
     assert result.response.response_type == intent.IntentResponseType.ERROR
-    assert _speech(result) == ERROR_ACTION_FAILED
+    assert _speech(result) == "Sorry, I didn't understand that."
 
 
 @pytest.fixture(autouse=True)
@@ -1970,7 +1970,7 @@ class TestCompleteSchemaOffer:
         mock_chat.assert_awaited_once()
         mock_handle.assert_not_called()
         assert result.response.response_type == intent.IntentResponseType.ERROR
-        assert _speech(result) == ERROR_ACTION_FAILED
+        assert _speech(result) == "Sorry, I didn't understand that."
 
         diagnostics = await async_get_config_entry_diagnostics(hass, entry)
         assert diagnostics["boundary"]["counts"]["unavailable_tool"] == 1

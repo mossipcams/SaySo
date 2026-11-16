@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .area_context import _AREA_BLOCK_MARKER
-from .exceptions import SaySoInvalidResponseError
+from .exceptions import SaySoInvalidResponseError, SaySoInvalidToolCallsError
 from .lfm_parse import LfmPythonParseError, parse_lfm_python_tool_calls
 
 @dataclass(frozen=True, slots=True)
@@ -39,7 +39,7 @@ def parse_tool_calls(
     subject: str,
     mint_id: Callable[[], str] | None = None,
 ) -> list[ToolCall]:
-    invalid = SaySoInvalidResponseError(f"{subject} returned invalid tool calls")
+    invalid = SaySoInvalidToolCallsError(f"{subject} returned invalid tool calls")
     if raw is None:
         return []
     if not isinstance(raw, list):
@@ -77,7 +77,7 @@ def parse_tool_calls(
 
 
 def _decode_arguments(raw: Any, subject: str) -> dict[str, Any]:
-    invalid = SaySoInvalidResponseError(f"{subject} returned invalid tool call arguments")
+    invalid = SaySoInvalidToolCallsError(f"{subject} returned invalid tool call arguments")
     if isinstance(raw, str):
         try:
             raw = json.loads(raw)
@@ -163,7 +163,7 @@ def extract_tool_calls(content: str) -> tuple[str | None, list[ToolCall]]:
     try:
         parsed = parse_lfm_python_tool_calls(body)
     except LfmPythonParseError as err:
-        raise SaySoInvalidResponseError(
+        raise SaySoInvalidToolCallsError(
             f"Could not parse model tool call {body!r}: {err}"
         ) from err
 
