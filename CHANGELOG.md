@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.20.4](https://github.com/mossipcams/SaySo/compare/1.20.3...1.20.4) (2026-11-16)
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([4b38b03](https://github.com/mossipcams/SaySo/commit/4b38b03494beb1bea4e8d0123a584165cbd50ee0))
+* **integration:** say why a Home Assistant target match failed ([b5e20f6](https://github.com/mossipcams/SaySo/commit/b5e20f6bf5973f2acbfcd7791d272841439e33bb))
+* **integration:** say why a voice command failed ([48e5624](https://github.com/mossipcams/SaySo/commit/48e5624c7104a630164db243c374c164784892d9))
+
 ## [1.20.3](https://github.com/mossipcams/SaySo/compare/1.20.2...1.20.3) (2026-11-12)
 
 
