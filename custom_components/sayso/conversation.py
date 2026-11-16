@@ -24,6 +24,7 @@ from .boundary import (
     is_tool_execution_failure,
     is_well_formed_batch,
     record_boundary,
+    tool_result_data,
     validate_arguments,
     validation_failure_code,
 )
@@ -245,17 +246,18 @@ class _Turn:
         ha_error_text: str | None = None
         resolved_target: str | None = None
         async for result in self.chat_log.async_add_assistant_content(content):
-            if is_tool_execution_failure(result.tool_result):
+            data = tool_result_data(result)
+            if is_tool_execution_failure(data):
                 batch_failed = True
                 if ha_error is None:
-                    error = result.tool_result.get("error")
+                    error = data.get("error")
                     if isinstance(error, str) and error:
                         ha_error = error
-                        error_text = result.tool_result.get("error_text")
+                        error_text = data.get("error_text")
                         if isinstance(error_text, str):
                             ha_error_text = error_text
             elif resolved_target is None:
-                resolved_target = first_target(result.tool_result)
+                resolved_target = first_target(data)
         if resolved_target is not None:
             span.metadata["target"] = resolved_target
         return batch_failed, ha_error, ha_error_text
@@ -570,16 +572,21 @@ def execution_failure_speech(
     call, args = validated[0]
     tool_name = call.name.rsplit("__", 1)[-1]
     name = args.get("name")
-    if ha_error == "TimerNotFoundError" and tool_name in {
-        intent.INTENT_START_TIMER,
-        intent.INTENT_CANCEL_TIMER,
-        intent.INTENT_CANCEL_ALL_TIMERS,
-        intent.INTENT_INCREASE_TIMER,
-        intent.INTENT_DECREASE_TIMER,
-        intent.INTENT_PAUSE_TIMER,
-        intent.INTENT_UNPAUSE_TIMER,
-        intent.INTENT_TIMER_STATUS,
-    } and not name:
+    if (
+        ha_error == "TimerNotFoundError"
+        and tool_name
+        in {
+            intent.INTENT_START_TIMER,
+            intent.INTENT_CANCEL_TIMER,
+            intent.INTENT_CANCEL_ALL_TIMERS,
+            intent.INTENT_INCREASE_TIMER,
+            intent.INTENT_DECREASE_TIMER,
+            intent.INTENT_PAUSE_TIMER,
+            intent.INTENT_UNPAUSE_TIMER,
+            intent.INTENT_TIMER_STATUS,
+        }
+        and not name
+    ):
         return ERROR_NO_TIMERS
     if ha_error != HA_MATCH_FAILED_ERROR:
         return ERROR_ACTION_FAILED
