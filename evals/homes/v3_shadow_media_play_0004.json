@@ -23,7 +23,8 @@
       "state": "off",
       "capabilities": [
         "on",
-        "off"
+        "off",
+        "play"
       ]
     }
   ]

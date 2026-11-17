@@ -3,10 +3,12 @@
   "satellite_area": "Terrace",
   "sayso_entity_area": "Terrace",
   "areas": {
-    "Porch": []
+    "Porch": [],
+    "Terrace": []
   },
   "area_aliases": {
-    "Porch": []
+    "Porch": [],
+    "Terrace": []
   },
   "entities": [
     {

@@ -3,10 +3,12 @@
   "satellite_area": "Attic",
   "sayso_entity_area": "Attic",
   "areas": {
-    "Porch": []
+    "Porch": [],
+    "Attic": []
   },
   "area_aliases": {
-    "Porch": []
+    "Porch": [],
+    "Attic": []
   },
   "entities": [
     {
