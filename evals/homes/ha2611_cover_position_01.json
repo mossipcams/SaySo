@@ -1,0 +1,31 @@
+{
+  "home_id": "ha2611_cover_position_01",
+  "satellite_area": "Living Room",
+  "sayso_entity_area": "Living Room",
+  "areas": {
+    "Living Room": []
+  },
+  "area_aliases": {
+    "Living Room": []
+  },
+  "entities": [
+    {
+      "entity_id": "cover.living_room_blinds",
+      "name": "Living Room Blinds",
+      "aliases": [
+        "Living Room Blinds"
+      ],
+      "domain": "cover",
+      "kind": "cover",
+      "device_class": "blind",
+      "area": "Living Room",
+      "floor": "Main Floor",
+      "state": "closed",
+      "capabilities": [
+        "open",
+        "close",
+        "set_position"
+      ]
+    }
+  ]
+}

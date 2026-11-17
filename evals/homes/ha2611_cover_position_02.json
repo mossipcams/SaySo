@@ -1,0 +1,31 @@
+{
+  "home_id": "ha2611_cover_position_02",
+  "satellite_area": "Bedroom",
+  "sayso_entity_area": "Bedroom",
+  "areas": {
+    "Bedroom": []
+  },
+  "area_aliases": {
+    "Bedroom": []
+  },
+  "entities": [
+    {
+      "entity_id": "cover.bedroom_curtains",
+      "name": "Bedroom Curtains",
+      "aliases": [
+        "Bedroom Curtains"
+      ],
+      "domain": "cover",
+      "kind": "cover",
+      "device_class": "curtain",
+      "area": "Bedroom",
+      "floor": "Main Floor",
+      "state": "closed",
+      "capabilities": [
+        "open",
+        "close",
+        "set_position"
+      ]
+    }
+  ]
+}

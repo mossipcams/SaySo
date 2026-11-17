@@ -26,6 +26,22 @@
         "off",
         "brightness"
       ]
+    },
+    {
+      "entity_id": "todo.cellar_shopping_list",
+      "name": "Cellar Shopping List",
+      "aliases": [
+        "Cellar Shopping List"
+      ],
+      "domain": "todo",
+      "kind": "todo",
+      "device_class": null,
+      "area": "Cellar",
+      "floor": "Main Floor",
+      "state": "0",
+      "capabilities": [
+        "add"
+      ]
     }
   ]
 }

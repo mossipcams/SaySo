@@ -1,0 +1,34 @@
+{
+  "home_id": "ha2611_media_search_02",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Kitchen": []
+  },
+  "area_aliases": {
+    "Kitchen": []
+  },
+  "entities": [
+    {
+      "entity_id": "media_player.kitchen_speaker",
+      "name": "Kitchen Speaker",
+      "aliases": [
+        "Kitchen Speaker"
+      ],
+      "domain": "media_player",
+      "kind": "media_player",
+      "device_class": "speaker",
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "pause",
+        "play",
+        "search_media",
+        "play_media"
+      ]
+    }
+  ]
+}
