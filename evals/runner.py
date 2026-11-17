@@ -36,7 +36,7 @@ from sayso_contract import tool_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
-V2_SCHEMA_PATH = ROOT / "schemas" / "sayso-tool-schema-v2.json"
+V2_SCHEMA_PATH = ROOT / "schemas" / "ha-2026.11.1-tools.json"
 
 AreaContext = _area_context.AreaContext
 build_area_context = _area_context.build_area_context
@@ -77,36 +77,10 @@ DEVICE_CONTROL_TOOL_USAGE_PROMPT = (
 OVERVIEW_EXCLUDED_DOMAINS = frozenset({"calendar", "script"})
 
 HA_TOOL_NAMESPACES: dict[str, str] = {
-    "GetDateTime": "llm",
     "GetLiveContext": "homeassistant",
-    "HassCancelAllTimers": "intent",
-    "HassCancelTimer": "intent",
-    "HassClimateSetTemperature": "climate",
-    "HassDecreaseTimer": "intent",
-    "HassFanSetSpeed": "fan",
-    "HassIncreaseTimer": "intent",
-    "HassLightSet": "light",
-    "HassMediaNext": "media_player",
-    "HassMediaPause": "media_player",
-    "HassMediaPlayerMute": "media_player",
-    "HassMediaPlayerUnmute": "media_player",
-    "HassMediaPrevious": "media_player",
-    "HassMediaSearchAndPlay": "media_player",
-    "HassMediaUnpause": "media_player",
-    "HassPauseTimer": "intent",
-    "HassSetVolume": "media_player",
-    "HassSetVolumeRelative": "media_player",
-    "HassStartTimer": "intent",
-    "HassTimerStatus": "intent",
     "HassTurnOff": "intent",
     "HassTurnOn": "intent",
-    "HassUnpauseTimer": "intent",
-    "HassVacuumCleanArea": "vacuum",
-    "HassVacuumReturnToBase": "vacuum",
-    "HassVacuumStart": "vacuum",
 }
-
-_ALWAYS_OFFERED_NAMESPACES = frozenset({"llm", "homeassistant", "intent"})
 
 
 class ModelAdapter(Protocol):
@@ -135,7 +109,7 @@ def _v2_openai_tools() -> tuple[dict[str, Any], ...]:
     payload = json.loads(V2_SCHEMA_PATH.read_text(encoding="utf-8"))
     tools = payload.get("tools")
     if not isinstance(tools, list) or not tools:
-        raise ValueError("Pinned v2 schema must contain a non-empty tools list")
+        raise ValueError("Pinned HA tool snapshot must contain a non-empty tools list")
     return tuple(dict(tool) for tool in tools)
 
 
@@ -236,7 +210,7 @@ def _compile_catalog(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _script_tool_name(entity: dict[str, Any]) -> str:
     object_id = entity["entity_id"].split(".", 1)[1]
-    return f"_{object_id}" if object_id[:1].isdigit() else object_id
+    return f"script__{object_id}"
 
 
 def _script_tools(home: dict[str, Any]) -> list[dict[str, Any]]:
@@ -261,16 +235,57 @@ def _script_tools(home: dict[str, Any]) -> list[dict[str, Any]]:
     return tools
 
 
+def _todo_list_names(home: dict[str, Any]) -> list[str]:
+    names = []
+    for entity in home.get("entities", []):
+        if entity["domain"] == "todo":
+            names.extend(
+                dict.fromkeys([entity["name"], *entity.get("aliases", [])])
+            )
+    return names
+
+
+def _offer_allowed(offer: str, home: dict[str, Any], domains: set[str]) -> bool:
+    if offer == "always":
+        return True
+    if offer == "todo":
+        return "todo" in domains
+    if offer == "media_search_play":
+        return any(
+            entity["domain"] == "media_player"
+            and {"search_media", "play_media"}
+            <= set(entity.get("capabilities") or [])
+            for entity in home.get("entities", [])
+        )
+    if offer.startswith("domains:"):
+        return any(
+            name in domains
+            for name in offer.removeprefix("domains:").split(",")
+        )
+    if offer.startswith("domain:"):
+        return offer.removeprefix("domain:") in domains
+    raise ValueError(f"unknown tool offer condition {offer!r}")
+
+
+def _snapshot_tool_for_home(
+    tool: dict[str, Any], home: dict[str, Any]
+) -> dict[str, Any]:
+    if tool["function"]["name"] != "todo__get_items":
+        return tool
+    params = json.loads(json.dumps(tool["function"]["parameters"]))
+    params["properties"]["todo_list"]["enum"] = _todo_list_names(home)
+    return {**tool, "function": {**tool["function"], "parameters": params}}
+
+
 def production_catalog(
     home: dict[str, Any], *, removed_tools: list[str] | None = None
 ) -> list[dict[str, Any]]:
     removed = removed_tools or []
     domains = {entity["domain"] for entity in home.get("entities", [])}
     offered = [
-        tool
+        _snapshot_tool_for_home(tool, home)
         for tool in _v2_openai_tools()
-        if HA_TOOL_NAMESPACES[tool["function"]["name"]]
-        in _ALWAYS_OFFERED_NAMESPACES | domains
+        if _offer_allowed(tool.get("offer", ""), home, domains)
     ]
     catalog = _compile_catalog([*offered, *_script_tools(home)])
     unknown = set(removed) - {tool["function"]["name"] for tool in catalog}

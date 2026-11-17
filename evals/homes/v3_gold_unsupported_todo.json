@@ -26,6 +26,22 @@
         "off",
         "brightness"
       ]
+    },
+    {
+      "entity_id": "todo.shopping_list",
+      "name": "Shopping List",
+      "aliases": [
+        "Shopping List"
+      ],
+      "domain": "todo",
+      "kind": "todo",
+      "device_class": null,
+      "area": "Sunroom",
+      "floor": "Main Floor",
+      "state": "0",
+      "capabilities": [
+        "add"
+      ]
     }
   ]
 }
