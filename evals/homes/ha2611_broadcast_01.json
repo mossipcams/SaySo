@@ -1,0 +1,31 @@
+{
+  "home_id": "ha2611_broadcast_01",
+  "satellite_area": "Kitchen",
+  "sayso_entity_area": "Kitchen",
+  "areas": {
+    "Kitchen": []
+  },
+  "area_aliases": {
+    "Kitchen": []
+  },
+  "entities": [
+    {
+      "entity_id": "light.kitchen_pendant_light",
+      "name": "Kitchen Pendant Light",
+      "aliases": [
+        "Kitchen Pendant Light"
+      ],
+      "domain": "light",
+      "kind": "light",
+      "device_class": null,
+      "area": "Kitchen",
+      "floor": "Main Floor",
+      "state": "off",
+      "capabilities": [
+        "on",
+        "off",
+        "brightness"
+      ]
+    }
+  ]
+}
