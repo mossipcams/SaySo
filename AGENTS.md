@@ -49,6 +49,14 @@ Defer if they threaten the voice path:
 - Prefer reusing existing code over writing a new equivalent. Search before you
   write.
 
+## Code search
+
+- `rg` for text: strings, config keys, errors, comments.
+- `ast-grep` (see skill) when structure matters: calls/definitions where rg hits
+  comments or strings, and ALL multi-file rewrites. Never sed/regex rewrites on
+  code.
+- `ast-grep outline` before reading an unfamiliar file in full.
+
 ## Workflow
 
 - Always save an md plan before implementing. Write the plan to disk (e.g.
