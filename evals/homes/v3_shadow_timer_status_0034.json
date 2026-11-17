@@ -3,10 +3,12 @@
   "satellite_area": "Veranda",
   "sayso_entity_area": "Veranda",
   "areas": {
-    "Porch": []
+    "Porch": [],
+    "Veranda": []
   },
   "area_aliases": {
-    "Porch": []
+    "Porch": [],
+    "Veranda": []
   },
   "entities": [
     {

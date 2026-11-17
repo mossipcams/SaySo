@@ -3,10 +3,12 @@
   "satellite_area": "Courtyard",
   "sayso_entity_area": "Courtyard",
   "areas": {
-    "Porch": []
+    "Porch": [],
+    "Courtyard": []
   },
   "area_aliases": {
-    "Porch": []
+    "Porch": [],
+    "Courtyard": []
   },
   "entities": [
     {

@@ -1964,8 +1964,8 @@
   {
     "source": "training/evals/grounding_eval.py",
     "source_id": "sem_e997d4555dc4c991",
-    "canonical_id": "sem_e997d4555dc4c991",
-    "status": "retained"
+    "canonical_id": "sem_cbb85a396361684e",
+    "status": "equivalent"
   },
   {
     "source": "training/evals/grounding_eval.py",

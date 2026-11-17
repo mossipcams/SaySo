@@ -3,10 +3,12 @@
   "satellite_area": "Annex",
   "sayso_entity_area": "Annex",
   "areas": {
-    "Porch": []
+    "Porch": [],
+    "Annex": []
   },
   "area_aliases": {
-    "Porch": []
+    "Porch": [],
+    "Annex": []
   },
   "entities": [
     {

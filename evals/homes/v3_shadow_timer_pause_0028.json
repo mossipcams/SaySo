@@ -3,10 +3,12 @@
   "satellite_area": "Balcony",
   "sayso_entity_area": "Balcony",
   "areas": {
-    "Porch": []
+    "Porch": [],
+    "Balcony": []
   },
   "area_aliases": {
-    "Porch": []
+    "Porch": [],
+    "Balcony": []
   },
   "entities": [
     {
