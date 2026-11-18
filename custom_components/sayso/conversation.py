@@ -62,6 +62,7 @@ from .grounding import (
     GroundingHome,
     clarify,
     is_grounded,
+    drop_unspoken_area,
     support,
     tokens,
 )
@@ -625,6 +626,19 @@ class SaySoConversationEntity(
                     turn.user_input,
                     turn.user_input.as_llm_context(DOMAIN).assistant,
                 )
+                normalized: list[tuple[ToolCall, dict]] = []
+                for call, args in validated:
+                    new_args = drop_unspoken_area(
+                        call.name, args, turn.user_input.text, home
+                    )
+                    if new_args is not args:
+                        parse_span.metadata["area_dropped"] = {
+                            "tool": call.name,
+                            "name": args.get("name"),
+                            "area": args.get("area"),
+                        }
+                    normalized.append((call, new_args))
+                validated = normalized
                 for i, (call, args) in enumerate(validated):
                     if not is_grounded(call.name, args, turn.user_input.text, home):
                         clar = clarify(call.name, args, turn.user_input.text, home)

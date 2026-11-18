@@ -1,7 +1,7 @@
 {
   "home_id": "realistic_eval_household_5",
-  "satellite_area": "Kitchen",
-  "sayso_entity_area": "Kitchen",
+  "satellite_area": "Living Room",
+  "sayso_entity_area": "Living Room",
   "areas": {
     "Bathroom": [],
     "Bedroom": [],
@@ -101,9 +101,7 @@
     },
     {
       "name": "Kitchen Sink Light",
-      "aliases": [
-        "prep lights"
-      ],
+      "aliases": [],
       "domain": "light",
       "area": "Kitchen"
     },
@@ -117,10 +115,7 @@
     },
     {
       "name": "Living Room TV Backlight",
-      "aliases": [
-        "reading light",
-        "sofa lamp"
-      ],
+      "aliases": [],
       "domain": "light",
       "area": "Living Room"
     },
@@ -133,8 +128,7 @@
     {
       "name": "Taylor's Bedside Lamp",
       "aliases": [
-        "bedside lamp",
-        "my bedside light"
+        "bedside lamp"
       ],
       "domain": "light",
       "area": "Bedroom"

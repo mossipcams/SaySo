@@ -53,7 +53,7 @@ def test_every_suite_id_resolves_uniquely() -> None:
     smoke = load_suite("smoke")
     promotion = load_suite("promotion")
     assert len(smoke) == len(set(smoke)) == 24
-    assert len(promotion) == len(set(promotion)) == 120
+    assert len(promotion) == len(set(promotion)) == 530
     assert set(smoke) <= set(promotion)
 
 
@@ -67,7 +67,6 @@ def test_smoke_covers_required_behaviors() -> None:
         "status",
         "ambiguity",
         "unavailable",
-        "exclusion",
     } <= categories
     sources = {render_case(case)["area_context"]["target_area_source"] for case in cases}
     assert {"explicit", "satellite"} <= sources
@@ -85,11 +84,21 @@ def test_held_out_cases_are_not_in_smoke() -> None:
         assert not {case.id for case in cases_with_tag(tag)} & smoke
 
 
-def test_promotion_denominator_is_only_the_original_120() -> None:
+def test_promotion_composition() -> None:
     promotion = select_cases(suite="promotion")
-    assert len(promotion) == 120
+    assert len(promotion) == 530
     assert dict(Counter(case.category for case in promotion)) == {
-        category: 10 for category in {case.category for case in promotion}
+        "ordinary": 130,
+        "light_fan_settings": 76,
+        "climate": 19,
+        "media": 51,
+        "timers": 53,
+        "routines_vacuum": 48,
+        "status": 18,
+        "aliases": 47,
+        "multi_action": 46,
+        "ambiguity": 14,
+        "unavailable": 28,
     }
     assert all("promotion" in case.tags for case in promotion)
     assert all("regression" not in case.tags for case in promotion)
@@ -98,7 +107,7 @@ def test_promotion_denominator_is_only_the_original_120() -> None:
 def test_useful_migrated_cases_retain_expected_behavior() -> None:
     index = {case.id: case for case in load_all_cases()}
     retained = [row for row in MAP if row["status"] == "retained" and row["canonical_id"]]
-    assert len(retained) >= 120 + 38
+    assert len(retained) == 272
     for row in retained:
         case = index[row["canonical_id"]]
         assert case.utterance

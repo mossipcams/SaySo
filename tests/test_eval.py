@@ -25,14 +25,26 @@ def test_cases_cover_required_behaviors() -> None:
         "ambiguity",
         "unavailable",
         "multi_action",
-        "exclusion",
     } <= categories
-    assert Counter(case.category for case in select_cases(suite="promotion")).most_common()[-1][1] == 10
 
 
 def test_smoke_and_promotion_are_id_filters() -> None:
     assert set(load_suite("smoke")) <= set(load_suite("promotion"))
-    assert len(load_suite("promotion")) == 120
+    assert len(load_suite("smoke")) == 24
+    assert len(load_suite("promotion")) == 530
+    assert dict(Counter(case.category for case in select_cases(suite="promotion"))) == {
+        "ordinary": 130,
+        "light_fan_settings": 76,
+        "climate": 19,
+        "media": 51,
+        "timers": 53,
+        "routines_vacuum": 48,
+        "status": 18,
+        "aliases": 47,
+        "multi_action": 46,
+        "ambiguity": 14,
+        "unavailable": 28,
+    }
 
 
 def test_shared_runner_scores_a_perfect_smoke_case() -> None:

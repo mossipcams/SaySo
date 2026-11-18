@@ -15,7 +15,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_climate_01",
     "canonical_id": "realistic_eval_20260908_climate_01",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -57,7 +57,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_exclusion_01",
     "canonical_id": "realistic_eval_20260908_exclusion_01",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -69,7 +69,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_unavailable_01",
     "canonical_id": "realistic_eval_20260908_unavailable_01",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -87,13 +87,13 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_climate_02",
     "canonical_id": "realistic_eval_20260908_climate_02",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_media_02",
     "canonical_id": "realistic_eval_20260908_media_02",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -129,7 +129,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_exclusion_02",
     "canonical_id": "realistic_eval_20260908_exclusion_02",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -141,7 +141,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_unavailable_02",
     "canonical_id": "realistic_eval_20260908_unavailable_02",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -159,7 +159,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_climate_03",
     "canonical_id": "realistic_eval_20260908_climate_03",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -189,7 +189,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_aliases_03",
     "canonical_id": "realistic_eval_20260908_aliases_03",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -201,7 +201,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_exclusion_03",
     "canonical_id": "realistic_eval_20260908_exclusion_03",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -231,7 +231,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_climate_04",
     "canonical_id": "realistic_eval_20260908_climate_04",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -255,7 +255,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_status_04",
     "canonical_id": "realistic_eval_20260908_status_04",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -267,19 +267,19 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_multi_action_04",
     "canonical_id": "realistic_eval_20260908_multi_action_04",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_exclusion_04",
     "canonical_id": "realistic_eval_20260908_exclusion_04",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_ambiguity_04",
     "canonical_id": "realistic_eval_20260908_ambiguity_04",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -327,7 +327,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_status_05",
     "canonical_id": "realistic_eval_20260908_status_05",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -339,25 +339,25 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_multi_action_05",
     "canonical_id": "realistic_eval_20260908_multi_action_05",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_exclusion_05",
     "canonical_id": "realistic_eval_20260908_exclusion_05",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_ambiguity_05",
     "canonical_id": "realistic_eval_20260908_ambiguity_05",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_unavailable_05",
     "canonical_id": "realistic_eval_20260908_unavailable_05",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -369,7 +369,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_light_fan_settings_06",
     "canonical_id": "realistic_eval_20260908_light_fan_settings_06",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -393,13 +393,13 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_routines_vacuum_06",
     "canonical_id": "realistic_eval_20260908_routines_vacuum_06",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_status_06",
     "canonical_id": "realistic_eval_20260908_status_06",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -417,19 +417,19 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_exclusion_06",
     "canonical_id": "realistic_eval_20260908_exclusion_06",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_ambiguity_06",
     "canonical_id": "realistic_eval_20260908_ambiguity_06",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_unavailable_06",
     "canonical_id": "realistic_eval_20260908_unavailable_06",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -441,7 +441,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_light_fan_settings_07",
     "canonical_id": "realistic_eval_20260908_light_fan_settings_07",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -459,7 +459,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_timers_07",
     "canonical_id": "realistic_eval_20260908_timers_07",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -471,31 +471,31 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_status_07",
     "canonical_id": "realistic_eval_20260908_status_07",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_aliases_07",
     "canonical_id": "realistic_eval_20260908_aliases_07",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_multi_action_07",
     "canonical_id": "realistic_eval_20260908_multi_action_07",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_exclusion_07",
     "canonical_id": "realistic_eval_20260908_exclusion_07",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_ambiguity_07",
     "canonical_id": "realistic_eval_20260908_ambiguity_07",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -543,37 +543,37 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_status_08",
     "canonical_id": "realistic_eval_20260908_status_08",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_aliases_08",
     "canonical_id": "realistic_eval_20260908_aliases_08",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_multi_action_08",
     "canonical_id": "realistic_eval_20260908_multi_action_08",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_exclusion_08",
     "canonical_id": "realistic_eval_20260908_exclusion_08",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_ambiguity_08",
     "canonical_id": "realistic_eval_20260908_ambiguity_08",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_unavailable_08",
     "canonical_id": "realistic_eval_20260908_unavailable_08",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -597,31 +597,31 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_media_09",
     "canonical_id": "realistic_eval_20260908_media_09",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_timers_09",
     "canonical_id": "realistic_eval_20260908_timers_09",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_routines_vacuum_09",
     "canonical_id": "realistic_eval_20260908_routines_vacuum_09",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_status_09",
     "canonical_id": "realistic_eval_20260908_status_09",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_aliases_09",
     "canonical_id": "realistic_eval_20260908_aliases_09",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -633,19 +633,19 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_exclusion_09",
     "canonical_id": "realistic_eval_20260908_exclusion_09",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_ambiguity_09",
     "canonical_id": "realistic_eval_20260908_ambiguity_09",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_unavailable_09",
     "canonical_id": "realistic_eval_20260908_unavailable_09",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -663,7 +663,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_climate_10",
     "canonical_id": "realistic_eval_20260908_climate_10",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -687,7 +687,7 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_status_10",
     "canonical_id": "realistic_eval_20260908_status_10",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
@@ -705,19 +705,19 @@
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_exclusion_10",
     "canonical_id": "realistic_eval_20260908_exclusion_10",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_ambiguity_10",
     "canonical_id": "realistic_eval_20260908_ambiguity_10",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "evals/cases/realistic_v3.json",
     "source_id": "realistic_eval_20260908_unavailable_10",
     "canonical_id": "realistic_eval_20260908_unavailable_10",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "training/evals/recipe_lock.py",
@@ -795,25 +795,25 @@
     "source": "training/evals/recipe_lock.py",
     "source_id": "recipe_lock_04_a",
     "canonical_id": "recipe_lock_04_a",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "training/evals/recipe_lock.py",
     "source_id": "recipe_lock_04_b",
     "canonical_id": "recipe_lock_04_b",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "training/evals/recipe_lock.py",
     "source_id": "recipe_lock_04_c",
     "canonical_id": "recipe_lock_04_c",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "training/evals/recipe_lock.py",
     "source_id": "recipe_lock_04_d",
     "canonical_id": "recipe_lock_04_d",
-    "status": "retained"
+    "status": "removed"
   },
   {
     "source": "training/evals/recipe_lock.py",

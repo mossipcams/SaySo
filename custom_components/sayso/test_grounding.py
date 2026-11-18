@@ -8,6 +8,7 @@ from custom_components.sayso.grounding import (
     GroundingHome,
     clarify,
     is_grounded,
+    drop_unspoken_area,
 )
 
 
@@ -178,3 +179,113 @@ def test_not_grounded_unnamed_entity(home):
     )
     assert result.speech == ERROR_NOT_UNDERSTOOD
     assert result.options == ()
+
+
+def _area_home(satellite_area: str) -> GroundingHome:
+    entities = (
+        GroundingEntity(
+            entity_id="media_player.sofa_tv",
+            name="Sofa TV",
+            aliases=("Living TV",),
+            domain="media_player",
+            area="Living Room",
+            device_id=None,
+        ),
+        GroundingEntity(
+            entity_id="light.floor_lamp",
+            name="Floor Lamp",
+            aliases=(),
+            domain="light",
+            area="Living Room",
+            device_id=None,
+        ),
+    )
+    return GroundingHome(
+        entities=entities,
+        areas={"Kitchen": ("Galley",), "Living Room": ()},
+        satellite_area=satellite_area,
+        satellite_device_id=None,
+    )
+
+
+def test_satellite_area_dropped_for_unique_named_device():
+    home = _area_home("Kitchen")
+    args = {"name": "Sofa TV", "area": "Kitchen"}
+    result = drop_unspoken_area("HassTurnOff", args, "Mute the TV", home)
+    assert result == {"name": "Sofa TV"}
+    assert result is not args
+    assert args == {"name": "Sofa TV", "area": "Kitchen"}
+
+
+def test_alias_name_resolves_and_drops():
+    home = _area_home("Kitchen")
+    result = drop_unspoken_area(
+        "HassTurnOff", {"name": "Living TV", "area": "Kitchen"}, "Mute the TV", home
+    )
+    assert result == {"name": "Living TV"}
+
+
+def test_area_only_call_kept():
+    home = _area_home("Kitchen")
+    args = {"area": "Kitchen", "domain": ["media_player"]}
+    assert drop_unspoken_area("HassTurnOn", args, "turn on the tvs", home) is args
+
+
+def test_area_equal_to_entity_area_kept():
+    home = _area_home("Kitchen")
+    args = {"name": "Sofa TV", "area": "Living Room"}
+    assert drop_unspoken_area(
+        "HassTurnOff", args, "Mute the TV", home
+    ) is args
+
+
+def test_spoken_mismatching_area_kept():
+    home = _area_home("Kitchen")
+    args = {"name": "Floor Lamp", "area": "Kitchen"}
+    assert (
+        drop_unspoken_area("HassTurnOn", args, "turn on the floor lamp in the kitchen", home)
+        is args
+    )
+
+
+def test_spoken_alias_area_kept():
+    home = _area_home("Kitchen")
+    args = {"name": "Floor Lamp", "area": "Kitchen"}
+    assert (
+        drop_unspoken_area("HassTurnOn", args, "turn on the floor lamp in the galley", home)
+        is args
+    )
+
+
+def test_ambiguous_name_kept():
+    home = GroundingHome(
+        entities=(
+            GroundingEntity(
+                entity_id="media_player.tv_a",
+                name="TV",
+                aliases=(),
+                domain="media_player",
+                area="Living Room",
+                device_id=None,
+            ),
+            GroundingEntity(
+                entity_id="media_player.tv_b",
+                name="TV",
+                aliases=(),
+                domain="media_player",
+                area="Bedroom",
+                device_id=None,
+            ),
+        ),
+        areas={"Kitchen": (), "Living Room": (), "Bedroom": ()},
+        satellite_area="Kitchen",
+        satellite_device_id=None,
+    )
+    args = {"name": "TV", "area": "Kitchen"}
+    assert drop_unspoken_area("HassTurnOn", args, "turn on the tv", home) is args
+
+
+def test_unknown_name_kept():
+    home = _area_home("Kitchen")
+    args = {"name": "Nonexistent", "area": "Kitchen"}
+    assert drop_unspoken_area("HassTurnOn", args, "turn on the thing", home) is args
