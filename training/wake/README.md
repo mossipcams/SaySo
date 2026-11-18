@@ -1,7 +1,7 @@
 # Wake-word training: "Koda" (LiveKit)
 
 This guide covers training the "Koda" wake classifier that the satellite runs.
-The SaySo language model has its own guide: [training/README.md](../README.md).
+The SaySo language model is trained from ajax-optimization `sayso-training/`.
 
 - Plan: [docs/PLAN_WAKE_KODA_RECOVERY.md](../../docs/PLAN_WAKE_KODA_RECOVERY.md). The
   measurement-first program is in [docs/PLAN_WAKE_RETHINK.md](../../docs/PLAN_WAKE_RETHINK.md).

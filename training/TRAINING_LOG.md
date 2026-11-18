@@ -1,8 +1,8 @@
 # SaySo training log
 
 What actually ran, what changed, what it scored, and which checkpoint was selected.
-Design rules live in [docs/SAYSO_LFM_TRAINING_PLAN.md](../docs/SAYSO_LFM_TRAINING_PLAN.md); current
-commands live in [training/README.md](README.md). Neither belongs here.
+Design rules and current commands live in ajax-optimization `sayso-training/`
+(`docs/SAYSO_LFM_TRAINING_PLAN.md`, `training/README.md`). Neither belongs here.
 
 ## Conventions
 
@@ -694,7 +694,7 @@ Deleted datasets and GGUFs:
 Read-only inspection found a GTX 1070 with 8,192 MiB VRAM and no active training
 or llama.cpp process. The proposed 24 GB full fine-tune is planning only. Host
 hardware, package versions, and actual launch paths are recorded in
-[training/README.md](README.md#retired-host-192168140).
+ajax-optimization `sayso-training/training/README.md` ("Retired host").
 
 Later artifacts exist beyond the last numbered run documented above:
 

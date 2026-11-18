@@ -3,9 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
-import sys
 import urllib.error
-from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -89,19 +87,6 @@ class ModelAdapter(Protocol):
     def complete(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> Any: ...
-
-
-@contextmanager
-def training_path():
-    path = str(ROOT / "training")
-    added = path not in sys.path
-    if added:
-        sys.path.append(path)
-    try:
-        yield
-    finally:
-        if added:
-            sys.path.remove(path)
 
 
 @lru_cache(maxsize=1)

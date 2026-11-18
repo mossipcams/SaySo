@@ -1,10 +1,8 @@
 # Generated datasets live here (gitignored except this README).
 
-Do not commit generated JSONL files. For SaySo training, use the
-[candidate-to-promotion lifecycle](../../docs/SAYSO_TRAINING_LIFECYCLE.md):
-`./sayso generate` in ajax-optimization `sayso-training/` writes each corpus
-under `candidates/`, and full training accepts only the dataset recorded by
-`./sayso promote-dataset`.
+Do not commit generated JSONL files. SaySo training data is generated and
+promoted from ajax-optimization `sayso-training/`; the manifests here record
+older corpora.
 
 Older and development outputs may also be present:
 

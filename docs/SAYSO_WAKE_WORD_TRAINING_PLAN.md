@@ -2,7 +2,7 @@
 
 This plan covers the SaySo wake classifier and satellite audio used for its
 training and evaluation. LFM language/tool training is separate:
-[SaySo model training plan](SAYSO_LFM_TRAINING_PLAN.md).
+its plan lives in ajax-optimization `sayso-training/docs/SAYSO_LFM_TRAINING_PLAN.md`.
 
 ## Current training direction
 
