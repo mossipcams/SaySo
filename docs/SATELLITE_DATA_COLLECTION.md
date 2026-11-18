@@ -9,7 +9,7 @@ long-form corpus sessions, and prompted takes (including `200-positive`) are
 eval, labeling, and optional later overlay only. Holdouts, miner party,
 `verifier_live_fp`, and unlabeled spool stay out of train.
 
-Training-side layout: `docs/WAKE_TRAINING_DATA_ARCHITECTURE.md`.
+Training-side layout: ajax-optimization `sayso-training/docs/WAKE_TRAINING_DATA_ARCHITECTURE.md`.
 
 Satellite is a thin LVA overlay. It does not do STT, NLU, or actions. It
 **does** own the mic, the 2 s wake window, and the mining spool.

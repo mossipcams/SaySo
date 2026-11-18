@@ -13,7 +13,7 @@ Real recordings and mined windows supply evaluation and a possible later overlay
 Preserve the shipped living2 bundle and independent holdouts. Operational details
 are in [training/wake/README.md](../training/wake/README.md); data ownership,
 source splits, and the secondary corpus path are in
-[WAKE_TRAINING_DATA_ARCHITECTURE.md](WAKE_TRAINING_DATA_ARCHITECTURE.md).
+ajax-optimization `sayso-training/docs/WAKE_TRAINING_DATA_ARCHITECTURE.md`.
 
 ## Capture and unattended mining plan
 
