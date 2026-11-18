@@ -1,6 +1,6 @@
 # SaySo "Koda" wake word — LiveKit configs/prod.yaml (livekit-wakeword 0.2.1)
 # with only the phrase, near-miss negatives, and model size changed.
-# Plan: docs/PLAN_WAKE_KODA_RECOVERY.md. Run from a work dir whose ./data is the shared
+# Plan: ajax-optimization sayso-training/docs/PLAN_WAKE_KODA_RECOVERY.md. Run from a work dir whose ./data is the shared
 # LiveKit setup assets (see training/wake/README.md).
 #
 # Model name — used for output directory and exported model filename

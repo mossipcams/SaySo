@@ -1,10 +1,10 @@
 # Wake-word training: "Koda" (LiveKit)
 
 This guide covers training the "Koda" wake classifier that the satellite runs.
-The SaySo language model has its own guide: [training/README.md](../README.md).
+The SaySo language model is trained from ajax-optimization `sayso-training/`.
 
-- Plan: [docs/PLAN_WAKE_KODA_RECOVERY.md](../../docs/PLAN_WAKE_KODA_RECOVERY.md). The
-  measurement-first program is in [docs/PLAN_WAKE_RETHINK.md](../../docs/PLAN_WAKE_RETHINK.md).
+- Plan: ajax-optimization `sayso-training/docs/PLAN_WAKE_KODA_RECOVERY.md`. The
+  measurement-first program is in ajax-optimization `sayso-training/docs/PLAN_WAKE_RETHINK.md`.
 - Recipe: [satellite/models/koda.yaml](../../satellite/models/koda.yaml). It's
   LiveKit's `configs/prod.yaml` with only the phrase, the near-miss negatives,
   and `model_size: small` changed.
@@ -57,7 +57,7 @@ LiveKit eval on synthetic validation data.
 LiveKit eval uses synthetic audio only. It doesn't show how the model
 performs in the room. Before an Koda model ships, measure recall on real
 Koda takes and TV false fires per hour on long-form TV recordings; see
-`docs/PLAN_WAKE_RETHINK.md`. The satellite also has to allow the new phrase:
+ajax-optimization `sayso-training/docs/PLAN_WAKE_RETHINK.md`. The satellite also has to allow the new phrase:
 `satellite/sayso/config.py` still requires `SaySo`.
 
 ## Corpus sessions and mining

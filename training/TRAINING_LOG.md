@@ -1,8 +1,8 @@
 # SaySo training log
 
 What actually ran, what changed, what it scored, and which checkpoint was selected.
-Design rules live in [docs/SAYSO_LFM_TRAINING_PLAN.md](../docs/SAYSO_LFM_TRAINING_PLAN.md); current
-commands live in [training/README.md](README.md). Neither belongs here.
+Design rules and current commands live in ajax-optimization `sayso-training/`
+(`docs/SAYSO_LFM_TRAINING_PLAN.md`, `training/README.md`). Neither belongs here.
 
 ## Conventions
 
@@ -598,7 +598,7 @@ The full run then loaded Base and its fresh output directory.
 ### Run 013 results and disposition
 
 Evaluated at steps 2,500 / 3,250 / 5,000 against the four frozen suites. Full
-per-suite table in [docs/HANDOFF_gauntlet_v2.md](../docs/HANDOFF_gauntlet_v2.md) §1.
+per-suite table in ajax-optimization `sayso-training/docs/HANDOFF_gauntlet_v2.md` §1.
 
 | | step-2500 | step-3250 | step-5000 | prior champion |
 |---|---|---|---|---|
@@ -649,7 +649,7 @@ Both markers are on the host and neither is version-controlled.
 ## Host cleanup — 2026-09-23
 
 The retired host's data on the `llm` VM was cleaned per
-[docs/PLAN_VM_LAYOUT.md](../docs/PLAN_VM_LAYOUT.md) Task 2. The full manifest
+ajax-optimization `sayso-training/docs/PLAN_VM_LAYOUT.md` Task 2. The full manifest
 (1,016 files, 23.6 GB, sha256 + size + path) is
 [legacy-140-deleted.sha256](legacy-140-deleted.sha256). Non-regenerable files
 were copied to the Mac (`~/SaySo-archive/vm-20260923/`) and hash-verified
@@ -694,7 +694,7 @@ Deleted datasets and GGUFs:
 Read-only inspection found a GTX 1070 with 8,192 MiB VRAM and no active training
 or llama.cpp process. The proposed 24 GB full fine-tune is planning only. Host
 hardware, package versions, and actual launch paths are recorded in
-[training/README.md](README.md#retired-host-192168140).
+ajax-optimization `sayso-training/training/README.md` ("Retired host").
 
 Later artifacts exist beyond the last numbered run documented above:
 
@@ -720,7 +720,7 @@ No host files, processes, models, datasets, or deployment were changed.
 
 ### VM layout completed — 2026-09-23
 
-Task 3 in `docs/PLAN_VM_LAYOUT.md` is applied: checkout and LFM datasets on the
+Task 3 in ajax-optimization `sayso-training/docs/PLAN_VM_LAYOUT.md` is applied: checkout and LFM datasets on the
 HDD; LFM models/runs, vLLM (`serve/vllm/`), Unsloth (`services/unsloth/`), and
 shared HF cache on the SSD. Retired helpers/configs are archived on the HDD
 and Mac. Both services passed HTTP checks; authenticated vLLM inference passed.

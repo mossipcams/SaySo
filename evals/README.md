@@ -20,7 +20,7 @@ cases; they are not a third runner.
 
 Training-time checkpoint eval uses `evals.adapters.InMemoryAdapter` through the
 same runner and scorer. The canary/final gates and their promotion lifecycle are
-documented in [SaySo's training lifecycle](../docs/SAYSO_TRAINING_LIFECYCLE.md).
+documented in the training lifecycle in ajax-optimization `sayso-training/`.
 Validation loss remains a trainer metric.
 
 Endpoint CLI runs write `evals/results/<run-id>/` (`metadata.json`,

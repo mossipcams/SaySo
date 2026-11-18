@@ -2,7 +2,7 @@
 
 This plan covers the SaySo wake classifier and satellite audio used for its
 training and evaluation. LFM language/tool training is separate:
-[SaySo model training plan](SAYSO_LFM_TRAINING_PLAN.md).
+its plan lives in ajax-optimization `sayso-training/docs/SAYSO_LFM_TRAINING_PLAN.md`.
 
 ## Current training direction
 
@@ -13,7 +13,7 @@ Real recordings and mined windows supply evaluation and a possible later overlay
 Preserve the shipped living2 bundle and independent holdouts. Operational details
 are in [training/wake/README.md](../training/wake/README.md); data ownership,
 source splits, and the secondary corpus path are in
-[WAKE_TRAINING_DATA_ARCHITECTURE.md](WAKE_TRAINING_DATA_ARCHITECTURE.md).
+ajax-optimization `sayso-training/docs/WAKE_TRAINING_DATA_ARCHITECTURE.md`.
 
 ## Capture and unattended mining plan
 

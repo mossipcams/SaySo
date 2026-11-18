@@ -13,7 +13,6 @@ from homeassistant.helpers import llm
 from custom_components.sayso import const
 from custom_components.sayso.area_context import (
     build_area_context,
-    render_system_prompt,
     tools_before_area_messages,
 )
 from custom_components.sayso.schema import compile_tools, emit_tools_source_json
@@ -21,7 +20,7 @@ from custom_components.sayso.tool_schema import compile_source_tools
 from evals.adapters.in_memory import InMemoryAdapter
 from evals.cases import ARCHIVE_DIR, CASES_DIR, load_gates, load_home, select_cases
 from evals.outcomes import PRODUCTION_MAX_OUTPUT_TOKENS, PRODUCTION_TEMPERATURE, Outcome
-from evals.runner import evaluate, production_catalog, render_case, training_path
+from evals.runner import evaluate, production_catalog, render_case
 from evals.scorer import check_gates, is_clarification, is_refusal, summarize
 from sayso_contract import tool_contract
 
@@ -138,22 +137,6 @@ def test_spoken_aliases_exist_in_the_household() -> None:
         entities = {e["name"]: e for e in load_home(case.household)["entities"]}
         for name, alias in case.expected["spoken_aliases"].items():
             assert alias in entities[name]["aliases"], (case.id, name, alias)
-
-
-def test_eval_prompt_is_the_production_renderer_applied_to_the_ha_prompt() -> None:
-    with training_path():
-        from generators.context import serialize_context
-
-    for case in PROMOTION:
-        home = load_home(case.household)
-        rendered = render_case(case)["messages"][0]["content"]
-        ha_prompt = rendered.rsplit("\nArea context:\n", 1)[0] + (
-            f"\nYou are in area {home['sayso_entity_area']} (floor Main Floor) and all generic"
-            " commands like 'turn on the lights' should target this area."
-        )
-        context = build_area_context(case.utterance, home["area_aliases"], home["sayso_entity_area"])
-        assert rendered == render_system_prompt(ha_prompt, context)
-        assert rendered == serialize_context(home, case.utterance)
 
 
 class _Tool(llm.Tool):

@@ -129,8 +129,7 @@ pip install -e ".[test]"
 pytest -q
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for runtime boundaries and
-[docs/SAYSO_TRAINING_LIFECYCLE.md](docs/SAYSO_TRAINING_LIFECYCLE.md) for the local training and promotion workflow,
-[docs/SAYSO_LFM_TRAINING_PLAN.md](docs/SAYSO_LFM_TRAINING_PLAN.md) for SaySo model training design.
-Wake-word training is planned separately in
+See [ARCHITECTURE.md](ARCHITECTURE.md) for runtime boundaries. SaySo model
+training (generator, promotion workflow, trainer, and design notes) lives in
+ajax-optimization `sayso-training/`. Wake-word training is planned separately in
 [docs/SAYSO_WAKE_WORD_TRAINING_PLAN.md](docs/SAYSO_WAKE_WORD_TRAINING_PLAN.md).
