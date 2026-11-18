@@ -32,12 +32,12 @@ Keep (do not skip to “save time”):
   already checks outcomes
 - Metric scoring and the runnable offline eval path under `evals/`
 - Core/safety/follow-up coverage already represented in `evals/cases/`
-- The smoke suite (~24 promotion cases) and the locked 120-case promotion suite
+- The smoke suite (24 promotion cases) and the 530-case promotion suite (78 reviewed + 452 generated cases)
 
 Defer if they threaten the voice path:
 
 - Extra model bake-offs
-- Expanding corpora past the reviewed `evals/cases/`
+- Expanding corpora past the reviewed and generated cases in `evals/cases/`
 - Generalized multi-satellite support beyond standard HA voice pipelines
 - Streaming optimizations and polished diagnostics
 
@@ -68,6 +68,9 @@ Defer if they threaten the voice path:
 - Offline eval cases and the single runner live in `evals/` (`evals/cases/`,
   `evals/suites/`, `evals/runner.py`, `evals/scorer.py`, `evals/cli.py`).
   Evaluator tests live in `evals/tests/`.
+- Generated promotion cases (`evals/cases/realistic_generated.jsonl`)
+  come from `evals/generate_realistic.py`. Change the generator and regenerate
+  instead of editing the file; `python -m evals.generate_realistic --check` must pass.
 - Python throughout. Extend the existing test suite: `tests/`, `evals/tests/`,
   and colocated `custom_components/sayso/test_*.py`. Do not add another top-level
   `tests/` tree or a new test framework.
