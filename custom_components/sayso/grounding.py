@@ -130,6 +130,27 @@ def _area_uttered(area: str, utterance: str, home: GroundingHome) -> bool:
     return any(_phrase_in_utterance(w, ut) for w in names)
 
 
+def drop_unspoken_area(
+    tool_name: str, args: dict, utterance: str, home: GroundingHome
+) -> dict:
+    name = args.get("name")
+    area = args.get("area")
+    if not isinstance(name, str) or not isinstance(area, str):
+        return args
+    needle = name.casefold().strip()
+    matches = [e for e in home.entities if needle in labels(e)]
+    if len(matches) != 1:
+        return args
+    entity = matches[0]
+    if entity.area is not None and area.casefold() == entity.area.casefold():
+        return args
+    ut = tokens(utterance)
+    names = [area.casefold(), *(a.casefold() for a in home.areas.get(area, ()))]
+    if any(_phrase_in_utterance(w, ut) for w in names):
+        return args
+    return {k: v for k, v in args.items() if k != "area"}
+
+
 def call_domain(tool_name: str, args: dict) -> str | None:
     prefix = tool_name.split("__")[0] if "__" in tool_name else "intent"
     if prefix != "intent":
