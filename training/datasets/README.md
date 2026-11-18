@@ -2,8 +2,9 @@
 
 Do not commit generated JSONL files. For SaySo training, use the
 [candidate-to-promotion lifecycle](../../docs/SAYSO_TRAINING_LIFECYCLE.md):
-`./sayso generate` writes each corpus under `candidates/`, and full training
-accepts only the dataset recorded by `./sayso promote-dataset`.
+`./sayso generate` in ajax-optimization `sayso-training/` writes each corpus
+under `candidates/`, and full training accepts only the dataset recorded by
+`./sayso promote-dataset`.
 
 Older and development outputs may also be present:
 
@@ -17,5 +18,4 @@ Canonical model-eval cases live in `evals/cases/`, not here.
 
 Other data utilities (not the full-training entry point):
 
-- `python training/scripts/generate_balanced_test_data.py`
 - `python training/scripts/split_dataset.py`

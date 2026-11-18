@@ -1,7 +1,8 @@
 # SaySo training lifecycle
 
-Run training from the SaySo checkout on the `llm` VM. The local `./sayso`
-command wraps the existing v5 generator, static preflight, rendered-view
+The training-data generator and this workflow live in ajax-optimization
+`sayso-training/`, not in SaySo. Run every command below from that tree on the
+`llm` VM. Its `./sayso` command wraps the v5 generator, static preflight, rendered-view
 exporter, Unsloth trainer, and production SaySo scorer. It does not commit code,
 publish weights, or deploy a model. See [training/README.md](../training/README.md)
 for the observed host layout, [the model training plan](SAYSO_LFM_TRAINING_PLAN.md)

@@ -9,6 +9,12 @@ scored, and which checkpoint is promoted belong in
 [training/TRAINING_LOG.md](../training/TRAINING_LOG.md); commands and active
 config belong in [training/README.md](../training/README.md).
 
+The training-data generator lives in ajax-optimization `sayso-training/`, not
+in SaySo. Paths below under `training/generators/`, plus
+`training/scripts/generate_balanced_test_data.py`,
+`training/scripts/fetch_ha_home.py` and `generators.cli`, are relative to that
+tree.
+
 SaySo trains `LiquidAI/LFM2.5-230M-Base` to select and emit Home Assistant tools in
 the same OpenAI-compatible shape used by the integration. Home Assistant still
 owns the entities, schemas, permissions, execution, and final voice pipeline.
