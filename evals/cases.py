@@ -16,7 +16,12 @@ SUITES_DIR = EVALS_ROOT / "suites"
 GATES_PATH = EVALS_ROOT / "config" / "gates.yaml"
 ARCHIVE_DIR = EVALS_ROOT / "archive"
 
-_CASE_FILES = ("realistic_v3.jsonl", "regressions.jsonl", "context_lookalikes.jsonl")
+_CASE_FILES = (
+    "realistic_v3.jsonl",
+    "regressions.jsonl",
+    "context_lookalikes.jsonl",
+    "realistic_generated.jsonl",
+)
 REQUIRED_CASE_KEYS = frozenset(
     {
         "id",

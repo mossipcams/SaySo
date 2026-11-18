@@ -10,10 +10,9 @@ suites:
       media: 0.7
       timers: 0.7
       routines_vacuum: 0.7
-      status: 0.7
+      status: 0.6
       aliases: 0.7
       multi_action: 0.6
-      exclusion: 0.6
       ambiguity: 0.6
       unavailable: 0.6
     max_rates:

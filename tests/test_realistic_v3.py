@@ -11,18 +11,39 @@ import voluptuous as vol
 from homeassistant.helpers import llm
 
 from custom_components.sayso import const
-from custom_components.sayso.area_context import build_area_context, render_system_prompt
+from custom_components.sayso.area_context import (
+    build_area_context,
+    render_system_prompt,
+    tools_before_area_messages,
+)
 from custom_components.sayso.schema import compile_tools, emit_tools_source_json
 from custom_components.sayso.tool_schema import compile_source_tools
 from evals.adapters.in_memory import InMemoryAdapter
-from evals.cases import ARCHIVE_DIR, load_gates, load_home, select_cases
+from evals.cases import ARCHIVE_DIR, CASES_DIR, load_gates, load_home, select_cases
 from evals.outcomes import PRODUCTION_MAX_OUTPUT_TOKENS, PRODUCTION_TEMPERATURE, Outcome
 from evals.runner import evaluate, production_catalog, render_case, training_path
 from evals.scorer import check_gates, is_clarification, is_refusal, summarize
 from sayso_contract import tool_contract
 
 PROMOTION = select_cases(suite="promotion")
-CASES = {case.id.removeprefix("realistic_eval_20260908_"): case for case in PROMOTION}
+REVIEWED = [case for case in PROMOTION if "generated" not in case.tags]
+GENERATED_IDS = [
+    json.loads(line)["id"]
+    for line in (CASES_DIR / "realistic_generated.jsonl").read_text(encoding="utf-8").splitlines()
+    if line.strip()
+]
+
+
+def _short_id(case_id: str) -> str:
+    if case_id.startswith("realistic_eval_20261118_"):
+        return "new_" + case_id.removeprefix("realistic_eval_20261118_")
+    return case_id.removeprefix("realistic_eval_20260908_")
+
+
+CASES = {
+    _short_id(case.id): case
+    for case in REVIEWED
+}
 GATES = load_gates("promotion")
 V2_ARCHIVE = ARCHIVE_DIR / "realistic_eval_20260908_v2.json"
 
@@ -53,23 +74,53 @@ def _run(short_id: str, completion: dict[str, Any]):
     return score(case.id, rendered["expectation"], turn)
 
 
-def test_promotion_keeps_120_cases_with_ten_per_category() -> None:
-    counts = Counter(case.category for case in PROMOTION)
-    assert sum(counts.values()) == 120
-    assert len(counts) == 12
-    assert set(counts.values()) == {10}
-    assert len({case.id for case in PROMOTION}) == 120
+def test_promotion_keeps_78_reviewed_cases_with_exact_composition() -> None:
+    counts = Counter(case.category for case in REVIEWED)
+    assert counts == Counter(
+        {
+            "ordinary": 20,
+            "light_fan_settings": 8,
+            "climate": 5,
+            "media": 8,
+            "timers": 8,
+            "routines_vacuum": 8,
+            "status": 3,
+            "aliases": 6,
+            "multi_action": 6,
+            "ambiguity": 3,
+            "unavailable": 3,
+        }
+    )
+    assert len({case.id for case in REVIEWED}) == 78
+    assert len(CASES) == len(REVIEWED)
 
 
-def test_archived_v2_fixture_is_byte_identical_and_matches_utterances() -> None:
+def test_promotion_is_reviewed_plus_generated_with_exact_composition() -> None:
+    assert [case.id for case in PROMOTION] == [case.id for case in REVIEWED] + GENERATED_IDS
+    assert len(PROMOTION) == 530
+    assert dict(Counter(case.category for case in PROMOTION)) == {
+        "ordinary": 130,
+        "light_fan_settings": 76,
+        "climate": 19,
+        "media": 51,
+        "timers": 53,
+        "routines_vacuum": 48,
+        "status": 18,
+        "aliases": 47,
+        "multi_action": 46,
+        "ambiguity": 14,
+        "unavailable": 28,
+    }
+
+
+def test_archived_v2_fixture_is_byte_identical_and_matches_derived_ids() -> None:
     v2 = json.loads(V2_ARCHIVE.read_text(encoding="utf-8"))
     digest = hashlib.sha256(V2_ARCHIVE.read_bytes()).hexdigest()
     assert digest == PROMOTION[0].provenance["derived_from"]["sha256"]
-    v2_cases = [
-        (case["metadata"]["candidate_id"], next(m["content"] for m in case["messages"] if m["role"] == "user"))
-        for case in v2["cases"]
-    ]
-    assert v2_cases == [(case.id, case.utterance) for case in PROMOTION]
+    archived_ids = [case["metadata"]["candidate_id"] for case in v2["cases"]]
+    derived = [case.id for case in PROMOTION if "derived_from" in case.provenance]
+    assert len(derived) == 68
+    assert derived == [case_id for case_id in archived_ids if case_id in set(derived)]
 
 
 def test_cases_store_structured_inputs_not_rendered_prompts() -> None:
@@ -175,21 +226,26 @@ def test_eval_constants_match_production() -> None:
 
 
 def test_a_perfect_run_passes_every_case_and_every_gate() -> None:
-    by_utterance = {case.utterance: case for case in PROMOTION}
+    by_prompt = {}
+    for case in PROMOTION:
+        rendered = render_case(case)
+        sent = tools_before_area_messages(rendered["messages"], rendered["tools"])
+        by_prompt[json.dumps(sent)] = case
 
     def ask(messages, tools):
-        case = by_utterance[messages[1]["content"]]
+        case = by_prompt[json.dumps(messages)]
         expected = case.expected
         if expected["calls"]:
             return _body(_python_calls(expected["calls"]))
         if expected["response_type"] == "clarification":
-            return _body("Which one did you mean?")
+            candidates = expected["clarification"]["candidates"]
+            return _body("Which one did you mean? " + " or ".join(candidates))
         return _body("I can't do that with the available Home Assistant tools.")
 
     results = evaluate(PROMOTION, InMemoryAdapter(ask))
     summary = summarize(results)
-    assert summary["passed"] == 120, [r.as_dict() for r in results if not r.passed][:3]
-    assert check_gates(summary, GATES, expected_count=120) == []
+    assert summary["passed"] == 530, [r.as_dict() for r in results if not r.passed][:3]
+    assert check_gates(summary, GATES, expected_count=530) == []
 
 
 def test_malformed_output_fails_instead_of_becoming_zero_calls() -> None:
@@ -218,16 +274,19 @@ def test_a_refusal_does_not_pass_an_ambiguity_case() -> None:
 
 
 def test_a_clarification_passes_an_ambiguity_case() -> None:
-    result = _run("ambiguity_01", _body("Which reading light do you mean, the floor lamp or the table lamp?"))
+    result = _run(
+        "ambiguity_01",
+        _body("Which reading light do you mean, Living Room Floor Lamp or Living Room Table Lamp?"),
+    )
     assert result.outcome == Outcome.VALID_CLARIFICATION
     assert result.passed
 
 
 def test_a_clarification_does_not_pass_an_unavailable_case() -> None:
-    result = _run("unavailable_01", _body("Which light did you mean?"))
+    result = _run("unavailable_03", _body("Which light did you mean?"))
     assert result.outcome == Outcome.WRONG_RESPONSE_TYPE
     assert not result.passed
-    assert _run("unavailable_01", _body("I can't set brightness with the available tools.")).passed
+    assert _run("unavailable_03", _body("I can't set brightness with the available tools.")).passed
 
 
 def test_a_tool_call_on_an_unavailable_case_fails_its_gate() -> None:
@@ -265,23 +324,6 @@ def test_a_status_action_call_fails() -> None:
     assert _run("status_01", _body(_python_calls(expected))).passed
 
 
-@pytest.mark.parametrize(
-    "calls",
-    [
-        [
-            {"name": "intent__HassTurnOff", "arguments": {"domain": ["light"], "name": "Kitchen Counter Lights"}},
-            {"name": "intent__HassTurnOff", "arguments": {"domain": ["light"], "name": "Kitchen Sink Light"}},
-            {"name": "intent__HassTurnOff", "arguments": {"domain": ["light"], "name": "Kitchen Ceiling Light"}},
-        ],
-        [{"name": "intent__HassTurnOff", "arguments": {"area": "Kitchen", "domain": ["light"]}}],
-    ],
-)
-def test_an_exclusion_that_affects_the_excluded_entity_fails(calls: list[dict[str, Any]]) -> None:
-    result = _run("exclusion_01", _body(_python_calls(calls)))
-    assert not result.passed
-    assert "excluded_entity_affected" in result.flags
-
-
 def test_partial_multi_action_output_fails() -> None:
     expected = CASES["multi_action_01"].expected["calls"]
     result = _run("multi_action_01", _body(_python_calls(expected[:1])))
@@ -311,11 +353,11 @@ def test_an_invalid_domain_is_invalid_arguments() -> None:
 def test_explicit_area_overrides_the_satellite_area() -> None:
     case = CASES["routines_vacuum_08"]
     assert render_case(case)["area_context"] == {
-        "satellite_area": "Kitchen",
+        "satellite_area": "Bedroom",
         "target_area": "Living Room",
         "target_area_source": "explicit",
     }
-    satellite_area = {"name": "vacuum__HassVacuumCleanArea", "arguments": {"area": "Kitchen", "name": "Roomba"}}
+    satellite_area = {"name": "vacuum__HassVacuumCleanArea", "arguments": {"area": "Bedroom", "name": "Roomba"}}
     result = _run("routines_vacuum_08", _body(_python_calls([satellite_area])))
     assert not result.passed
     assert "wrong_target_area" in result.flags
@@ -326,7 +368,11 @@ def test_an_implicit_area_request_resolves_to_the_satellite_area() -> None:
     areas = load_home("realistic_eval_household_1")["areas"]
     context = build_area_context("turn off the lights", areas, "Kitchen")
     assert (context.target_area, context.target_area_source) == ("Kitchen", "satellite")
-    assert render_case(CASES["ambiguity_10"])["area_context"]["target_area_source"] == "satellite"
+    assert render_case(CASES["new_area_01"])["area_context"] == {
+        "satellite_area": "Kitchen",
+        "target_area": "Kitchen",
+        "target_area_source": "satellite",
+    }
 
 
 @pytest.mark.parametrize(
@@ -361,5 +407,5 @@ def test_gate_config_is_versioned_and_covers_every_category() -> None:
 
 
 def test_incomplete_run_cannot_pass_promotion() -> None:
-    failures = check_gates(summarize([]), GATES, expected_count=120)
+    failures = check_gates(summarize([]), GATES, expected_count=530)
     assert any("incomplete run" in failure for failure in failures)

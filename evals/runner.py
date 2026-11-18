@@ -315,6 +315,7 @@ def render_case(case: Case) -> dict[str, Any]:
             calls=tuple(expected["calls"]),
             forbidden_entities=tuple(expected["forbidden_entities"]),
             target_area=area.target_area,
+            target_area_source=area.target_area_source,
             clarification_candidates=tuple(
                 (expected.get("clarification") or {}).get("candidates") or ()
             ),

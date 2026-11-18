@@ -1,7 +1,7 @@
 {
   "home_id": "realistic_eval_household_2",
-  "satellite_area": "Kitchen",
-  "sayso_entity_area": "Kitchen",
+  "satellite_area": "Living Room",
+  "sayso_entity_area": "Living Room",
   "areas": {
     "Bathroom": [],
     "Bedroom": [],
@@ -34,6 +34,12 @@
       "area": "Bedroom"
     },
     {
+      "name": "Bedroom TV",
+      "aliases": [],
+      "domain": "media_player",
+      "area": "Bedroom"
+    },
+    {
       "name": "Bedroom Window Shade",
       "aliases": [],
       "domain": "cover",
@@ -41,9 +47,7 @@
     },
     {
       "name": "Breakfast Bar Pendants",
-      "aliases": [
-        "prep lights"
-      ],
+      "aliases": [],
       "domain": "light",
       "area": "Kitchen"
     },
@@ -62,8 +66,7 @@
     {
       "name": "Jamie's Bedside Lamp",
       "aliases": [
-        "bedside lamp",
-        "my bedside light"
+        "bedside lamp"
       ],
       "domain": "light",
       "area": "Bedroom"
@@ -71,7 +74,7 @@
     {
       "name": "Kitchen Kettle Plug",
       "aliases": [
-        "coffee plug"
+        "kettle"
       ],
       "domain": "switch",
       "area": "Kitchen"
@@ -90,16 +93,15 @@
     },
     {
       "name": "Kitchen Worktop Lights",
-      "aliases": [],
+      "aliases": [
+        "prep lights"
+      ],
       "domain": "light",
       "area": "Kitchen"
     },
     {
       "name": "Living Room Ceiling Light",
-      "aliases": [
-        "reading light",
-        "sofa lamp"
-      ],
+      "aliases": [],
       "domain": "light",
       "area": "Living Room"
     },
@@ -134,7 +136,8 @@
     {
       "name": "Sofa Reading Lamp",
       "aliases": [
-        "reading light"
+        "reading light",
+        "sofa lamp"
       ],
       "domain": "light",
       "area": "Living Room"

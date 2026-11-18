@@ -1,7 +1,7 @@
 {
   "home_id": "realistic_eval_household_3",
-  "satellite_area": "Kitchen",
-  "sayso_entity_area": "Kitchen",
+  "satellite_area": "Bedroom",
+  "sayso_entity_area": "Bedroom",
   "areas": {
     "Bathroom": [],
     "Bedroom": [],
@@ -47,9 +47,7 @@
     },
     {
       "name": "Kitchen Ceiling Spots",
-      "aliases": [
-        "prep lights"
-      ],
+      "aliases": [],
       "domain": "light",
       "area": "Kitchen"
     },
@@ -61,7 +59,9 @@
     },
     {
       "name": "Kitchen Under Cabinet Lights",
-      "aliases": [],
+      "aliases": [
+        "prep lights"
+      ],
       "domain": "light",
       "area": "Kitchen"
     },
@@ -74,6 +74,12 @@
       "area": "Bedroom"
     },
     {
+      "name": "Living Room Fan",
+      "aliases": [],
+      "domain": "fan",
+      "area": "Living Room"
+    },
+    {
       "name": "Living Room Floor Lamp",
       "aliases": [
         "reading light"
@@ -83,10 +89,7 @@
     },
     {
       "name": "Living Room Shelves Light",
-      "aliases": [
-        "reading light",
-        "sofa lamp"
-      ],
+      "aliases": [],
       "domain": "light",
       "area": "Living Room"
     },
@@ -107,8 +110,7 @@
     {
       "name": "Morgan's Bedside Lamp",
       "aliases": [
-        "bedside lamp",
-        "my bedside light"
+        "bedside lamp"
       ],
       "domain": "light",
       "area": "Bedroom"
@@ -128,7 +130,7 @@
     {
       "name": "Toaster Plug",
       "aliases": [
-        "coffee plug"
+        "toaster"
       ],
       "domain": "switch",
       "area": "Kitchen"

@@ -19,10 +19,14 @@ _CLARIFICATION_CUES = re.compile(
     r"\b(which|did you mean|do you mean|could you specify|can you specify|please specify|clarify)\b",
     re.I,
 )
+LIVE_CONTEXT_TOOL = "homeassistant__GetLiveContext"
+RELATIVE_VOLUME_TOOL = "media_player__HassSetVolumeRelative"
 _REFUSAL_CUES = re.compile(
     r"\b(can't|cannot|can not|unable to|not able to|don't have|do not have|doesn't have|does not have"
     r"|doesn't support|does not support|isn't available|is not available|not available|not supported"
-    r"|there is no|there's no|there are no|has no|no such)\b",
+    r"|there is no|there's no|there are no|has no|no such"
+    r"|couldn't find|could not find|can't find|cannot find"
+    r"|don't see|do not see|there isn't|there aren't|don't know of|no device)\b",
     re.I,
 )
 
@@ -132,6 +136,174 @@ def _affects(call: dict[str, Any], entity: dict[str, Any]) -> bool:
     return not domains or entity.get("domain") in domains
 
 
+def _entity_labels(entity: dict[str, Any]) -> set[str]:
+    labels = [entity.get("name"), *(entity.get("aliases") or [])]
+    return {label.casefold() for label in labels if isinstance(label, str)}
+
+
+def _name_words(entity: dict[str, Any]) -> set[str]:
+    return set(str(entity.get("name") or "").casefold().split())
+
+
+def _resolve_entity(home: dict | None, label: str) -> dict[str, Any] | None:
+    matches = [
+        entity
+        for entity in (home or {}).get("entities") or []
+        if label.casefold() in _entity_labels(entity)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _same_text(actual: Any, expected: Any) -> bool:
+    return (
+        isinstance(actual, str)
+        and isinstance(expected, str)
+        and actual.casefold() == expected.casefold()
+    )
+
+
+def _lookup_matches_entity(arguments: Any, entity: dict[str, Any] | None) -> bool:
+    if not isinstance(arguments, dict):
+        return False
+    if not arguments:
+        return True
+    if entity is None or set(arguments) - {"name", "domain", "area"}:
+        return False
+    if "name" in arguments and not (
+        isinstance(arguments["name"], str)
+        and arguments["name"].casefold() in _entity_labels(entity)
+    ):
+        return False
+    if "domain" in arguments:
+        domains = (
+            arguments["domain"]
+            if isinstance(arguments["domain"], list)
+            else [arguments["domain"]]
+        )
+        if entity.get("domain") not in domains:
+            return False
+    return "area" not in arguments or _same_text(arguments["area"], entity.get("area"))
+
+
+def _status_lookup_accepted(
+    calls: list[dict[str, Any]], expectation: Expectation, home: dict | None
+) -> bool:
+    if any(is_action_call(call) for call in calls):
+        return False
+    lookups = [call for call in calls if call.get("name") == LIVE_CONTEXT_TOOL]
+    if not lookups:
+        return False
+    expected_arguments = (
+        expectation.calls[0].get("arguments") if len(expectation.calls) == 1 else None
+    )
+    expected_name = (
+        expected_arguments.get("name") if isinstance(expected_arguments, dict) else None
+    )
+    entity = (
+        _resolve_entity(home, expected_name) if isinstance(expected_name, str) else None
+    )
+    return all(
+        _lookup_matches_entity(call.get("arguments"), entity) for call in lookups
+    )
+
+
+def _satellite_area_form(
+    call: dict[str, Any], expectation: Expectation
+) -> dict[str, Any] | None:
+    arguments = call.get("arguments")
+    if (
+        is_action_call(call)
+        and isinstance(arguments, dict)
+        and "area" not in arguments
+        and isinstance(arguments.get("name"), str)
+        and arguments["name"].strip()
+        and expectation.target_area_source == "satellite"
+        and expectation.target_area
+    ):
+        return {**call, "arguments": {**arguments, "area": expectation.target_area}}
+    return None
+
+
+def _relative_volume_form(
+    call: dict[str, Any], expectation: Expectation
+) -> dict[str, Any] | None:
+    arguments = call.get("arguments")
+    if call.get("name") != RELATIVE_VOLUME_TOOL or not isinstance(arguments, dict):
+        return None
+    step = arguments.get("volume_step")
+    if type(step) is not int or step == 0:
+        return None
+    return {
+        **call,
+        "arguments": {**arguments, "volume_step": "up" if step > 0 else "down"},
+    }
+
+
+def _relaxed_forms(
+    call: dict[str, Any], expectation: Expectation
+) -> list[dict[str, Any]]:
+    forms = [call]
+    for relax in (_satellite_area_form, _relative_volume_form):
+        forms += [
+            form
+            for form in (relax(item, expectation) for item in list(forms))
+            if form is not None
+        ]
+    return forms
+
+
+def _matched_keys(
+    calls: list[dict[str, Any]],
+    expectation: Expectation,
+    labels: dict[str, str],
+    domains: dict[str, str],
+    expected_keys: list[str],
+) -> list[str]:
+    remaining = Counter(expected_keys)
+    keys = []
+    for call in calls:
+        options = [
+            _canonical(form, labels, domains)
+            for form in _relaxed_forms(call, expectation)
+        ]
+        key = next((option for option in options if remaining[option] > 0), options[0])
+        if remaining[key] > 0:
+            remaining[key] -= 1
+        keys.append(key)
+    return keys
+
+
+def _mentions(reply: str, phrase: str) -> bool:
+    return (
+        re.search(rf"(?<![\w'])" + re.escape(phrase) + rf"(?![\w'])", reply) is not None
+    )
+
+
+def _distinguishes(
+    reply: str, entities: list[dict[str, Any] | None], index: int
+) -> bool:
+    entity = entities[index]
+    others = [other for position, other in enumerate(entities) if position != index]
+    if entity is None or any(other is None for other in others):
+        return False
+    shared_labels = set().union(*map(_entity_labels, others))
+    shared_words = set().union(*map(_name_words, others))
+    if any(_mentions(reply, label) for label in _entity_labels(entity) - shared_labels):
+        return True
+    return any(_mentions(reply, word) for word in _name_words(entity) - shared_words)
+
+
+def _names_every_candidate(
+    text: str | None, candidates: tuple[str, ...], home: dict | None
+) -> bool:
+    reply = _plain(text).casefold()
+    entities = [_resolve_entity(home, candidate) for candidate in candidates]
+    return all(
+        candidate.casefold() in reply or _distinguishes(reply, entities, index)
+        for index, candidate in enumerate(candidates)
+    )
+
+
 def classify(expectation: Expectation, turn: Turn, home: dict | None = None) -> Outcome:
     labels = _label_index(home)
     domains = _label_domains(home)
@@ -148,26 +320,32 @@ def classify(expectation: Expectation, turn: Turn, home: dict | None = None) -> 
     if turn.calls:
         if not wants_calls:
             return Outcome.UNEXPECTED_TOOL_CALL
-        actual = Counter(_canonical(call, labels, domains) for call in turn.calls)
-        expected = Counter(
+        expected_keys = [
             _canonical(call, labels, domains) for call in expectation.calls
+        ]
+        actual_keys = _matched_keys(
+            turn.calls, expectation, labels, domains, expected_keys
         )
+        actual = Counter(actual_keys)
+        expected = Counter(expected_keys)
         if actual == expected:
             return (
                 Outcome.VALID_MULTI_TOOL_CALL
                 if len(expectation.calls) > 1
                 else Outcome.VALID_TOOL_CALL
             )
+        if expectation.response_type == ResponseType.STATUS and _status_lookup_accepted(
+            turn.calls, expectation, home
+        ):
+            return Outcome.VALID_TOOL_CALL
         if not actual - expected:
             return Outcome.MISSING_TOOL_CALL
         return Outcome.UNEXPECTED_TOOL_CALL
     if wants_calls:
         return Outcome.MISSING_TOOL_CALL
     if expectation.response_type == ResponseType.CLARIFICATION:
-        reply = _plain(turn.text).casefold()
-        if is_clarification(turn.text) and all(
-            candidate.casefold() in reply
-            for candidate in expectation.clarification_candidates
+        if "?" in _plain(turn.text) and _names_every_candidate(
+            turn.text, expectation.clarification_candidates, home
         ):
             return Outcome.VALID_CLARIFICATION
         return Outcome.WRONG_RESPONSE_TYPE

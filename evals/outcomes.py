@@ -53,6 +53,7 @@ class Expectation:
     calls: tuple[dict[str, Any], ...] = ()
     forbidden_entities: tuple[dict[str, Any], ...] = ()
     target_area: str | None = None
+    target_area_source: str | None = None
     clarification_candidates: tuple[str, ...] = ()
 
 
