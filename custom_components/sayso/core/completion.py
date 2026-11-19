@@ -13,6 +13,8 @@ from .area_context import _AREA_BLOCK_MARKER
 from .exceptions import SaySoInvalidResponseError, SaySoInvalidToolCallsError
 from .lfm_parse import LfmPythonParseError, parse_lfm_python_tool_calls
 
+GRAMMAR_BACKEND_REJECTED = "backend_rejected"
+
 @dataclass(frozen=True, slots=True)
 class ToolCall:
 
@@ -32,6 +34,7 @@ class ChatCompletionResult:
     prefix_hash: str | None = None
     reused_tokens: int | None = None
     finish_reason: str | None = None
+    grammar_skip_reason: str | None = None
 
 
 def parse_tool_calls(

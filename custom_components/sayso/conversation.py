@@ -242,6 +242,9 @@ class _Turn:
             span.metadata["reused_tokens"] = result.reused_tokens
         if result.finish_reason is not None:
             span.metadata["finish_reason"] = result.finish_reason
+        if result.grammar_skip_reason is not None:
+            span.metadata["grammar"] = "skipped"
+            span.metadata["grammar_skip_reason"] = result.grammar_skip_reason
         trace.close(span)
         return result
 

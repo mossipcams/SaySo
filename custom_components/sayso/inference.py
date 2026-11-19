@@ -15,6 +15,7 @@ from homeassistant.const import CONF_URL
 from .core.area_context import tools_before_area_messages
 from .client import ChatCompletionResult, LlamaCppClient
 from .core.completion import (
+    GRAMMAR_BACKEND_REJECTED,
     extract_tool_calls,
     parse_completion_result,
     parse_completion_result as _parse_embedded_result,
@@ -363,11 +364,19 @@ class EmbeddedEngine:
         temperature: float,
         max_tokens: int,
         grammar: str | None,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], str | None]:
         assert self._llm is not None
         extra: dict[str, Any] = {}
+        skipped: str | None = None
         if grammar is not None:
-            extra["grammar"] = _llama_grammar(grammar)
+            try:
+                extra["grammar"] = _llama_grammar(grammar)
+            except Exception:
+                _LOGGER.warning(
+                    "llama.cpp rejected the grammar; completing without it",
+                    exc_info=True,
+                )
+                skipped = GRAMMAR_BACKEND_REJECTED
         raw = self._llm.create_chat_completion(
             messages=_messages_for_embedded_template(
                 tools_before_area_messages(messages, tools)
@@ -384,7 +393,7 @@ class EmbeddedEngine:
             "prefix_hash": prefix_hash(messages, tools),
             "reused_tokens": reused,
         }
-        return raw
+        return raw, skipped
 
     async def async_chat_completion(
         self,
@@ -400,7 +409,7 @@ class EmbeddedEngine:
 
         loop = asyncio.get_running_loop()
         try:
-            raw = await asyncio.wait_for(
+            raw, skipped = await asyncio.wait_for(
                 loop.run_in_executor(
                     self._executor,
                     self._complete,
@@ -419,7 +428,7 @@ class EmbeddedEngine:
         except Exception as err:
             raise SaySoInvalidResponseError(f"Local inference failed: {err}") from err
 
-        return parse_completion_result(raw)
+        return replace(parse_completion_result(raw), grammar_skip_reason=skipped)
 
 
 
