@@ -9,8 +9,10 @@ import custom_components
 import pytest
 from homeassistant.components.fan import FanEntity
 from homeassistant.components.light import ColorMode, LightEntity
+from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
 
@@ -134,13 +136,25 @@ async def _create_entry(hass: HomeAssistant) -> Any:
     return hass.config_entries.async_entries(DOMAIN)[0]
 
 
+def _subentry(entry: Any) -> Any:
+    return next(iter(entry.subentries.values()))
+
+
+def _agent_id(hass: HomeAssistant, entry: Any) -> str:
+    entity_id = er.async_get(hass).async_get_entity_id(
+        conversation.DOMAIN, DOMAIN, _subentry(entry).subentry_id
+    )
+    assert entity_id is not None
+    return entity_id
+
+
 async def _converse(hass: HomeAssistant, entry: Any, text: str) -> conversation.ConversationResult:
     return await conversation.async_converse(
         hass,
         text,
         None,
         Context(),
-        agent_id=entry.entry_id,
+        agent_id=_agent_id(hass, entry),
     )
 
 
@@ -152,7 +166,9 @@ async def _complete_schema(hass: HomeAssistant, entry: Any) -> Any:
         assistant="conversation",
         device_id=None,
     )
-    llm_api = await llm.async_get_api(hass, entry.runtime_data.llm_api, llm_context)
+    llm_api = await llm.async_get_api(
+        hass, _subentry(entry).data[CONF_LLM_HASS_API], llm_context
+    )
     complete_schema = compile_llm_tools(llm_api)
     assert complete_schema is not None
     return complete_schema

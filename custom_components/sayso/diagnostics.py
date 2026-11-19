@@ -148,11 +148,6 @@ async def async_get_config_entry_diagnostics(
         runtime_data: dict[str, Any] = {
             "loaded": True,
             "model": runtime.model,
-            "llm_hass_api": runtime.llm_api,
-            "temperature": runtime.temperature,
-            "max_output_tokens": runtime.max_output_tokens,
-            "max_tool_iterations": runtime.max_tool_iterations,
-            "system_prompt_length": len(runtime.system_prompt),
         }
         traces = {
             "stored": len(runtime.traces),
@@ -167,12 +162,24 @@ async def async_get_config_entry_diagnostics(
         runtime_data = {"loaded": False}
         traces = {"stored": 0, "recent": []}
 
+    subentries = [
+        {
+            "subentry_id": subentry.subentry_id,
+            "subentry_type": subentry.subentry_type,
+            "title": subentry.title,
+            "unique_id": subentry.unique_id,
+            "data": async_redact_data(dict(subentry.data), TO_REDACT),
+        }
+        for subentry in entry.subentries.values()
+    ]
+
     return {
         "entry": {
             "title": entry.title,
             "unique_id": entry.unique_id,
             "data": async_redact_data(entry.data, TO_REDACT),
             "options": dict(entry.options),
+            "subentries": subentries,
         },
         "runtime": runtime_data,
         "connectivity": connectivity,

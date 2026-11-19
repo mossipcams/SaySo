@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+from homeassistant.config_entries import ConfigSubentry
+from homeassistant.const import CONF_LLM_HASS_API, CONF_MODEL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers import intent, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.llm import LLM_API_ASSIST
 
 from . import SaySoConfigEntry, SaySoRuntimeData
 from .core.area_context import AreaContext, apply_area_context, build_area_context
@@ -30,6 +34,15 @@ from .boundary import (
 )
 from .client import ChatCompletionResult, ToolCall
 from .const import (
+    CONF_MAX_OUTPUT_TOKENS,
+    CONF_MAX_TOOL_ITERATIONS,
+    CONF_PROMPT,
+    CONF_TEMPERATURE,
+    CONVERSATION_SUBENTRY_TYPE,
+    DEFAULT_MAX_OUTPUT_TOKENS,
+    DEFAULT_MAX_TOOL_ITERATIONS,
+    DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_TEMPERATURE,
     DOMAIN,
     DOMAIN_PLURALS,
     ERROR_ACTION_FAILED,
@@ -47,6 +60,7 @@ from .const import (
     HELD_CALL_TTL,
 )
 from .diagnostics import BoundaryFailureCode, BoundaryPhase
+from .inference import ExternalEngine
 from .core.exceptions import (
     SaySoError,
     SaySoInvalidResponseError,
@@ -109,7 +123,12 @@ async def async_setup_entry(
     config_entry: SaySoConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    async_add_entities([SaySoConversationEntity(config_entry)])
+    for subentry in config_entry.subentries.values():
+        if subentry.subentry_type == CONVERSATION_SUBENTRY_TYPE:
+            async_add_entities(
+                [SaySoConversationEntity(config_entry, subentry)],
+                config_subentry_id=subentry.subentry_id,
+            )
 
 
 @dataclass(slots=True)
@@ -232,6 +251,7 @@ class _Turn:
                 temperature=runtime.temperature,
                 max_tokens=runtime.max_output_tokens,
                 grammar=grammar,
+                **_model_kwargs(runtime),
             )
         except BaseException as err:
             trace.close(span, success=False)
@@ -294,6 +314,41 @@ class _Turn:
         return batch_failed, ha_error, ha_error_text
 
 
+def _conversation_overrides(data: Mapping[str, Any]) -> dict[str, Any]:
+    overrides: dict[str, Any] = {
+        "llm_api": data.get(CONF_LLM_HASS_API, LLM_API_ASSIST),
+        "system_prompt": data.get(CONF_PROMPT, DEFAULT_SYSTEM_PROMPT),
+        "temperature": data.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
+        "max_output_tokens": int(
+            data.get(CONF_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
+        ),
+        "max_tool_iterations": int(
+            data.get(CONF_MAX_TOOL_ITERATIONS, DEFAULT_MAX_TOOL_ITERATIONS)
+        ),
+    }
+    if CONF_MODEL in data:
+        overrides["model"] = data[CONF_MODEL]
+    return overrides
+
+
+def _model_kwargs(runtime: SaySoRuntimeData) -> dict[str, str]:
+    if isinstance(runtime.engine, ExternalEngine):
+        return {"model": runtime.model}
+    return {}
+
+
+def _primary_subentry_id(entry: SaySoConfigEntry) -> str | None:
+    conversations = [
+        subentry
+        for subentry in entry.subentries.values()
+        if subentry.subentry_type == CONVERSATION_SUBENTRY_TYPE
+    ]
+    for subentry in conversations:
+        if subentry.unique_id == entry.entry_id:
+            return subentry.subentry_id
+    return conversations[0].subentry_id if conversations else None
+
+
 def _is_voice_turn(user_input: conversation.ConversationInput) -> bool:
     return bool(getattr(user_input, "satellite_id", None) or user_input.device_id)
 
@@ -344,21 +399,35 @@ class SaySoConversationEntity(
     _attr_name = None
     _attr_supported_features = conversation.ConversationEntityFeature.CONTROL
 
-    def __init__(self, entry: SaySoConfigEntry) -> None:
+    def __init__(
+        self, entry: SaySoConfigEntry, subentry: ConfigSubentry | None = None
+    ) -> None:
         self._entry = entry
-        self._attr_unique_id = entry.entry_id
+        self._subentry = subentry
+        self._primary = subentry is None or (
+            subentry.subentry_id == _primary_subentry_id(entry)
+        )
+        identifier = (
+            entry.entry_id
+            if subentry is None
+            else (subentry.unique_id or subentry.subentry_id)
+        )
+        self._attr_unique_id = identifier
 
         self._held: dict[str, HeldState] = {}
         self._attr_device_info = dr.DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
+            identifiers={(DOMAIN, identifier)},
+            name=entry.title if subentry is None else subentry.title,
             manufacturer="SaySo",
             entry_type=dr.DeviceEntryType.SERVICE,
         )
 
     @property
     def _runtime(self) -> SaySoRuntimeData:
-        return self._entry.runtime_data
+        runtime = self._entry.runtime_data
+        if self._subentry is None:
+            return runtime
+        return replace(runtime, **_conversation_overrides(self._subentry.data))
 
     @property
     @override
@@ -368,11 +437,13 @@ class SaySoConversationEntity(
     @override
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        conversation.async_set_agent(self.hass, self._entry, self)
+        if self._primary:
+            conversation.async_set_agent(self.hass, self._entry, self)
 
     @override
     async def async_will_remove_from_hass(self) -> None:
-        conversation.async_unset_agent(self.hass, self._entry)
+        if self._primary:
+            conversation.async_unset_agent(self.hass, self._entry)
         await super().async_will_remove_from_hass()
 
     @override
@@ -381,15 +452,16 @@ class SaySoConversationEntity(
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
-        trace = self._runtime.tracer.async_start(user_input.context, user_input.text)
+        runtime = self._runtime
+        trace = runtime.tracer.async_start(user_input.context, user_input.text)
         turn = _Turn(
             entry_id=self._entry.entry_id,
             agent_id=self.entity_id,
-            runtime=self._runtime,
+            runtime=runtime,
             user_input=user_input,
             chat_log=chat_log,
             trace=trace,
-            ducker=self._runtime.ducker,
+            ducker=runtime.ducker,
         )
         span = trace.open(Stage.SAYSO_REQUEST)
         try:
@@ -399,7 +471,7 @@ class SaySoConversationEntity(
             raise
         finally:
             trace.close(span, success=trace.success is not False)
-            self._runtime.tracer.async_finish(trace)
+            runtime.tracer.async_finish(trace)
 
     async def _async_answer(self, turn: _Turn) -> conversation.ConversationResult:
         chat_log, trace = turn.chat_log, turn.trace

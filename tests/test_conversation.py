@@ -10,8 +10,10 @@ import pytest
 from homeassistant.components import conversation
 from homeassistant.components.fan import FanEntity
 from homeassistant.components.light import ColorMode, LightEntity
+from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import intent, llm
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
@@ -260,6 +262,18 @@ async def assist_kitchen_and_lock(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
 
+def _subentry(entry: Any) -> Any:
+    return next(iter(entry.subentries.values()))
+
+
+def _agent_id(hass: HomeAssistant, entry: Any) -> str:
+    entity_id = er.async_get(hass).async_get_entity_id(
+        conversation.DOMAIN, DOMAIN, _subentry(entry).subentry_id
+    )
+    assert entity_id is not None
+    return entity_id
+
+
 async def _complete_llm_tools(hass: HomeAssistant, entry: Any) -> tuple[Any, ...]:
     llm_context = llm.LLMContext(
         platform=DOMAIN,
@@ -268,7 +282,9 @@ async def _complete_llm_tools(hass: HomeAssistant, entry: Any) -> tuple[Any, ...
         assistant="conversation",
         device_id=None,
     )
-    llm_api = await llm.async_get_api(hass, entry.runtime_data.llm_api, llm_context)
+    llm_api = await llm.async_get_api(
+        hass, _subentry(entry).data[CONF_LLM_HASS_API], llm_context
+    )
     compiled = compile_llm_tools(llm_api)
     assert compiled is not None
     return compiled.tools
@@ -300,7 +316,7 @@ async def _converse(
         text,
         conversation_id,
         context or Context(),
-        agent_id=entry.entry_id,
+        agent_id=_agent_id(hass, entry),
     )
 
 
@@ -398,7 +414,7 @@ async def test_model_prompt_replaces_ha_area_sentence_with_shared_area_block(
             "turn on the light in the study",
             None,
             Context(),
-            agent_id=entry.entry_id,
+            agent_id=_agent_id(hass, entry),
             device_id=device.id,
         )
 
@@ -1317,9 +1333,11 @@ async def test_max_tool_iterations_fails_closed(
     assist_light: None,
 ) -> None:
     entry = await _create_entry(hass)
-    hass.config_entries.async_update_entry(
+    subentry = _subentry(entry)
+    hass.config_entries.async_update_subentry(
         entry,
-        options={**dict(entry.options), CONF_MAX_TOOL_ITERATIONS: 1},
+        subentry,
+        data={**subentry.data, CONF_MAX_TOOL_ITERATIONS: 1},
     )
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()

@@ -28,7 +28,7 @@
       "install_failed": "Could not install the llama.cpp runtime for this platform."
     },
     "abort": {
-      "already_configured": "This llama.cpp endpoint and model combination is already configured."
+      "already_configured": "This llama.cpp endpoint is already configured. Add more models as conversation agents from its subentries."
     },
     "progress": {
       "download": "Installing the llama.cpp runtime and downloading SaySo's model. The first setup can take a few minutes."
@@ -38,17 +38,12 @@
     "step": {
       "init": {
         "title": "SaySo options",
-        "description": "Adjust model, timeout, Home Assistant LLM API, generation settings, and interaction trace retention.",
+        "description": "Adjust the engine: model, timeout, CPU and context settings, interaction trace retention, grammar-constrained tool calls, and duck volume. Conversation agents are configured separately.",
         "data": {
           "model": "Model",
           "n_threads": "CPU threads for inference",
           "n_ctx": "Context window (tokens)",
           "timeout": "Request timeout (seconds)",
-          "llm_hass_api": "Home Assistant LLM API",
-          "prompt": "System prompt",
-          "temperature": "Temperature",
-          "max_output_tokens": "Maximum output tokens",
-          "max_tool_iterations": "Maximum tool iterations",
           "trace_retention_days": "Trace retention (days)",
           "trace_max_interactions": "Maximum stored interactions",
           "trace_store_utterances": "Store transcribed utterances in traces",
@@ -77,6 +72,80 @@
     },
     "progress": {
       "download": "Installing the llama.cpp runtime and downloading SaySo's model. The first setup can take a few minutes."
+    }
+  },
+  "config_subentries": {
+    "conversation": {
+      "entry_type": "Conversation agent",
+      "initiate_flow": {
+        "user": "Add conversation agent",
+        "reconfigure": "Reconfigure conversation agent"
+      },
+      "step": {
+        "user": {
+          "title": "Add conversation agent",
+          "description": "Set the model, Home Assistant LLM API, and generation settings for this conversation agent.",
+          "data": {
+            "name": "Name",
+            "model": "Model",
+            "llm_hass_api": "Home Assistant LLM API",
+            "prompt": "System prompt",
+            "temperature": "Temperature",
+            "max_output_tokens": "Maximum output tokens",
+            "max_tool_iterations": "Maximum tool iterations"
+          },
+          "data_description": {
+            "model": "Choose the model this conversation agent sends to llama.cpp. Each conversation agent can use a different model.",
+            "llm_hass_api": "Home Assistant APIs whose entities and tools this conversation agent can use."
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure conversation agent",
+          "description": "Change the model, Home Assistant LLM API, and generation settings for this conversation agent.",
+          "data": {
+            "name": "Name",
+            "model": "Model",
+            "llm_hass_api": "Home Assistant LLM API",
+            "prompt": "System prompt",
+            "temperature": "Temperature",
+            "max_output_tokens": "Maximum output tokens",
+            "max_tool_iterations": "Maximum tool iterations"
+          },
+          "data_description": {
+            "model": "Choose the model this conversation agent sends to llama.cpp. Each conversation agent can use a different model.",
+            "llm_hass_api": "Home Assistant APIs whose entities and tools this conversation agent can use."
+          }
+        }
+      },
+      "abort": {
+        "reconfigure_successful": "Conversation agent updated."
+      }
+    },
+    "ai_task_data": {
+      "entry_type": "AI task",
+      "initiate_flow": {
+        "user": "Add AI task",
+        "reconfigure": "Reconfigure AI task"
+      },
+      "step": {
+        "user": {
+          "title": "Add AI task",
+          "description": "Name this AI task. Text generation is configured by the SaySo engine.",
+          "data": {
+            "name": "Name"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure AI task",
+          "description": "Change the name of this AI task.",
+          "data": {
+            "name": "Name"
+          }
+        }
+      },
+      "abort": {
+        "reconfigure_successful": "AI task updated."
+      }
     }
   },
   "services": {

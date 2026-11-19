@@ -12,7 +12,6 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_API_KEY,
-    CONF_LLM_HASS_API,
     CONF_MODEL,
     CONF_URL,
     Platform,
@@ -34,17 +33,14 @@ from .const import (
     BACKEND_EXTERNAL,
     CONF_DUCK_VOLUME,
     CONF_GRAMMAR_DECODING,
-    CONF_MAX_OUTPUT_TOKENS,
-    CONF_MAX_TOOL_ITERATIONS,
     CONF_MODEL_PATH,
     CONF_N_CTX,
     CONF_N_THREADS,
-    CONF_PROMPT,
-    CONF_TEMPERATURE,
     CONF_TIMEOUT,
     CONF_TRACE_MAX_INTERACTIONS,
     CONF_TRACE_RETENTION_DAYS,
     CONF_TRACE_STORE_UTTERANCES,
+    CONVERSATION_SUBENTRY_TYPE,
     DEFAULT_DUCK_VOLUME,
     DEFAULT_GRAMMAR_DECODING,
     DEFAULT_MAX_OUTPUT_TOKENS,
@@ -113,15 +109,15 @@ class SaySoRuntimeData:
     engine: SaySoInferenceEngine
     client: LlamaCppClient | None
     model: str
-    llm_api: str
-    system_prompt: str
-    temperature: float
-    max_output_tokens: int
-    max_tool_iterations: int
     traces: TraceStore
     tracer: TraceRecorder
     ducker: MediaDucker
     grammar_decoding: bool = False
+    llm_api: str = LLM_API_ASSIST
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT
+    temperature: float = DEFAULT_TEMPERATURE
+    max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS
+    max_tool_iterations: int = DEFAULT_MAX_TOOL_ITERATIONS
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -317,6 +313,17 @@ async def _async_embedded_engine(
     )
 
 
+def _default_conversation_model(entry: SaySoConfigEntry) -> str:
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type == CONVERSATION_SUBENTRY_TYPE:
+            return subentry.data.get(CONF_MODEL, "")
+    return ""
+
+
+async def _async_reload_on_update(hass: HomeAssistant, entry: SaySoConfigEntry) -> None:
+    hass.config_entries.async_schedule_reload(entry.entry_id)
+
+
 async def _async_build_engine(
     hass: HomeAssistant, entry: SaySoConfigEntry
 ) -> tuple[SaySoInferenceEngine, LlamaCppClient | None] | None:
@@ -331,11 +338,9 @@ async def _async_build_engine(
             api_key=entry.data.get(CONF_API_KEY),
             timeout=timeout,
         )
-        try:
-            await client.validate_model(options[CONF_MODEL])
-        except SaySoError:
-            pass
-        engine: SaySoInferenceEngine = ExternalEngine(client, options[CONF_MODEL])
+        engine: SaySoInferenceEngine = ExternalEngine(
+            client, _default_conversation_model(entry)
+        )
     else:
         embedded = await _async_embedded_engine(hass, entry)
         if embedded is None:
@@ -365,6 +370,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     synced_options = _synced_embedded_options(entry)
     if synced_options is not None:
         hass.config_entries.async_update_entry(entry, options=synced_options)
+    entry.async_on_unload(entry.add_update_listener(_async_reload_on_update))
     options = entry.options
     built = await _async_build_engine(hass, entry)
     if built is None:
@@ -398,15 +404,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
         engine=engine,
         client=client,
         model=engine.model_name,
-        llm_api=options.get(CONF_LLM_HASS_API, LLM_API_ASSIST),
-        system_prompt=options.get(CONF_PROMPT, DEFAULT_SYSTEM_PROMPT),
-        temperature=options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
-        max_output_tokens=int(
-            options.get(CONF_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
-        ),
-        max_tool_iterations=int(
-            options.get(CONF_MAX_TOOL_ITERATIONS, DEFAULT_MAX_TOOL_ITERATIONS)
-        ),
         traces=traces,
         tracer=TraceRecorder(hass, traces),
         ducker=ducker,

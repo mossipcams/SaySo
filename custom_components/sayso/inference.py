@@ -278,10 +278,11 @@ class ExternalEngine:
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         grammar: str | None = None,
+        model: str | None = None,
     ) -> ChatCompletionResult:
         result = await self._client.chat_completion(
             messages,
-            model=self._model,
+            model=model or self._model,
             tools=tools,
             temperature=temperature,
             max_tokens=max_tokens,
