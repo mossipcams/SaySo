@@ -309,6 +309,14 @@ resolver, but `volume_step.py:41-55` already calls
 Measure the change through the Fix 13 evals before and after. It needs
 HA at runtime, so it stays outside `core/`.
 
+Revised after Fix 13 (see `docs/PLAN_fix11_grounding.md`): the measured
+defect is over-clarification of correct calls (29 of 530), not entity
+lookup, and `GroundingHome` is already built from HA's registries. The
+rules go into HA-free `core/grounding.py` so production and the evals run
+the same code: a spoken domain word grounds when the home has exactly one
+such exposed entity, or the satellite area has exactly one, or a partial
+name is unique, behind room, modifier and possessive guards.
+
 **Fix 10: grammar-constrained decoding.** Verified: no grammar on either
 path (`inference.py:351-357`, `client.py:50-66`), and the fingerprint
 already exists (`schema.py:373-376`). Solution:
@@ -335,9 +343,9 @@ Solution:
    `getattr(getattr(tool, "annotations", None), "read_only", None)`. On
    `None` (HA older than 2026.11), fall back to a read-only set in
    `tool_contract.py` that mirrors HA's `_READ_ONLY` intents
-   (`HassGetState`, `GetLiveContext`, `HassGetCurrentDate`,
-   `HassGetCurrentTime`, `HassGetWeather`, and the list/timer status
-   intents).
+   (on 2026.11.1 that is only `HassTimerStatus` and `todo__get_items`;
+   `GetLiveContext` and `GetDateTime` carry no annotation and stay in the
+   set because SaySo already treats them as queries).
 2. In the Fix 11 grounding path, skip grounding and held-call clarify for
    read-only tools.
 3. Don't use `destructive` to require confirmation. HA marks every control
