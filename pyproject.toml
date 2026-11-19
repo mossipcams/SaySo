@@ -9,7 +9,6 @@ description = "Fully local Home Assistant conversation agent using llama.cpp"
 requires-python = ">=3.12"
 dependencies = [
     "homeassistant>=2026.8.3",
-    "PyTurboJPEG==1.8.3",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +27,7 @@ test = [
     "pytest-homeassistant-custom-component>=0.13",
     "hypothesis>=6.0.0",
     "import-linter>=2.0",
+    "PyTurboJPEG==1.8.3",
 ]
 
 [tool.setuptools.packages.find]
