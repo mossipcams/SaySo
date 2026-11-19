@@ -248,5 +248,13 @@
       "title": "SaySo's custom model file is missing",
       "description": "The custom model file {path} is missing or cannot be read. Choose another model in the SaySo options."
     }
+  },
+  "exceptions": {
+    "ai_task_attachments": {
+      "message": "AI Task attachments are not supported."
+    },
+    "ai_task_invalid": {
+      "message": "AI Task response does not match the requested structure: {reason}"
+    }
   }
 }

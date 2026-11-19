@@ -313,7 +313,7 @@ async def test_ai_task_subentry_flow_creates_and_renames(
     assert task.title == "Summaries"
     assert dict(task.data) == {}
     registry = er.async_get(hass)
-    assert not [
+    assert [
         e
         for e in er.async_entries_for_config_entry(registry, entry.entry_id)
         if e.config_subentry_id == task.subentry_id

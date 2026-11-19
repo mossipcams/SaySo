@@ -88,7 +88,11 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.CONVERSATION, Platform.SELECT]
+PLATFORMS: list[Platform | str] = [
+    Platform.CONVERSATION,
+    Platform.SELECT,
+    "ai_task",
+]
 
 type SaySoConfigEntry = ConfigEntry[SaySoRuntimeData]
 
