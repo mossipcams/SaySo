@@ -70,6 +70,7 @@ class TurnInput:
     held: HeldState | None = None
     calls: tuple[ToolCall, ...] | None = None
     confirmed: bool = False
+    read_only: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,6 +261,9 @@ class _Run:
                 home = turn.home()
                 normalized: list[tuple[ToolCall, dict[str, Any]]] = []
                 for call, args in validated:
+                    if call.name in turn.read_only:
+                        normalized.append((call, args))
+                        continue
                     new_args = drop_unspoken_area(call.name, args, turn.user_text, home)
                     if new_args is not args:
                         self.area_dropped = True
@@ -271,6 +275,8 @@ class _Run:
                     normalized.append((call, new_args))
                 validated = normalized
                 for i, (call, args) in enumerate(validated):
+                    if call.name in turn.read_only:
+                        continue
                     if not is_grounded(call.name, args, turn.user_text, home):
                         clar = clarify(call.name, args, turn.user_text, home)
                         parse_span.metadata["clarify"] = clar.speech

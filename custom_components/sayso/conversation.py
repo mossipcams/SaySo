@@ -22,6 +22,7 @@ from .boundary import (
     first_target,
     inference_error_type,
     record_boundary,
+    tool_is_read_only,
     tool_result_data,
     tool_result_failed,
     validate_arguments,
@@ -64,6 +65,7 @@ from .core.post_model import (
     ValidationResult,
     run_turn,
 )
+from .core.tool_contract import READ_ONLY_FALLBACK
 from .routing import (
     build_routing_catalog,
     build_routing_preferences,
@@ -523,6 +525,9 @@ class SaySoConversationEntity(
                 held=held,
                 calls=tuple(calls) if calls is not None else None,
                 confirmed=confirmed,
+                read_only=frozenset(
+                    name for name, tool in tool_map.items() if _is_read_only(name, tool)
+                ),
             ),
             complete=complete,
             validate=validate,
@@ -707,6 +712,11 @@ def _is_action_tool(tool: llm.Tool) -> bool:
     return isinstance(source, (llm.ActionTool, llm.IntentTool)) and not _is_query_tool(
         source
     )
+
+
+def _is_read_only(name: str, tool: llm.Tool) -> bool:
+    flag = tool_is_read_only(tool)
+    return name in READ_ONLY_FALLBACK if flag is None else flag
 
 
 def _error_result(

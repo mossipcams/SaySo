@@ -115,6 +115,9 @@ def validation_failure_code(
     return BoundaryFailureCode.INVALID_ARGUMENTS
 
 
+def tool_is_read_only(tool: llm.Tool) -> bool | None:
+    return getattr(getattr(tool, "annotations", None), "read_only", None)
+
 
 def validate_arguments(
     tool_calls: list[ToolCall],

@@ -322,3 +322,56 @@ Not verified, flagged:
 - `test -s docs/HA_2026_11_TOOLS.md` (see the report).
 - `grep -c '2026.11.1' docs/HA_2026_11_TOOLS.md` (see the report).
 - No other files in the repository were changed. No commit.
+
+## 8. Tool annotations (Fix 12)
+
+SaySo skips grounding for tools that HA marks `read_only` (`boundary.tool_is_read_only`).
+When the annotation is missing, `core/tool_contract.py` `READ_ONLY_FALLBACK` decides.
+Source paths are relative to `homeassistant/` at tag 2026.11.1.
+
+### 8.1 Intent tools (`components/intent/llm.py`)
+
+`INTENT_ANNOTATIONS` (`:57`) maps each intent to `ToolAnnotations`. Only one intent is
+read-only:
+
+| Intent | Annotation | Line |
+|---|---|---|
+| `INTENT_TIMER_STATUS` | `_READ_ONLY` (`read_only=True, open_world=False`) | `:72` |
+
+`HassGetState`, `HassGetCurrentDate`, `HassGetCurrentTime`, and `HassGetWeather` are not
+in `INTENT_ANNOTATIONS`, so they keep the default `ToolAnnotations()` (`read_only=False`).
+
+### 8.2 Other read-only tools (annotated)
+
+| Tool name | Class and file | Annotation line | In `READ_ONLY_FALLBACK` |
+|---|---|---|---|
+| `todo__get_items` | `TodoGetItemsTool`, `components/todo/llm.py` | `:59` | yes |
+| `homeassistant__GetLiveContext` | `GetLiveContextTool`, `components/homeassistant/llm.py` | `:255` | yes |
+| `llm__GetDateTime` | `GetDateTimeTool`, `components/llm/llm.py` | `:25` | yes |
+| `homeassistant__render_template` | `RenderTemplateTool`, `components/homeassistant/llm.py` | `:364` | no |
+| `homeassistant__search_actions` | `SearchActionsTool`, `components/homeassistant/llm.py` | `:477` | no |
+| `media_player__search_media` | `MediaSearchTool`, `components/media_player/llm.py` | `:162` | no |
+
+The first three rows are the fallback set. The last three are read-only in HA 2026.11.1
+but not in the fallback, so production skips their grounding and the evals do not.
+
+Correction to the Fix 12 plan (`docs/PLAN_fix11_grounding.md`, Verified fact 2): that plan
+said `GetLiveContext` and `GetDateTime` carry no annotation. HA 2026.11.1 marks both
+`read_only=True`. The fallback set still lists them, which is correct for 2026.8.3.
+
+### 8.3 Default and fallback
+
+- `helpers/llm.py:199-202`: `ToolAnnotations` defaults to `read_only=False`,
+  `destructive=True`, `open_world=True`. An unannotated tool is treated as a write.
+- The repo `.venv` (HA 2026.8.3) has no `homeassistant.helpers.llm.ToolAnnotations` and no
+  `Tool.annotations`. `tool_is_read_only` returns `None` there, so `READ_ONLY_FALLBACK`
+  decides. `pyproject.toml:11` sets the minimum to 2026.8.3.
+- Evals (`evals/runner.py`) never see HA annotations. They use `READ_ONLY_FALLBACK` only.
+
+### 8.4 Removing the fallback
+
+Remove `READ_ONLY_FALLBACK` when `pyproject.toml` raises the minimum to 2026.11. Then:
+
+- `conversation._is_read_only` returns `tool_is_read_only(tool) is True`, with no name fallback.
+- Evals must also read annotations, or they will keep the fallback set and drift from production.
+  Until that change, production and evals disagree for the three rows in 8.2 marked "no".

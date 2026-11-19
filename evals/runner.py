@@ -40,7 +40,7 @@ from evals.outcomes import (
 from evals.scorer import check_gates, score, summarize
 from sayso_contract import area_context as _area_context
 from sayso_contract import completion, correction, exceptions, grounding, post_model
-from sayso_contract import tool_schema
+from sayso_contract import tool_contract, tool_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
@@ -475,6 +475,7 @@ def _run_case_turn(
         iteration_limit=lambda: PRODUCTION_MAX_TOOL_ITERATIONS,
         now=time.monotonic(),
         held_ttl=PRODUCTION_HELD_TTL_SECONDS,
+        read_only=frozenset(names & tool_contract.READ_ONLY_FALLBACK),
     )
     outcome = asyncio.run(
         post_model.run_turn(

@@ -19,6 +19,15 @@ _JSON_TYPES: dict[str, tuple[type, ...]] = {
     "object": (dict,),
 }
 
+READ_ONLY_FALLBACK = frozenset(
+    {
+        "intent__HassTimerStatus",
+        "todo__get_items",
+        "homeassistant__GetLiveContext",
+        "llm__GetDateTime",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ContractViolation:
