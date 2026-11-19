@@ -73,15 +73,13 @@ from .routing import (
 )
 from .schema import (
     CompiledToolSchema,
-    ToolArgumentFailureCode,
-    ToolArgumentValidationError,
     _is_query_tool,
     _unwrap_source_tool,
     build_tool_availability_names,
     build_tool_map,
     compile_llm_tools,
 )
-from .core.tool_contract import check_tool_call, tools_by_name
+from .core.tool_contract import contract_failures, tools_by_name
 from .transcript import (
     build_correction_messages,
     chat_log_to_messages as _chat_log_to_messages,
@@ -571,11 +569,10 @@ class SaySoConversationEntity(
                     BoundaryFailureCode.UNAVAILABLE_TOOL, phase
                 )
 
-            contract_failures = _contract_failures(
+            if failures := contract_failures(
                 current, compiled_tools, turn.exposed_domains
-            )
-            if contract_failures:
-                validated, failures = [], contract_failures
+            ):
+                validated = []
             else:
                 validated, failures = validate_arguments(current, tool_map, trace)
 
@@ -821,30 +818,6 @@ def _satellite_area_name(
     return area.name if area is not None else None
 
 
-def _contract_failures(
-    tool_calls: list[ToolCall],
-    compiled_tools: dict[str, Any],
-    exposed_domains: frozenset[str],
-) -> list[tuple[ToolCall, ToolArgumentValidationError]]:
-    if not compiled_tools:
-        return []
-    failures = []
-    for call in tool_calls:
-        violation = check_tool_call(
-            call.name, call.arguments, compiled_tools, exposed_domains or None
-        )
-        if violation is not None:
-            failures.append(
-                (
-                    call,
-                    ToolArgumentValidationError(
-                        code=ToolArgumentFailureCode(violation.code),
-                        message=violation.message,
-                        tool_name=call.name,
-                    ),
-                )
-            )
-    return failures
 
 
 def _is_action_tool(tool: llm.Tool) -> bool:
