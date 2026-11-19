@@ -20,6 +20,7 @@ from .const import (
 from .core.completion import (
     ChatCompletionResult,
     ToolCall,
+    finish_reason_of,
     parse_choice_message,
     parse_tool_calls,
     prompt_tokens_of,
@@ -204,6 +205,7 @@ class LlamaCppClient:
                 request_payload=payload,
                 request_bytes=request_bytes,
                 prompt_tokens=prompt_tokens_of(body),
+                finish_reason=finish_reason_of(body),
             )
 
         return await self._send(

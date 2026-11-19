@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SaySoConfigEntry, SaySoRuntimeData
 from .core.area_context import AreaContext, apply_area_context, build_area_context
+from .core.grammar import GrammarUnsupported, build_grammar
 from .boundary import (
     action_metadata,
     apply_action_summary,
@@ -219,12 +220,14 @@ class _Turn:
             model=runtime.model,
             **({"correction": True} if correction else {}),
         )
+        grammar = _turn_grammar(runtime, tools, span.metadata)
         try:
             result = await runtime.engine.async_chat_completion(
                 messages,
                 tools=tools,
                 temperature=runtime.temperature,
                 max_tokens=runtime.max_output_tokens,
+                grammar=grammar,
             )
         except BaseException as err:
             trace.close(span, success=False)
@@ -237,6 +240,8 @@ class _Turn:
             span.metadata["prefix_hash"] = result.prefix_hash
         if result.reused_tokens is not None:
             span.metadata["reused_tokens"] = result.reused_tokens
+        if result.finish_reason is not None:
+            span.metadata["finish_reason"] = result.finish_reason
         trace.close(span)
         return result
 
@@ -594,6 +599,28 @@ class SaySoConversationEntity(
                 speech=ERROR_TOOL_ITERATION_LIMIT,
             )
         return turn.boundary_failure(_BOUNDARY_CODES[kind], phase)
+
+
+def _turn_grammar(
+    runtime: SaySoRuntimeData,
+    tools: tuple[dict[str, Any], ...] | list[dict[str, Any]] | None,
+    metadata: dict[str, Any],
+) -> str | None:
+    if not tools or not getattr(runtime, "grammar_decoding", False):
+        return None
+    try:
+        grammar = build_grammar(tools, markers=True)
+    except GrammarUnsupported as err:
+        reason = err.reason
+    except Exception:
+        _LOGGER.exception("Grammar build failed; sending without a grammar")
+        reason = "builder_error"
+    else:
+        metadata["grammar"] = "on"
+        return grammar
+    metadata["grammar"] = "skipped"
+    metadata["grammar_skip_reason"] = reason
+    return None
 
 
 def _tools_of(
