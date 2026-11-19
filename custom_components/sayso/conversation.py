@@ -62,9 +62,8 @@ from .core.grounding import (
     clarify,
     is_grounded,
     drop_unspoken_area,
-    support,
-    tokens,
 )
+from .core.held import HeldState, is_cancel, is_expired, resolve_held_option
 from .routing import (
     build_routing_catalog,
     build_routing_preferences,
@@ -88,18 +87,8 @@ from .tracing import ErrorType, Stage, TraceContext
 
 _LOGGER = logging.getLogger(__name__)
 
-YES_ANSWER = {"yes", "yeah", "yep", "yup", "sure", "correct", "ok", "okay"}
-NO_ANSWER = {
-    "no",
-    "nope",
-    "nah",
-    "cancel",
-    "neither",
-    "never",
-    "mind",
-    "stop",
-}
-FILLER = {"the", "it", "that", "one", "please", "do", "thanks", "thank", "you"}
+_Held = HeldState
+_resolve_held_option = resolve_held_option
 
 
 async def async_setup_entry(
@@ -289,32 +278,6 @@ def _is_voice_turn(user_input: conversation.ConversationInput) -> bool:
     return bool(getattr(user_input, "satellite_id", None) or user_input.device_id)
 
 
-def _resolve_held_option(held: _Held, text: str) -> GroundingEntity | None:
-    words = tokens(text)
-    if (
-        len(held.options) == 1
-        and any(word in YES_ANSWER for word in words)
-        and all(word in YES_ANSWER | FILLER for word in words)
-    ):
-        return held.options[0]
-    scored = [
-        (
-            max(
-                support(label.casefold(), text)
-                for label in (option.name, *option.aliases)
-            ),
-            option,
-        )
-        for option in held.options
-    ]
-    best_score, best_option = max(scored, key=lambda pair: pair[0])
-    if best_score >= 0.5 and all(
-        best_score > score for score, option in scored if option is not best_option
-    ):
-        return best_option
-    return None
-
-
 def _grounding_home(
     hass: HomeAssistant,
     user_input: conversation.ConversationInput,
@@ -353,14 +316,6 @@ def _grounding_home(
     )
 
 
-@dataclass(frozen=True)
-class _Held:
-    calls: list[ToolCall]
-    index: int
-    options: tuple[GroundingEntity, ...]
-    expires: float
-
-
 class SaySoConversationEntity(
     conversation.ConversationEntity,
     conversation.AbstractConversationAgent,
@@ -373,7 +328,7 @@ class SaySoConversationEntity(
         self._entry = entry
         self._attr_unique_id = entry.entry_id
 
-        self._held: dict[str, _Held] = {}
+        self._held: dict[str, HeldState] = {}
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
@@ -485,19 +440,13 @@ class SaySoConversationEntity(
         held = self._held.pop(chat_log.conversation_id, None)
         if (
             held is not None
-            and time.monotonic() < held.expires
+            and not is_expired(held, time.monotonic())
             and _is_voice_turn(turn.user_input)
         ):
-            words = tokens(turn.user_input.text)
-            if (
-                words
-                and all(word in YES_ANSWER | NO_ANSWER | FILLER for word in words)
-                and any(word in NO_ANSWER for word in words)
-                and not any(word in YES_ANSWER for word in words)
-            ):
+            if is_cancel(turn.user_input.text):
                 return turn.text(ERROR_CANCELLED)
 
-            option = _resolve_held_option(held, turn.user_input.text)
+            option = resolve_held_option(held, turn.user_input.text)
             if option is not None:
                 base_args = held.calls[held.index].arguments
                 new_args = {
@@ -641,7 +590,7 @@ class SaySoConversationEntity(
                         parse_span.metadata["clarify"] = clar.speech
                         trace.close(parse_span, success=False)
                         if clar.options:
-                            self._held[chat_log.conversation_id] = _Held(
+                            self._held[chat_log.conversation_id] = HeldState(
                                 [c for c, _ in validated],
                                 i,
                                 clar.options,
