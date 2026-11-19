@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -269,13 +270,19 @@ class ExternalEngine:
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     ) -> ChatCompletionResult:
-        return await self._client.chat_completion(
+        result = await self._client.chat_completion(
             messages,
             model=self._model,
             tools=tools,
             temperature=temperature,
             max_tokens=max_tokens,
         )
+        if result.tool_calls or not result.content:
+            return result
+        content, tool_calls = extract_tool_calls(result.content)
+        if not tool_calls and content == result.content:
+            return result
+        return replace(result, content=content, tool_calls=tool_calls)
 
 
 class EmbeddedEngine:
