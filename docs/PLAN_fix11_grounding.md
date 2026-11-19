@@ -29,8 +29,9 @@ the source of the entity list.
    `INTENT_TIMER_STATUS` as `_READ_ONLY` (`:55`, `:72`). `HassGetState`,
    `HassGetCurrentDate`, `HassGetCurrentTime`, and `HassGetWeather` are not in that
    table. `components/todo/llm.py:59` sets `read_only=True` for `todo__get_items`.
-   `GetLiveContext` and `GetDateTime` carry no annotation (`helpers/llm.py:216`
-   is the default `ToolAnnotations()`, which is `read_only=False`).
+   `GetLiveContext` (`components/homeassistant/llm.py:255`) and `GetDateTime`
+   (`components/llm/llm.py:25`) set `read_only=True`. (Corrected during Slice 4;
+   an earlier draft said they were unannotated.)
 3. Fix 12 changes no grounding outcome today. The four read-only tools already
    skip the name and area checks:
    - `intent__HassTimerStatus`: the `"Timer" in bare` check (`grounding.py:250`).
@@ -266,9 +267,8 @@ Facts: see Verified facts 2 and 3.
 - `core/tool_contract.py`: add `READ_ONLY_FALLBACK = frozenset({"intent__HassTimerStatus",
   "todo__get_items", "homeassistant__GetLiveContext", "llm__GetDateTime"})`. These are
   the names HA marks read-only (`intent/llm.py:72`, `todo/llm.py:59`) plus the two
-  eval query tools (`evals/outcomes.py:15-18`). `GetLiveContext` and `GetDateTime`
-  are not marked by HA 2026.11.x, so they are in the set because the eval already
-  treats them as queries (`schema.py:124-135`).
+  eval query tools (`evals/outcomes.py:15-18`), which HA 2026.11.x also marks
+  read-only (`homeassistant/llm.py:255`, `llm/llm.py:25`).
 - `core/post_model.py`: `TurnInput` gets `read_only: frozenset[str] = frozenset()`
   (after `confirmed`, `:72`). In `tool_loop`, split `validated` into read-only and
   other calls. Read-only calls skip the area drop (`:259-272`), grounding, and held
@@ -327,8 +327,8 @@ and `pytest evals/tests -q`.
 
 **Slice 5. Docs.** Files: `docs/HA_2026_11_TOOLS.md` only. Append a section
 "Tool annotations (Fix 12)": the `INTENT_ANNOTATIONS` table (`intent/llm.py:52-72`),
-`todo/llm.py:59`, and the note that `GetLiveContext` and `GetDateTime` are not
-annotated in 2026.11.x. Verify: `grep -n "Tool annotations" docs/HA_2026_11_TOOLS.md`.
+`todo/llm.py:59`, and the `GetLiveContext` and `GetDateTime` annotations
+(`read_only=True`). Verify: `grep -n "Tool annotations" docs/HA_2026_11_TOOLS.md`.
 Remove the fallback set when `pyproject.toml` raises the minimum to 2026.11.
 
 **Slice 6. Stub re-run (verification only).** No repo file. Run

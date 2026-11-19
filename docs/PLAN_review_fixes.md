@@ -343,9 +343,9 @@ Solution:
    `getattr(getattr(tool, "annotations", None), "read_only", None)`. On
    `None` (HA older than 2026.11), fall back to a read-only set in
    `tool_contract.py` that mirrors HA's `_READ_ONLY` intents
-   (on 2026.11.1 that is only `HassTimerStatus` and `todo__get_items`;
-   `GetLiveContext` and `GetDateTime` carry no annotation and stay in the
-   set because SaySo already treats them as queries).
+   (on 2026.11.1: `HassTimerStatus`, `todo__get_items`,
+   `GetLiveContext` and `GetDateTime`; `HassGetState` and the date, time
+   and weather intents are not marked read-only).
 2. In the Fix 11 grounding path, skip grounding and held-call clarify for
    read-only tools.
 3. Don't use `destructive` to require confirmation. HA marks every control
