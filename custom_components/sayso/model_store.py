@@ -16,6 +16,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import package as pkg_util
 
 from .const import (
+    EMBEDDED_MODELS,
     LLAMA_CPP_PACKAGE,
     LLAMA_CPP_VERSION,
     LLAMA_CPP_WHEEL_INDEX,
@@ -27,6 +28,10 @@ _LOGGER = logging.getLogger(__name__)
 
 _DOWNLOAD_CHUNK = 1024 * 1024
 _DOWNLOAD_TIMEOUT = aiohttp.ClientTimeout(total=None, sock_read=60)
+
+
+class SaySoModelMissingError(SaySoModelLoadError):
+    pass
 
 
 def models_dir(hass: HomeAssistant) -> Path:
@@ -110,6 +115,27 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+async def async_verify_model(
+    hass: HomeAssistant,
+    *,
+    filename: str,
+    sha256: str | None = None,
+) -> Path:
+    target = models_dir(hass) / filename
+    if not await hass.async_add_executor_job(target.is_file):
+        raise SaySoModelMissingError(f"Model file not found: {target}")
+    if sha256 is not None:
+        actual = await hass.async_add_executor_job(_sha256, target)
+        if actual != sha256:
+            await hass.async_add_executor_job(target.unlink)
+            raise SaySoModelLoadError(
+                f"Checksum mismatch for {filename}: expected {sha256}, got "
+                f"{actual}. The corrupt file was removed; download it again "
+                "from the SaySo Repairs issue."
+            )
+    return target
+
+
 async def async_ensure_model(
     hass: HomeAssistant,
     *,
@@ -124,15 +150,7 @@ async def async_ensure_model(
     target = directory / filename
 
     if await hass.async_add_executor_job(target.is_file):
-        if sha256 is not None:
-            actual = await hass.async_add_executor_job(_sha256, target)
-            if actual != sha256:
-                await hass.async_add_executor_job(target.unlink)
-                raise SaySoModelLoadError(
-                    f"Checksum mismatch for {filename}: expected {sha256}, got "
-                    f"{actual}. The corrupt file was removed; retry setup."
-                )
-        return target
+        return await async_verify_model(hass, filename=filename, sha256=sha256)
 
     _LOGGER.info("Downloading SaySo model %s from %s", filename, url)
     partial = target.with_suffix(target.suffix + ".part")
@@ -168,3 +186,19 @@ async def async_ensure_model(
     await hass.async_add_executor_job(partial.replace, target)
     _LOGGER.info("SaySo model ready at %s", target)
     return target
+
+
+async def async_provision_model(
+    hass: HomeAssistant, model: str, *, replace: bool = False
+) -> None:
+    await async_ensure_llama_cpp(hass)
+    if model not in EMBEDDED_MODELS:
+        return
+    catalog = EMBEDDED_MODELS[model]
+    if replace:
+        await hass.async_add_executor_job(
+            lambda: (models_dir(hass) / model).unlink(missing_ok=True)
+        )
+    await async_ensure_model(
+        hass, url=catalog.url, filename=model, sha256=catalog.sha256
+    )

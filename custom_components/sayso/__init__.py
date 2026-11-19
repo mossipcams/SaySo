@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -63,14 +64,27 @@ from .const import (
     SERVICE_LIST_TRACES,
     VAD_SENSITIVITY_UNIQUE_ID,
 )
-from .core.exceptions import SaySoError, SaySoModelLoadError
+from .core.exceptions import SaySoDependencyError, SaySoError, SaySoModelLoadError
 from .inference import (
     EmbeddedEngine,
     ExternalEngine,
     SaySoInferenceEngine,
     entry_backend,
 )
-from .model_store import async_ensure_llama_cpp, async_ensure_model, models_dir
+from .model_store import (
+    SaySoModelMissingError,
+    async_ensure_llama_cpp,
+    async_verify_model,
+    models_dir,
+)
+from .repairs import (
+    ISSUE_LLAMA_CPP_MISSING,
+    ISSUE_MODEL_CORRUPT,
+    ISSUE_MODEL_MISSING,
+    ISSUE_MODEL_PATH_MISSING,
+    async_clear_issues,
+    async_raise_issue,
+)
 from .trace_store import TraceRecorder, TraceStore
 _LOGGER = logging.getLogger(__name__)
 
@@ -232,9 +246,77 @@ def _migrated_embedded_options(
     return {**options, CONF_MODEL: model, CONF_MODEL_PATH: ""}
 
 
+def _readable_file(path: Path) -> bool:
+    return path.is_file() and os.access(path, os.R_OK)
+
+
+def _async_fail(
+    hass: HomeAssistant,
+    entry: SaySoConfigEntry,
+    key: str,
+    message: str,
+    *,
+    fixable: bool,
+    discard_model: bool = False,
+    placeholders: dict[str, str] | None = None,
+) -> None:
+    _LOGGER.error("SaySo setup failed: %s", message)
+    async_raise_issue(
+        hass,
+        entry.entry_id,
+        key,
+        fixable=fixable,
+        discard_model=discard_model,
+        placeholders=placeholders,
+    )
+
+
+async def _async_embedded_engine(
+    hass: HomeAssistant, entry: SaySoConfigEntry
+) -> EmbeddedEngine | None:
+    options = entry.options
+    try:
+        await async_ensure_llama_cpp(hass)
+    except SaySoDependencyError as err:
+        _async_fail(hass, entry, ISSUE_LLAMA_CPP_MISSING, str(err), fixable=True)
+        return None
+
+    model = options[CONF_MODEL]
+    if model in EMBEDDED_MODELS:
+        try:
+            model_path = await async_verify_model(
+                hass, filename=model, sha256=EMBEDDED_MODELS[model].sha256
+            )
+        except SaySoModelMissingError as err:
+            _async_fail(hass, entry, ISSUE_MODEL_MISSING, str(err), fixable=True)
+            return None
+        except SaySoModelLoadError as err:
+            _async_fail(hass, entry, ISSUE_MODEL_CORRUPT, str(err), fixable=True)
+            return None
+    else:
+        model_path = Path(model)
+        if not await hass.async_add_executor_job(_readable_file, model_path):
+            _async_fail(
+                hass,
+                entry,
+                ISSUE_MODEL_PATH_MISSING,
+                f"Model file not found or unreadable: {model_path}",
+                fixable=False,
+                placeholders={"path": str(model_path)},
+            )
+            return None
+
+    return EmbeddedEngine(
+        model_path,
+        n_ctx=int(options.get(CONF_N_CTX, DEFAULT_N_CTX)),
+        n_threads=int(options.get(CONF_N_THREADS) or 0) or None,
+        timeout=options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
+    )
+
+
 async def _async_build_engine(
     hass: HomeAssistant, entry: SaySoConfigEntry
-) -> tuple[SaySoInferenceEngine, LlamaCppClient | None]:
+) -> tuple[SaySoInferenceEngine, LlamaCppClient | None] | None:
     options = entry.options
     timeout = options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
     client: LlamaCppClient | None = None
@@ -252,33 +334,24 @@ async def _async_build_engine(
             pass
         engine: SaySoInferenceEngine = ExternalEngine(client, options[CONF_MODEL])
     else:
-        try:
-            await async_ensure_llama_cpp(hass)
-            model = options[CONF_MODEL]
-            if model in EMBEDDED_MODELS:
-                catalog = EMBEDDED_MODELS[model]
-                model_path = await async_ensure_model(
-                    hass,
-                    url=catalog.url,
-                    filename=model,
-                    sha256=catalog.sha256,
-                )
-            else:
-                model_path = Path(model)
-                if not await hass.async_add_executor_job(model_path.is_file):
-                    raise SaySoModelLoadError(f"Model file not found: {model_path}")
-        except SaySoError as err:
-            raise ConfigEntryNotReady(str(err)) from err
-
-        engine = EmbeddedEngine(
-            model_path,
-            n_ctx=int(options.get(CONF_N_CTX, DEFAULT_N_CTX)),
-            n_threads=int(options.get(CONF_N_THREADS) or 0) or None,
-            timeout=timeout,
-        )
+        embedded = await _async_embedded_engine(hass, entry)
+        if embedded is None:
+            return None
+        engine = embedded
 
     try:
         await engine.async_start()
+    except SaySoModelLoadError as err:
+        await engine.async_shutdown()
+        _async_fail(
+            hass,
+            entry,
+            ISSUE_MODEL_CORRUPT,
+            str(err),
+            fixable=True,
+            discard_model=True,
+        )
+        return None
     except SaySoError as err:
         await engine.async_shutdown()
         raise ConfigEntryNotReady(str(err)) from err
@@ -290,7 +363,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     if synced_options is not None:
         hass.config_entries.async_update_entry(entry, options=synced_options)
     options = entry.options
-    engine, client = await _async_build_engine(hass, entry)
+    built = await _async_build_engine(hass, entry)
+    if built is None:
+        return False
+    engine, client = built
+    async_clear_issues(hass, entry.entry_id)
 
     traces = TraceStore(
         hass,

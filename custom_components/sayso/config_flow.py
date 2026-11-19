@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -66,10 +67,11 @@ from .const import (
     MAX_TRACE_INTERACTIONS,
 )
 from .inference import default_thread_count, entry_backend
-from .model_store import list_local_models
+from .model_store import async_provision_model, list_local_models, models_dir
 from .core.exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
+    SaySoDependencyError,
     SaySoError,
     SaySoInvalidResponseError,
     SaySoModelNotFoundError,
@@ -197,6 +199,50 @@ def _select(values: list[str], *, custom: bool = False) -> SelectSelector:
     )
 
 
+class DownloadSteps:
+
+    hass: HomeAssistant
+    _model: str
+    _replace: bool = False
+    _download_task: asyncio.Task[None] | None = None
+    _download_error: str = ""
+
+    async def async_step_download(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if self._download_task is None:
+            self._download_task = self.hass.async_create_task(
+                async_provision_model(self.hass, self._model, replace=self._replace)
+            )
+        if not self._download_task.done():
+            return self.async_show_progress(
+                step_id="download",
+                progress_action="download",
+                progress_task=self._download_task,
+            )
+        try:
+            await self._download_task
+        except SaySoDependencyError:
+            self._download_error = "install_failed"
+        except SaySoError:
+            self._download_error = "download_failed"
+        else:
+            return self.async_show_progress_done(next_step_id="finish")
+        return self.async_show_progress_done(next_step_id="download_failed")
+
+    async def async_step_download_failed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is None:
+            return self.async_show_form(
+                step_id="download_failed",
+                data_schema=vol.Schema({}),
+                errors={"base": self._download_error},
+            )
+        self._download_task = None
+        return await self.async_step_download()
+
+
 def _model_fields(
     options: dict[str, Any], models: list[str], *, embedded: bool
 ) -> dict[Any, Any]:
@@ -270,7 +316,7 @@ def _options_schema(
     )
 
 
-class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
+class SaySoConfigFlow(DownloadSteps, ConfigFlow, domain=DOMAIN):
 
     VERSION = 2
     MINOR_VERSION = 1
@@ -321,11 +367,8 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
         if not base_url:
             await self.async_set_unique_id(f"{DOMAIN}_embedded")
             self._abort_if_unique_id_configured()
-            return self.async_create_entry(
-                title="SaySo (local)",
-                data={CONF_BACKEND: BACKEND_EMBEDDED},
-                options=_default_embedded_options(),
-            )
+            self._model = DEFAULT_MODEL_FILENAME
+            return await self.async_step_download()
 
         try:
             cv.url(base_url)
@@ -373,6 +416,15 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
             options=_default_options(model),
         )
 
+    async def async_step_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        return self.async_create_entry(
+            title="SaySo (local)",
+            data={CONF_BACKEND: BACKEND_EMBEDDED},
+            options=_default_embedded_options(),
+        )
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> SaySoOptionsFlowHandler:
@@ -383,7 +435,9 @@ def _model_step_schema(models: list[str]) -> vol.Schema:
     return vol.Schema({vol.Required(CONF_MODEL): _select(models, custom=True)})
 
 
-class SaySoOptionsFlowHandler(OptionsFlowWithReload):
+class SaySoOptionsFlowHandler(DownloadSteps, OptionsFlowWithReload):
+
+    _pending: dict[str, Any]
 
     def _client(self, timeout: float) -> LlamaCppClient:
         entry = self.config_entry
@@ -425,7 +479,11 @@ class SaySoOptionsFlowHandler(OptionsFlowWithReload):
 
         if entry_backend(entry) == BACKEND_EMBEDDED:
             if user_input is not None:
-                return self.async_create_entry(data={**entry.options, **user_input})
+                self._pending = {**entry.options, **user_input}
+                self._model = user_input[CONF_MODEL]
+                if await self._async_model_absent(self._model):
+                    return await self.async_step_download()
+                return self.async_create_entry(data=self._pending)
             local_models = await self.hass.async_add_executor_job(
                 list_local_models, self.hass
             )
@@ -453,3 +511,14 @@ class SaySoOptionsFlowHandler(OptionsFlowWithReload):
             )
 
         return self.async_create_entry(data=user_input)
+
+    async def async_step_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        return self.async_create_entry(data=self._pending)
+
+    async def _async_model_absent(self, model: str) -> bool:
+        if model not in EMBEDDED_MODELS:
+            return False
+        path = models_dir(self.hass) / model
+        return not await self.hass.async_add_executor_job(path.is_file)
