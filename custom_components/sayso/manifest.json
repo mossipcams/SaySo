@@ -1,19 +1,21 @@
 {
   "domain": "sayso",
   "name": "SaySo",
-  "codeowners": [],
   "after_dependencies": [
     "media_player"
+  ],
+  "codeowners": [
+    "@mossipcams"
   ],
   "config_flow": true,
   "dependencies": [
     "conversation",
     "llm"
   ],
-  "documentation": "https://github.com/sayso/sayso",
+  "documentation": "https://github.com/mossipcams/SaySo",
   "integration_type": "service",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/sayso/sayso/issues",
+  "issue_tracker": "https://github.com/mossipcams/SaySo/issues",
   "requirements": [],
   "version": "1.20.4"
 }
