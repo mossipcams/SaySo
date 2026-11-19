@@ -6,10 +6,6 @@ from types import MappingProxyType
 from typing import Any
 
 from homeassistant.components import conversation
-from homeassistant.components.assist_pipeline import (
-    async_get_pipelines,
-    async_update_pipeline,
-)
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry, UnknownEntry
 from homeassistant.const import (
     CONF_API_KEY,
@@ -247,6 +243,11 @@ async def _async_rewrite_pipelines(hass: HomeAssistant, merged_ids: list[str]) -
             "assist_pipeline is not loaded; pipelines naming merged SaySo entries were not rewritten"
         )
         return
+    from homeassistant.components.assist_pipeline import (
+        async_get_pipelines,
+        async_update_pipeline,
+    )
+
     registry = er.async_get(hass)
     for pipeline in async_get_pipelines(hass):
         if pipeline.conversation_engine not in merged_ids:

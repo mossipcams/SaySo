@@ -2,6 +2,7 @@
   "domain": "sayso",
   "name": "SaySo",
   "after_dependencies": [
+    "assist_pipeline",
     "media_player"
   ],
   "codeowners": [

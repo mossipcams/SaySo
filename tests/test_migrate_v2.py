@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -52,6 +55,21 @@ URL_A = "http://llm-a.local:8080/v1"
 URL_B = "http://llm-b.local:8080/v1"
 URL_C = "http://llm-c.local:8080/v1"
 EPOCH = datetime(2025, 1, 1, tzinfo=UTC)
+
+
+def test_migration_module_does_not_import_assist_pipeline_eagerly() -> None:
+    script = (
+        "import sys; import custom_components.sayso.migration; "
+        "print('homeassistant.components.assist_pipeline' in sys.modules)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "False"
 
 
 def _engine_options(**overrides: Any) -> dict[str, Any]:
