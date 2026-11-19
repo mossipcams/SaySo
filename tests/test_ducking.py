@@ -25,14 +25,8 @@ from pytest_homeassistant_custom_component.common import (
     async_mock_service,
 )
 
-from custom_components.sayso.const import DOMAIN, DUCK_TIMEOUT
-from custom_components.sayso.ducking import (
-    DUCKER_KEY,
-    ENTRY_COUNT_KEY,
-    async_release_ducking,
-    async_setup_ducking,
-    async_wait_for_restores,
-)
+from custom_components.sayso.const import DUCK_TIMEOUT
+from custom_components.sayso.ducking import async_setup_ducking
 
 VOLUME_ATTRS = {
     ATTR_MEDIA_VOLUME_LEVEL: 0.5,
@@ -554,7 +548,7 @@ async def test_volume_level_without_set_support_is_paused(
     assert volume_calls == []
 
 
-async def test_two_entries_share_one_ducker(hass: HomeAssistant) -> None:
+async def test_each_entry_ducker_is_independent(hass: HomeAssistant) -> None:
     kitchen = _area(hass, "Kitchen")
     satellite = _register(hass, "assist_satellite", "kitchen_sat", area_id=kitchen)
     tv = _register(hass, "media_player", "kitchen_tv", area_id=kitchen)
@@ -562,42 +556,18 @@ async def test_two_entries_share_one_ducker(hass: HomeAssistant) -> None:
     await _set(hass, tv, "playing", VOLUME_ATTRS)
     volume_calls = async_mock_service(hass, "media_player", "volume_set")
 
-    shared_data = hass.data.setdefault(DOMAIN, {})
-    shared_data["unrelated"] = object()
     first = await async_setup_ducking(hass, 0.02)
     second = await async_setup_ducking(hass, 0.03)
-    assert first is second
-    assert shared_data[DUCKER_KEY] is first
-    assert shared_data[ENTRY_COUNT_KEY] == 2
+    assert first is not second
 
+    await first.async_teardown()
     await _set(hass, satellite, "listening")
     assert _data(volume_calls) == [{"entity_id": tv, "volume_level": 0.03}]
 
-    await async_release_ducking(hass)()
-    assert len(volume_calls) == 1
-    assert shared_data[ENTRY_COUNT_KEY] == 1
-
-    await _set(hass, satellite, "listening", {"source": "again"})
-    assert len(volume_calls) == 1
-
+    await second.async_teardown()
     await _set(hass, satellite, "idle")
     assert len(volume_calls) == 2
     assert _data(volume_calls)[-1] == {"entity_id": tv, "volume_level": 0.5}
-
-    await _set(hass, satellite, "listening")
-    assert len(volume_calls) == 3
-    assert _data(volume_calls)[-1] == {"entity_id": tv, "volume_level": 0.03}
-    await async_release_ducking(hass)()
-    assert len(volume_calls) == 4
-    assert _data(volume_calls)[-1] == {"entity_id": tv, "volume_level": 0.5}
-    assert hass.data[DOMAIN] is shared_data
-    assert set(shared_data) == {"unrelated"}
-
-    await _set(hass, satellite, "idle")
-    await _set(hass, satellite, "listening")
-    hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
-    await hass.async_block_till_done()
-    assert len(volume_calls) == 4
 
 
 async def test_stop_event_restores_ducked_players(hass: HomeAssistant) -> None:
@@ -858,15 +828,6 @@ async def test_stop_event_then_teardown_does_not_remove_fired_listener(
     assert "Unable to remove unknown job listener" not in caplog.text
 
 
-async def test_wait_for_restores_is_noop_without_ducker(
-    hass: HomeAssistant,
-) -> None:
-    await async_wait_for_restores(hass)
-    shared_data = hass.data.setdefault(DOMAIN, {})
-    shared_data["unrelated"] = object()
-    await async_wait_for_restores(hass)
-
-
 async def test_rewake_then_leave_before_restore_does_not_reduck(
     hass: HomeAssistant,
 ) -> None:
@@ -895,7 +856,9 @@ async def test_rewake_then_leave_before_restore_does_not_reduck(
     hass.states.async_set(satellite, "idle")
     await asyncio.wait_for(restore_started.wait(), timeout=1.0)
 
-    hass.states.async_set(tv, "playing", {**VOLUME_ATTRS, ATTR_MEDIA_VOLUME_LEVEL: 0.02})
+    hass.states.async_set(
+        tv, "playing", {**VOLUME_ATTRS, ATTR_MEDIA_VOLUME_LEVEL: 0.02}
+    )
     hass.states.async_set(satellite, "listening")
     for _ in range(5):
         await asyncio.sleep(0)

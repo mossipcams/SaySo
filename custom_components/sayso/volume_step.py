@@ -25,12 +25,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class StepVolumeRelativeHandler(MediaSetVolumeRelativeHandler):
-
     @override
     async def async_handle(self, intent_obj: intent.Intent) -> intent.IntentResponse:
-        from .ducking import async_wait_for_restores
+        from .ducking import async_wait_all_restores
 
-        await async_wait_for_restores(intent_obj.hass)
+        await async_wait_all_restores(intent_obj.hass)
         try:
             return await super().async_handle(intent_obj)
         except intent.MatchFailedError as err:
@@ -129,9 +128,9 @@ class StepSetVolumeHandler(intent.ServiceIntentHandler):
 
     @override
     async def async_handle(self, intent_obj: intent.Intent) -> intent.IntentResponse:
-        from .ducking import async_wait_for_restores
+        from .ducking import async_wait_all_restores
 
-        await async_wait_for_restores(intent_obj.hass)
+        await async_wait_all_restores(intent_obj.hass)
         return await super().async_handle(intent_obj)
 
 

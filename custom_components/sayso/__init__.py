@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -6,7 +5,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
@@ -86,6 +85,10 @@ from .repairs import (
     async_raise_issue,
 )
 from .trace_store import TraceRecorder, TraceStore
+
+if TYPE_CHECKING:
+    from .ducking import MediaDucker
+
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.CONVERSATION, Platform.SELECT]
@@ -107,7 +110,6 @@ LIST_TRACES_SCHEMA = vol.Schema(
 
 @dataclass
 class SaySoRuntimeData:
-
     engine: SaySoInferenceEngine
     client: LlamaCppClient | None
     model: str
@@ -118,6 +120,7 @@ class SaySoRuntimeData:
     max_tool_iterations: int
     traces: TraceStore
     tracer: TraceRecorder
+    ducker: MediaDucker
     grammar_decoding: bool = False
 
 
@@ -384,12 +387,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     await traces.async_load()
     traces.async_prune()
 
-    from .ducking import async_release_ducking, async_setup_ducking
+    from .ducking import async_setup_ducking
 
-    await async_setup_ducking(
+    ducker = await async_setup_ducking(
         hass, float(options.get(CONF_DUCK_VOLUME, DEFAULT_DUCK_VOLUME))
     )
-    entry.async_on_unload(async_release_ducking(hass))
+    entry.async_on_unload(ducker.async_teardown)
 
     entry.runtime_data = SaySoRuntimeData(
         engine=engine,
@@ -406,6 +409,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
         ),
         traces=traces,
         tracer=TraceRecorder(hass, traces),
+        ducker=ducker,
         grammar_decoding=bool(
             options.get(CONF_GRAMMAR_DECODING, DEFAULT_GRAMMAR_DECODING)
         ),

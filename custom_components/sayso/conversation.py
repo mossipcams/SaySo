@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
@@ -84,6 +84,9 @@ from .schema import (
 from .transcript import chat_log_to_messages as _chat_log_to_messages
 from .tracing import ErrorType, Stage, TraceContext
 
+if TYPE_CHECKING:
+    from .ducking import MediaDucker
+
 _LOGGER = logging.getLogger(__name__)
 
 _Held = HeldState
@@ -122,6 +125,7 @@ class _Turn:
     correction_used: bool = False
     area_context: AreaContext | None = None
     exposed_domains: frozenset[str] = frozenset()
+    ducker: MediaDucker | None = None
 
     @property
     def messages(self) -> list[dict[str, Any]]:
@@ -254,9 +258,8 @@ class _Turn:
         tool_map: dict[str, llm.Tool],
         span: Any,
     ) -> tuple[bool, str | None, str | None]:
-        from .ducking import async_wait_for_restores
-
-        await async_wait_for_restores(self.chat_log.hass)
+        if self.ducker is not None:
+            await self.ducker.async_wait_restores()
         content = conversation.AssistantContent(
             agent_id=self.agent_id,
             content=None,
@@ -386,6 +389,7 @@ class SaySoConversationEntity(
             user_input=user_input,
             chat_log=chat_log,
             trace=trace,
+            ducker=self._runtime.ducker,
         )
         span = trace.open(Stage.SAYSO_REQUEST)
         try:
