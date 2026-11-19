@@ -22,10 +22,10 @@ from .boundary import (
     boundary_schema,
     first_target,
     inference_error_type,
-    is_tool_execution_failure,
     is_well_formed_batch,
     record_boundary,
     tool_result_data,
+    tool_result_failed,
     validate_arguments,
     validation_failure_code,
 )
@@ -272,7 +272,7 @@ class _Turn:
         resolved_target: str | None = None
         async for result in self.chat_log.async_add_assistant_content(content):
             data = tool_result_data(result)
-            if is_tool_execution_failure(data):
+            if tool_result_failed(result):
                 batch_failed = True
                 if ha_error is None:
                     error = data.get("error")

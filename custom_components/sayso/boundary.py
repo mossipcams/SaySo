@@ -156,6 +156,14 @@ def is_tool_execution_failure(tool_result: dict[str, Any]) -> bool:
     return "error" in tool_result and "success" not in tool_result
 
 
+def tool_result_failed(content: Any) -> bool:
+    if hasattr(content, "result"):
+        return bool(content.result.error) or is_tool_execution_failure(
+            content.result.data
+        )
+    return is_tool_execution_failure(content.tool_result)
+
+
 def first_target(tool_result: dict[str, Any]) -> str | None:
     data = tool_result.get("data")
     successes = data.get("success") if isinstance(data, dict) else None
