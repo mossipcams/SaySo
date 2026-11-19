@@ -3,11 +3,10 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Literal, override
+from typing import Any, override
 
 from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
-from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -390,8 +389,8 @@ class SaySoConversationEntity(
 
     @property
     @override
-    def supported_languages(self) -> list[str] | Literal["*"]:
-        return MATCH_ALL
+    def supported_languages(self) -> list[str]:
+        return ["en"]
 
     @override
     async def async_added_to_hass(self) -> None:
