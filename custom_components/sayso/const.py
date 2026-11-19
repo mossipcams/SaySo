@@ -4,10 +4,21 @@ from homeassistant.const import CONF_LLM_HASS_API, CONF_MODEL, CONF_PROMPT
 
 from .core.vocabulary import (
     DOMAIN_PLURALS,
+    ERROR_ACTION_FAILED,
     ERROR_AREA_HAS_NO_DOMAIN,
+    ERROR_CANCELLED,
     ERROR_CHOOSE,
     ERROR_DID_YOU_MEAN,
+    ERROR_EMPTY_RESPONSE,
+    ERROR_MEDIA_NOT_PAUSED,
+    ERROR_MEDIA_NOT_PLAYING,
+    ERROR_MODEL_NOT_LOADED,
+    ERROR_MODEL_UNAVAILABLE,
+    ERROR_NAME_NOT_FOUND,
+    ERROR_NO_TIMERS,
     ERROR_NOT_UNDERSTOOD,
+    ERROR_REQUEST_TIMEOUT,
+    ERROR_TOOL_ITERATION_LIMIT,
 )
 
 DOMAIN = "sayso"
@@ -86,17 +97,6 @@ DEFAULT_TRACE_STORE_UTTERANCES = False
 DEFAULT_SYSTEM_PROMPT = """You are SaySo, a local Home Assistant voice agent.
 Use the available tools for home state queries and actions. Only claim an action succeeded when its tool result confirms success. Use names, areas, and context supplied by Home Assistant. If a request is ambiguous, ask one short question. Keep spoken responses brief. Do not describe tool calls."""
 
-ERROR_MODEL_UNAVAILABLE = "The local model is unavailable."
-ERROR_MODEL_NOT_LOADED = "The local model is not loaded."
-ERROR_REQUEST_TIMEOUT = "That request took too long."
-ERROR_EMPTY_RESPONSE = "I didn't get a response from the local model."
-ERROR_ACTION_FAILED = "I couldn't complete that action."
-ERROR_NO_TIMERS = "There are no timers running."
-ERROR_NAME_NOT_FOUND = "I couldn't find {name}."
-ERROR_MEDIA_NOT_PLAYING = "The {name} isn't playing."
-ERROR_MEDIA_NOT_PAUSED = "The {name} isn't paused."
-ERROR_TOOL_ITERATION_LIMIT = "I couldn't complete that action."
-ERROR_CANCELLED = "Okay."
 HELD_CALL_TTL = 300
 HA_MATCH_FAILED_ERROR = "MatchFailedError"
 
