@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import urllib.error
 from typing import Any
 
@@ -88,7 +89,7 @@ def test_area_drop_removes_unspoken_area_and_is_reported() -> None:
 
 
 def test_grounding_clarify_is_reported_and_executes_nothing() -> None:
-    case = _single("realistic_eval_20260908_media_01")
+    case = [dataclasses.replace(c, utterance="Resume the telly.") for c in _single("realistic_eval_20260908_media_01")]
     result = evaluate(case, _expected_then_done(case[0].id))[0]
     assert "grounding_clarify" in result.info_flags
     assert result.turn.calls == []
