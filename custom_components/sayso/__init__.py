@@ -25,6 +25,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.llm import LLM_API_ASSIST
 
 from .client import LlamaCppClient
@@ -60,6 +61,7 @@ from .const import (
     EMBEDDED_MODELS,
     SERVICE_GET_TRACE,
     SERVICE_LIST_TRACES,
+    VAD_SENSITIVITY_UNIQUE_ID,
 )
 from .core.exceptions import SaySoError, SaySoModelLoadError
 from .inference import (
@@ -70,14 +72,9 @@ from .inference import (
 )
 from .model_store import async_ensure_llama_cpp, async_ensure_model, models_dir
 from .trace_store import TraceRecorder, TraceStore
-from .vad_sensitivity import (
-    VadSensitivitySetup,
-    async_setup_vad_sensitivity,
-    async_teardown_vad_sensitivity,
-)
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.CONVERSATION]
+PLATFORMS: list[Platform] = [Platform.CONVERSATION, Platform.SELECT]
 
 type SaySoConfigEntry = ConfigEntry[SaySoRuntimeData]
 
@@ -107,7 +104,6 @@ class SaySoRuntimeData:
     max_tool_iterations: int
     traces: TraceStore
     tracer: TraceRecorder
-    vad: VadSensitivitySetup | None = None
     grammar_decoding: bool = False
 
 
@@ -194,12 +190,31 @@ def _synced_embedded_options(entry: SaySoConfigEntry) -> dict[str, Any] | None:
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bool:
-    if entry.version > 1:
+    if entry.version > 2:
         return False
-    if entry.minor_version < 2:
-        options = _migrated_embedded_options(hass, entry) or dict(entry.options)
-        hass.config_entries.async_update_entry(entry, options=options, minor_version=2)
+    if entry.version == 1:
+        options = dict(entry.options)
+        if entry.minor_version < 2:
+            options = _migrated_embedded_options(hass, entry) or options
+        _async_rekey_vad_select(hass, entry)
+        hass.config_entries.async_update_entry(
+            entry, options=options, version=2, minor_version=1
+        )
     return True
+
+
+def _async_rekey_vad_select(hass: HomeAssistant, entry: SaySoConfigEntry) -> None:
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        Platform.SELECT, DOMAIN, VAD_SENSITIVITY_UNIQUE_ID
+    )
+    if entity_id is None:
+        return
+    registry.async_update_entity(
+        entity_id,
+        new_unique_id=f"{entry.entry_id}-vad-sensitivity",
+        config_entry_id=entry.entry_id,
+    )
 
 
 def _migrated_embedded_options(
@@ -292,12 +307,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     await traces.async_load()
     traces.async_prune()
 
-    try:
-        vad = await async_setup_vad_sensitivity(hass)
-    except Exception:
-        await engine.async_shutdown()
-        raise
-
     from .ducking import async_release_ducking, async_setup_ducking
 
     await async_setup_ducking(
@@ -320,7 +329,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
         ),
         traces=traces,
         tracer=TraceRecorder(hass, traces),
-        vad=vad,
         grammar_decoding=bool(
             options.get(CONF_GRAMMAR_DECODING, DEFAULT_GRAMMAR_DECODING)
         ),
@@ -344,7 +352,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bo
     if entry.runtime_data is not None:
         entry.runtime_data.tracer.async_shutdown()
         await entry.runtime_data.engine.async_shutdown()
-        if entry.runtime_data.vad is not None:
-            await async_teardown_vad_sensitivity(hass, entry.runtime_data.vad)
     entry.runtime_data = None
     return True

@@ -23,7 +23,6 @@ from custom_components.sayso.const import (
 )
 from custom_components.sayso.vad_sensitivity import (
     SATELLITE_DOMAIN,
-    async_setup_vad_sensitivity,
     patch_satellite_entities,
 )
 from tests.test_config_flow import (
@@ -96,20 +95,22 @@ async def test_select_option_service_updates_state(hass: HomeAssistant) -> None:
     assert hass.states.get(SELECT_ENTITY_ID).state == "aggressive"
 
 
+@pytest.mark.usefixtures("mock_llama_client")
 async def test_patch_applied_to_mocked_satellite(hass: HomeAssistant) -> None:
-    setup = await async_setup_vad_sensitivity(hass)
+    await _create_entry(hass)
     await hass.async_block_till_done()
 
     satellite = _add_mock_satellite(hass, "assist_satellite.test")
     _fire_registry_created(hass, "assist_satellite.test")
     await hass.async_block_till_done()
 
-    assert satellite._attr_vad_sensitivity_entity_id == setup.entity_id
-    assert setup.entity_id == SELECT_ENTITY_ID
+    assert satellite._attr_vad_sensitivity_entity_id == SELECT_ENTITY_ID
+    assert hass.states.get(SELECT_ENTITY_ID) is not None
 
 
+@pytest.mark.usefixtures("mock_llama_client")
 async def test_patch_noop_when_attribute_missing(hass: HomeAssistant) -> None:
-    setup = await async_setup_vad_sensitivity(hass)
+    await _create_entry(hass)
     await hass.async_block_till_done()
 
     satellite = _add_mock_satellite(hass, "assist_satellite.old", with_attr=False)
@@ -117,28 +118,30 @@ async def test_patch_noop_when_attribute_missing(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     assert not hasattr(satellite, "_attr_vad_sensitivity_entity_id")
-    assert patch_satellite_entities(hass, setup.entity_id) == 0
+    assert patch_satellite_entities(hass, SELECT_ENTITY_ID) == 0
 
 
+@pytest.mark.usefixtures("mock_llama_client")
 async def test_patch_idempotent_on_repeated_registry_events(hass: HomeAssistant) -> None:
-    setup = await async_setup_vad_sensitivity(hass)
+    await _create_entry(hass)
     await hass.async_block_till_done()
 
     satellite = _add_mock_satellite(hass, "assist_satellite.test")
     _fire_registry_created(hass, "assist_satellite.test")
     await hass.async_block_till_done()
-    assert satellite._attr_vad_sensitivity_entity_id == setup.entity_id
+    assert satellite._attr_vad_sensitivity_entity_id == SELECT_ENTITY_ID
 
     _fire_registry_created(hass, "assist_satellite.test")
     await hass.async_block_till_done()
-    assert satellite._attr_vad_sensitivity_entity_id == setup.entity_id
-    assert patch_satellite_entities(hass, setup.entity_id) == 0
+    assert satellite._attr_vad_sensitivity_entity_id == SELECT_ENTITY_ID
+    assert patch_satellite_entities(hass, SELECT_ENTITY_ID) == 0
 
 
+@pytest.mark.usefixtures("mock_llama_client")
 async def test_no_satellites_is_a_noop(hass: HomeAssistant) -> None:
-    setup = await async_setup_vad_sensitivity(hass)
+    await _create_entry(hass)
     await hass.async_block_till_done()
-    assert patch_satellite_entities(hass, setup.entity_id) == 0
+    assert patch_satellite_entities(hass, SELECT_ENTITY_ID) == 0
     _fire_registry_created(hass, "assist_satellite.nope")
     await hass.async_block_till_done()
     assert hass.states.get(SELECT_ENTITY_ID).state == VAD_SENSITIVITY_DEFAULT

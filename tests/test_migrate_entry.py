@@ -36,7 +36,8 @@ async def test_migrates_legacy_model_path_in_catalog(hass: HomeAssistant) -> Non
 
     assert await async_migrate_entry(hass, entry) is True
 
-    assert entry.minor_version == 2
+    assert entry.version == 2
+    assert entry.minor_version == 1
     assert entry.options[CONF_MODEL] == DEFAULT_MODEL_FILENAME
     assert entry.options[CONF_MODEL_PATH] == ""
 
@@ -47,7 +48,8 @@ async def test_migrates_legacy_absolute_model_path(hass: HomeAssistant) -> None:
 
     assert await async_migrate_entry(hass, entry) is True
 
-    assert entry.minor_version == 2
+    assert entry.version == 2
+    assert entry.minor_version == 1
     assert entry.options[CONF_MODEL] == legacy_path
     assert entry.options[CONF_MODEL_PATH] == ""
 
@@ -58,11 +60,12 @@ async def test_minor_version_two_options_untouched(hass: HomeAssistant) -> None:
 
     assert await async_migrate_entry(hass, entry) is True
 
-    assert entry.minor_version == 2
+    assert entry.version == 2
+    assert entry.minor_version == 1
     assert dict(entry.options) == options
 
 
 async def test_future_version_fails_migration(hass: HomeAssistant) -> None:
-    entry = _entry(hass, version=2, minor_version=1, options={})
+    entry = _entry(hass, version=3, minor_version=1, options={})
 
     assert await async_migrate_entry(hass, entry) is False
