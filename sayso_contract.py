@@ -20,7 +20,10 @@ if _PACKAGE not in sys.modules:
 
 area_context = importlib.import_module(f"{_PACKAGE}.area_context")
 completion = importlib.import_module(f"{_PACKAGE}.completion")
+correction = importlib.import_module(f"{_PACKAGE}.correction")
 exceptions = importlib.import_module(f"{_PACKAGE}.exceptions")
+grounding = importlib.import_module(f"{_PACKAGE}.grounding")
 history = importlib.import_module(f"{_PACKAGE}.history")
+post_model = importlib.import_module(f"{_PACKAGE}.post_model")
 tool_contract = importlib.import_module(f"{_PACKAGE}.tool_contract")
 tool_schema = importlib.import_module(f"{_PACKAGE}.tool_schema")

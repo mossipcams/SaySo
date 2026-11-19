@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol
 
@@ -101,6 +101,12 @@ class TurnOutcome:
     failure: Failure | None = None
     held: HeldState | None = None
     correction_used: bool = False
+    executed: tuple[ToolCall, ...] = ()
+    clarified: bool = False
+    done_shortcut: bool = False
+    area_dropped: bool = False
+    held_replayed: bool = False
+    first: ChatCompletionResult | None = None
 
 
 Complete = Callable[..., Awaitable[ChatCompletionResult]]
@@ -120,13 +126,33 @@ class _Run:
     tools_executed: bool = False
     iteration: int = 1
     suppress_grounding: bool = False
+    executed: list[ToolCall] = field(default_factory=list)
+    clarified: bool = False
+    done_shortcut: bool = False
+    area_dropped: bool = False
+    held_replayed: bool = False
+    first: ChatCompletionResult | None = None
 
     def outcome(
         self, *, speech: str | None = None, held: HeldState | None = None
     ) -> TurnOutcome:
         return TurnOutcome(
-            speech=speech, held=held, correction_used=self.correction_used
+            speech=speech,
+            held=held,
+            correction_used=self.correction_used,
+            executed=tuple(self.executed),
+            clarified=self.clarified,
+            done_shortcut=self.done_shortcut,
+            area_dropped=self.area_dropped,
+            held_replayed=self.held_replayed,
+            first=self.first,
         )
+
+    async def _complete(self, messages: list[dict[str, Any]], *, correction: bool):
+        result = await self.complete(messages, correction=correction)
+        if self.first is None:
+            self.first = result
+        return result
 
     def fail(
         self,
@@ -148,6 +174,12 @@ class _Run:
                 ha_error_text=ha_error_text,
             ),
             correction_used=self.correction_used,
+            executed=tuple(self.executed),
+            clarified=self.clarified,
+            done_shortcut=self.done_shortcut,
+            area_dropped=self.area_dropped,
+            held_replayed=self.held_replayed,
+            first=self.first,
         )
 
     async def run(self) -> TurnOutcome:
@@ -163,12 +195,13 @@ class _Run:
                 return self.outcome(speech=ERROR_CANCELLED)
             option = resolve_held_option(turn.held, turn.user_text)
             if option is not None:
+                self.held_replayed = True
                 return await self.tool_loop(
                     _replay_calls(turn.held, option), confirmed=True
                 )
         messages = turn.transcript()
         try:
-            result = await self.complete(messages, correction=False)
+            result = await self._complete(messages, correction=False)
         except SaySoError as err:
             return self.fail(_model_kind(err), error=err)
         if result.tool_calls:
@@ -213,7 +246,7 @@ class _Run:
                     turn.schema_fingerprint,
                 )
                 try:
-                    corrected = await self.complete(messages, correction=True)
+                    corrected = await self._complete(messages, correction=True)
                 except SaySoError as err:
                     return self.fail(_model_kind(err), error=err)
 
@@ -229,6 +262,7 @@ class _Run:
                 for call, args in validated:
                     new_args = drop_unspoken_area(call.name, args, turn.user_text, home)
                     if new_args is not args:
+                        self.area_dropped = True
                         parse_span.metadata["area_dropped"] = {
                             "tool": call.name,
                             "name": args.get("name"),
@@ -241,6 +275,7 @@ class _Run:
                         clar = clarify(call.name, args, turn.user_text, home)
                         parse_span.metadata["clarify"] = clar.speech
                         self.recorder.close(parse_span, success=False)
+                        self.clarified = True
                         held = None
                         if clar.options:
                             held = HeldState(
@@ -252,6 +287,10 @@ class _Run:
                         return self.outcome(speech=clar.speech, held=held)
             self.recorder.close(parse_span)
 
+            self.executed.extend(
+                ToolCall(id=call.id, name=call.name, arguments=args)
+                for call, args in validated
+            )
             execution = await self.execute(validated)
             if execution.failed:
                 return self.fail(
@@ -265,11 +304,12 @@ class _Run:
             self.tools_executed = True
             self.suppress_grounding = False
             if len(validated) == 1 and validated[0][0].name in turn.action_tools:
+                self.done_shortcut = True
                 return self.outcome(speech="Done.")
 
             self.phase = Phase.FOLLOW_UP
             try:
-                follow_up = await self.complete(turn.transcript(), correction=False)
+                follow_up = await self._complete(turn.transcript(), correction=False)
             except SaySoError as err:
                 return self.fail(_model_kind(err), error=err)
 
