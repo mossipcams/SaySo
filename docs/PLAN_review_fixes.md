@@ -279,9 +279,11 @@ makes it small, real and enforced. Solution:
 2. Rewrite every importer to use the new paths: the integration
    (`from .core.area_context import ...`), `tests/` and `evals/`. Use
    ast-grep for the rewrite.
-3. Replace the `sys.modules` fake package in `sayso_contract.py` with a
-   `sys.path` entry for `custom_components/sayso`, then `import core`.
-   Evals keep importing through `sayso_contract`, so call sites don't
+3. Replace the `sys.modules` fake package in `sayso_contract.py` with an
+   importlib loader. It loads only `core/` as the package `_sayso_core`
+   (no `sys.path` change, so integration modules such as a future `select.py`
+   can't shadow stdlib names in eval processes), then binds the same public
+   names. Evals keep importing through `sayso_contract`, so call sites don't
    change.
 4. Add import-linter to the `test` extra in `pyproject.toml`, with these
    contracts in `[tool.importlinter]`:
