@@ -9,10 +9,13 @@ from sayso_contract import completion, exceptions, tool_contract
 
 PRODUCTION_TEMPERATURE = 0
 PRODUCTION_MAX_OUTPUT_TOKENS = 160
+PRODUCTION_MAX_TOOL_ITERATIONS = 3
+PRODUCTION_HELD_TTL_SECONDS = 300
 
 QUERY_TOOLS = frozenset(
     {"homeassistant__GetLiveContext", "llm__GetDateTime", "intent__HassTimerStatus"}
 )
+TODO_GET_ITEMS_TOOL = "todo__get_items"
 
 
 class Outcome(StrEnum):
@@ -76,6 +79,8 @@ class CaseResult:
     flags: list[str]
     turn: Turn
     expected: dict[str, Any]
+    first_pass: Outcome | None = None
+    info_flags: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -84,6 +89,8 @@ class CaseResult:
             "outcome": self.outcome.value,
             "passed": self.passed,
             "flags": self.flags,
+            "first_pass": self.first_pass.value if self.first_pass else None,
+            "info_flags": self.info_flags,
             "raw_output": self.turn.raw,
             "text": self.turn.text,
             "calls": self.turn.calls,
@@ -106,12 +113,20 @@ def read_completion(
         return turn
     turn.text = result.content
     turn.calls = [{"name": call.name, "arguments": call.arguments} for call in result.tool_calls]
-    turn.violations = [
-        asdict(violation)
-        for violation in tool_contract.check_tool_calls(
-            [(call["name"], call["arguments"]) for call in turn.calls],
-            tools,
-            exposed_domains,
-        )
-    ]
+    turn.violations = contract_violations(
+        [(call["name"], call["arguments"]) for call in turn.calls],
+        tools,
+        exposed_domains,
+    )
     return turn
+
+
+def contract_violations(
+    calls: list[tuple[Any, Any]],
+    tools: list[dict[str, Any]],
+    exposed_domains: frozenset[str] | set[str] | None,
+) -> list[dict[str, str]]:
+    return [
+        asdict(violation)
+        for violation in tool_contract.check_tool_calls(calls, tools, exposed_domains)
+    ]
