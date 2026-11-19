@@ -1,4 +1,13 @@
 {
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["custom_components/sayso/const.py"],
+      "datasourceTemplate": "pypi",
+      "depNameTemplate": "llama-cpp-python",
+      "matchStrings": ["LLAMA_CPP_VERSION = \"(?<currentValue>[^\"]+)\""]
+    }
+  ],
   "extends": [
     "config:recommended",
     ":dependencyDashboard",
@@ -27,6 +36,10 @@
     },
     {
       "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "matchPackageNames": ["llama-cpp-python"],
       "automerge": false
     }
   ]

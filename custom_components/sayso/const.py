@@ -20,7 +20,7 @@ CONF_N_THREADS = "n_threads"
 CONF_N_CTX = "n_ctx"
 
 LLAMA_CPP_PACKAGE = "llama-cpp-python"
-LLAMA_CPP_MIN_VERSION = "0.3.33"
+LLAMA_CPP_VERSION = "0.3.33"
 LLAMA_CPP_WHEEL_INDEX = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 
 DEFAULT_MODEL_URL = (
