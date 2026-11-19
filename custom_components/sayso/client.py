@@ -54,6 +54,7 @@ def build_chat_completions_payload(
     tools: list[dict[str, Any]] | None = None,
     temperature: float = DEFAULT_TEMPERATURE,
     max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+    grammar: str | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "model": model,
@@ -63,6 +64,8 @@ def build_chat_completions_payload(
     }
     if tools is not None:
         payload["tools"] = tools
+    if grammar is not None:
+        payload["grammar"] = grammar
     return payload
 
 
@@ -173,6 +176,7 @@ class LlamaCppClient:
         tools: list[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        grammar: str | None = None,
     ) -> ChatCompletionResult:
         payload = build_chat_completions_payload(
             messages,
@@ -180,6 +184,7 @@ class LlamaCppClient:
             tools=tools,
             temperature=temperature,
             max_tokens=max_tokens,
+            grammar=grammar,
         )
         request_bytes = len(serialize_chat_completions_payload(payload))
 

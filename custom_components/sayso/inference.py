@@ -216,6 +216,12 @@ def _checkpointing_llama_class() -> type:
     return CheckpointingLlama
 
 
+def _llama_grammar(text: str) -> Any:
+    from llama_cpp import LlamaGrammar
+
+    return LlamaGrammar.from_string(text)
+
+
 def entry_backend(entry: Any) -> str:
     backend = entry.data.get(CONF_BACKEND)
     if backend in (BACKEND_EMBEDDED, BACKEND_EXTERNAL):
@@ -242,6 +248,7 @@ class SaySoInferenceEngine(Protocol):
         tools: list[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        grammar: str | None = None,
     ) -> ChatCompletionResult:
         pass
 
@@ -269,6 +276,7 @@ class ExternalEngine:
         tools: list[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        grammar: str | None = None,
     ) -> ChatCompletionResult:
         result = await self._client.chat_completion(
             messages,
@@ -276,6 +284,7 @@ class ExternalEngine:
             tools=tools,
             temperature=temperature,
             max_tokens=max_tokens,
+            grammar=grammar,
         )
         if result.tool_calls or not result.content:
             return result
@@ -353,14 +362,19 @@ class EmbeddedEngine:
         tools: list[dict[str, Any]] | None,
         temperature: float,
         max_tokens: int,
+        grammar: str | None,
     ) -> dict[str, Any]:
         assert self._llm is not None
+        extra: dict[str, Any] = {}
+        if grammar is not None:
+            extra["grammar"] = _llama_grammar(grammar)
         raw = self._llm.create_chat_completion(
             messages=_messages_for_embedded_template(
                 tools_before_area_messages(messages, tools)
             ),
             temperature=temperature,
             max_tokens=max_tokens,
+            **extra,
         )
         prompt_tokens = prompt_tokens_of(raw)
         reused = None
@@ -379,6 +393,7 @@ class EmbeddedEngine:
         tools: list[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        grammar: str | None = None,
     ) -> ChatCompletionResult:
         if self._llm is None or self._executor is None:
             raise SaySoModelLoadError("The embedded model is not loaded")
@@ -393,6 +408,7 @@ class EmbeddedEngine:
                     tools,
                     temperature,
                     max_tokens,
+                    grammar,
                 ),
                 timeout=self._timeout,
             )
