@@ -21,12 +21,10 @@ from .boundary import (
     boundary_schema,
     first_target,
     inference_error_type,
-    is_well_formed_batch,
     record_boundary,
     tool_result_data,
     tool_result_failed,
     validate_arguments,
-    validation_failure_code,
 )
 from .client import ChatCompletionResult, ToolCall
 from .const import (
@@ -43,7 +41,6 @@ from .const import (
     ERROR_NOT_UNDERSTOOD,
     ERROR_REQUEST_TIMEOUT,
     ERROR_TOOL_ITERATION_LIMIT,
-    ERROR_CANCELLED,
     HA_MATCH_FAILED_ERROR,
     HELD_CALL_TTL,
 )
@@ -56,14 +53,17 @@ from .core.exceptions import (
     SaySoTimeoutError,
 )
 from .core.history import model_history
-from .core.grounding import (
-    GroundingEntity,
-    GroundingHome,
-    clarify,
-    is_grounded,
-    drop_unspoken_area,
+from .core.grounding import GroundingEntity, GroundingHome
+from .core.held import HeldState, resolve_held_option
+from .core.post_model import (
+    ExecutionResult,
+    FailureKind,
+    Phase,
+    TurnInput,
+    TurnOutcome,
+    ValidationResult,
+    run_turn,
 )
-from .core.held import HeldState, is_cancel, is_expired, resolve_held_option
 from .routing import (
     build_routing_catalog,
     build_routing_preferences,
@@ -78,17 +78,24 @@ from .schema import (
     build_tool_map,
     compile_llm_tools,
 )
-from .core.tool_contract import contract_failures, tools_by_name
-from .transcript import (
-    build_correction_messages,
-    chat_log_to_messages as _chat_log_to_messages,
-)
+from .transcript import chat_log_to_messages as _chat_log_to_messages
 from .tracing import ErrorType, Stage, TraceContext
 
 _LOGGER = logging.getLogger(__name__)
 
 _Held = HeldState
 _resolve_held_option = resolve_held_option
+
+_BOUNDARY_CODES = {
+    FailureKind.SCHEMA_MISMATCH: BoundaryFailureCode.SCHEMA_MISMATCH,
+    FailureKind.INVALID_ARGUMENTS: BoundaryFailureCode.INVALID_ARGUMENTS,
+    FailureKind.UNAVAILABLE_TOOL: BoundaryFailureCode.UNAVAILABLE_TOOL,
+}
+_MODEL_LOG_LABELS = {
+    Phase.INITIAL: "llama.cpp",
+    Phase.CORRECTION: "llama.cpp correction",
+    Phase.FOLLOW_UP: "llama.cpp follow-up",
+}
 
 
 async def async_setup_entry(
@@ -431,53 +438,13 @@ class SaySoConversationEntity(
                     self.hass, llm_context.assistant, state.entity_id
                 )
             )
-            messages = turn.messages
             span.metadata["domain_hint"] = domain_hint
             span.metadata["tools"] = (
                 len(turn.active_schema.tools) if turn.active_schema is not None else 0
             )
 
         held = self._held.pop(chat_log.conversation_id, None)
-        if (
-            held is not None
-            and not is_expired(held, time.monotonic())
-            and _is_voice_turn(turn.user_input)
-        ):
-            if is_cancel(turn.user_input.text):
-                return turn.text(ERROR_CANCELLED)
-
-            option = resolve_held_option(held, turn.user_input.text)
-            if option is not None:
-                base_args = held.calls[held.index].arguments
-                new_args = {
-                    key: value
-                    for key, value in base_args.items()
-                    if key not in {"area", "floor", "domain", "device_class"}
-                }
-                new_args["name"] = option.name
-                calls = list(held.calls)
-                held_call = held.calls[held.index]
-                calls[held.index] = ToolCall(
-                    id=held_call.id,
-                    name=held_call.name,
-                    arguments=new_args,
-                )
-                return await self._async_run_tool_calls(turn, calls, confirmed=True)
-
-        try:
-            result = await turn.complete(messages, tools=_tools_of(turn.active_schema))
-        except SaySoError as err:
-            return turn.model_failure(err, BoundaryPhase.INITIAL)
-
-        if result.tool_calls:
-            return await self._async_run_tool_calls(turn, result.tool_calls)
-        if not (result.content or "").strip():
-            return turn.error(
-                ERROR_EMPTY_RESPONSE,
-                stage=Stage.INFERENCE,
-                error_type=ErrorType.EMPTY_RESPONSE,
-            )
-        return turn.text(result.content)
+        return await self._post_model(turn, held=held)
 
     async def _async_run_tool_calls(
         self,
@@ -486,118 +453,33 @@ class SaySoConversationEntity(
         *,
         confirmed: bool = False,
     ) -> conversation.ConversationResult:
+        return await self._post_model(turn, calls=tool_calls, confirmed=confirmed)
+
+    async def _post_model(
+        self,
+        turn: _Turn,
+        *,
+        held: HeldState | None = None,
+        calls: list[ToolCall] | None = None,
+        confirmed: bool = False,
+    ) -> conversation.ConversationResult:
         chat_log, trace = turn.chat_log, turn.trace
-        if chat_log.llm_api is None:
-            return turn.error(
-                ERROR_NOT_UNDERSTOOD,
-                stage=Stage.TOOL_PARSE,
-                error_type=ErrorType.UNAVAILABLE_TOOL,
+        llm_api = chat_log.llm_api
+        tools = llm_api.tools if llm_api is not None else []
+        tool_map = build_tool_map(tools)
+
+        async def complete(messages: list[dict[str, Any]], *, correction: bool):
+            return await turn.complete(
+                messages, tools=_tools_of(turn.active_schema), correction=correction
             )
 
-        available_tools = build_tool_availability_names(chat_log.llm_api.tools)
-        compiled_tools = tools_by_name(
-            turn.complete_schema.tools if turn.complete_schema is not None else ()
-        )
-        tool_map = build_tool_map(chat_log.llm_api.tools)
-        iteration = 1
-        tools_executed = False
-        current = tool_calls
-        phase = BoundaryPhase.INITIAL
+        def validate(tool_calls: list[ToolCall]) -> ValidationResult:
+            validated, failures = validate_arguments(tool_calls, tool_map, trace)
+            return ValidationResult(validated, failures)
 
-        suppress_grounding = confirmed
-
-        while True:
-            parse_span = trace.open(Stage.TOOL_PARSE, calls=len(current))
-
-            if not is_well_formed_batch(current):
-                return turn.boundary_failure(
-                    BoundaryFailureCode.INVALID_ARGUMENTS, phase
-                )
-            if any(call.name not in available_tools for call in current):
-                return turn.boundary_failure(
-                    BoundaryFailureCode.UNAVAILABLE_TOOL, phase
-                )
-
-            if failures := contract_failures(
-                current, compiled_tools, turn.exposed_domains
-            ):
-                validated = []
-            else:
-                validated, failures = validate_arguments(current, tool_map, trace)
-
-            if failures:
-                repairable = not (
-                    validated
-                    or turn.correction_used
-                    or tools_executed
-                    or turn.complete_schema is None
-                )
-                if not repairable:
-                    return turn.boundary_failure(
-                        validation_failure_code(failures[0][1]), phase
-                    )
-
-                phase = BoundaryPhase.CORRECTION
-                trace.close(parse_span, success=False)
-                try:
-                    corrected = await turn.complete(
-                        build_correction_messages(
-                            turn.messages,
-                            failures,
-                            available_tools,
-                            turn.complete_schema.fingerprint,
-                        ),
-                        tools=turn.complete_schema.tools,
-                        correction=True,
-                    )
-                except SaySoError as err:
-                    return turn.model_failure(
-                        err, phase, log_label="llama.cpp correction"
-                    )
-
-                turn.correction_used = True
-                if not corrected.tool_calls:
-                    return turn.error(
-                        ERROR_NOT_UNDERSTOOD,
-                        stage=Stage.TOOL_PARSE,
-                        error_type=ErrorType.INVALID_MODEL_OUTPUT,
-                    )
-                current = corrected.tool_calls
-                continue
-
-            if _is_voice_turn(turn.user_input) and not suppress_grounding:
-                home = _grounding_home(
-                    self.hass,
-                    turn.user_input,
-                    turn.user_input.as_llm_context(DOMAIN).assistant,
-                )
-                normalized: list[tuple[ToolCall, dict]] = []
-                for call, args in validated:
-                    new_args = drop_unspoken_area(
-                        call.name, args, turn.user_input.text, home
-                    )
-                    if new_args is not args:
-                        parse_span.metadata["area_dropped"] = {
-                            "tool": call.name,
-                            "name": args.get("name"),
-                            "area": args.get("area"),
-                        }
-                    normalized.append((call, new_args))
-                validated = normalized
-                for i, (call, args) in enumerate(validated):
-                    if not is_grounded(call.name, args, turn.user_input.text, home):
-                        clar = clarify(call.name, args, turn.user_input.text, home)
-                        parse_span.metadata["clarify"] = clar.speech
-                        trace.close(parse_span, success=False)
-                        if clar.options:
-                            self._held[chat_log.conversation_id] = HeldState(
-                                [c for c, _ in validated],
-                                i,
-                                clar.options,
-                                time.monotonic() + HELD_CALL_TTL,
-                            )
-                        return turn.text(clar.speech)
-            trace.close(parse_span)
+        async def execute(
+            validated: list[tuple[ToolCall, dict[str, Any]]],
+        ) -> ExecutionResult:
             action_span = trace.open(
                 Stage.HA_ACTION, **action_metadata(validated, tool_map)
             )
@@ -606,54 +488,107 @@ class SaySoConversationEntity(
             )
             apply_action_summary(trace, action_span.metadata)
             trace.close(action_span, success=not batch_failed)
+            return ExecutionResult(batch_failed, ha_error, ha_error_text)
 
-            if batch_failed:
-                return turn.boundary_failure(
-                    BoundaryFailureCode.TOOL_EXECUTION_FAILED,
-                    BoundaryPhase.EXECUTION,
-                    ha_error=ha_error,
-                    speech=execution_failure_speech(
-                        self.hass,
-                        turn.user_input.as_llm_context(DOMAIN).assistant,
-                        validated,
-                        ha_error,
-                        ha_error_text,
-                        turn.user_input.text,
-                    ),
-                )
-
-            tools_executed = True
-
-            suppress_grounding = False
-            if len(validated) == 1 and _is_action_tool(tool_map[validated[0][0].name]):
-                return turn.text("Done.")
-
-            phase = BoundaryPhase.FOLLOW_UP
-            try:
-                follow_up = await turn.complete(
-                    turn.messages, tools=_tools_of(turn.active_schema)
-                )
-            except SaySoError as err:
-                return turn.model_failure(err, phase, log_label="llama.cpp follow-up")
-
-            if follow_up.tool_calls:
-                if iteration >= turn.runtime.max_tool_iterations:
-                    return turn.boundary_failure(
-                        BoundaryFailureCode.ITERATION_LIMIT,
-                        phase,
-                        speech=ERROR_TOOL_ITERATION_LIMIT,
+        outcome = await run_turn(
+            TurnInput(
+                user_text=turn.user_input.text,
+                transcript=lambda: turn.messages,
+                tools=_tools_of(turn.complete_schema) or (),
+                schema_fingerprint=(
+                    turn.complete_schema.fingerprint
+                    if turn.complete_schema is not None
+                    else None
+                ),
+                available_names=build_tool_availability_names(tools),
+                action_tools=frozenset(
+                    name for name, tool in tool_map.items() if _is_action_tool(tool)
+                ),
+                exposed_domains=turn.exposed_domains,
+                home=(
+                    (
+                        lambda: _grounding_home(
+                            self.hass,
+                            turn.user_input,
+                            turn.user_input.as_llm_context(DOMAIN).assistant,
+                        )
                     )
-                iteration += 1
-                current = follow_up.tool_calls
-                continue
+                    if _is_voice_turn(turn.user_input)
+                    else None
+                ),
+                tool_api=llm_api is not None,
+                iteration_limit=lambda: turn.runtime.max_tool_iterations,
+                now=time.monotonic(),
+                held_ttl=HELD_CALL_TTL,
+                held=held,
+                calls=tuple(calls) if calls is not None else None,
+                confirmed=confirmed,
+            ),
+            complete=complete,
+            validate=validate,
+            execute=execute,
+            recorder=trace,
+        )
+        return self._respond(turn, outcome)
 
-            if not (follow_up.content or "").strip():
-                return turn.error(
-                    ERROR_EMPTY_RESPONSE,
-                    stage=Stage.RESPONSE,
-                    error_type=ErrorType.EMPTY_RESPONSE,
-                )
-            return turn.text(follow_up.content)
+    def _respond(
+        self, turn: _Turn, outcome: TurnOutcome
+    ) -> conversation.ConversationResult:
+        turn.correction_used = outcome.correction_used
+        if outcome.held is not None:
+            self._held[turn.chat_log.conversation_id] = outcome.held
+        failure = outcome.failure
+        if failure is None:
+            return turn.text(outcome.speech)
+        kind = failure.kind
+        phase = BoundaryPhase(failure.phase.value)
+        if kind in (FailureKind.TIMEOUT, FailureKind.MODEL_FAILED):
+            return turn.model_failure(
+                failure.error, phase, log_label=_MODEL_LOG_LABELS[failure.phase]
+            )
+        if kind is FailureKind.EMPTY_RESPONSE:
+            return turn.error(
+                ERROR_EMPTY_RESPONSE,
+                stage=(
+                    Stage.INFERENCE
+                    if failure.phase is Phase.INITIAL
+                    else Stage.RESPONSE
+                ),
+                error_type=ErrorType.EMPTY_RESPONSE,
+            )
+        if kind is FailureKind.EMPTY_CORRECTION:
+            return turn.error(
+                ERROR_NOT_UNDERSTOOD,
+                stage=Stage.TOOL_PARSE,
+                error_type=ErrorType.INVALID_MODEL_OUTPUT,
+            )
+        if kind is FailureKind.NO_TOOL_API:
+            return turn.error(
+                ERROR_NOT_UNDERSTOOD,
+                stage=Stage.TOOL_PARSE,
+                error_type=ErrorType.UNAVAILABLE_TOOL,
+            )
+        if kind is FailureKind.TOOL_EXECUTION_FAILED:
+            return turn.boundary_failure(
+                BoundaryFailureCode.TOOL_EXECUTION_FAILED,
+                phase,
+                ha_error=failure.ha_error,
+                speech=execution_failure_speech(
+                    self.hass,
+                    turn.user_input.as_llm_context(DOMAIN).assistant,
+                    list(failure.validated),
+                    failure.ha_error,
+                    failure.ha_error_text,
+                    turn.user_input.text,
+                ),
+            )
+        if kind is FailureKind.ITERATION_LIMIT:
+            return turn.boundary_failure(
+                BoundaryFailureCode.ITERATION_LIMIT,
+                phase,
+                speech=ERROR_TOOL_ITERATION_LIMIT,
+            )
+        return turn.boundary_failure(_BOUNDARY_CODES[kind], phase)
 
 
 def _tools_of(
@@ -765,8 +700,6 @@ def _satellite_area_name(
         return None
     area = ar.async_get(hass).async_get_area(area_id)
     return area.name if area is not None else None
-
-
 
 
 def _is_action_tool(tool: llm.Tool) -> bool:
