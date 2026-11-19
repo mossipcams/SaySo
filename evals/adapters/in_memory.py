@@ -12,5 +12,10 @@ class InMemoryAdapter:
     def __init__(self, complete: Callable[[list[dict[str, Any]], list[dict[str, Any]]], Any]) -> None:
         self._complete = complete
 
-    def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Any:
+    def complete(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        grammar: str | None = None,
+    ) -> Any:
         return self._complete(messages, tools)
