@@ -6,11 +6,14 @@ from urllib import request as urlrequest
 
 import pytest
 
-from custom_components.sayso.core.grammar import GrammarUnsupported, build_grammar
+from sayso_contract import grammar as _grammar
 from evals import runner
 from evals.adapters.endpoint import EndpointAdapter
 from evals.cases import select_cases
 from evals.runner import evaluate, render_case
+
+GrammarUnsupported = _grammar.GrammarUnsupported
+build_grammar = _grammar.build_grammar
 
 CASE_ID = "realistic_eval_20260908_ordinary_01"
 MESSAGES = [{"role": "user", "content": "turn on the lamp"}]

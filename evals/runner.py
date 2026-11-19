@@ -39,8 +39,8 @@ from evals.outcomes import (
 )
 from evals.scorer import check_gates, score, summarize
 from sayso_contract import area_context as _area_context
+from sayso_contract import grammar as _grammar
 from sayso_contract import completion, correction, exceptions, grounding, post_model
-from custom_components.sayso.core.grammar import GrammarUnsupported, build_grammar
 from sayso_contract import tool_contract, tool_schema
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +50,9 @@ V2_SCHEMA_PATH = ROOT / "schemas" / "ha-2026.11.1-tools.json"
 AreaContext = _area_context.AreaContext
 build_area_context = _area_context.build_area_context
 render_system_prompt = _area_context.render_system_prompt
+
+GrammarUnsupported = _grammar.GrammarUnsupported
+build_grammar = _grammar.build_grammar
 
 SAYSO_SYSTEM_PROMPT = """You are SaySo, a local Home Assistant voice agent.
 Use the available tools for home state queries and actions. Only claim an action succeeded when its tool result confirms success. Use names, areas, and context supplied by Home Assistant. If a request is ambiguous, ask one short question. Keep spoken responses brief. Do not describe tool calls."""
