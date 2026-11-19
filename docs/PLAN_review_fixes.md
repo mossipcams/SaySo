@@ -264,13 +264,32 @@ fakes a `_sayso_pure` package in `sys.modules`. Seven modules are
 transitively HA-free (`area_context`, `completion`, `exceptions`,
 `history`, `lfm_parse`, `tool_contract`, `tool_schema`). `grounding.py`
 is held back only by `const.py:3` importing `homeassistant.const`.
-Import-linter isn't configured. Solution:
-1. Move the seven modules (and `grounding.py`, once its three `CONF_*`
-   imports come from a plain module) into `custom_components/sayso/core/`.
-2. Point the integration and `sayso_contract.py` at it, then delete the
-   shim.
-3. Add an import-linter forbidden contract (`core` must not import
-   `homeassistant`), plus a CI step.
+Import-linter isn't configured.
+
+Constraint found while planning Batch 2: any import of
+`custom_components.sayso.<x>` runs `custom_components/sayso/__init__.py`,
+which imports Home Assistant. HACS ships only `custom_components/sayso`, so
+the HA-free code can't live outside it. A path trick therefore stays; the fix
+makes it small, real and enforced. Solution:
+1. Create `custom_components/sayso/core/` (with an empty `__init__.py`).
+   Move the seven modules into it with `git mv`, and move `grounding.py`
+   too. Its constants that come from `.const` move into `core/` (for
+   example `core/vocabulary.py`), and `const.py` re-exports any that the
+   rest of the integration uses. Inside `core/`, imports stay relative.
+2. Rewrite every importer to use the new paths: the integration
+   (`from .core.area_context import ...`), `tests/` and `evals/`. Use
+   ast-grep for the rewrite.
+3. Replace the `sys.modules` fake package in `sayso_contract.py` with a
+   `sys.path` entry for `custom_components/sayso`, then `import core`.
+   Evals keep importing through `sayso_contract`, so call sites don't
+   change.
+4. Add import-linter to the `test` extra in `pyproject.toml`, with these
+   contracts in `[tool.importlinter]`:
+   - `core` must not import `homeassistant`.
+   - `satellite` must not import `custom_components`.
+   Add `tests/test_import_contracts.py`, which runs `lint-imports` and
+   asserts it succeeds. CI enforces it through the existing pytest step,
+   so `.github/workflows/` doesn't change (D4).
 
 Use ast-grep for the import rewrite. This lands before Fix 13.
 
