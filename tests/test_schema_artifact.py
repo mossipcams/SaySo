@@ -11,7 +11,7 @@ import pytest
 
 from custom_components.sayso.schema import schema_fingerprint
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 GENERATOR = REPO_ROOT / "scripts" / "generate_sayso_tool_schema.py"
 LOCKED_ARTIFACT = REPO_ROOT / "schemas" / "sayso-tool-schema-v1.json"
 CONTRACT_VERSION = "sayso-tool-schema/v1"

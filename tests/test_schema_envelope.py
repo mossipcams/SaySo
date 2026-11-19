@@ -34,7 +34,7 @@ from tests.test_config_flow import (
     _start_user_step,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 CUSTOM_COMPONENTS_PATH = str(REPO_ROOT / "custom_components")
 
 
