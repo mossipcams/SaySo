@@ -9,11 +9,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.sayso.area_context import tools_before_area_messages
+from custom_components.sayso.core.area_context import tools_before_area_messages
 from custom_components.sayso.client import ChatCompletionResult
-from custom_components.sayso.completion import prefix_hash
+from custom_components.sayso.core.completion import prefix_hash
 from custom_components.sayso.const import BACKEND_EMBEDDED, BACKEND_EXTERNAL
-from custom_components.sayso.exceptions import (
+from custom_components.sayso.core.exceptions import (
     SaySoInvalidResponseError,
     SaySoModelLoadError,
     SaySoTimeoutError,

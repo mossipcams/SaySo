@@ -59,7 +59,7 @@ from .const import (
     SERVICE_GET_TRACE,
     SERVICE_LIST_TRACES,
 )
-from .exceptions import SaySoError, SaySoModelLoadError
+from .core.exceptions import SaySoError, SaySoModelLoadError
 from .inference import (
     EmbeddedEngine,
     ExternalEngine,

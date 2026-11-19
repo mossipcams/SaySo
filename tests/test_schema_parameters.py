@@ -8,7 +8,7 @@ import voluptuous as vol
 from homeassistant.helpers import config_validation as cv, llm
 
 from custom_components.sayso import schema as schema_module
-from custom_components.sayso.exceptions import SaySoInvalidToolEnvelopeError
+from custom_components.sayso.core.exceptions import SaySoInvalidToolEnvelopeError
 from custom_components.sayso.schema import compile_parameters, compile_tool
 
 

@@ -11,12 +11,12 @@ import voluptuous as vol
 from homeassistant.helpers import llm
 
 from custom_components.sayso import const
-from custom_components.sayso.area_context import (
+from custom_components.sayso.core.area_context import (
     build_area_context,
     tools_before_area_messages,
 )
 from custom_components.sayso.schema import compile_tools, emit_tools_source_json
-from custom_components.sayso.tool_schema import compile_source_tools
+from custom_components.sayso.core.tool_schema import compile_source_tools
 from evals.adapters.in_memory import InMemoryAdapter
 from evals.cases import ARCHIVE_DIR, CASES_DIR, load_gates, load_home, select_cases
 from evals.outcomes import PRODUCTION_MAX_OUTPUT_TOKENS, PRODUCTION_TEMPERATURE, Outcome

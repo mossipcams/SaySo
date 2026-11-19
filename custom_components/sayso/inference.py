@@ -11,9 +11,9 @@ from typing import Any, Protocol
 
 from homeassistant.const import CONF_URL
 
-from .area_context import tools_before_area_messages
+from .core.area_context import tools_before_area_messages
 from .client import ChatCompletionResult, LlamaCppClient
-from .completion import (
+from .core.completion import (
     extract_tool_calls,
     parse_completion_result,
     parse_completion_result as _parse_embedded_result,
@@ -30,7 +30,7 @@ from .const import (
     DEFAULT_TIMEOUT,
     MAX_DEFAULT_THREADS,
 )
-from .exceptions import (
+from .core.exceptions import (
     SaySoInvalidResponseError,
     SaySoModelLoadError,
     SaySoTimeoutError,

@@ -14,7 +14,7 @@ from homeassistant.helpers import intent, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SaySoConfigEntry, SaySoRuntimeData
-from .area_context import AreaContext, apply_area_context, build_area_context
+from .core.area_context import AreaContext, apply_area_context, build_area_context
 from .boundary import (
     action_metadata,
     apply_action_summary,
@@ -48,15 +48,15 @@ from .const import (
     HELD_CALL_TTL,
 )
 from .diagnostics import BoundaryFailureCode, BoundaryPhase
-from .exceptions import (
+from .core.exceptions import (
     SaySoError,
     SaySoInvalidResponseError,
     SaySoInvalidToolCallsError,
     SaySoInvalidToolEnvelopeError,
     SaySoTimeoutError,
 )
-from .history import model_history
-from .grounding import (
+from .core.history import model_history
+from .core.grounding import (
     GroundingEntity,
     GroundingHome,
     clarify,
@@ -81,7 +81,7 @@ from .schema import (
     build_tool_map,
     compile_llm_tools,
 )
-from .tool_contract import check_tool_call, tools_by_name
+from .core.tool_contract import check_tool_call, tools_by_name
 from .transcript import (
     build_correction_messages,
     chat_log_to_messages as _chat_log_to_messages,

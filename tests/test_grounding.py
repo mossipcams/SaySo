@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from custom_components.sayso.const import ERROR_NOT_UNDERSTOOD
-from custom_components.sayso.grounding import (
+from custom_components.sayso.core.grounding import (
     GroundingEntity,
     GroundingHome,
     clarify,

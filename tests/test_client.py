@@ -22,7 +22,7 @@ from custom_components.sayso.const import (
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT,
 )
-from custom_components.sayso.exceptions import (
+from custom_components.sayso.core.exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
     SaySoHttpError,

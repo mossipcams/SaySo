@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 
 from . import SaySoConfigEntry
 from .const import BACKEND_EMBEDDED, BACKEND_EXTERNAL
-from .exceptions import SaySoError
+from .core.exceptions import SaySoError
 
 TO_REDACT = {CONF_API_KEY}
 

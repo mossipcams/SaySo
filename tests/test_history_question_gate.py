@@ -224,7 +224,7 @@ def test_turn_messages_send_only_current_command_after_completed_action() -> Non
 
 
 def test_history_module_has_no_homeassistant_import() -> None:
-    tree = ast.parse((ROOT / "custom_components/sayso/history.py").read_text())
+    tree = ast.parse((ROOT / "custom_components/sayso/core/history.py").read_text())
     imported = [
         alias.name
         for node in ast.walk(tree)

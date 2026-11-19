@@ -21,7 +21,7 @@ from .const import (
     LLAMA_CPP_WHEEL_INDEX,
     MODEL_STORAGE_SUBDIR,
 )
-from .exceptions import SaySoDependencyError, SaySoModelLoadError
+from .core.exceptions import SaySoDependencyError, SaySoModelLoadError
 
 _LOGGER = logging.getLogger(__name__)
 

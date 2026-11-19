@@ -17,7 +17,7 @@ from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
 
 from custom_components.sayso.client import ChatCompletionResult, LlamaCppClient, ToolCall
-from custom_components.sayso.area_context import (
+from custom_components.sayso.core.area_context import (
     apply_area_context,
     build_area_context,
 )
@@ -45,7 +45,7 @@ from custom_components.sayso.const import (
     ERROR_REQUEST_TIMEOUT,
     ERROR_TOOL_ITERATION_LIMIT,
 )
-from custom_components.sayso.exceptions import (
+from custom_components.sayso.core.exceptions import (
     SaySoConnectionError,
     SaySoHttpError,
     SaySoInvalidResponseError,
@@ -374,7 +374,7 @@ async def test_model_prompt_replaces_ha_area_sentence_with_shared_area_block(
     from homeassistant.helpers import area_registry as ar, device_registry as dr
 
     from custom_components.sayso import conversation as sayso_conversation
-    from custom_components.sayso.area_context import render_system_prompt
+    from custom_components.sayso.core.area_context import render_system_prompt
 
     entry = await _create_entry(hass)
     office = ar.async_get(hass).async_create("Office", aliases={"study"})

@@ -255,11 +255,11 @@ def fingerprint_paths(paths: list[Path]) -> str:
 def production_contract_fingerprint() -> str:
     files = [
         ROOT / "sayso_contract.py",
-        ROOT / "custom_components" / "sayso" / "area_context.py",
-        ROOT / "custom_components" / "sayso" / "completion.py",
-        ROOT / "custom_components" / "sayso" / "tool_contract.py",
-        ROOT / "custom_components" / "sayso" / "tool_schema.py",
-        ROOT / "custom_components" / "sayso" / "lfm_parse.py",
+        ROOT / "custom_components" / "sayso" / "core" / "area_context.py",
+        ROOT / "custom_components" / "sayso" / "core" / "completion.py",
+        ROOT / "custom_components" / "sayso" / "core" / "tool_contract.py",
+        ROOT / "custom_components" / "sayso" / "core" / "tool_schema.py",
+        ROOT / "custom_components" / "sayso" / "core" / "lfm_parse.py",
     ]
     return fingerprint_paths(files)
 

@@ -6,8 +6,8 @@ COMPILED_TOOL -> TRAINED_TOOL_TEXT pair for the training render.
 
 from __future__ import annotations
 
-from custom_components.sayso.area_context import tools_before_area_messages
-from custom_components.sayso.tool_schema import compile_source_tools
+from custom_components.sayso.core.area_context import tools_before_area_messages
+from custom_components.sayso.core.tool_schema import compile_source_tools
 
 COMPILED_TOOL = {
     "function": {

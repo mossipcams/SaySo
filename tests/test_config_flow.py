@@ -23,7 +23,7 @@ from custom_components.sayso.const import (
     DEFAULT_TIMEOUT,
     DOMAIN,
 )
-from custom_components.sayso.exceptions import (
+from custom_components.sayso.core.exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
     SaySoInvalidResponseError,

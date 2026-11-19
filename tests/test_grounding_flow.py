@@ -24,7 +24,7 @@ from custom_components.sayso.conversation import (
     _grounding_home,
     _Held,
 )
-from custom_components.sayso.grounding import clarify
+from custom_components.sayso.core.grounding import clarify
 from custom_components.sayso.schema import CompiledToolSchema, compile_tools, schema_fingerprint
 from custom_components.sayso.tracing import TraceContext
 

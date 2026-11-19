@@ -4,7 +4,7 @@ import difflib
 import re
 from dataclasses import dataclass
 
-from .const import (
+from .vocabulary import (
     DOMAIN_PLURALS,
     ERROR_AREA_HAS_NO_DOMAIN,
     ERROR_CHOOSE,

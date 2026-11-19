@@ -20,8 +20,8 @@ except ImportError:
     UNSUPPORTED = object()
     convert = None
 
-from .exceptions import SaySoInvalidToolEnvelopeError
-from .tool_schema import (
+from .core.exceptions import SaySoInvalidToolEnvelopeError
+from .core.tool_schema import (
     CompiledToolSchema,
     build_compiled_tools_from_source as _build_compiled_tools_from_source,
     canonicalize_compiled_tools,

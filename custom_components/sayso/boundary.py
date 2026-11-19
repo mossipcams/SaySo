@@ -11,7 +11,7 @@ from .diagnostics import (
     BoundaryPhase,
     record_boundary_failure,
 )
-from .exceptions import (
+from .core.exceptions import (
     SaySoError,
     SaySoInvalidResponseError,
     SaySoTimeoutError,

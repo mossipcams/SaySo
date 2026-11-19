@@ -17,14 +17,14 @@ from .const import (
     DEFAULT_TIMEOUT,
     MODELS_PATH,
 )
-from .completion import (
+from .core.completion import (
     ChatCompletionResult,
     ToolCall,
     parse_choice_message,
     parse_tool_calls,
     prompt_tokens_of,
 )
-from .exceptions import (
+from .core.exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
     SaySoHttpError,

@@ -2,6 +2,14 @@ from typing import NamedTuple
 
 from homeassistant.const import CONF_LLM_HASS_API, CONF_MODEL, CONF_PROMPT
 
+from .core.vocabulary import (
+    DOMAIN_PLURALS,
+    ERROR_AREA_HAS_NO_DOMAIN,
+    ERROR_CHOOSE,
+    ERROR_DID_YOU_MEAN,
+    ERROR_NOT_UNDERSTOOD,
+)
+
 DOMAIN = "sayso"
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8080/v1"
@@ -83,10 +91,6 @@ ERROR_MODEL_NOT_LOADED = "The local model is not loaded."
 ERROR_REQUEST_TIMEOUT = "That request took too long."
 ERROR_EMPTY_RESPONSE = "I didn't get a response from the local model."
 ERROR_ACTION_FAILED = "I couldn't complete that action."
-ERROR_NOT_UNDERSTOOD = "Sorry, I didn't understand that."
-ERROR_DID_YOU_MEAN = "Did you mean the {name}?"
-ERROR_CHOOSE = "The {first} or the {second}?"
-ERROR_AREA_HAS_NO_DOMAIN = "The {area} has no {domains} available."
 ERROR_NO_TIMERS = "There are no timers running."
 ERROR_NAME_NOT_FOUND = "I couldn't find {name}."
 ERROR_MEDIA_NOT_PLAYING = "The {name} isn't playing."
@@ -95,17 +99,6 @@ ERROR_TOOL_ITERATION_LIMIT = "I couldn't complete that action."
 ERROR_CANCELLED = "Okay."
 HELD_CALL_TTL = 300
 HA_MATCH_FAILED_ERROR = "MatchFailedError"
-DOMAIN_PLURALS = {
-    "light": "lights",
-    "fan": "fans",
-    "switch": "switches",
-    "media_player": "media players",
-    "cover": "covers",
-    "climate": "thermostats",
-    "lock": "locks",
-    "vacuum": "vacuums",
-    "humidifier": "humidifiers",
-}
 
 
 CHAT_COMPLETIONS_PATH = "/chat/completions"
