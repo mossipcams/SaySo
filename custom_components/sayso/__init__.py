@@ -66,6 +66,7 @@ from .inference import (
     SaySoInferenceEngine,
     entry_backend,
 )
+from .migration import async_merge_v1_entry, async_snapshot_v1_entries
 from .model_store import (
     SaySoModelMissingError,
     async_ensure_llama_cpp,
@@ -206,13 +207,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> b
     if entry.version > 2:
         return False
     if entry.version == 1:
+        if hass.config_entries.async_get_entry(entry.entry_id) is None:
+            return False
+        await async_snapshot_v1_entries(hass)
         options = dict(entry.options)
         if entry.minor_version < 2:
             options = _migrated_embedded_options(hass, entry) or options
         _async_rekey_vad_select(hass, entry)
-        hass.config_entries.async_update_entry(
-            entry, options=options, version=2, minor_version=1
-        )
+        return await async_merge_v1_entry(hass, entry, options)
     return True
 
 

@@ -221,6 +221,42 @@ async def test_reconfigure_conversation_subentry_updates_in_place(
     assert _conversation_entity_id(hass, subentry.subentry_id) == entity_id
 
 
+async def test_reconfigured_temperature_and_max_tokens_reach_the_engine(
+    hass: HomeAssistant,
+    mock_llama_client: None,
+) -> None:
+    entry = await _create_external_entry(hass)
+    [subentry] = entry.subentries.values()
+    entity_id = _conversation_entity_id(hass, subentry.subentry_id)
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, CONVERSATION_SUBENTRY_TYPE),
+        context={"source": "reconfigure", "subentry_id": subentry.subentry_id},
+    )
+    form = _conversation_form_input("Default", MODEL_ID)
+    form[CONF_TEMPERATURE] = 0.7
+    form[CONF_MAX_OUTPUT_TOKENS] = 321
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], form
+    )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
+
+    with patch.object(
+        LlamaCppClient,
+        "chat_completion",
+        new=AsyncMock(return_value=ChatCompletionResult(content="Hi.", tool_calls=[])),
+    ) as mock_chat:
+        await conversation.async_converse(
+            hass, "Say hi", None, Context(), agent_id=entity_id
+        )
+
+    assert mock_chat.await_count == 1
+    assert mock_chat.await_args.kwargs["temperature"] == 0.7
+    assert mock_chat.await_args.kwargs["max_tokens"] == 321
+
+
 async def test_one_entity_per_subentry_with_stable_unique_id(
     hass: HomeAssistant,
     mock_llama_client: None,
