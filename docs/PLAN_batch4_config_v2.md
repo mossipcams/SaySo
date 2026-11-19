@@ -44,6 +44,10 @@ Baseline facts (all in HEAD):
 - D9: keep the current form; drop the unused `menu_options`/`local`/`external`
   strings (nothing visible changes, because the menu is never shown).
 - One PR for the batch.
+- S2 as landed: setup still reinstalls the pinned llama-cpp wheel when it's
+  missing, because a Home Assistant update can drop installed packages and a
+  Repairs click after every update is worse. A platform with no wheel raises
+  the Repairs issue. GGUF downloads happen only in the config/options flow.
 
 ## 1. Contradictions between the fix text, the code and HA
 
