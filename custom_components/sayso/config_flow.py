@@ -265,6 +265,7 @@ def _options_schema(
 class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
+    MINOR_VERSION = 2
 
     def __init__(self) -> None:
         self._base_url: str | None = None

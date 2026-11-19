@@ -190,6 +190,15 @@ def _synced_embedded_options(entry: SaySoConfigEntry) -> dict[str, Any] | None:
     return {**options, CONF_MODEL: DEFAULT_MODEL_FILENAME}
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bool:
+    if entry.version > 1:
+        return False
+    if entry.minor_version < 2:
+        options = _migrated_embedded_options(hass, entry) or dict(entry.options)
+        hass.config_entries.async_update_entry(entry, options=options, minor_version=2)
+    return True
+
+
 def _migrated_embedded_options(
     hass: HomeAssistant, entry: SaySoConfigEntry
 ) -> dict[str, Any] | None:
@@ -262,9 +271,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     synced_options = _synced_embedded_options(entry)
     if synced_options is not None:
         hass.config_entries.async_update_entry(entry, options=synced_options)
-    migrated_options = _migrated_embedded_options(hass, entry)
-    if migrated_options is not None:
-        hass.config_entries.async_update_entry(entry, options=migrated_options)
     options = entry.options
     engine, client = await _async_build_engine(hass, entry)
 
