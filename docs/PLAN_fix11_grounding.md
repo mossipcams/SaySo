@@ -215,7 +215,9 @@ Prototype outcomes (scratch, not in repo; see Verification):
 
 ## Parent decisions (binding for the slices)
 
-1. **Option A.** Keep the modifier guard. Row 15 stays a clarification, because
+1. **Option A** (superseded in Batch 5: a misheard room word right before the
+   device word, not a known place word, grounds to the unique satellite-area
+   device; see `docs/PLAN_batch5_hygiene.md`). Keep the modifier guard. Row 15 stays a clarification, because
    the same rule without the guard grounds "the attic fan" and "the librarian
    lights" (unavailable devices) onto real entities, and AGENTS.md keeps
    fail-closed barriers. Stub targets: smoke 16/24, promotion 441/530.

@@ -70,12 +70,16 @@ which slice needs them.
   has no default endpoint (the user enters one). A failed export is dropped and
   logged at debug, never retried, and never delays a turn.
 - User delegated the rest ("figure it out", 2026-11-20):
-  - `ordinary_03`: stays a clarification (Option A). Grounding's clarify offers
-    the single satellite-area candidate of the spoken domain ("Did you mean the
-    Lounge Television?") and holds the call, so "yes" runs it. Today it gives
-    "Sorry, I didn't understand that." The case's expected response becomes
-    that clarification, in its source (`evals/cases/realistic_v3.jsonl` or its
-    generator, whichever owns it).
+  - `ordinary_03`: reversed from Option A after reading the reviewed corpus.
+    The 2026-11-18 cases (`area_05` "ribbon room lights", `area_07` "librarian
+    lights", `ordinary_03` "librarian TV") treat a misheard room word as the
+    satellite room. `evals/tests/test_generated_cases.py` pins them as misheard
+    cases, while "patio lights" and "attic fan" are device-absent refusals. So
+    the satellite-local rule allows exactly one unexplained word, provided it
+    comes right before the device word, isn't a known place word
+    (`PLACE_WORDS`), and isn't another candidate's name. The case data doesn't
+    change. Clarify still offers the single satellite-area candidate when a
+    call stays ungrounded.
   - A2: approved. `tests/test_compat.py` gains the 2026.11.x `latest` row; the
     checks on the minimum stay.
   - A3: the `ci.yml` matrix entry needs the gh `workflow` scope, which the token

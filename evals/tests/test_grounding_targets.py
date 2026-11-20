@@ -77,10 +77,10 @@ def test_expected_call_is_grounded(case_id: str) -> None:
     assert is_grounded(call["name"], call["arguments"], case.utterance, home) is True
 
 
-def test_residual_librarian_tv_stays_ungrounded() -> None:
+def test_residual_librarian_tv_is_grounded() -> None:
     case, home = _case_and_home(RESIDUAL_ID)
     (call,) = case.expected["calls"]
-    assert is_grounded(call["name"], call["arguments"], case.utterance, home) is False
+    assert is_grounded(call["name"], call["arguments"], case.utterance, home) is True
 
 
 @pytest.mark.parametrize("case_id", AMBIGUITY_IDS)

@@ -285,7 +285,7 @@ def _batch_words(others: Sequence[tuple[str, dict]], home: GroundingHome) -> set
     return words
 
 
-def _fully_explained(
+def _unexplained(
     entity: GroundingEntity,
     utterance: str,
     home: GroundingHome,
@@ -293,7 +293,7 @@ def _fully_explained(
     args: dict,
     others: Sequence[tuple[str, dict]],
     vocab: Vocabulary,
-) -> bool:
+) -> list[str]:
     words = set(vocab.stop_words) | set(vocab.domain_words)
     words |= {t for label in labels(entity) for t in tokens(label)}
     words |= _area_tokens(entity.area, home)
@@ -303,7 +303,7 @@ def _fully_explained(
         if isinstance(area, str):
             words |= set(tokens(area))
     words |= _batch_words(others, home)
-    return all(t in words or t.isdigit() for t in tokens(utterance))
+    return [t for t in tokens(utterance) if t not in words and not t.isdigit()]
 
 
 def _other_candidate_word(
@@ -331,21 +331,23 @@ def _apostrophe_unaccounted(
     return any("'" in t and t not in batch for t in tokens(utterance))
 
 
-def _satellite_local(
+def _in_satellite_area(entity: GroundingEntity, home: GroundingHome) -> bool:
+    sat = home.satellite_area
+    return (
+        sat is not None
+        and entity.area is not None
+        and entity.area.casefold() == sat.casefold()
+    )
+
+
+def _satellite_unique(
     entity: GroundingEntity,
     utterance: str,
     home: GroundingHome,
     pool: list[GroundingEntity],
-    others: Sequence[tuple[str, dict]],
     vocab: Vocabulary,
 ) -> bool:
     sat = home.satellite_area
-    if sat is None or entity.area is None or entity.area.casefold() != sat.casefold():
-        return False
-    if _apostrophe_unaccounted(utterance, home, others) or _other_candidate_word(
-        entity, utterance, pool, vocab
-    ):
-        return False
     local = [
         e for e in pool if e.area is not None and e.area.casefold() == sat.casefold()
     ]
@@ -358,6 +360,50 @@ def _satellite_local(
         if any(_same_domain_word(w, t) for w in spoken for t in tokens(e.name))
     ]
     return narrowed == [entity]
+
+
+def _satellite_local(
+    entity: GroundingEntity,
+    utterance: str,
+    home: GroundingHome,
+    pool: list[GroundingEntity],
+    others: Sequence[tuple[str, dict]],
+    vocab: Vocabulary,
+) -> bool:
+    if not _in_satellite_area(entity, home):
+        return False
+    if _apostrophe_unaccounted(utterance, home, others) or _other_candidate_word(
+        entity, utterance, pool, vocab
+    ):
+        return False
+    return _satellite_unique(entity, utterance, home, pool, vocab)
+
+
+def _misheard_room_word(
+    entity: GroundingEntity,
+    utterance: str,
+    home: GroundingHome,
+    pool: list[GroundingEntity],
+    others: Sequence[tuple[str, dict]],
+    dom: str,
+    unexplained: list[str],
+    vocab: Vocabulary,
+) -> bool:
+    if len(unexplained) != 1 or not _in_satellite_area(entity, home):
+        return False
+    word = unexplained[0]
+    ut = tokens(utterance)
+    before_domain = any(
+        ut[i] == word and i + 1 < len(ut) and vocab.domain_words.get(ut[i + 1]) == dom
+        for i in range(len(ut))
+    )
+    if not before_domain or word in vocab.place_words:
+        return False
+    if any(word in tokens(label) for e in pool if e != entity for label in labels(e)):
+        return False
+    if _apostrophe_unaccounted(utterance, home, others):
+        return False
+    return _satellite_unique(entity, utterance, home, pool, vocab)
 
 
 def _partial_name(
@@ -388,14 +434,19 @@ def _rule_grounded(
 ) -> bool:
     if not _room_ok(entity, utterance, home, bare, args):
         return False
-    if not _fully_explained(entity, utterance, home, bare, args, others, vocab):
-        return False
+    unexplained = _unexplained(entity, utterance, home, bare, args, others, vocab)
     for dom in {
         vocab.domain_words[t] for t in tokens(utterance) if t in vocab.domain_words
     }:
         if not _matches_dom(entity, dom):
             continue
         pool = _pool(utterance, home, dom, None)
+        if unexplained:
+            if _misheard_room_word(
+                entity, utterance, home, pool, others, dom, unexplained, vocab
+            ):
+                return True
+            continue
         if pool == [entity]:
             return True
         if _satellite_local(entity, utterance, home, pool, others, vocab):
@@ -442,6 +493,29 @@ def is_grounded(
     return True
 
 
+def _satellite_candidate(
+    utterance: str,
+    home: GroundingHome,
+    room: str | None,
+    vocab: Vocabulary,
+) -> GroundingEntity | None:
+    sat = home.satellite_area
+    if sat is None or (room is not None and room.casefold() != sat.casefold()):
+        return None
+    spoken = {
+        vocab.domain_words[t] for t in tokens(utterance) if t in vocab.domain_words
+    }
+    if len(spoken) != 1:
+        return None
+    (domain,) = spoken
+    local = [
+        e
+        for e in _pool(utterance, home, domain, None)
+        if e.area is not None and e.area.casefold() == sat.casefold()
+    ]
+    return local[0] if len(local) == 1 else None
+
+
 def clarify(
     tool_name: str,
     args: dict,
@@ -484,5 +558,11 @@ def clarify(
         return Clarification(
             speech=speech.choose.format(first=e1.name, second=e2.name),
             options=(e1, e2),
+        )
+    candidate = _satellite_candidate(utterance, home, room, vocab)
+    if candidate is not None:
+        return Clarification(
+            speech=speech.did_you_mean.format(name=candidate.name),
+            options=(candidate,),
         )
     return Clarification(speech=speech.not_understood, options=())

@@ -138,6 +138,104 @@ STOP_WORDS = frozenset(
     }
 )
 
+PLACE_WORDS = {
+    "en": frozenset(
+        {
+            "room",
+            "rooms",
+            "attic",
+            "attics",
+            "garage",
+            "garages",
+            "basement",
+            "basements",
+            "cellar",
+            "cellars",
+            "loft",
+            "lofts",
+            "patio",
+            "patios",
+            "porch",
+            "porches",
+            "deck",
+            "decks",
+            "yard",
+            "yards",
+            "backyard",
+            "backyards",
+            "frontyard",
+            "frontyards",
+            "garden",
+            "gardens",
+            "driveway",
+            "driveways",
+            "shed",
+            "sheds",
+            "balcony",
+            "balconies",
+            "lawn",
+            "lawns",
+            "pool",
+            "pools",
+            "office",
+            "offices",
+            "study",
+            "studies",
+            "hallway",
+            "hallways",
+            "hall",
+            "halls",
+            "foyer",
+            "foyers",
+            "pantry",
+            "pantries",
+            "closet",
+            "closets",
+            "nursery",
+            "nurseries",
+            "playroom",
+            "playrooms",
+            "den",
+            "dens",
+            "gym",
+            "gyms",
+            "laundry",
+            "laundries",
+            "mudroom",
+            "mudrooms",
+            "sunroom",
+            "sunrooms",
+            "library",
+            "libraries",
+            "guest",
+            "guests",
+            "master",
+            "masters",
+            "upstairs",
+            "downstairs",
+            "front",
+            "back",
+            "outside",
+            "outdoor",
+            "outdoors",
+            "kitchen",
+            "bathroom",
+            "bathrooms",
+            "bedroom",
+            "bedrooms",
+            "living",
+            "dining",
+            "entryway",
+            "entryways",
+            "stairs",
+            "landing",
+            "corridor",
+            "terrace",
+            "courtyard",
+        }
+    ),
+}
+
 YES_ANSWER = frozenset({"yes", "yeah", "yep", "yup", "sure", "correct", "ok", "okay"})
 NO_ANSWER = frozenset(
     {
@@ -166,6 +264,7 @@ class Vocabulary:
     no: frozenset[str]
     filler: frozenset[str]
     domain_plurals: Mapping[str, str]
+    place_words: frozenset[str]
     possessive: str = "'s"
 
 
@@ -178,6 +277,7 @@ VOCAB_EN = Vocabulary(
     no=NO_ANSWER,
     filler=FILLER,
     domain_plurals=DOMAIN_PLURALS,
+    place_words=PLACE_WORDS[DEFAULT_LANGUAGE],
 )
 
 VOCABULARY: Mapping[str, Vocabulary] = {DEFAULT_LANGUAGE: VOCAB_EN}
