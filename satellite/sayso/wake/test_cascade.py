@@ -6,17 +6,19 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import yaml
 
 _SATELLITE_ROOT = Path(__file__).resolve().parents[2]
 if str(_SATELLITE_ROOT) not in sys.path:
     sys.path.insert(0, str(_SATELLITE_ROOT))
 
+from sayso.config import load_config, validate_config
+from sayso.wake import dma_kws_verifier as dk
+from sayso.wake.dma_kws_verifier import DmaKwsVerifier
 from sayso.wake.livekit import HOP_SAMPLES, WINDOW_SAMPLES, LiveKitWakeWordProvider
 
 
 class _FakeScorer:
-    """Scores come from a per-hop script; stands in for CachedEmbeddingScorer."""
-
     def __init__(self, scores: list[float]) -> None:
         self._scores = iter(scores)
         self.last_embeddings = None
@@ -27,8 +29,6 @@ class _FakeScorer:
 
 
 class _FakeStage2:
-    """Stands in for a Sherpa verifier: per-call verdicts, same interface as WakeVerifier."""
-
     def __init__(self, verdicts: list[bool]) -> None:
         self._verdicts = iter(verdicts)
         self.threshold = 0.5
@@ -82,28 +82,16 @@ def test_below_threshold_never_reaches_stage2() -> None:
 
 
 def test_veto_on_early_hop_does_not_lock_out_a_real_wake() -> None:
-    # Hop 0: word only partly in window, LiveKit crosses, stage 2 vetoes.
-    # Hop 2 (320 ms later): word complete, stage 2 passes -> must fire.
     p = _provider([0.30, 0.10, 0.60], [False, True])
     out = _hops(p, 3)
     assert out[0] is None
     assert out[2] is not None, "veto started the refractory and swallowed the real wake"
 
 
-# --- DMA-KWS verifier -----------------------------------------------------------
-
-import yaml  # noqa: E402
-
-from sayso.config import load_config, validate_config  # noqa: E402
-from sayso.wake import dma_kws_verifier as dk  # noqa: E402
-from sayso.wake.dma_kws_verifier import DmaKwsVerifier  # noqa: E402
-
 KODA = ["K OW1 D AH0"]
 
 
 class _FakeSession:
-    """Stands in for onnxruntime: returns scripted scores and records its inputs."""
-
     def __init__(self, scores) -> None:
         self.scores, self.calls = list(scores), []
 
@@ -113,7 +101,6 @@ class _FakeSession:
 
 
 def _speech(end_s: float = 1.7, n: int = 32000) -> np.ndarray:
-    """int16 window with a 0.4 s tone burst ending at end_s and quiet noise elsewhere."""
     rng = np.random.default_rng(0)
     x = (rng.standard_normal(n) * 30).astype(np.int16)
     a, b = int((end_s - 0.4) * 16000), int(end_s * 16000)
@@ -122,7 +109,6 @@ def _speech(end_s: float = 1.7, n: int = 32000) -> np.ndarray:
 
 
 def test_fbank_matches_torchaudio_reference() -> None:
-    # Reference rows computed with torchaudio.compliance.kaldi.fbank (80 bins, povey, no dither).
     rng = np.random.default_rng(7)
     t = np.arange(12720) / 16000
     x = (0.2 * np.sin(2 * np.pi * 440 * t) + 0.05 * rng.standard_normal(12720)).astype(np.float32)
@@ -137,10 +123,8 @@ def test_crop_ends_after_speech_and_is_fixed_size() -> None:
     audio = _speech(1.7).astype(np.float32) / 32768.0
     seg = dk.crop_after_speech(audio)
     assert seg.shape == (dk.CROP,)
-    # speech burst ends 0.2 s before the crop end; the burst is the loud part of the crop
     loud = np.where(np.abs(seg) > 0.05)[0]
     assert abs((dk.CROP - loud.max()) / 16000 - 0.2) < 0.03
-    # speech right at the window end: the crop is padded with zeros after it
     late = dk.crop_after_speech(_speech(2.0).astype(np.float32) / 32768.0)
     assert late.shape == (dk.CROP,) and np.abs(late[-3000:]).max() < 0.01
     assert dk.crop_after_speech(np.zeros(32000, dtype=np.float32)) is None
@@ -156,7 +140,7 @@ def test_phoneme_ids_validated() -> None:
 def test_dma_kws_score_threshold_and_best_pronunciation() -> None:
     sess = _FakeSession([0.2, 0.97])
     v = DmaKwsVerifier(None, ["K OW1 D AH0", "K OW2 D AH0"], 0.98, session=sess)
-    assert v.score(_speech()) == pytest.approx(0.97)  # best of the pronunciations
+    assert v.score(_speech()) == pytest.approx(0.97)
     assert v.score(_speech()) >= 0 and len(sess.calls) == 4
     assert sess.calls[0]["feats"].shape == (1, dk.FRAMES, 80)
     assert sess.calls[0]["anchor"].tolist() == [[44, 50, 23, 9]]
@@ -230,7 +214,7 @@ def test_dma_kws_config_roundtrip_and_validation(tmp_path: Path, monkeypatch) ->
     cfg = load_config(_config(tmp_path, dma_kws_model=str(kws), dma_kws_phonemes=["K OW1 D AH0"]))
     assert cfg.wake_word.dma_kws_model == kws
     assert cfg.wake_word.dma_kws_phonemes == ("K OW1 D AH0",) and cfg.wake_word.dma_kws_threshold == 0.90
-    assert load_config(_config(tmp_path)).wake_word.dma_kws_model is None  # off by default
+    assert load_config(_config(tmp_path)).wake_word.dma_kws_model is None
     for extra, msg in [
         ({"dma_kws_phonemes": ["K OW1 D AH0"], "dma_kws_model": str(tmp_path / "nope.onnx")}, "model file missing"),
         ({"dma_kws_model": str(kws)}, "dma_kws_phonemes is required"),

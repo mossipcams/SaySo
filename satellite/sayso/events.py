@@ -156,9 +156,6 @@ def install_voice_handlers(
             )
 
     def _cancel_vad_warmup(self: Any) -> None:
-        # Invalidates the pending primer flush: a pipeline teardown that lands
-        # between sending the primer and flushing the wake ring must not send
-        # audio after the pipeline is gone.
         self._sayso_vad_warmup_token = None
 
     def wakeup(self, wake_word) -> None:

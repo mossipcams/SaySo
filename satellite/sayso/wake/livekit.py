@@ -253,9 +253,8 @@ class LiveKitWakeWordProvider:
                     self._verifier.threshold,
                 )
                 return None
-            verifier_note = f" verifier={verifier_score:.3f}"  # margin over the veto threshold, for tuning
+            verifier_note = f" verifier={verifier_score:.3f}"
 
-        # Stamp only on a real fire: a vetoed hop must not lock out the next one.
         if sample_index is not None:
             self._last_fire_sample = sample_index
         else:

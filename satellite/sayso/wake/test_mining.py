@@ -795,7 +795,6 @@ def test_detection_post_context_survives_ring_reset(tmp_path: Path) -> None:
 
 
 def _publish_trace_record(tmp_path: Path, hop: int) -> None:
-    # Detection sits at offset 0; hops run from pre-context start (-192000) to post end (+32000).
     miner = HardNegativeMiner(
         tmp_path,
         mine_threshold=0.1,
