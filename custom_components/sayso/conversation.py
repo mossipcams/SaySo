@@ -264,11 +264,11 @@ class _Turn:
         if result.prompt_tokens is not None:
             span.metadata["gen_ai.usage.input_tokens"] = result.prompt_tokens
         if result.prefix_hash is not None:
-            span.metadata["prefix_hash"] = result.prefix_hash
+            span.metadata["sayso.prefix_hash"] = result.prefix_hash
         if result.reused_tokens is not None:
             span.metadata["sayso.reused_tokens"] = result.reused_tokens
         if result.finish_reason is not None:
-            span.metadata["finish_reason"] = result.finish_reason
+            span.metadata["gen_ai.response.finish_reasons"] = [result.finish_reason]
         if result.grammar_skip_reason is not None:
             span.metadata["sayso.grammar"] = "skipped"
             span.metadata["sayso.grammar_skip_reason"] = result.grammar_skip_reason
@@ -530,8 +530,8 @@ class SaySoConversationEntity(
                     self.hass, llm_context.assistant, state.entity_id
                 )
             )
-            span.metadata["domain_hint"] = domain_hint
-            span.metadata["tools"] = (
+            span.metadata["sayso.domain_hint"] = domain_hint
+            span.metadata["sayso.tools"] = (
                 len(turn.active_schema.tools) if turn.active_schema is not None else 0
             )
 

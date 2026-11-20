@@ -71,7 +71,9 @@ async def test_tool_turn_spans_use_otel_names(
                     content=None,
                     tool_calls=[TOOL_CALL],
                     prompt_tokens=512,
+                    prefix_hash="prefix-abc",
                     reused_tokens=256,
+                    finish_reason="tool_calls",
                 ),
                 ChatCompletionResult(content="Done.", tool_calls=[]),
             ]
@@ -90,6 +92,8 @@ async def test_tool_turn_spans_use_otel_names(
             "sayso.tool_calls",
             "gen_ai.usage.input_tokens",
             "sayso.reused_tokens",
+            "sayso.prefix_hash",
+            "gen_ai.response.finish_reasons",
         ),
         ("model", "tool_calls", "prompt_tokens", "reused_tokens", "correction"),
     )
@@ -98,6 +102,8 @@ async def test_tool_turn_spans_use_otel_names(
     assert inference["sayso.tool_calls"] == 1
     assert inference["gen_ai.usage.input_tokens"] == 512
     assert inference["sayso.reused_tokens"] == 256
+    assert inference["sayso.prefix_hash"] == "prefix-abc"
+    assert inference["gen_ai.response.finish_reasons"] == ["tool_calls"]
 
     tool_parse = _completed(record["events"], Stage.TOOL_PARSE)[0]
     _assert_names(tool_parse, ("sayso.calls",), ("calls",))
@@ -120,6 +126,12 @@ async def test_tool_turn_spans_use_otel_names(
     assert action["gen_ai.tool.call.id"] == "call-1"
     assert action["sayso.domain"] == "light"
     assert action["sayso.target"] == "light.kitchen"
+
+    context = _completed(record["events"], Stage.CONTEXT)[0]
+    _assert_names(
+        context, ("sayso.domain_hint", "sayso.tools"), ("domain_hint", "tools")
+    )
+    assert context["sayso.tools"] > 0
 
     response = _completed(record["events"], Stage.RESPONSE)[0]
     _assert_names(response, ("sayso.text_length",), ("text_length",))

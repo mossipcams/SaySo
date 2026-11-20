@@ -151,7 +151,7 @@ async def test_finish_reason_is_recorded_on_the_inference_span(
     with patch.object(LlamaCppClient, "chat_completion", new=chat):
         await _converse(hass, entry, "What time is it?")
 
-    assert _inference_metadata(entry)["finish_reason"] == "stop"
+    assert _inference_metadata(entry)["gen_ai.response.finish_reasons"] == ["stop"]
 
 
 async def test_missing_finish_reason_is_not_recorded(
@@ -163,7 +163,7 @@ async def test_missing_finish_reason_is_not_recorded(
     with patch.object(LlamaCppClient, "chat_completion", new=_done()):
         await _converse(hass, entry, "What time is it?")
 
-    assert "finish_reason" not in _inference_metadata(entry)
+    assert "gen_ai.response.finish_reasons" not in _inference_metadata(entry)
 
 
 async def test_options_flow_exposes_the_grammar_option(
