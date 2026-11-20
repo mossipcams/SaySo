@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
-import threading
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,8 +40,6 @@ STATUS_CODE_ERROR = 2
 NANOS_PER_SECOND = 1_000_000_000
 NANOS_PER_MS = 1_000_000
 
-_JSONL_LOCK = threading.Lock()
-
 
 def is_http_url(value: str) -> bool:
     parsed = urlparse(value)
@@ -64,6 +62,7 @@ class TraceExporter:
         self.mode = mode
         self.endpoint = endpoint
         self.path = Path(hass.config.path(JSONL_FILENAME))
+        self._jsonl_lock = asyncio.Lock()
 
     @callback
     def async_export(self, record: dict[str, Any]) -> None:
@@ -80,7 +79,8 @@ class TraceExporter:
 
     async def _async_write_line(self, line: str) -> None:
         try:
-            await self.hass.async_add_executor_job(_append_line, self.path, line)
+            async with self._jsonl_lock:
+                await self.hass.async_add_executor_job(_append_line, self.path, line)
         except OSError as err:
             _LOGGER.debug("SaySo trace export to JSONL failed: %s", err)
 
@@ -101,11 +101,10 @@ class TraceExporter:
 
 
 def _append_line(path: Path, line: str) -> None:
-    with _JSONL_LOCK:
-        if path.exists() and path.stat().st_size >= JSONL_MAX_BYTES:
-            path.replace(path.with_name(JSONL_ROTATED_FILENAME))
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(f"{line}\n")
+    if path.exists() and path.stat().st_size >= JSONL_MAX_BYTES:
+        path.replace(path.with_name(JSONL_ROTATED_FILENAME))
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(f"{line}\n")
 
 
 def otlp_payload(record: dict[str, Any]) -> dict[str, Any]:

@@ -165,6 +165,19 @@ async def test_jsonl_writes_one_line_per_record(hass: HomeAssistant) -> None:
     assert records[0]["events"] == store.get(TRACE_ID)["events"]
 
 
+async def test_jsonl_keeps_record_order_for_back_to_back_exports(
+    hass: HomeAssistant,
+) -> None:
+    store = TraceStore(hass, exporter=_jsonl_exporter(hass))
+    trace_ids = [f"01ARZ3NDEKTSV4RRFFQ69G5F{index:02d}" for index in range(20)]
+
+    for trace_id in trace_ids:
+        store.async_record(_trace(trace_id))
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert [record["summary"]["trace_id"] for record in _read_jsonl(hass)] == trace_ids
+
+
 async def test_jsonl_rotates_once_at_the_size_cap(hass: HomeAssistant) -> None:
     store = TraceStore(hass, exporter=_jsonl_exporter(hass))
     third_trace_id = "01ARZ3NDEKTSV4RRFFQ69G5FAX"
