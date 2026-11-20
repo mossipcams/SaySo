@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
+import json
 import logging
 import os
 import site
@@ -111,6 +113,50 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _sidecar_path(target: Path) -> Path:
+    return target.with_name(f"{target.name}.verified")
+
+
+def _fingerprint(path: Path) -> dict[str, str | int]:
+    stat = path.stat()
+    return {
+        "sha256": _sha256(path),
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+
+
+def _sidecar_matches(target: Path, sha256: str) -> bool:
+    try:
+        record = json.loads(_sidecar_path(target).read_text(encoding="utf-8"))
+        stat = target.stat()
+    except (OSError, ValueError):
+        return False
+    return (
+        isinstance(record, dict)
+        and record.get("sha256") == sha256
+        and record.get("size") == stat.st_size
+        and record.get("mtime_ns") == stat.st_mtime_ns
+    )
+
+
+def _write_sidecar(target: Path, record: dict[str, str | int]) -> None:
+    sidecar = _sidecar_path(target)
+    temp = sidecar.with_name(f"{sidecar.name}.tmp")
+    try:
+        temp.write_text(json.dumps(record), encoding="utf-8")
+        os.replace(temp, sidecar)
+    except OSError as err:
+        _LOGGER.warning("Could not record verified model %s: %s", target, err)
+        with contextlib.suppress(OSError):
+            temp.unlink(missing_ok=True)
+
+
+def _remove_model_files(target: Path) -> None:
+    target.unlink(missing_ok=True)
+    _sidecar_path(target).unlink(missing_ok=True)
+
+
 async def async_verify_model(
     hass: HomeAssistant,
     *,
@@ -120,15 +166,19 @@ async def async_verify_model(
     target = models_dir(hass) / filename
     if not await hass.async_add_executor_job(target.is_file):
         raise SaySoModelMissingError(f"Model file not found: {target}")
-    if sha256 is not None:
-        actual = await hass.async_add_executor_job(_sha256, target)
-        if actual != sha256:
-            await hass.async_add_executor_job(target.unlink)
-            raise SaySoModelLoadError(
-                f"Checksum mismatch for {filename}: expected {sha256}, got "
-                f"{actual}. The corrupt file was removed; download it again "
-                "from the SaySo Repairs issue."
-            )
+    if sha256 is None or await hass.async_add_executor_job(
+        _sidecar_matches, target, sha256
+    ):
+        return target
+    record = await hass.async_add_executor_job(_fingerprint, target)
+    if record["sha256"] != sha256:
+        await hass.async_add_executor_job(_remove_model_files, target)
+        raise SaySoModelLoadError(
+            f"Checksum mismatch for {filename}: expected {sha256}, got "
+            f"{record['sha256']}. The corrupt file was removed; download it again "
+            "from the SaySo Repairs issue."
+        )
+    await hass.async_add_executor_job(_write_sidecar, target, record)
     return target
 
 
@@ -171,15 +221,18 @@ async def async_ensure_model(
         await hass.async_add_executor_job(partial.unlink, True)
         raise
 
+    record: dict[str, str | int] | None = None
     if sha256 is not None:
-        actual = await hass.async_add_executor_job(_sha256, partial)
-        if actual != sha256:
+        record = await hass.async_add_executor_job(_fingerprint, partial)
+        if record["sha256"] != sha256:
             await hass.async_add_executor_job(partial.unlink, True)
             raise SaySoModelLoadError(
-                f"Downloaded {filename} has checksum {actual}, expected {sha256}"
+                f"Downloaded {filename} has checksum {record['sha256']}, expected {sha256}"
             )
 
     await hass.async_add_executor_job(partial.replace, target)
+    if record is not None:
+        await hass.async_add_executor_job(_write_sidecar, target, record)
     _LOGGER.info("SaySo model ready at %s", target)
     return target
 
@@ -192,9 +245,7 @@ async def async_provision_model(
         return
     catalog = EMBEDDED_MODELS[model]
     if replace:
-        await hass.async_add_executor_job(
-            lambda: (models_dir(hass) / model).unlink(missing_ok=True)
-        )
+        await hass.async_add_executor_job(_remove_model_files, models_dir(hass) / model)
     await async_ensure_model(
         hass, url=catalog.url, filename=model, sha256=catalog.sha256
     )
