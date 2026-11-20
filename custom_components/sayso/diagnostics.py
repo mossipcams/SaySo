@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -20,7 +19,6 @@ TO_REDACT_TRACE = {"utterance"}
 
 
 class BoundaryFailureCode(StrEnum):
-
     SCHEMA_MISMATCH = "schema_mismatch"
     INVALID_ARGUMENTS = "invalid_arguments"
     UNAVAILABLE_TOOL = "unavailable_tool"
@@ -30,7 +28,6 @@ class BoundaryFailureCode(StrEnum):
 
 
 class BoundaryPhase(StrEnum):
-
     INITIAL = "initial"
     CORRECTION = "correction"
     FOLLOW_UP = "follow_up"
@@ -48,7 +45,6 @@ class _LastBoundaryFailure:
 
 @dataclass
 class BoundaryDiagnosticsState:
-
     counts: dict[str, int] = field(default_factory=dict)
     last: _LastBoundaryFailure | None = None
 
@@ -125,9 +121,9 @@ async def async_get_config_entry_diagnostics(
         "error": None,
     }
 
-    if entry.runtime_data is not None:
-        client = entry.runtime_data.client
-        runtime = entry.runtime_data
+    runtime = getattr(entry, "runtime_data", None)
+    if runtime is not None:
+        client = runtime.client
         connectivity["backend"] = (
             BACKEND_EXTERNAL if client is not None else BACKEND_EMBEDDED
         )

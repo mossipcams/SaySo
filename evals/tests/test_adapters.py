@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -40,7 +39,16 @@ def test_malformed_in_memory_cannot_pass_as_abstention() -> None:
     case = select_cases(case_id="realistic_eval_20260908_ambiguity_01")[0]
 
     def ask(messages, tools):
-        return {"choices": [{"message": {"role": "assistant", "content": "[intent__HassTurnOn(name='x'"}}]}
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "[intent__HassTurnOn(name='x'",
+                    }
+                }
+            ]
+        }
 
     result = evaluate([case], InMemoryAdapter(ask))[0]
     assert result.outcome == Outcome.MALFORMED_OUTPUT
@@ -54,9 +62,7 @@ def test_evaluate_sends_tools_inlined_before_area_context() -> None:
     def ask(messages, tools):
         seen["messages"] = messages
         seen["tools"] = tools
-        return {
-            "choices": [{"message": {"role": "assistant", "content": "ok"}}]
-        }
+        return {"choices": [{"message": {"role": "assistant", "content": "ok"}}]}
 
     evaluate([case], InMemoryAdapter(ask))
     assert seen["tools"] == []

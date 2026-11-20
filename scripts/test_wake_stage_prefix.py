@@ -11,7 +11,6 @@ from scripts.wake_stage_prefix import FADE, prefix_cut, speech_span
 
 
 def _clip() -> np.ndarray:
-    # 0.3 s silence, 0.5 s "word", 0.4 s silence
     a = np.zeros(19200, dtype=np.float32)
     t = np.arange(8000) / 16000
     a[4800:12800] = 0.3 * np.sin(2 * np.pi * 220 * t)

@@ -30,9 +30,7 @@ def _entry(
 
 async def test_migrates_legacy_model_path_in_catalog(hass: HomeAssistant) -> None:
     legacy_path = str(models_dir(hass) / DEFAULT_MODEL_FILENAME)
-    entry = _entry(
-        hass, options={CONF_MODEL_PATH: legacy_path}
-    )
+    entry = _entry(hass, options={CONF_MODEL_PATH: legacy_path})
 
     assert await async_migrate_entry(hass, entry) is True
 

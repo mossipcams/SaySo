@@ -18,7 +18,9 @@ from tests.test_init import mock_llama_client as mock_llama_client
 from tests.test_vad_sensitivity import SELECT_ENTITY_ID, _create_entry
 
 
-def _v1_entry(hass: HomeAssistant, *, version: int = 1, minor_version: int = 1) -> MockConfigEntry:
+def _v1_entry(
+    hass: HomeAssistant, *, version: int = 1, minor_version: int = 1
+) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=version,
@@ -51,7 +53,9 @@ async def test_select_unique_id_and_device(hass: HomeAssistant) -> None:
     assert row.config_entry_id == entry.entry_id
     assert row.platform == DOMAIN
 
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, f"{entry.entry_id}-engine")})
+    device = dr.async_get(hass).async_get_device(
+        identifiers={(DOMAIN, f"{entry.entry_id}-engine")}
+    )
     assert device is not None
     assert row.device_id == device.id
     assert device.name == "SaySo"
@@ -59,7 +63,9 @@ async def test_select_unique_id_and_device(hass: HomeAssistant) -> None:
     assert device.entry_type == dr.DeviceEntryType.SERVICE
 
 
-async def test_legacy_v1_entry_rekeys_vad_row_and_keeps_entity_id(hass: HomeAssistant) -> None:
+async def test_legacy_v1_entry_rekeys_vad_row_and_keeps_entity_id(
+    hass: HomeAssistant,
+) -> None:
     registry = er.async_get(hass)
     legacy_entity_id = _legacy_vad_entity_id(hass)
     registry.async_update_entity(legacy_entity_id, name="Kitchen VAD")
@@ -74,7 +80,10 @@ async def test_legacy_v1_entry_rekeys_vad_row_and_keeps_entity_id(hass: HomeAssi
     assert row.unique_id == f"{entry.entry_id}-vad-sensitivity"
     assert row.config_entry_id == entry.entry_id
     assert row.name == "Kitchen VAD"
-    assert registry.async_get_entity_id(Platform.SELECT, DOMAIN, VAD_SENSITIVITY_UNIQUE_ID) is None
+    assert (
+        registry.async_get_entity_id(Platform.SELECT, DOMAIN, VAD_SENSITIVITY_UNIQUE_ID)
+        is None
+    )
 
 
 async def test_migration_rerun_is_idempotent(hass: HomeAssistant) -> None:
@@ -94,7 +103,9 @@ async def test_migration_rerun_is_idempotent(hass: HomeAssistant) -> None:
     assert entry.minor_version == 1
 
 
-async def test_rerun_after_rekey_before_version_bump_is_safe(hass: HomeAssistant) -> None:
+async def test_rerun_after_rekey_before_version_bump_is_safe(
+    hass: HomeAssistant,
+) -> None:
     registry = er.async_get(hass)
     legacy_entity_id = _legacy_vad_entity_id(hass)
     entry = _v1_entry(hass)

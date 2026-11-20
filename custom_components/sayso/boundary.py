@@ -183,28 +183,30 @@ def action_metadata(
     if not validated_tool_calls:
         return {}
     tool_call, tool_args = validated_tool_calls[0]
-    metadata: dict[str, Any] = {"tool": tool_map[tool_call.name].name}
+    metadata: dict[str, Any] = {"gen_ai.tool.name": tool_map[tool_call.name].name}
+    if tool_call.id:
+        metadata["gen_ai.tool.call.id"] = tool_call.id
     if len(validated_tool_calls) > 1:
-        metadata["batch"] = len(validated_tool_calls)
+        metadata["sayso.batch"] = len(validated_tool_calls)
     domain = tool_args.get("domain")
     if isinstance(domain, list) and domain:
         domain = domain[0]
     if isinstance(domain, str) and domain:
-        metadata["domain"] = domain
+        metadata["sayso.domain"] = domain
     name = tool_args.get("name")
     if isinstance(name, str) and name:
-        metadata["target"] = name
+        metadata["sayso.target"] = name
     return metadata
 
 
 def apply_action_summary(trace: TraceContext, metadata: dict[str, Any]) -> None:
-    trace.tool = metadata.get("tool") or trace.tool
-    target = metadata.get("target")
+    trace.tool = metadata.get("gen_ai.tool.name") or trace.tool
+    target = metadata.get("sayso.target")
     if isinstance(target, str) and target:
         trace.target = target
         if "." in target:
             trace.domain = target.split(".", 1)[0]
     if trace.domain is None:
-        domain = metadata.get("domain")
+        domain = metadata.get("sayso.domain")
         if isinstance(domain, str) and domain:
             trace.domain = domain

@@ -24,7 +24,7 @@ from .tool_contract import (
     tools_by_name,
 )
 from .trace_stages import Stage
-from .vocabulary import ERROR_CANCELLED
+from .vocabulary import DEFAULT_LANGUAGE, SPEECH_EN, Speech, Vocabulary, vocabulary_for
 
 
 class Phase(StrEnum):
@@ -71,6 +71,8 @@ class TurnInput:
     calls: tuple[ToolCall, ...] | None = None
     confirmed: bool = False
     read_only: frozenset[str] = frozenset()
+    language: str = DEFAULT_LANGUAGE
+    speech: Speech = SPEECH_EN
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +136,10 @@ class _Run:
     held_replayed: bool = False
     first: ChatCompletionResult | None = None
 
+    @property
+    def vocab(self) -> Vocabulary:
+        return vocabulary_for(self.turn.language)
+
     def outcome(
         self, *, speech: str | None = None, held: HeldState | None = None
     ) -> TurnOutcome:
@@ -149,7 +155,9 @@ class _Run:
             first=self.first,
         )
 
-    async def _complete(self, messages: list[dict[str, Any]], *, correction: bool):
+    async def _complete(
+        self, messages: list[dict[str, Any]], *, correction: bool
+    ) -> ChatCompletionResult:
         result = await self.complete(messages, correction=correction)
         if self.first is None:
             self.first = result
@@ -192,9 +200,9 @@ class _Run:
             and turn.home is not None
             and not is_expired(turn.held, turn.now)
         ):
-            if is_cancel(turn.user_text):
-                return self.outcome(speech=ERROR_CANCELLED)
-            option = resolve_held_option(turn.held, turn.user_text)
+            if is_cancel(turn.user_text, self.vocab):
+                return self.outcome(speech=turn.speech.cancelled)
+            option = resolve_held_option(turn.held, turn.user_text, self.vocab)
             if option is not None:
                 self.held_replayed = True
                 return await self.tool_loop(
@@ -218,7 +226,9 @@ class _Run:
         compiled = tools_by_name(turn.tools)
         self.suppress_grounding = confirmed
         while True:
-            parse_span = self.recorder.open(Stage.TOOL_PARSE, calls=len(current))
+            parse_span = self.recorder.open(
+                Stage.TOOL_PARSE, **{"sayso.calls": len(current)}
+            )
 
             if not is_well_formed_batch(current):
                 return self.fail(FailureKind.INVALID_ARGUMENTS)
@@ -267,7 +277,7 @@ class _Run:
                     new_args = drop_unspoken_area(call.name, args, turn.user_text, home)
                     if new_args is not args:
                         self.area_dropped = True
-                        parse_span.metadata["area_dropped"] = {
+                        parse_span.metadata["sayso.area_dropped"] = {
                             "tool": call.name,
                             "name": args.get("name"),
                             "area": args.get("area"),
@@ -277,9 +287,28 @@ class _Run:
                 for i, (call, args) in enumerate(validated):
                     if call.name in turn.read_only:
                         continue
-                    if not is_grounded(call.name, args, turn.user_text, home):
-                        clar = clarify(call.name, args, turn.user_text, home)
-                        parse_span.metadata["clarify"] = clar.speech
+                    others = [
+                        (other.name, other_args)
+                        for j, (other, other_args) in enumerate(validated)
+                        if j != i
+                    ]
+                    if not is_grounded(
+                        call.name,
+                        args,
+                        turn.user_text,
+                        home,
+                        others=others,
+                        vocab=self.vocab,
+                    ):
+                        clar = clarify(
+                            call.name,
+                            args,
+                            turn.user_text,
+                            home,
+                            speech=turn.speech,
+                            vocab=self.vocab,
+                        )
+                        parse_span.metadata["sayso.clarify"] = clar.speech
                         self.recorder.close(parse_span, success=False)
                         self.clarified = True
                         held = None
@@ -311,7 +340,7 @@ class _Run:
             self.suppress_grounding = False
             if len(validated) == 1 and validated[0][0].name in turn.action_tools:
                 self.done_shortcut = True
-                return self.outcome(speech="Done.")
+                return self.outcome(speech=turn.speech.done)
 
             self.phase = Phase.FOLLOW_UP
             try:

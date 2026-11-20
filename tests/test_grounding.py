@@ -234,16 +234,16 @@ def test_area_only_call_kept():
 def test_area_equal_to_entity_area_kept():
     home = _area_home("Kitchen")
     args = {"name": "Sofa TV", "area": "Living Room"}
-    assert drop_unspoken_area(
-        "HassTurnOff", args, "Mute the TV", home
-    ) is args
+    assert drop_unspoken_area("HassTurnOff", args, "Mute the TV", home) is args
 
 
 def test_spoken_mismatching_area_kept():
     home = _area_home("Kitchen")
     args = {"name": "Floor Lamp", "area": "Kitchen"}
     assert (
-        drop_unspoken_area("HassTurnOn", args, "turn on the floor lamp in the kitchen", home)
+        drop_unspoken_area(
+            "HassTurnOn", args, "turn on the floor lamp in the kitchen", home
+        )
         is args
     )
 
@@ -252,7 +252,9 @@ def test_spoken_alias_area_kept():
     home = _area_home("Kitchen")
     args = {"name": "Floor Lamp", "area": "Kitchen"}
     assert (
-        drop_unspoken_area("HassTurnOn", args, "turn on the floor lamp in the galley", home)
+        drop_unspoken_area(
+            "HassTurnOn", args, "turn on the floor lamp in the galley", home
+        )
         is args
     )
 

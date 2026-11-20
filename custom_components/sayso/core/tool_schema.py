@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -14,7 +13,6 @@ _FUNCTION_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 @dataclass(frozen=True, slots=True)
 class CompiledToolSchema:
-
     tools: tuple[dict[str, Any], ...]
     fingerprint: str
 
@@ -153,9 +151,10 @@ def function_envelope(
     }
     if description:
         tool_spec["description"] = description
-    return canonicalize_schema(
+    envelope: dict[str, Any] = canonicalize_schema(
         normalize_schema({"type": "function", "function": tool_spec}, top_level=True)
     )
+    return envelope
 
 
 def build_compiled_tools_from_source(

@@ -126,9 +126,9 @@ def test_vacuum_utterances_never_use_a_room_vacuum_or_name_it_twice() -> None:
         )
         for label in labels:
             text = re.sub(rf"(?<= ){re.escape(label)}(?= )", "vacuumref", text)
-        mentions = len(re.findall(r"(?<= )the (?:robot )?vacuum(?= )", text)) + text.count(
-            "vacuumref"
-        )
+        mentions = len(
+            re.findall(r"(?<= )the (?:robot )?vacuum(?= )", text)
+        ) + text.count("vacuumref")
         assert mentions <= 1, row["id"]
 
 
@@ -162,7 +162,9 @@ def test_no_near_duplicate_of_a_literal_reviewed_case_in_the_household() -> None
     for case in reviewed:
         home = load_home(case["household"])
         if gen.literal(case, home):
-            counts.update((case["household"], key) for key, _ in gen.near_keys(case, home))
+            counts.update(
+                (case["household"], key) for key, _ in gen.near_keys(case, home)
+            )
     crowded = []
     for row in ROWS:
         for key, limit in gen.near_keys(row, load_home(row["household"])):

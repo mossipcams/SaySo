@@ -26,7 +26,7 @@ ALWAYS_OFFERED = {
 
 
 def test_always_offered_tools_present() -> None:
-    assert ALWAYS_OFFERED <= names({"entities": []})
+    assert names({"entities": []}) >= ALWAYS_OFFERED
 
 
 def test_search_and_play_never_use_old_combined_tool() -> None:
@@ -110,6 +110,4 @@ def test_script_tools_use_object_id_name() -> None:
 def test_removed_tools_still_work() -> None:
     home = {"entities": [entity("light", "Lamp")]}
     catalog = production_catalog(home, removed_tools=["intent__HassTurnOn"])
-    assert "intent__HassTurnOn" not in {
-        tool["function"]["name"] for tool in catalog
-    }
+    assert "intent__HassTurnOn" not in {tool["function"]["name"] for tool in catalog}

@@ -66,15 +66,11 @@ def _install_llama_cpp() -> bool:
         args += ["--constraint", constraints]
         if (
             not pkg_util.is_virtual_env()
-            and not any(
-                var in os.environ for var in ("UV_SYSTEM_PYTHON", "UV_PYTHON")
-            )
+            and not any(var in os.environ for var in ("UV_SYSTEM_PYTHON", "UV_PYTHON"))
             and (user_site := site.getusersitepackages())
         ):
             args += ["--python", sys.executable, "--target", user_site]
-        result = subprocess.run(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
-        )
+        result = subprocess.run(args, capture_output=True, env=env)
         if result.returncode != 0:
             _LOGGER.error(
                 "Failed to install %s: %s",

@@ -28,7 +28,7 @@ def patch_satellite_entities(hass: HomeAssistant, select_entity_id: str) -> int:
         for entity in platform.entities.values():
             if not hasattr(entity, "_attr_vad_sensitivity_entity_id"):
                 continue
-            if getattr(entity, "_attr_vad_sensitivity_entity_id") == select_entity_id:
+            if entity._attr_vad_sensitivity_entity_id == select_entity_id:
                 continue
             entity._attr_vad_sensitivity_entity_id = select_entity_id
             patched += 1
@@ -36,7 +36,9 @@ def patch_satellite_entities(hass: HomeAssistant, select_entity_id: str) -> int:
 
 
 @callback
-def async_watch_satellites(hass: HomeAssistant, select_entity_id: str) -> Callable[[], None]:
+def async_watch_satellites(
+    hass: HomeAssistant, select_entity_id: str
+) -> Callable[[], None]:
     @callback
     def _async_handle_registry_event(event: Event) -> None:
         data = event.data
@@ -48,11 +50,13 @@ def async_watch_satellites(hass: HomeAssistant, select_entity_id: str) -> Callab
             return
         try:
             patched = patch_satellite_entities(hass, select_entity_id)
-        except Exception:  # noqa: BLE001 - a patch failure must not break the bus
+        except Exception:
             _LOGGER.exception("Failed to patch satellite VAD sensitivity")
             return
         if patched:
-            _LOGGER.debug("Patched %d satellite entit%s", patched, "y" if patched == 1 else "ies")
+            _LOGGER.debug(
+                "Patched %d satellite entit%s", patched, "y" if patched == 1 else "ies"
+            )
 
     unsubs = [
         hass.bus.async_listen(event, _async_handle_registry_event)

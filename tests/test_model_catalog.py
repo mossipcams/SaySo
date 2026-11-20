@@ -195,7 +195,9 @@ def fake_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, A
         async def async_shutdown(self) -> None:
             return None
 
-    monkeypatch.setattr("custom_components.sayso.async_ensure_llama_cpp", fake_ensure_llama_cpp)
+    monkeypatch.setattr(
+        "custom_components.sayso.async_ensure_llama_cpp", fake_ensure_llama_cpp
+    )
     monkeypatch.setattr("custom_components.sayso.async_verify_model", fake_verify_model)
     monkeypatch.setattr("custom_components.sayso.EmbeddedEngine", FakeEngine)
     return calls

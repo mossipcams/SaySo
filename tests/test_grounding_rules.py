@@ -196,15 +196,6 @@ def _home(
             ),
             id="R-clean-area-bathroom",
         ),
-    ],
-)
-def test_rules_ground_expected_call(tool, args, utterance, home):
-    assert is_grounded(tool, args, utterance, home) is True
-
-
-@pytest.mark.parametrize(
-    ("tool", "args", "utterance", "home"),
-    [
         pytest.param(
             "intent__HassTurnOff",
             {
@@ -220,7 +211,7 @@ def test_rules_ground_expected_call(tool, args, utterance, home):
                 ],
                 "Living Room",
             ),
-            id="residual-librarian-tv",
+            id="misheard-librarian-tv",
         ),
         pytest.param(
             "intent__HassTurnOff",
@@ -229,8 +220,17 @@ def test_rules_ground_expected_call(tool, args, utterance, home):
             _home(
                 [_e("Living Room Ceiling Light", "light", "Living Room")], "Living Room"
             ),
-            id="modifier-librarian-lights",
+            id="misheard-librarian-lights",
         ),
+    ],
+)
+def test_rules_ground_expected_call(tool, args, utterance, home):
+    assert is_grounded(tool, args, utterance, home) is True
+
+
+@pytest.mark.parametrize(
+    ("tool", "args", "utterance", "home"),
+    [
         pytest.param(
             "intent__HassTurnOn",
             {"domain": ["fan"], "name": "Bedroom Ceiling Fan"},

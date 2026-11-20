@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -17,7 +16,11 @@ from homeassistant.helpers import intent
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
 
-from custom_components.sayso.client import ChatCompletionResult, LlamaCppClient, ToolCall
+from custom_components.sayso.client import (
+    ChatCompletionResult,
+    LlamaCppClient,
+    ToolCall,
+)
 from custom_components.sayso.const import CONF_MAX_TOOL_ITERATIONS, DOMAIN
 from custom_components.sayso.diagnostics import (
     async_get_config_entry_diagnostics,
@@ -34,7 +37,6 @@ from tests.test_config_flow import (
 
 
 class _TestLight(LightEntity):
-
     _attr_name = "Living Room"
     _attr_unique_id = "living_room"
     _attr_supported_color_modes = {ColorMode.ONOFF}
@@ -73,14 +75,17 @@ async def assist_light(hass: HomeAssistant) -> None:
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    with patch.object(
-        LlamaCppClient,
-        "list_models",
-        new=AsyncMock(return_value=[MODEL_ID]),
-    ), patch.object(
-        LlamaCppClient,
-        "validate_model",
-        new=AsyncMock(return_value=None),
+    with (
+        patch.object(
+            LlamaCppClient,
+            "list_models",
+            new=AsyncMock(return_value=[MODEL_ID]),
+        ),
+        patch.object(
+            LlamaCppClient,
+            "validate_model",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         yield
 
@@ -90,9 +95,7 @@ async def _create_entry_with_api_key(
     api_key: str,
 ) -> Any:
     result = await _start_user_step(hass)
-    result = await _complete_user_step(
-        hass, result["flow_id"], api_key=api_key
-    )
+    result = await _complete_user_step(hass, result["flow_id"], api_key=api_key)
     result = await _complete_model_step(hass, result["flow_id"])
     assert result["type"] == FlowResultType.CREATE_ENTRY
     entry = hass.config_entries.async_entries(DOMAIN)[0]
@@ -149,7 +152,9 @@ def _agent_id(hass: HomeAssistant, entry: Any) -> str:
     return entity_id
 
 
-async def _converse(hass: HomeAssistant, entry: Any, text: str) -> conversation.ConversationResult:
+async def _converse(
+    hass: HomeAssistant, entry: Any, text: str
+) -> conversation.ConversationResult:
     return await conversation.async_converse(
         hass,
         text,

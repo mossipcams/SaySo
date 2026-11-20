@@ -1,10 +1,9 @@
-
 from __future__ import annotations
 
 import json
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -57,7 +56,7 @@ def build_chat_completions_payload(
     messages: list[dict[str, Any]],
     *,
     model: str,
-    tools: list[dict[str, Any]] | None = None,
+    tools: Sequence[dict[str, Any]] | None = None,
     temperature: float = DEFAULT_TEMPERATURE,
     max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     grammar: str | None = None,
@@ -107,7 +106,6 @@ async def _read_json_body(response: ClientResponse) -> dict[str, Any]:
 
 
 class LlamaCppClient:
-
     def __init__(
         self,
         session: aiohttp.ClientSession,
@@ -183,7 +181,7 @@ class LlamaCppClient:
         messages: list[dict[str, Any]],
         *,
         model: str,
-        tools: list[dict[str, Any]] | None = None,
+        tools: Sequence[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         grammar: str | None = None,
@@ -218,7 +216,7 @@ class LlamaCppClient:
         messages: list[dict[str, Any]],
         *,
         model: str,
-        tools: list[dict[str, Any]] | None,
+        tools: Sequence[dict[str, Any]] | None,
         temperature: float,
         max_tokens: int,
         grammar: str | None = None,

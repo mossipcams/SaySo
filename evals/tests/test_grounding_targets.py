@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from custom_components.sayso.core.grounding import (
-    DOMAIN_WORDS,
     _area_noun_match,
     _matches_dom,
     is_grounded,
@@ -11,6 +10,7 @@ from custom_components.sayso.core.grounding import (
     support,
     tokens,
 )
+from custom_components.sayso.core.vocabulary import DOMAIN_WORDS
 from evals.cases import case_index, load_home
 from evals.runner import _grounding_home
 
@@ -77,10 +77,10 @@ def test_expected_call_is_grounded(case_id: str) -> None:
     assert is_grounded(call["name"], call["arguments"], case.utterance, home) is True
 
 
-def test_residual_librarian_tv_stays_ungrounded() -> None:
+def test_residual_librarian_tv_is_grounded() -> None:
     case, home = _case_and_home(RESIDUAL_ID)
     (call,) = case.expected["calls"]
-    assert is_grounded(call["name"], call["arguments"], case.utterance, home) is False
+    assert is_grounded(call["name"], call["arguments"], case.utterance, home) is True
 
 
 @pytest.mark.parametrize("case_id", AMBIGUITY_IDS)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from contextlib import suppress
 from types import MappingProxyType
 from typing import Any
@@ -139,7 +140,7 @@ def _adopt(
     hass: HomeAssistant,
     main: ConfigEntry,
     source: ConfigEntry,
-    source_options: dict[str, Any],
+    source_options: Mapping[str, Any],
 ) -> None:
     subentry_id = _ensure_conversation_subentry(hass, main, source, source_options)
     _relink(hass, source.entry_id, main.entry_id, subentry_id)
@@ -149,7 +150,7 @@ def _ensure_conversation_subentry(
     hass: HomeAssistant,
     main: ConfigEntry,
     source: ConfigEntry,
-    source_options: dict[str, Any],
+    source_options: Mapping[str, Any],
 ) -> str:
     for subentry in main.subentries.values():
         if subentry.unique_id == source.entry_id:

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -9,7 +8,6 @@ from evals.outcomes import PRODUCTION_MAX_OUTPUT_TOKENS, PRODUCTION_TEMPERATURE
 
 
 class EndpointAdapter:
-
     name = "endpoint"
 
     def __init__(

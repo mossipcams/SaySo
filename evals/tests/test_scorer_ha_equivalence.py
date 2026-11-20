@@ -319,7 +319,10 @@ def test_clarification_without_question_fails() -> None:
 
 def test_satellite_area_only_call_without_area_fails() -> None:
     expected = _satellite_expectation(
-        {"name": "intent__HassTurnOff", "arguments": {"domain": ["light"], "area": "Kitchen"}}
+        {
+            "name": "intent__HassTurnOff",
+            "arguments": {"domain": ["light"], "area": "Kitchen"},
+        }
     )
     actual = {"name": "intent__HassTurnOff", "arguments": {"domain": ["light"]}}
     assert _classify_turn(expected, (actual,)) == Outcome.UNEXPECTED_TOOL_CALL
@@ -327,7 +330,10 @@ def test_satellite_area_only_call_without_area_fails() -> None:
 
 def test_satellite_area_only_call_with_correct_area_passes() -> None:
     expected = _satellite_expectation(
-        {"name": "intent__HassTurnOff", "arguments": {"domain": ["light"], "area": "Kitchen"}}
+        {
+            "name": "intent__HassTurnOff",
+            "arguments": {"domain": ["light"], "area": "Kitchen"},
+        }
     )
     actual = {
         "name": "intent__HassTurnOff",
@@ -340,8 +346,13 @@ LAMP_HOME = load_home("realistic_eval_household_1")
 
 
 def test_clarification_without_cue_words_passes() -> None:
-    assert _clarification("Jamie's or Robin's bedside lamp?") == Outcome.VALID_CLARIFICATION
-    assert _clarification("Do you want Jamie's or Robin's?") == Outcome.VALID_CLARIFICATION
+    assert (
+        _clarification("Jamie's or Robin's bedside lamp?")
+        == Outcome.VALID_CLARIFICATION
+    )
+    assert (
+        _clarification("Do you want Jamie's or Robin's?") == Outcome.VALID_CLARIFICATION
+    )
     assert (
         _clarification(
             "The floor lamp or the table lamp?",
@@ -354,7 +365,11 @@ def test_clarification_without_cue_words_passes() -> None:
 
 def test_clarification_with_cue_and_distinguishing_words_still_passes() -> None:
     assert (
-        _clarification("Do you mean the floor lamp or the table lamp?", ("Living Room Floor Lamp", "Living Room Table Lamp"), LAMP_HOME)
+        _clarification(
+            "Do you mean the floor lamp or the table lamp?",
+            ("Living Room Floor Lamp", "Living Room Table Lamp"),
+            LAMP_HOME,
+        )
         == Outcome.VALID_CLARIFICATION
     )
 

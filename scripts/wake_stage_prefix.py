@@ -11,8 +11,8 @@ from pathlib import Path
 import numpy as np
 
 SR, WIN = 16000, 32000
-FRAC = (0.35, 0.70)  # of the spoken span: keeps "Ko".."Kod", drops the final schwa
-FADE = 160  # 10 ms, so the cut isn't a click the model can key on
+SPOKEN_SPAN_FRAC = (0.35, 0.70)
+FADE = 10 * SR // 1000
 
 EXAMPLES = """\
 example (VM layout; v6 raw TTS positives):
@@ -32,7 +32,6 @@ run_v10k.sh concatenates extra real_positive rows.
 
 
 def speech_span(audio: np.ndarray, floor_db: float = 35.0) -> tuple[int, int]:
-    """First/last sample of 10 ms frames within floor_db of the loudest frame."""
     n = len(audio) // 160
     f = audio[: n * 160].reshape(n, 160)
     db = 10 * np.log10((f**2).mean(1) + 1e-12)
@@ -41,7 +40,6 @@ def speech_span(audio: np.ndarray, floor_db: float = 35.0) -> tuple[int, int]:
 
 
 def prefix_cut(audio: np.ndarray, frac: float) -> np.ndarray:
-    """Keep audio up to frac of the spoken span, with a short fade-out."""
     s, e = speech_span(audio)
     cut = s + int(frac * (e - s))
     out = audio[:cut].astype(np.float32)
@@ -62,7 +60,7 @@ def stage(
     from livekit.wakeword.data.augment import AudioAugmentor, align_clip_to_end
     from livekit.wakeword.eval import stream as S
 
-    random.seed(seed)  # LiveKit's augmentor draws from the stdlib RNG
+    random.seed(seed)
     rng = np.random.default_rng(seed)
     clips = sorted(glob.glob(str(pos_dir / "clip_[0-9][0-9][0-9][0-9][0-9][0-9].wav")))
     assert clips, f"no raw clip_NNNNNN.wav in {pos_dir}"
@@ -77,10 +75,8 @@ def stage(
     for i, j in enumerate(pick):
         w, sr = sf.read(clips[j], dtype="float32")
         assert sr == SR, (clips[j], sr)
-        frac = float(rng.uniform(*FRAC))
+        frac = float(rng.uniform(*SPOKEN_SPAN_FRAC))
         a = aug.augment_clip(prefix_cut(w, frac))
-        # End-aligned like LiveKit positives: v9b scores a raw Koda ~0.9 at the
-        # window end and ~0.02 mid-window, so a prefix only competes there.
         a = align_clip_to_end(aug.mix_with_background(aug.apply_rir(a)), WIN).astype(np.float32)
         f = S.window_features(mel, emb, a)
         rows.append(f)

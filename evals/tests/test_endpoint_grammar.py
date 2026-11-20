@@ -21,7 +21,6 @@ GRAMMAR = "root ::= block | text\n"
 
 
 class _Response:
-
     def read(self) -> bytes:
         return b"{}"
 
@@ -57,7 +56,6 @@ def test_endpoint_omits_the_grammar_when_unset(monkeypatch: pytest.MonkeyPatch) 
 
 
 class _Recorder:
-
     name = "recorder"
 
     def __init__(self) -> None:

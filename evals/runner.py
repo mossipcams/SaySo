@@ -269,9 +269,7 @@ def _todo_list_names(home: dict[str, Any]) -> list[str]:
     names = []
     for entity in home.get("entities", []):
         if entity["domain"] == "todo":
-            names.extend(
-                dict.fromkeys([entity["name"], *entity.get("aliases", [])])
-            )
+            names.extend(dict.fromkeys([entity["name"], *entity.get("aliases", [])]))
     return names
 
 
@@ -283,14 +281,12 @@ def _offer_allowed(offer: str, home: dict[str, Any], domains: set[str]) -> bool:
     if offer == "media_search_play":
         return any(
             entity["domain"] == "media_player"
-            and {"search_media", "play_media"}
-            <= set(entity.get("capabilities") or [])
+            and {"search_media", "play_media"} <= set(entity.get("capabilities") or [])
             for entity in home.get("entities", [])
         )
     if offer.startswith("domains:"):
         return any(
-            name in domains
-            for name in offer.removeprefix("domains:").split(",")
+            name in domains for name in offer.removeprefix("domains:").split(",")
         )
     if offer.startswith("domain:"):
         return offer.removeprefix("domain:") in domains
@@ -602,7 +598,7 @@ def write_run(
     if extra_metadata:
         metadata.update(extra_metadata)
     if hasattr(adapter, "server"):
-        metadata["server"] = getattr(adapter, "server")
+        metadata["server"] = adapter.server
     (dest / "metadata.json").write_text(
         json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )

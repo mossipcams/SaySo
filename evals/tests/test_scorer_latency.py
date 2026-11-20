@@ -66,11 +66,10 @@ def test_latency_is_none_without_requests() -> None:
 def test_existing_summary_fields_are_kept() -> None:
     summary: dict[str, Any] = summarize([_result([5.0])])
 
-    assert LEGACY_SUMMARY_KEYS <= set(summary)
+    assert set(summary) >= LEGACY_SUMMARY_KEYS
 
 
 class _Timed:
-
     name = "timed"
 
     def __init__(self) -> None:
@@ -84,7 +83,9 @@ class _Timed:
 def test_evaluate_records_one_latency_per_request() -> None:
     adapter = _Timed()
 
-    results = evaluate(select_cases(case_id="realistic_eval_20260908_ordinary_01"), adapter)
+    results = evaluate(
+        select_cases(case_id="realistic_eval_20260908_ordinary_01"), adapter
+    )
 
     latencies = results[0].request_latencies_ms
     assert len(latencies) == adapter.calls >= 1

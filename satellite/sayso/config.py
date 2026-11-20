@@ -104,7 +104,6 @@ def _req(d: dict, *keys: str) -> Any:
 
 
 def _str_tuple(value) -> tuple[str, ...]:
-    """A bare YAML string is one entry, not a sequence of characters."""
     if value is None:
         return ()
     if isinstance(value, (list, tuple)):
@@ -269,17 +268,17 @@ def validate_config(cfg: AppConfig, check_port_bind: bool = True) -> None:
         if not cfg.wake_word.dma_kws_model.is_file():
             errors.append(f"wake_word.dma_kws_model file missing: {cfg.wake_word.dma_kws_model}")
         else:
-            from .wake.dma_kws_verifier import _verified_model  # local: keeps config import light
+            from .wake.dma_kws_verifier import _verified_model
 
             try:
                 _verified_model(cfg.wake_word.dma_kws_model)
-            except ValueError as exc:  # wrong or corrupt model: fail at startup, not silently at wake time
+            except ValueError as exc:
                 errors.append(f"wake_word.dma_kws_model: {exc}")
         if not (0.0 < cfg.wake_word.dma_kws_threshold < 1.0):
             errors.append("wake_word.dma_kws_threshold must be between 0 and 1 exclusive")
         if not cfg.wake_word.dma_kws_phonemes:
             errors.append("wake_word.dma_kws_phonemes is required with dma_kws_model")
-        from .wake.dma_kws_verifier import phoneme_ids  # local: keeps config import light
+        from .wake.dma_kws_verifier import phoneme_ids
 
         for phonemes in cfg.wake_word.dma_kws_phonemes:
             try:

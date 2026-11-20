@@ -1,8 +1,8 @@
-
 from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -12,6 +12,7 @@ import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
+    ConfigFlowContext,
     ConfigFlowResult,
     ConfigSubentryData,
     ConfigSubentryFlow,
@@ -26,6 +27,7 @@ from homeassistant.const import (
     CONF_URL,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import FlowContext, FlowHandler, FlowResult
 
 from homeassistant.helpers import config_validation as cv, llm
 from homeassistant.helpers.llm import LLM_API_ASSIST
@@ -58,6 +60,8 @@ from .const import (
     CONF_PROMPT,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
+    CONF_TRACE_EXPORT,
+    CONF_TRACE_EXPORT_ENDPOINT,
     CONF_TRACE_MAX_INTERACTIONS,
     CONF_TRACE_RETENTION_DAYS,
     CONF_TRACE_STORE_UTTERANCES,
@@ -71,15 +75,20 @@ from .const import (
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT,
+    DEFAULT_TRACE_EXPORT,
+    DEFAULT_TRACE_EXPORT_ENDPOINT,
     DEFAULT_TRACE_MAX_INTERACTIONS,
     DEFAULT_TRACE_RETENTION_DAYS,
     DEFAULT_TRACE_STORE_UTTERANCES,
     DOMAIN,
     EMBEDDED_MODELS,
     MAX_TRACE_INTERACTIONS,
+    TRACE_EXPORT_MODES,
+    TRACE_EXPORT_OTLP_HTTP,
 )
 from .inference import default_thread_count, entry_backend
 from .model_store import async_provision_model, list_local_models, models_dir
+from .trace_export import is_http_url
 from .core.exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
@@ -141,6 +150,23 @@ _ENGINE_OPTIONS: tuple[tuple[Any, str, Any, Any], ...] = (
         CONF_TRACE_STORE_UTTERANCES,
         DEFAULT_TRACE_STORE_UTTERANCES,
         BooleanSelector(),
+    ),
+    (
+        vol.Optional,
+        CONF_TRACE_EXPORT,
+        DEFAULT_TRACE_EXPORT,
+        SelectSelector(
+            SelectSelectorConfig(
+                options=TRACE_EXPORT_MODES,
+                translation_key=CONF_TRACE_EXPORT,
+            )
+        ),
+    ),
+    (
+        vol.Optional,
+        CONF_TRACE_EXPORT_ENDPOINT,
+        DEFAULT_TRACE_EXPORT_ENDPOINT,
+        TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
     ),
     (
         vol.Required,
@@ -221,7 +247,9 @@ def _entry_title(base_url: str, model: str) -> str:
     return f"{model} @ {host}"
 
 
-def _suggest(options: dict[str, Any], key: str, default: Any = None) -> dict[str, Any]:
+def _suggest(
+    options: Mapping[str, Any], key: str, default: Any = None
+) -> dict[str, Any]:
     return {"suggested_value": options.get(key, default)}
 
 
@@ -234,8 +262,9 @@ def _select(values: list[str], *, custom: bool = False) -> SelectSelector:
     )
 
 
-class DownloadSteps:
-
+class DownloadSteps[ContextT: FlowContext, ResultT: FlowResult[Any, Any]](
+    FlowHandler[ContextT, ResultT, str]
+):
     hass: HomeAssistant
     _model: str
     _replace: bool = False
@@ -244,7 +273,7 @@ class DownloadSteps:
 
     async def async_step_download(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    ) -> ResultT:
         if self._download_task is None:
             self._download_task = self.hass.async_create_task(
                 async_provision_model(self.hass, self._model, replace=self._replace)
@@ -267,7 +296,7 @@ class DownloadSteps:
 
     async def async_step_download_failed(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    ) -> ResultT:
         if user_input is None:
             return self.async_show_form(
                 step_id="download_failed",
@@ -279,7 +308,7 @@ class DownloadSteps:
 
 
 def _model_fields(
-    options: dict[str, Any], models: list[str], *, embedded: bool
+    options: Mapping[str, Any], models: list[str], *, embedded: bool
 ) -> dict[Any, Any]:
     if not embedded:
         current = options.get(CONF_MODEL)
@@ -323,7 +352,7 @@ def _model_fields(
 
 
 def _fields(
-    options: dict[str, Any],
+    options: Mapping[str, Any],
     spec: tuple[tuple[Any, str, Any, Any], ...],
     llm_apis: SelectSelector | None = None,
 ) -> dict[Any, Any]:
@@ -334,7 +363,7 @@ def _fields(
 
 
 def _engine_schema(
-    options: dict[str, Any], models: list[str], *, embedded: bool
+    options: Mapping[str, Any], models: list[str], *, embedded: bool
 ) -> vol.Schema:
     return vol.Schema(
         {
@@ -346,7 +375,7 @@ def _engine_schema(
 
 def _conversation_schema(
     hass: HomeAssistant,
-    suggested: dict[str, Any],
+    suggested: Mapping[str, Any],
     models: list[str],
     *,
     external: bool,
@@ -388,12 +417,25 @@ async def _async_list_models(hass: HomeAssistant, entry: ConfigEntry) -> list[st
         return []
 
 
+def _trace_export_errors(user_input: Mapping[str, Any]) -> dict[str, str]:
+    if user_input.get(CONF_TRACE_EXPORT) != TRACE_EXPORT_OTLP_HTTP:
+        return {}
+    endpoint = str(user_input.get(CONF_TRACE_EXPORT_ENDPOINT) or "").strip()
+    if not endpoint:
+        return {CONF_TRACE_EXPORT_ENDPOINT: "trace_export_endpoint_required"}
+    if not is_http_url(endpoint):
+        return {CONF_TRACE_EXPORT_ENDPOINT: "invalid_trace_export_endpoint"}
+    return {}
+
+
 def _subentry_payload(user_input: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     data = dict(user_input)
     return data.pop(CONF_NAME), data
 
 
-class SaySoConfigFlow(DownloadSteps, ConfigFlow, domain=DOMAIN):
+class SaySoConfigFlow(
+    DownloadSteps[ConfigFlowContext, ConfigFlowResult], ConfigFlow, domain=DOMAIN
+):
     VERSION = 2
     MINOR_VERSION = 1
 
@@ -553,7 +595,7 @@ class SaySoConversationSubentryFlow(ConfigSubentryFlow):
         return self.async_update_and_abort(entry, subentry, title=title, data=data)
 
     async def _async_show_form(
-        self, step_id: str, entry: ConfigEntry, suggested: dict[str, Any]
+        self, step_id: str, entry: ConfigEntry, suggested: Mapping[str, Any]
     ) -> SubentryFlowResult:
         external = entry_backend(entry) == BACKEND_EXTERNAL
         models = await _async_list_models(self.hass, entry) if external else []
@@ -589,15 +631,18 @@ class SaySoAITaskSubentryFlow(ConfigSubentryFlow):
         )
 
 
-class SaySoOptionsFlowHandler(DownloadSteps, OptionsFlow):
+class SaySoOptionsFlowHandler(
+    DownloadSteps[ConfigFlowContext, ConfigFlowResult], OptionsFlow
+):
     _pending: dict[str, Any]
 
     def _form(
         self,
-        suggested: dict[str, Any],
+        suggested: Mapping[str, Any],
         *,
         embedded: bool,
         models: list[str] | None = None,
+        errors: dict[str, str] | None = None,
     ) -> ConfigFlowResult:
         return self.async_show_form(
             step_id="init",
@@ -607,7 +652,11 @@ class SaySoOptionsFlowHandler(DownloadSteps, OptionsFlow):
                 ),
                 suggested,
             ),
+            errors=errors,
         )
+
+    async def _async_local_models(self) -> list[str]:
+        return await self.hass.async_add_executor_job(list_local_models, self.hass)
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -617,18 +666,28 @@ class SaySoOptionsFlowHandler(DownloadSteps, OptionsFlow):
         if entry_backend(entry) != BACKEND_EMBEDDED:
             if user_input is None:
                 return self._form(entry.options, embedded=False)
+            if errors := _trace_export_errors(user_input):
+                return self._form(user_input, embedded=False, errors=errors)
             return self.async_create_entry(data=user_input)
 
         if user_input is not None:
+            if errors := _trace_export_errors(user_input):
+                return self._form(
+                    user_input,
+                    embedded=True,
+                    models=await self._async_local_models(),
+                    errors=errors,
+                )
             self._pending = {**entry.options, **user_input}
             self._model = user_input[CONF_MODEL]
             if await self._async_model_absent(self._model):
                 return await self.async_step_download()
             return self.async_create_entry(data=self._pending)
-        local_models = await self.hass.async_add_executor_job(
-            list_local_models, self.hass
+        return self._form(
+            entry.options,
+            embedded=True,
+            models=await self._async_local_models(),
         )
-        return self._form(entry.options, embedded=True, models=local_models)
 
     async def async_step_finish(
         self, user_input: dict[str, Any] | None = None

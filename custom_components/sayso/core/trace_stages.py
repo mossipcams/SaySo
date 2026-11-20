@@ -2,7 +2,6 @@ from enum import StrEnum
 
 
 class Stage(StrEnum):
-
     AUDIO_UPLOAD = "audio_upload"
     STT = "stt"
     SAYSO_REQUEST = "sayso_request"
@@ -16,7 +15,6 @@ class Stage(StrEnum):
 
 
 class ErrorType(StrEnum):
-
     STT_FAILED = "stt_failed"
     MODEL_UNAVAILABLE = "model_unavailable"
     MODEL_TIMEOUT = "model_timeout"

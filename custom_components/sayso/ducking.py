@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -106,11 +107,7 @@ class MediaDucker:
         for call in restores:
             task = self._hass.async_create_task(self._async_send([call], blocking=True))
             self._restore_tasks[call[0]] = task
-            task.add_done_callback(
-                lambda finished, entity_id=call[0]: self._forget_restore(
-                    entity_id, finished
-                )
-            )
+            task.add_done_callback(functools.partial(self._forget_restore, call[0]))
 
     def _forget_restore(self, entity_id: str, finished: asyncio.Task[None]) -> None:
         if self._restore_tasks.get(entity_id) is finished:
@@ -177,7 +174,9 @@ class MediaDucker:
             )
         await self._async_send(calls)
 
-    def _make_timeout(self, satellite_id: str) -> Callable[[datetime], Awaitable[None]]:
+    def _make_timeout(
+        self, satellite_id: str
+    ) -> Callable[[datetime], Coroutine[Any, Any, None]]:
         async def _async_timed_out(_now: datetime) -> None:
             restores = self._release(satellite_id)
             self._holds[satellite_id] = set()

@@ -22,7 +22,6 @@ async def _complete(engine: ExternalEngine) -> ChatCompletionResult:
 
 
 class TestExternalContentToolCalls:
-
     async def test_marker_wrapped_content_becomes_tool_call(self) -> None:
         engine = _engine_returning(
             ChatCompletionResult(

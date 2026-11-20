@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, fields, replace
 from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components import conversation
@@ -13,7 +13,7 @@ from homeassistant.const import CONF_LLM_HASS_API, CONF_MODEL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from homeassistant.helpers import intent, llm
+from homeassistant.helpers import intent, llm, translation
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.llm import LLM_API_ASSIST
 
@@ -44,18 +44,6 @@ from .const import (
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DOMAIN,
-    DOMAIN_PLURALS,
-    ERROR_ACTION_FAILED,
-    ERROR_AREA_HAS_NO_DOMAIN,
-    ERROR_EMPTY_RESPONSE,
-    ERROR_MODEL_UNAVAILABLE,
-    ERROR_MEDIA_NOT_PAUSED,
-    ERROR_MEDIA_NOT_PLAYING,
-    ERROR_NAME_NOT_FOUND,
-    ERROR_NO_TIMERS,
-    ERROR_NOT_UNDERSTOOD,
-    ERROR_REQUEST_TIMEOUT,
-    ERROR_TOOL_ITERATION_LIMIT,
     HA_MATCH_FAILED_ERROR,
     HELD_CALL_TTL,
 )
@@ -81,6 +69,14 @@ from .core.post_model import (
     run_turn,
 )
 from .core.tool_contract import READ_ONLY_FALLBACK
+from .core.vocabulary import (
+    SPEECH_EN,
+    VOCAB_EN,
+    Speech,
+    Vocabulary,
+    language_code,
+    vocabulary_for,
+)
 from .routing import (
     build_routing_catalog,
     build_routing_preferences,
@@ -145,6 +141,8 @@ class _Turn:
     area_context: AreaContext | None = None
     exposed_domains: frozenset[str] = frozenset()
     ducker: MediaDucker | None = None
+    speech: Speech = SPEECH_EN
+    vocab: Vocabulary = VOCAB_EN
 
     @property
     def messages(self) -> list[dict[str, Any]]:
@@ -174,7 +172,7 @@ class _Turn:
             self.chat_log.async_add_assistant_content_without_tools(
                 conversation.AssistantContent(agent_id=self.agent_id, content=content)
             )
-            span.metadata["text_length"] = len(content or "")
+            span.metadata["sayso.text_length"] = len(content or "")
             return conversation.async_get_result_from_chat_log(
                 self.user_input, self.chat_log
             )
@@ -185,7 +183,7 @@ class _Turn:
         phase: BoundaryPhase,
         *,
         ha_error: str | None = None,
-        speech: str = ERROR_NOT_UNDERSTOOD,
+        speech: str | None = None,
     ) -> conversation.ConversationResult:
         record_boundary(
             self.entry_id,
@@ -200,7 +198,9 @@ class _Turn:
             ha_error=ha_error,
             trace=self.trace,
         )
-        return _error_result(self.user_input, self.chat_log, speech)
+        return _error_result(
+            self.user_input, self.chat_log, speech or self.speech.not_understood
+        )
 
     def model_failure(
         self,
@@ -213,15 +213,15 @@ class _Turn:
             return self.boundary_failure(
                 BoundaryFailureCode.REQUEST_TIMEOUT,
                 phase,
-                speech=ERROR_REQUEST_TIMEOUT,
+                speech=self.speech.request_timeout,
             )
         if not isinstance(err, SaySoError):
             raise err
         _LOGGER.debug("trace_id=%s %s error: %s", self.trace.trace_id, log_label, err)
         return self.error(
-            ERROR_NOT_UNDERSTOOD
+            self.speech.not_understood
             if isinstance(err, SaySoInvalidToolCallsError)
-            else ERROR_MODEL_UNAVAILABLE,
+            else self.speech.model_unavailable,
             stage=Stage.INFERENCE,
             error_type=(
                 ErrorType.INVALID_MODEL_OUTPUT
@@ -234,14 +234,17 @@ class _Turn:
         self,
         messages: list[dict[str, Any]],
         *,
-        tools: tuple[dict[str, Any], ...] | list[dict[str, Any]] | None,
+        tools: Sequence[dict[str, Any]] | None,
         correction: bool = False,
     ) -> ChatCompletionResult:
         trace, runtime = self.trace, self.runtime
         span = trace.open(
             Stage.INFERENCE,
-            model=runtime.model,
-            **({"correction": True} if correction else {}),
+            **{
+                "gen_ai.operation.name": "chat",
+                "gen_ai.request.model": runtime.model,
+            },
+            **({"sayso.correction": True} if correction else {}),
         )
         grammar = _turn_grammar(runtime, tools, span.metadata)
         try:
@@ -257,18 +260,18 @@ class _Turn:
             trace.close(span, success=False)
             trace.fail(Stage.INFERENCE, inference_error_type(err), str(err))
             raise
-        span.metadata["tool_calls"] = len(result.tool_calls)
+        span.metadata["sayso.tool_calls"] = len(result.tool_calls)
         if result.prompt_tokens is not None:
-            span.metadata["prompt_tokens"] = result.prompt_tokens
+            span.metadata["gen_ai.usage.input_tokens"] = result.prompt_tokens
         if result.prefix_hash is not None:
-            span.metadata["prefix_hash"] = result.prefix_hash
+            span.metadata["sayso.prefix_hash"] = result.prefix_hash
         if result.reused_tokens is not None:
-            span.metadata["reused_tokens"] = result.reused_tokens
+            span.metadata["sayso.reused_tokens"] = result.reused_tokens
         if result.finish_reason is not None:
-            span.metadata["finish_reason"] = result.finish_reason
+            span.metadata["gen_ai.response.finish_reasons"] = [result.finish_reason]
         if result.grammar_skip_reason is not None:
-            span.metadata["grammar"] = "skipped"
-            span.metadata["grammar_skip_reason"] = result.grammar_skip_reason
+            span.metadata["sayso.grammar"] = "skipped"
+            span.metadata["sayso.grammar_skip_reason"] = result.grammar_skip_reason
         trace.close(span)
         return result
 
@@ -310,7 +313,7 @@ class _Turn:
             elif resolved_target is None:
                 resolved_target = first_target(data)
         if resolved_target is not None:
-            span.metadata["target"] = resolved_target
+            span.metadata["sayso.target"] = resolved_target
         return batch_failed, ha_error, ha_error_text
 
 
@@ -462,6 +465,8 @@ class SaySoConversationEntity(
             chat_log=chat_log,
             trace=trace,
             ducker=runtime.ducker,
+            speech=await _turn_speech(self.hass, user_input.language),
+            vocab=vocabulary_for(user_input.language),
         )
         span = trace.open(Stage.SAYSO_REQUEST)
         try:
@@ -493,7 +498,7 @@ class SaySoConversationEntity(
                 turn.complete_schema = compile_llm_tools(chat_log.llm_api)
             except SaySoInvalidToolEnvelopeError:
                 return turn.error(
-                    ERROR_NOT_UNDERSTOOD,
+                    turn.speech.not_understood,
                     stage=Stage.CONTEXT,
                     error_type=ErrorType.SCHEMA_MISMATCH,
                 )
@@ -516,6 +521,7 @@ class SaySoConversationEntity(
                     for area in ar.async_get(self.hass).async_list_areas()
                 },
                 _satellite_area_name(self.hass, turn.user_input),
+                vocab=turn.vocab,
             )
             turn.exposed_domains = frozenset(
                 state.domain
@@ -524,8 +530,8 @@ class SaySoConversationEntity(
                     self.hass, llm_context.assistant, state.entity_id
                 )
             )
-            span.metadata["domain_hint"] = domain_hint
-            span.metadata["tools"] = (
+            span.metadata["sayso.domain_hint"] = domain_hint
+            span.metadata["sayso.tools"] = (
                 len(turn.active_schema.tools) if turn.active_schema is not None else 0
             )
 
@@ -567,7 +573,9 @@ class SaySoConversationEntity(
             validated: list[tuple[ToolCall, dict[str, Any]]],
         ) -> ExecutionResult:
             action_span = trace.open(
-                Stage.HA_ACTION, **action_metadata(validated, tool_map)
+                Stage.HA_ACTION,
+                **{"gen_ai.operation.name": "execute_tool"},
+                **action_metadata(validated, tool_map),
             )
             batch_failed, ha_error, ha_error_text = await turn.execute(
                 validated, tool_map, action_span
@@ -612,6 +620,8 @@ class SaySoConversationEntity(
                 read_only=frozenset(
                     name for name, tool in tool_map.items() if _is_read_only(name, tool)
                 ),
+                language=turn.user_input.language,
+                speech=turn.speech,
             ),
             complete=complete,
             validate=validate,
@@ -632,12 +642,17 @@ class SaySoConversationEntity(
         kind = failure.kind
         phase = BoundaryPhase(failure.phase.value)
         if kind in (FailureKind.TIMEOUT, FailureKind.MODEL_FAILED):
+            error = failure.error
+            if error is None:
+                raise TypeError("model failure without an error")
             return turn.model_failure(
-                failure.error, phase, log_label=_MODEL_LOG_LABELS[failure.phase]
+                error,
+                phase,
+                log_label=_MODEL_LOG_LABELS[failure.phase],
             )
         if kind is FailureKind.EMPTY_RESPONSE:
             return turn.error(
-                ERROR_EMPTY_RESPONSE,
+                turn.speech.empty_response,
                 stage=(
                     Stage.INFERENCE
                     if failure.phase is Phase.INITIAL
@@ -647,13 +662,13 @@ class SaySoConversationEntity(
             )
         if kind is FailureKind.EMPTY_CORRECTION:
             return turn.error(
-                ERROR_NOT_UNDERSTOOD,
+                turn.speech.not_understood,
                 stage=Stage.TOOL_PARSE,
                 error_type=ErrorType.INVALID_MODEL_OUTPUT,
             )
         if kind is FailureKind.NO_TOOL_API:
             return turn.error(
-                ERROR_NOT_UNDERSTOOD,
+                turn.speech.not_understood,
                 stage=Stage.TOOL_PARSE,
                 error_type=ErrorType.UNAVAILABLE_TOOL,
             )
@@ -669,20 +684,22 @@ class SaySoConversationEntity(
                     failure.ha_error,
                     failure.ha_error_text,
                     turn.user_input.text,
+                    speech=turn.speech,
+                    vocab=turn.vocab,
                 ),
             )
         if kind is FailureKind.ITERATION_LIMIT:
             return turn.boundary_failure(
                 BoundaryFailureCode.ITERATION_LIMIT,
                 phase,
-                speech=ERROR_TOOL_ITERATION_LIMIT,
+                speech=turn.speech.tool_iteration_limit,
             )
         return turn.boundary_failure(_BOUNDARY_CODES[kind], phase)
 
 
 def _turn_grammar(
     runtime: SaySoRuntimeData,
-    tools: tuple[dict[str, Any], ...] | list[dict[str, Any]] | None,
+    tools: Sequence[dict[str, Any]] | None,
     metadata: dict[str, Any],
 ) -> str | None:
     if not tools or not getattr(runtime, "grammar_decoding", False):
@@ -695,10 +712,10 @@ def _turn_grammar(
         _LOGGER.exception("Grammar build failed; sending without a grammar")
         reason = "builder_error"
     else:
-        metadata["grammar"] = "on"
+        metadata["sayso.grammar"] = "on"
         return grammar
-    metadata["grammar"] = "skipped"
-    metadata["grammar_skip_reason"] = reason
+    metadata["sayso.grammar"] = "skipped"
+    metadata["sayso.grammar_skip_reason"] = reason
     return None
 
 
@@ -726,6 +743,20 @@ def area_id_for(
     return None
 
 
+async def _turn_speech(hass: HomeAssistant, language: str) -> Speech:
+    strings = await translation.async_get_translations(
+        hass, language_code(language), "speech", [DOMAIN]
+    )
+    prefix = f"component.{DOMAIN}.speech."
+    known = {field.name for field in fields(Speech)}
+    overrides = {
+        key.removeprefix(prefix): value
+        for key, value in strings.items()
+        if key.startswith(prefix) and key.removeprefix(prefix) in known
+    }
+    return replace(SPEECH_EN, **overrides)
+
+
 def execution_failure_speech(
     hass: HomeAssistant,
     assistant_id: str | None,
@@ -733,9 +764,12 @@ def execution_failure_speech(
     ha_error: str | None,
     ha_error_text: str | None = None,
     user_text: str = "",
+    *,
+    speech: Speech = SPEECH_EN,
+    vocab: Vocabulary = VOCAB_EN,
 ) -> str:
     if len(validated) != 1:
-        return ERROR_ACTION_FAILED
+        return speech.action_failed
     call, args = validated[0]
     tool_name = call.name.rsplit("__", 1)[-1]
     name = args.get("name")
@@ -754,16 +788,16 @@ def execution_failure_speech(
         }
         and not name
     ):
-        return ERROR_NO_TIMERS
+        return speech.no_timers
     if ha_error != HA_MATCH_FAILED_ERROR:
-        return ERROR_ACTION_FAILED
+        return speech.action_failed
     error_text = ha_error_text or ""
     if "MatchFailedReason.NAME" in error_text or error_text.startswith(
         "No entities matched the name"
     ):
         if isinstance(name, str) and name and name.casefold() in user_text.casefold():
-            return ERROR_NAME_NOT_FOUND.format(name=name)
-        return ERROR_NOT_UNDERSTOOD
+            return speech.name_not_found.format(name=name)
+        return speech.not_understood
     domain = args.get("domain")
     if isinstance(domain, list):
         domain = domain[0] if len(domain) == 1 else None
@@ -772,10 +806,10 @@ def execution_failure_speech(
     ):
         if isinstance(name, str) and name:
             if tool_name == "HassMediaPause":
-                return ERROR_MEDIA_NOT_PLAYING.format(name=name)
+                return speech.media_not_playing.format(name=name)
             if tool_name == "HassMediaUnpause":
-                return ERROR_MEDIA_NOT_PAUSED.format(name=name)
-        return ERROR_ACTION_FAILED
+                return speech.media_not_paused.format(name=name)
+        return speech.action_failed
     area_name = args.get("area")
     if (
         args.get("name")
@@ -785,19 +819,19 @@ def execution_failure_speech(
         or not area_name
         or assistant_id is None
     ):
-        return ERROR_ACTION_FAILED
+        return speech.action_failed
     area = ar.async_get(hass).async_get_area_by_name(area_name)
     if area is None:
-        return ERROR_ACTION_FAILED
+        return speech.action_failed
     if any(
         area_id_for(hass, state.entity_id) == area.id
         and async_should_expose(hass, assistant_id, state.entity_id)
         for state in hass.states.async_all(domain)
     ):
-        return ERROR_ACTION_FAILED
-    return ERROR_AREA_HAS_NO_DOMAIN.format(
+        return speech.action_failed
+    return speech.area_has_no_domain.format(
         area=area.name.lower(),
-        domains=DOMAIN_PLURALS.get(domain, f"{domain.replace('_', ' ')}s"),
+        domains=vocab.domain_plurals.get(domain, f"{domain.replace('_', ' ')}s"),
     )
 
 

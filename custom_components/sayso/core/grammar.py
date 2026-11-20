@@ -28,14 +28,12 @@ _BARE_BLOCK = 'block ::= ws "[" ws call-list ws "]" ws'
 
 
 class GrammarUnsupported(Exception):
-
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
         self.reason = reason
 
 
 class _Rules:
-
     def __init__(self) -> None:
         self.lines: list[str] = []
 
@@ -82,7 +80,7 @@ class _Rules:
         for value in values:
             if not isinstance(value, str) or not _ENUM_VALUE.fullmatch(value):
                 raise GrammarUnsupported("enum_value")
-            literals.append('"\'' + value + '\'"')
+            literals.append("\"'" + value + "'\"")
         return "(" + " | ".join(literals) + ")"
 
     def _array(self, node: dict[str, Any]) -> str:
@@ -92,9 +90,7 @@ class _Rules:
         index = len(self.lines)
         self.lines.append("")
         item = self.value(items)
-        self.lines[index] = (
-            f'arr-{index} ::= "[" ws ( {item} ("," ws {item})* )? "]"'
-        )
+        self.lines[index] = f'arr-{index} ::= "[" ws ( {item} ("," ws {item})* )? "]"'
         return f"arr-{index}"
 
 
@@ -148,7 +144,7 @@ def _compile(tools: Sequence[dict[str, Any]], *, markers: bool) -> str:
     head = [
         "root ::= block | text",
         _MARKER_BLOCK if markers else _BARE_BLOCK,
-        "call-list ::= call (ws \",\" ws call)*",
+        'call-list ::= call (ws "," ws call)*',
         "call ::= " + " | ".join(call_names),
     ]
     return "\n".join(head + _SHARED_RULES + rules.lines) + "\n"

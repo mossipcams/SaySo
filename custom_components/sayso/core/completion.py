@@ -1,11 +1,10 @@
-
 from __future__ import annotations
 
 import hashlib
 import json
 import re
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -15,9 +14,9 @@ from .lfm_parse import LfmPythonParseError, parse_lfm_python_tool_calls
 
 GRAMMAR_BACKEND_REJECTED = "backend_rejected"
 
+
 @dataclass(frozen=True, slots=True)
 class ToolCall:
-
     id: str
     name: str
     arguments: dict[str, Any]
@@ -25,7 +24,6 @@ class ToolCall:
 
 @dataclass(frozen=True, slots=True)
 class ChatCompletionResult:
-
     content: str | None
     tool_calls: list[ToolCall]
     request_payload: dict[str, Any] | None = None
@@ -81,7 +79,9 @@ def parse_tool_calls(
 
 
 def _decode_arguments(raw: Any, subject: str) -> dict[str, Any]:
-    invalid = SaySoInvalidToolCallsError(f"{subject} returned invalid tool call arguments")
+    invalid = SaySoInvalidToolCallsError(
+        f"{subject} returned invalid tool call arguments"
+    )
     if isinstance(raw, str):
         try:
             raw = json.loads(raw)
@@ -131,7 +131,7 @@ def cache_trace_of(raw: dict[str, Any]) -> tuple[str | None, int | None]:
 
 
 def prefix_hash(
-    messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None
+    messages: list[dict[str, Any]], tools: Sequence[dict[str, Any]] | None
 ) -> str:
     system = ""
     if messages and messages[0].get("role") == "system":

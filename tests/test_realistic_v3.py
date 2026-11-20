@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -28,7 +27,9 @@ PROMOTION = select_cases(suite="promotion")
 REVIEWED = [case for case in PROMOTION if "generated" not in case.tags]
 GENERATED_IDS = [
     json.loads(line)["id"]
-    for line in (CASES_DIR / "realistic_generated.jsonl").read_text(encoding="utf-8").splitlines()
+    for line in (CASES_DIR / "realistic_generated.jsonl")
+    .read_text(encoding="utf-8")
+    .splitlines()
     if line.strip()
 ]
 
@@ -39,15 +40,14 @@ def _short_id(case_id: str) -> str:
     return case_id.removeprefix("realistic_eval_20260908_")
 
 
-CASES = {
-    _short_id(case.id): case
-    for case in REVIEWED
-}
+CASES = {_short_id(case.id): case for case in REVIEWED}
 GATES = load_gates("promotion")
 V2_ARCHIVE = ARCHIVE_DIR / "realistic_eval_20260908_v2.json"
 
 
-def _body(content: str | None = None, tool_calls: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def _body(
+    content: str | None = None, tool_calls: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
     message: dict[str, Any] = {"role": "assistant", "content": content}
     if tool_calls is not None:
         message["tool_calls"] = tool_calls
@@ -57,7 +57,10 @@ def _body(content: str | None = None, tool_calls: list[dict[str, Any]] | None = 
 def _python_calls(calls: list[dict[str, Any]]) -> str:
     return "[{}]".format(
         ", ".join(
-            "{}({})".format(call["name"], ", ".join(f"{k}={v!r}" for k, v in call["arguments"].items()))
+            "{}({})".format(
+                call["name"],
+                ", ".join(f"{k}={v!r}" for k, v in call["arguments"].items()),
+            )
             for call in calls
         )
     )
@@ -95,7 +98,9 @@ def test_promotion_keeps_78_reviewed_cases_with_exact_composition() -> None:
 
 
 def test_promotion_is_reviewed_plus_generated_with_exact_composition() -> None:
-    assert [case.id for case in PROMOTION] == [case.id for case in REVIEWED] + GENERATED_IDS
+    assert [case.id for case in PROMOTION] == [
+        case.id for case in REVIEWED
+    ] + GENERATED_IDS
     assert len(PROMOTION) == 530
     assert dict(Counter(case.category for case in PROMOTION)) == {
         "ordinary": 130,
@@ -155,19 +160,38 @@ def test_compiling_tool_source_matches_compiling_live_ha_tools() -> None:
             "intent",
             _Tool(
                 "HassTurnOn",
-                vol.Schema({vol.Optional("name"): str, vol.Optional("domain"): [str], vol.Optional("area"): str}),
+                vol.Schema(
+                    {
+                        vol.Optional("name"): str,
+                        vol.Optional("domain"): [str],
+                        vol.Optional("area"): str,
+                    }
+                ),
                 "Turns on a device",
             ),
         ),
         llm.NamespacedTool(
             "light",
-            _Tool("HassLightSet", vol.Schema({vol.Optional("brightness"): vol.All(int, vol.Range(0, 100))}), "Sets a light"),
+            _Tool(
+                "HassLightSet",
+                vol.Schema(
+                    {vol.Optional("brightness"): vol.All(int, vol.Range(0, 100))}
+                ),
+                "Sets a light",
+            ),
         ),
     ]
     live = compile_tools(tools, custom_serializer=llm.selector_serializer)
-    from_source = compile_source_tools(json.loads(emit_tools_source_json(tools, custom_serializer=llm.selector_serializer)))
+    from_source = compile_source_tools(
+        json.loads(
+            emit_tools_source_json(tools, custom_serializer=llm.selector_serializer)
+        )
+    )
     assert json.dumps(live) == json.dumps(from_source.tools)
-    assert [tool["function"]["name"] for tool in live] == ["intent__HassTurnOn", "light__HassLightSet"]
+    assert [tool["function"]["name"] for tool in live] == [
+        "intent__HassTurnOn",
+        "light__HassLightSet",
+    ]
 
 
 def test_catalog_is_realistic_not_answer_conditioned() -> None:
@@ -191,7 +215,9 @@ def test_unavailable_cases_remove_only_the_recorded_capability() -> None:
         normal = production_catalog(load_home(case.household))
         offered = render_case(case)["tools"]
         removed = set(case.unavailable["removed_tools"])
-        assert [t for t in normal if t["function"]["name"] not in removed] == offered, short_id
+        assert [t for t in normal if t["function"]["name"] not in removed] == offered, (
+            short_id
+        )
 
 
 def test_every_expected_call_is_valid_under_the_production_contract() -> None:
@@ -199,7 +225,9 @@ def test_every_expected_call_is_valid_under_the_production_contract() -> None:
         rendered = render_case(case)
         calls = case.expected["calls"]
         assert not tool_contract.check_tool_calls(
-            [(c["name"], c["arguments"]) for c in calls], rendered["tools"], rendered["exposed_domains"]
+            [(c["name"], c["arguments"]) for c in calls],
+            rendered["tools"],
+            rendered["exposed_domains"],
         ), case.id
 
 
@@ -216,6 +244,8 @@ def test_a_perfect_run_passes_every_case_and_every_gate() -> None:
         by_prompt[json.dumps(sent)] = case
 
     def ask(messages, tools):
+        if messages[-1]["role"] == "tool":
+            return _body("Done.")
         case = by_prompt[json.dumps(messages)]
         expected = case.expected
         if expected["calls"]:
@@ -232,7 +262,9 @@ def test_a_perfect_run_passes_every_case_and_every_gate() -> None:
 
 
 def test_malformed_output_fails_instead_of_becoming_zero_calls() -> None:
-    result = _run("ambiguity_01", _body("[intent__HassTurnOn(name='Living Room Floor Lamp'"))
+    result = _run(
+        "ambiguity_01", _body("[intent__HassTurnOn(name='Living Room Floor Lamp'")
+    )
     assert result.outcome == Outcome.MALFORMED_OUTPUT
     assert result.turn.calls == []
     assert not result.passed
@@ -259,7 +291,9 @@ def test_a_refusal_does_not_pass_an_ambiguity_case() -> None:
 def test_a_clarification_passes_an_ambiguity_case() -> None:
     result = _run(
         "ambiguity_01",
-        _body("Which reading light do you mean, Living Room Floor Lamp or Living Room Table Lamp?"),
+        _body(
+            "Which reading light do you mean, Living Room Floor Lamp or Living Room Table Lamp?"
+        ),
     )
     assert result.outcome == Outcome.VALID_CLARIFICATION
     assert result.passed
@@ -269,22 +303,37 @@ def test_a_clarification_does_not_pass_an_unavailable_case() -> None:
     result = _run("unavailable_03", _body("Which light did you mean?"))
     assert result.outcome == Outcome.WRONG_RESPONSE_TYPE
     assert not result.passed
-    assert _run("unavailable_03", _body("I can't set brightness with the available tools.")).passed
+    assert _run(
+        "unavailable_03", _body("I can't set brightness with the available tools.")
+    ).passed
 
 
 def test_a_tool_call_on_an_unavailable_case_fails_its_gate() -> None:
-    result = _run("unavailable_03", _body(_python_calls([{"name": "intent__HassTurnOn", "arguments": {"name": "Garage Heater"}}])))
+    result = _run(
+        "unavailable_03",
+        _body(
+            _python_calls(
+                [{"name": "intent__HassTurnOn", "arguments": {"name": "Garage Heater"}}]
+            )
+        ),
+    )
     assert not result.passed
     assert "tool_call_on_unavailable" in result.flags
     assert check_gates(summarize([result]), GATES, expected_count=1)
 
 
 def test_an_action_on_an_ambiguity_case_fails_its_gate() -> None:
-    call = {"name": "intent__HassTurnOn", "arguments": {"name": "Living Room Floor Lamp", "domain": ["light"]}}
+    call = {
+        "name": "intent__HassTurnOn",
+        "arguments": {"name": "Living Room Floor Lamp", "domain": ["light"]},
+    }
     result = _run("ambiguity_01", _body(_python_calls([call])))
     assert result.outcome == Outcome.UNEXPECTED_TOOL_CALL
     assert "action_on_ambiguity" in result.flags
-    assert any("action_on_ambiguity" in failure for failure in check_gates(summarize([result]), GATES, expected_count=1))
+    assert any(
+        "action_on_ambiguity" in failure
+        for failure in check_gates(summarize([result]), GATES, expected_count=1)
+    )
 
 
 def test_duplicate_names_across_areas_require_clarification() -> None:
@@ -293,7 +342,10 @@ def test_duplicate_names_across_areas_require_clarification() -> None:
     assert len(candidates) >= 2
     by_name = {e["name"]: e for e in household["entities"]}
     assert all("bedside lamp" in by_name[name]["aliases"] for name in candidates)
-    call = {"name": "intent__HassTurnOff", "arguments": {"name": candidates[0], "domain": ["light"]}}
+    call = {
+        "name": "intent__HassTurnOff",
+        "arguments": {"name": candidates[0], "domain": ["light"]},
+    }
     assert not _run("ambiguity_02", _body(_python_calls([call]))).passed
 
 
@@ -312,24 +364,54 @@ def test_partial_multi_action_output_fails() -> None:
     result = _run("multi_action_01", _body(_python_calls(expected[:1])))
     assert result.outcome == Outcome.MISSING_TOOL_CALL
     assert not result.passed
-    assert _run("multi_action_01", _body(_python_calls(list(reversed(expected))))).outcome == (
-        Outcome.VALID_MULTI_TOOL_CALL
-    )
+    assert _run(
+        "multi_action_01", _body(_python_calls(list(reversed(expected))))
+    ).outcome == (Outcome.VALID_MULTI_TOOL_CALL)
 
 
 def test_bare_legacy_tool_names_fail() -> None:
-    bare = [{"name": "HassTurnOn", "arguments": {"domain": ["light"], "name": "Kitchen Counter Lights"}}]
+    bare = [
+        {
+            "name": "HassTurnOn",
+            "arguments": {"domain": ["light"], "name": "Kitchen Counter Lights"},
+        }
+    ]
     result = _run("ordinary_01", _body(_python_calls(bare)))
     assert result.outcome == Outcome.UNKNOWN_TOOL
     assert not result.passed
-    structured = _body(tool_calls=[{"id": "c1", "type": "function", "function": {"name": "HassTurnOn", "arguments": json.dumps(bare[0]["arguments"])}}])
+    structured = _body(
+        tool_calls=[
+            {
+                "id": "c1",
+                "type": "function",
+                "function": {
+                    "name": "HassTurnOn",
+                    "arguments": json.dumps(bare[0]["arguments"]),
+                },
+            }
+        ]
+    )
     assert _run("ordinary_01", structured).outcome == Outcome.UNKNOWN_TOOL
 
 
 def test_an_invalid_domain_is_invalid_arguments() -> None:
-    call = {"name": "intent__HassTurnOn", "arguments": {"domain": ["lights"], "name": "Kitchen Counter Lights"}}
-    assert _run("ordinary_01", _body(_python_calls([call]))).outcome == Outcome.INVALID_ARGUMENTS
-    missing_name = _body(tool_calls=[{"id": "c1", "type": "function", "function": {"name": "", "arguments": "{}"}}])
+    call = {
+        "name": "intent__HassTurnOn",
+        "arguments": {"domain": ["lights"], "name": "Kitchen Counter Lights"},
+    }
+    assert (
+        _run("ordinary_01", _body(_python_calls([call]))).outcome
+        == Outcome.INVALID_ARGUMENTS
+    )
+    missing_name = _body(
+        tool_calls=[
+            {
+                "id": "c1",
+                "type": "function",
+                "function": {"name": "", "arguments": "{}"},
+            }
+        ]
+    )
     assert _run("ordinary_01", missing_name).outcome == Outcome.MALFORMED_OUTPUT
 
 
@@ -340,11 +422,16 @@ def test_explicit_area_overrides_the_satellite_area() -> None:
         "target_area": "Living Room",
         "target_area_source": "explicit",
     }
-    satellite_area = {"name": "vacuum__HassVacuumCleanArea", "arguments": {"area": "Bedroom", "name": "Roomba"}}
+    satellite_area = {
+        "name": "vacuum__HassVacuumCleanArea",
+        "arguments": {"area": "Bedroom", "name": "Roomba"},
+    }
     result = _run("routines_vacuum_08", _body(_python_calls([satellite_area])))
     assert not result.passed
     assert "wrong_target_area" in result.flags
-    assert _run("routines_vacuum_08", _body(_python_calls(case.expected["calls"]))).passed
+    assert _run(
+        "routines_vacuum_08", _body(_python_calls(case.expected["calls"]))
+    ).passed
 
 
 def test_an_implicit_area_request_resolves_to_the_satellite_area() -> None:
@@ -372,7 +459,9 @@ def test_an_implicit_area_request_resolves_to_the_satellite_area() -> None:
         ("", False, False),
     ],
 )
-def test_response_classification_is_narrow(text: str, clarification: bool, refusal: bool) -> None:
+def test_response_classification_is_narrow(
+    text: str, clarification: bool, refusal: bool
+) -> None:
     assert is_clarification(text) is clarification
     assert is_refusal(text) is refusal
 

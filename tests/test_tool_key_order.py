@@ -1,9 +1,3 @@
-"""The inlined tool list must match the bytes the model trained on.
-
-ajax-optimization sayso-training/training/adapters/test_lfm.py asserts the same
-COMPILED_TOOL -> TRAINED_TOOL_TEXT pair for the training render.
-"""
-
 from __future__ import annotations
 
 from custom_components.sayso.core.area_context import tools_before_area_messages

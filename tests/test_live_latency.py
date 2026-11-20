@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import asyncio
@@ -11,7 +10,10 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 import pytest
 
-from custom_components.sayso.client import LlamaCppClient, build_chat_completions_payload
+from custom_components.sayso.client import (
+    LlamaCppClient,
+    build_chat_completions_payload,
+)
 
 
 def _percentile(sorted_values: list[float], fraction: float) -> float:
@@ -69,7 +71,9 @@ async def measure_live_latency_once(
     ttft_ms = await client.probe_ttft_ms(payload)
     started = time.perf_counter()
     await execute_completion()
-    return LiveLatencySample(ttft_ms=ttft_ms, end_to_end_ms=(time.perf_counter() - started) * 1000.0)
+    return LiveLatencySample(
+        ttft_ms=ttft_ms, end_to_end_ms=(time.perf_counter() - started) * 1000.0
+    )
 
 
 async def run_live_latency_benchmark(
@@ -88,11 +92,15 @@ async def run_live_latency_benchmark(
 
     completion_runner = execute_completion or _default_execute_completion
     for _ in range(settings.warmups):
-        await measure_live_latency_once(client, payload, execute_completion=completion_runner)
+        await measure_live_latency_once(
+            client, payload, execute_completion=completion_runner
+        )
     ttft_samples_ms: list[float] = []
     end_to_end_samples_ms: list[float] = []
     for _ in range(settings.repetitions):
-        sample = await measure_live_latency_once(client, payload, execute_completion=completion_runner)
+        sample = await measure_live_latency_once(
+            client, payload, execute_completion=completion_runner
+        )
         ttft_samples_ms.append(sample.ttft_ms)
         end_to_end_samples_ms.append(sample.end_to_end_ms)
     return build_live_latency_report(
@@ -170,7 +178,12 @@ def _configure_routing_post(
             await asyncio.sleep(completion_delay_s)
             return {
                 "choices": [
-                    {"message": {"role": "assistant", "content": "The living room light is on."}}
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "The living room light is on.",
+                        }
+                    }
                 ]
             }
 
@@ -188,7 +201,9 @@ async def test_probe_ttft_starts_before_post_and_ends_on_first_token(
     mock_session: aiohttp.ClientSession,
 ) -> None:
     token_delay_s = 0.05
-    post_started_at, stream = _configure_stream_post(mock_session, token_delay_s=token_delay_s)
+    post_started_at, stream = _configure_stream_post(
+        mock_session, token_delay_s=token_delay_s
+    )
     payload = build_chat_completions_payload(
         [{"role": "user", "content": "turn on the living room light"}],
         model="test-model",
@@ -228,7 +243,9 @@ async def test_measure_live_latency_once_ends_after_final_ha_result(
         await asyncio.sleep(ha_delay_s)
         return "ha-complete"
 
-    sample = await measure_live_latency_once(client, payload, execute_completion=execute_completion)
+    sample = await measure_live_latency_once(
+        client, payload, execute_completion=execute_completion
+    )
     min_e2e_ms = (completion_delay_s + ha_delay_s) * 1000.0
     assert sample.end_to_end_ms >= min_e2e_ms * 0.8
     assert sample.end_to_end_ms > sample.ttft_ms

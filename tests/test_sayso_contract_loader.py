@@ -6,7 +6,9 @@ from pathlib import Path
 
 import sayso_contract
 
-SAYSO_DIR = (Path(__file__).resolve().parents[1] / "custom_components" / "sayso").resolve()
+SAYSO_DIR = (
+    Path(__file__).resolve().parents[1] / "custom_components" / "sayso"
+).resolve()
 
 
 def _inside_sayso(path: str | None) -> bool:

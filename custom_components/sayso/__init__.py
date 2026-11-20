@@ -81,6 +81,7 @@ from .repairs import (
     async_clear_issues,
     async_raise_issue,
 )
+from .trace_export import build_trace_exporter
 from .trace_store import TraceRecorder, TraceStore
 
 if TYPE_CHECKING:
@@ -179,7 +180,8 @@ def _async_register_trace_services(hass: HomeAssistant) -> None:
                 )
             )
         traces.sort(key=lambda summary: summary.get("started_at") or "", reverse=True)
-        return {"traces": traces[:limit]}
+        response: dict[str, Any] = {"traces": traces[:limit]}
+        return response
 
     hass.services.async_register(
         DOMAIN,
@@ -395,6 +397,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
         store_utterances=bool(
             options.get(CONF_TRACE_STORE_UTTERANCES, DEFAULT_TRACE_STORE_UTTERANCES)
         ),
+        exporter=build_trace_exporter(hass, options),
     )
     await traces.async_load()
     traces.async_prune()
@@ -430,11 +433,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bool:
-    if PLATFORMS:
-        if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-            return False
-    if entry.runtime_data is not None:
-        entry.runtime_data.tracer.async_shutdown()
-        await entry.runtime_data.engine.async_shutdown()
-    entry.runtime_data = None
+    if PLATFORMS and not await hass.config_entries.async_unload_platforms(
+        entry, PLATFORMS
+    ):
+        return False
+    runtime = getattr(entry, "runtime_data", None)
+    if runtime is not None:
+        runtime.tracer.async_shutdown()
+        await runtime.engine.async_shutdown()
     return True

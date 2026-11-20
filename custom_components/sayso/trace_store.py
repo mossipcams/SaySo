@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -18,6 +17,7 @@ from .const import (
     DEFAULT_TRACE_STORE_UTTERANCES,
     DOMAIN,
 )
+from .trace_export import TraceExporter
 from .tracing import (
     ErrorType,
     Stage,
@@ -37,7 +37,6 @@ PIPELINE_FINALIZE_TIMEOUT = 120
 
 
 class TraceStore:
-
     def __init__(
         self,
         hass: HomeAssistant,
@@ -45,10 +44,12 @@ class TraceStore:
         retention_days: int = DEFAULT_TRACE_RETENTION_DAYS,
         max_interactions: int = DEFAULT_TRACE_MAX_INTERACTIONS,
         store_utterances: bool = DEFAULT_TRACE_STORE_UTTERANCES,
+        exporter: TraceExporter | None = None,
     ) -> None:
         self.hass = hass
         self.retention_days = retention_days
         self.store_utterances = store_utterances
+        self._exporter = exporter
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, STORAGE_KEY, private=True
         )
@@ -88,10 +89,11 @@ class TraceStore:
             summary = trace.summary()
             if not self.store_utterances:
                 summary["utterance"] = None
-            self._records.append(
-                {"summary": summary, "events": trace.stage_records()}
-            )
+            record = {"summary": summary, "events": trace.stage_records()}
+            self._records.append(record)
             self._store.async_delay_save(self._data_to_save, SAVE_DELAY)
+            if self._exporter is not None:
+                self._exporter.async_export(record)
         except Exception:
             _LOGGER.warning(
                 "SaySo could not record trace_id=%s", trace.trace_id, exc_info=True
@@ -103,15 +105,13 @@ class TraceStore:
         kept = [
             record
             for record in self._records
-            if _started_at(record) is None or _started_at(record) >= cutoff
+            if (started_at := _started_at(record)) is None or started_at >= cutoff
         ]
         if len(kept) != len(self._records):
             self._records = deque(kept, maxlen=self._records.maxlen)
         return {
             "interactions": [record["summary"] for record in self._records],
-            "events": [
-                event for record in self._records for event in record["events"]
-            ],
+            "events": [event for record in self._records for event in record["events"]],
         }
 
     @callback
@@ -170,7 +170,6 @@ def _started_at(record: dict[str, Any]) -> datetime | None:
 
 
 class TraceRecorder:
-
     def __init__(self, hass: HomeAssistant, store: TraceStore) -> None:
         self.hass = hass
         self.store = store

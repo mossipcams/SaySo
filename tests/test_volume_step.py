@@ -20,7 +20,6 @@ from custom_components.sayso.volume_step import StepVolumeRelativeHandler
 
 
 class _FakePlayer(MediaPlayerEntity):
-
     _attr_has_entity_name = False
     _attr_state = STATE_PLAYING
 

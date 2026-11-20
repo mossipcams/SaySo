@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing import Any
@@ -13,7 +12,6 @@ from custom_components.sayso.schema import compile_parameters, compile_tool
 
 
 class _TurnOnTool(llm.Tool):
-
     name = "HassTurnOn"
     description = "Turns on/opens a device or entity"
 
@@ -38,7 +36,6 @@ class _TurnOnTool(llm.Tool):
 
 
 class _NoArgTool(llm.Tool):
-
     name = "GetDateTime"
     description = "Returns the current date and time"
 

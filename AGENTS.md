@@ -59,10 +59,11 @@ Defer if they threaten the voice path:
 
 ## Workflow
 
-- Always save an md plan before implementing. Write the plan to disk (e.g.
-  `docs/PLAN_<feature>.md` or a sibling scratch file in the repo) and review
-  it before any code changes — it must list scope, files to touch, and
-  verification steps before implementation begins.
+- Always save an md plan before implementing. Write the plan to
+  `docs/PLAN_<feature>.md` and review it before any code changes — it must
+  list scope, files to touch, and verification steps before implementation
+  begins. Delete the plan once its work ships, and record the decisions as an
+  ADR in `docs/adr/NNNN-slug.md`, in the same format as the existing ADRs.
 - Read `ARCHITECTURE.md` at the repo root before changing runtime wiring or
   assuming topology. It documents boundaries and the integration shape.
 - Offline eval cases and the single runner live in `evals/` (`evals/cases/`,

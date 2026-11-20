@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -51,7 +50,10 @@ def test_schema_fingerprint_matches_sha256_prefix_format() -> None:
 
 
 def test_schema_fingerprint_is_order_invariant() -> None:
-    canonical_tools = [_tool("AlphaTool"), _tool("BetaTool", description="Second tool.")]
+    canonical_tools = [
+        _tool("AlphaTool"),
+        _tool("BetaTool", description="Second tool."),
+    ]
     scrambled_tools = [
         _scrambled_tool("BetaTool"),
         _scrambled_tool("AlphaTool"),

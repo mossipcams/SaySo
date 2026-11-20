@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from collections import Counter
@@ -53,7 +52,16 @@ def test_shared_runner_scores_a_perfect_smoke_case() -> None:
     args = ", ".join(f"{key}={value!r}" for key, value in call["arguments"].items())
 
     def ask(messages, tools):
-        return {"choices": [{"message": {"role": "assistant", "content": f"[{call['name']}({args})]"}}]}
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": f"[{call['name']}({args})]",
+                    }
+                }
+            ]
+        }
 
     result = evaluate([case], InMemoryAdapter(ask))[0]
     assert result.passed

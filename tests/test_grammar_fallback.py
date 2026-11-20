@@ -20,7 +20,7 @@ from tests.test_config_flow import MODEL_ID
 from tests.test_conversation import _converse, _create_entry
 from tests.test_grammar_wiring import _inference_metadata, _set_grammar_option
 
-GRAMMAR = 'root ::= block | text\ntext ::= [^ \\t\\r\\n\\[<] [^<]*\n'
+GRAMMAR = "root ::= block | text\ntext ::= [^ \\t\\r\\n\\[<] [^<]*\n"
 MESSAGES = [{"role": "user", "content": "turn on the lamp"}]
 TOOLS = [
     {
@@ -69,7 +69,6 @@ async def _embedded(
 
 
 class TestEmbeddedFallback:
-
     async def test_rejected_grammar_completes_without_grammar(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -119,9 +118,7 @@ class TestEmbeddedFallback:
         seam = MagicMock(return_value="compiled-grammar")
 
         with pytest.raises(SaySoInvalidResponseError, match="boom"):
-            await _embedded(
-                monkeypatch, seam=seam, create=RuntimeError("boom")
-            )
+            await _embedded(monkeypatch, seam=seam, create=RuntimeError("boom"))
 
         assert seam.call_count == 1
 
@@ -140,7 +137,6 @@ class TestEmbeddedFallback:
 
 
 class _Response:
-
     def __init__(self, status: int = 200, body: dict[str, Any] | None = None) -> None:
         self.status = status
         self._body = body if body is not None else _completion("ok")
@@ -150,7 +146,6 @@ class _Response:
 
 
 class _Request:
-
     def __init__(self, response: _Response) -> None:
         self._response = response
 
@@ -172,7 +167,6 @@ def _sent_payloads(session: MagicMock) -> list[dict[str, Any]]:
 
 
 class TestExternalFallback:
-
     @pytest.mark.parametrize("status", [400, 404, 422])
     async def test_rejected_grammar_is_retried_once_without_grammar(
         self, status: int
@@ -200,7 +194,9 @@ class TestExternalFallback:
         assert session.post.call_count == 2
 
     @pytest.mark.parametrize("status", [401, 403])
-    async def test_auth_rejection_with_grammar_is_not_retried(self, status: int) -> None:
+    async def test_auth_rejection_with_grammar_is_not_retried(
+        self, status: int
+    ) -> None:
         session = _session(_Response(status), _Response(200))
         client = LlamaCppClient(session, "http://127.0.0.1:8080")
 
@@ -263,17 +259,21 @@ async def test_backend_rejection_is_traced_as_a_skipped_grammar(
         tool_calls=[],
         grammar_skip_reason=GRAMMAR_BACKEND_REJECTED,
     )
-    with patch.object(
-        LlamaCppClient, "list_models", new=AsyncMock(return_value=[MODEL_ID])
-    ), patch.object(
-        LlamaCppClient, "validate_model", new=AsyncMock(return_value=None)
-    ), patch.object(
-        LlamaCppClient, "chat_completion", new=AsyncMock(return_value=rejected)
+    with (
+        patch.object(
+            LlamaCppClient, "list_models", new=AsyncMock(return_value=[MODEL_ID])
+        ),
+        patch.object(
+            LlamaCppClient, "validate_model", new=AsyncMock(return_value=None)
+        ),
+        patch.object(
+            LlamaCppClient, "chat_completion", new=AsyncMock(return_value=rejected)
+        ),
     ):
         entry = await _create_entry(hass)
         await _set_grammar_option(hass, entry, True)
         await _converse(hass, entry, "What time is it?")
 
     metadata = _inference_metadata(entry)
-    assert metadata["grammar"] == "skipped"
-    assert metadata["grammar_skip_reason"] == GRAMMAR_BACKEND_REJECTED
+    assert metadata["sayso.grammar"] == "skipped"
+    assert metadata["sayso.grammar_skip_reason"] == GRAMMAR_BACKEND_REJECTED

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -34,7 +33,9 @@ def _sample_tool(name: str) -> dict[str, Any]:
     }
 
 
-def _sample_payload(*, commit: str = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef") -> dict[str, Any]:
+def _sample_payload(
+    *, commit: str = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+) -> dict[str, Any]:
     tools = [_sample_tool("AlphaTool"), _sample_tool("BetaTool")]
     return {
         "home_assistant_version": "2026.8.3",
@@ -44,7 +45,9 @@ def _sample_payload(*, commit: str = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
     }
 
 
-def _run_generator(*, payload_path: Path, output_path: Path) -> subprocess.CompletedProcess[str]:
+def _run_generator(
+    *, payload_path: Path, output_path: Path
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
             sys.executable,
@@ -104,8 +107,12 @@ def test_generator_refuses_to_overwrite_locked_artifact(tmp_path: Path) -> None:
     completed = _run_generator(payload_path=payload_path, output_path=locked_path)
 
     assert completed.returncode != 0
-    assert "refusing" in completed.stderr.lower() or "refusing" in completed.stdout.lower()
-    assert locked_path.read_text(encoding="utf-8") == '{"contract_version":"existing"}\n'
+    assert (
+        "refusing" in completed.stderr.lower() or "refusing" in completed.stdout.lower()
+    )
+    assert (
+        locked_path.read_text(encoding="utf-8") == '{"contract_version":"existing"}\n'
+    )
 
 
 def test_locked_artifact_fingerprint_matches_production() -> None:
@@ -118,7 +125,9 @@ def test_locked_artifact_regenerates_byte_identically(tmp_path: Path) -> None:
     payload = {
         "home_assistant_version": artifact["home_assistant_version"],
         "sayso_source_commit": artifact["sayso_source_commit"],
-        "home_assistant_llm_api_identifier": artifact["home_assistant_llm_api_identifier"],
+        "home_assistant_llm_api_identifier": artifact[
+            "home_assistant_llm_api_identifier"
+        ],
         "tools": artifact["tools"],
     }
     payload_path = tmp_path / "payload.json"

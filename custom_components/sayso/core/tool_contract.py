@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
@@ -31,7 +30,6 @@ READ_ONLY_FALLBACK = frozenset(
 
 @dataclass(frozen=True, slots=True)
 class ContractViolation:
-
     code: ViolationCode
     tool_name: str
     message: str
@@ -78,7 +76,9 @@ def check_tool_call(
     if not isinstance(name, str) or name not in tools:
         return ContractViolation("unknown_tool", label, f"tool {label} is not offered")
     if not isinstance(arguments, dict):
-        return ContractViolation("invalid_arguments", name, "arguments must be an object")
+        return ContractViolation(
+            "invalid_arguments", name, "arguments must be an object"
+        )
 
     parameters = tools[name].get("parameters") or {}
     properties = parameters.get("properties") or {}

@@ -33,7 +33,9 @@ def _tool(name: str, parameters: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _object(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
+def _object(
+    properties: dict[str, Any], required: list[str] | None = None
+) -> dict[str, Any]:
     return {
         "type": "object",
         "properties": properties,
@@ -42,7 +44,6 @@ def _object(properties: dict[str, Any], required: list[str] | None = None) -> di
 
 
 class _Gbnf:
-
     def __init__(self, expression: str) -> None:
         self.src = expression
         self.pos = 0
@@ -50,7 +51,7 @@ class _Gbnf:
     def parse(self) -> tuple[Any, ...]:
         node = self.alternatives()
         if self.pos != len(self.src):
-            raise ValueError(f"trailing GBNF at {self.pos}: {self.src[self.pos:]!r}")
+            raise ValueError(f"trailing GBNF at {self.pos}: {self.src[self.pos :]!r}")
         return node
 
     def peek(self) -> str:
@@ -76,7 +77,9 @@ class _Gbnf:
         while self.peek() in ("?", "*", "+"):
             marker = self.peek()
             self.pos += 1
-            node = {"?": ("opt", node), "*": ("star", node), "+": ("plus", node)}[marker]
+            node = {"?": ("opt", node), "*": ("star", node), "+": ("plus", node)}[
+                marker
+            ]
         return node
 
     def atom(self) -> tuple[Any, ...]:
@@ -185,7 +188,6 @@ def _rules_of(grammar: str) -> dict[str, tuple[Any, ...]]:
 
 
 class _Matcher:
-
     def __init__(self, rules: dict[str, tuple[Any, ...]], text: str) -> None:
         self.rules = rules
         self.text = text
@@ -270,7 +272,9 @@ def _render(value: Any) -> str:
     return "[" + ", ".join(_render(item) for item in value) + "]"
 
 
-def _sample_call(tool: dict[str, Any], *, reverse: bool = False) -> tuple[str, dict[str, Any]]:
+def _sample_call(
+    tool: dict[str, Any], *, reverse: bool = False
+) -> tuple[str, dict[str, Any]]:
     name = tool["function"]["name"]
     properties = tool["function"]["parameters"].get("properties", {})
     arguments = {key: _sample_value(node) for key, node in properties.items()}
@@ -296,7 +300,6 @@ GRAMMAR_CASES = [(key, markers) for key in FIXTURES for markers in (True, False)
 
 
 class TestBuildGrammarFixtures:
-
     @pytest.mark.parametrize(("key", "markers"), GRAMMAR_CASES)
     def test_builds_and_is_well_formed(self, key: str, markers: bool) -> None:
         grammar = build_grammar(_fixture_tools(key), markers=markers)
@@ -316,9 +319,9 @@ class TestBuildGrammarFixtures:
             text = _wrap(call, markers=markers)
 
             assert _accepts(grammar, text), text
-            assert parse_lfm_python_tool_calls(text.replace(MARKER_START, "").replace(MARKER_END, "")) == [
-                {"name": tool["function"]["name"], "arguments": arguments}
-            ]
+            assert parse_lfm_python_tool_calls(
+                text.replace(MARKER_START, "").replace(MARKER_END, "")
+            ) == [{"name": tool["function"]["name"], "arguments": arguments}]
             assert _extracted(text) == [(tool["function"]["name"], arguments)]
 
     @pytest.mark.parametrize(("key", "markers"), GRAMMAR_CASES)
@@ -368,7 +371,6 @@ class TestBuildGrammarFixtures:
 
 
 class TestRepresentableValues:
-
     def test_apostrophe_inside_string_is_representable(self) -> None:
         tools = [_tool("Say", _object({"message": {"type": "string"}}))]
         grammar = build_grammar(tools, markers=False)
@@ -379,7 +381,9 @@ class TestRepresentableValues:
         ]
 
     def test_string_closing_quote_before_comma_is_representable(self) -> None:
-        tools = [_tool("Say", _object({"a": {"type": "string"}, "b": {"type": "string"}}))]
+        tools = [
+            _tool("Say", _object({"a": {"type": "string"}, "b": {"type": "string"}}))
+        ]
         grammar = build_grammar(tools, markers=False)
 
         assert _accepts(grammar, "[Say(a='x', b='y')]")
@@ -434,7 +438,9 @@ class TestRepresentableValues:
         assert not _accepts(grammar, "[Step(volume_step='sideways')]")
 
     def test_object_level_required_any_of_is_ignored(self) -> None:
-        parameters = _object({"hours": {"type": "integer"}, "minutes": {"type": "integer"}})
+        parameters = _object(
+            {"hours": {"type": "integer"}, "minutes": {"type": "integer"}}
+        )
         parameters["anyOf"] = [{"required": ["hours"]}, {"required": ["minutes"]}]
         grammar = build_grammar([_tool("Timer", parameters)], markers=False)
 
@@ -442,7 +448,6 @@ class TestRepresentableValues:
 
 
 class TestNegativeCalls:
-
     @pytest.fixture
     def ha_bare(self) -> str:
         return build_grammar(_fixture_tools("ha"), markers=False)
@@ -462,7 +467,7 @@ class TestNegativeCalls:
             "[NoSuchTool(name='lamp')]",
             "[intent__HassTurnOn(bogus='lamp')]",
             "[intent__HassTurnOn(name='lamp')] [intent__HassTurnOff(name='fan')]",
-            "[intent__HassTurnOn({\"name\": \"lamp\"})]",
+            '[intent__HassTurnOn({"name": "lamp"})]',
             "[intent__HassTurnOn(name='lamp'),]",
             "[intent__HassTurnOn(name='lamp' )]",
         ],
@@ -504,7 +509,6 @@ class TestNegativeCalls:
 
 
 class TestTextBranch:
-
     @pytest.mark.parametrize("markers", [True, False])
     def test_plain_prose_is_accepted(self, markers: bool) -> None:
         grammar = build_grammar(_fixture_tools("sayso"), markers=markers)
@@ -529,7 +533,6 @@ class TestTextBranch:
 
 
 class TestUnsupportedSchemas:
-
     @pytest.mark.parametrize(
         ("parameters", "reason"),
         [
@@ -539,14 +542,26 @@ class TestUnsupportedSchemas:
             (_object({"level": {"description": "no type"}}), "missing_type"),
             (_object({"level": {"type": "object", "properties": {}}}), "nested_object"),
             (
-                _object({"level": {"anyOf": [{"type": "object", "properties": {}}, {"type": "string"}]}}),
+                _object(
+                    {
+                        "level": {
+                            "anyOf": [
+                                {"type": "object", "properties": {}},
+                                {"type": "string"},
+                            ]
+                        }
+                    }
+                ),
                 "nested_object",
             ),
             (_object({"level": {"type": "array"}}), "array_items"),
             (_object({"level": {"type": "string", "enum": ["it's"]}}), "enum_value"),
             (_object({"level": {"type": "string", "enum": ["a(b"]}}), "enum_value"),
             (_object({"level": {"type": "integer", "enum": [1, 2]}}), "enum_type"),
-            (_object({"level": {"anyOf": [{"type": "string"}], "type": "string"}}), "any_of"),
+            (
+                _object({"level": {"anyOf": [{"type": "string"}], "type": "string"}}),
+                "any_of",
+            ),
             (
                 {"type": "object", "properties": {}, "oneOf": [{"required": ["a"]}]},
                 "object_constraint",
@@ -570,7 +585,8 @@ class TestUnsupportedSchemas:
     def test_argument_name_must_be_identifier(self) -> None:
         with pytest.raises(GrammarUnsupported) as caught:
             build_grammar(
-                [_tool("Thing", _object({"bad-key": {"type": "string"}}))], markers=False
+                [_tool("Thing", _object({"bad-key": {"type": "string"}}))],
+                markers=False,
             )
 
         assert caught.value.reason == "argument_name"
@@ -583,7 +599,6 @@ class TestUnsupportedSchemas:
 
 
 class TestCache:
-
     def test_same_catalog_returns_same_object(self) -> None:
         tools = _fixture_tools("ha")
 

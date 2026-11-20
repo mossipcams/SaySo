@@ -27,6 +27,7 @@ test = [
     "pytest-homeassistant-custom-component>=0.13",
     "hypothesis>=6.0.0",
     "import-linter>=2.0",
+    "mypy==2.4.1",
     "PyTurboJPEG==1.8.3",
 ]
 
@@ -40,7 +41,36 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests", "evals/tests", "satellite/sayso"]
 pythonpath = ["."]
 
+[tool.mypy]
+python_version = "3.12"
+explicit_package_bases = true
+follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+module = "custom_components.sayso.core.*"
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_unused_ignores = true
+warn_return_any = true
+implicit_reexport = false
+strict_equality = true
+extra_checks = true
+
+[[tool.mypy.overrides]]
+module = ["llama_cpp", "probatio"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "voluptuous_openapi"
+follow_untyped_imports = true
+
 [tool.ruff]
+target-version = "py312"
 extend-exclude = [
     "satellite",
     "training",
@@ -48,18 +78,23 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E9", "F63", "F7", "F82"]
+select = ["E9", "F63", "F7", "F82", "B", "ASYNC", "UP", "SIM", "RUF"]
+ignore = ["RUF012"]
+
+[tool.ruff.lint.per-file-ignores]
+"custom_components/sayso/ducking.py" = ["ASYNC109"]
+"custom_components/sayso/core/history.py" = ["RUF001"]
+"evals/cases.py" = ["RUF001"]
+"evals/scorer.py" = ["RUF001"]
+"tests/test_history_question_gate.py" = ["RUF001"]
+"tests/test_realistic_v3.py" = ["RUF001"]
 
 [tool.ruff.format]
 exclude = [
-    "custom_components/**",
     "docs/**",
-    "evals/**",
     "satellite/**",
     "scripts/**",
-    "tests/**",
     "training/**",
-    "sayso_contract.py",
 ]
 
 [tool.importlinter]

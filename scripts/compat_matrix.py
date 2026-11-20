@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import argparse
@@ -39,7 +38,6 @@ COMPAT_TEST_CATEGORIES: Final[dict[str, str]] = {
 
 @dataclass(frozen=True, slots=True)
 class MatrixEntry:
-
     id: str
     label: str
     homeassistant: str
@@ -141,7 +139,9 @@ def install_component_requirements(entry: MatrixEntry, venv_dir: Path) -> None:
         run_command([str(pip), "install", *component_requirements])
 
 
-def pytest_command(venv_dir: Path, test_paths: Sequence[str] | None = None) -> list[str]:
+def pytest_command(
+    venv_dir: Path, test_paths: Sequence[str] | None = None
+) -> list[str]:
     paths = list(test_paths or COMPAT_TEST_PATHS)
     return [str(venv_dir / "bin" / "pytest"), *paths]
 

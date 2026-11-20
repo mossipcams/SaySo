@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any, Literal
 
 import voluptuous as vol
@@ -13,6 +13,7 @@ try:
 except ImportError:
     _to_openapi = None
 
+convert: Callable[..., Any] | None
 try:
     from voluptuous_openapi import UNSUPPORTED, convert
 except ImportError:
@@ -88,7 +89,9 @@ def _vol_in_allowed_values(validator: Any) -> frozenset[str] | None:
         container = validator.container
         if isinstance(container, dict):
             return frozenset(str(key) for key in container)
-        return frozenset(str(value) for value in container)
+        if isinstance(container, Iterable):
+            return frozenset(str(value) for value in container)
+        raise TypeError(f"vol.In container is not iterable: {container!r}")
 
     if isinstance(validator, vol.All):
         for sub_validator in validator.validators:
@@ -130,9 +133,7 @@ def _is_query_tool(tool: llm.Tool) -> bool:
         return True
     if class_name == "GetDateTimeTool" and module.endswith("llm.llm"):
         return True
-    if class_name == "TodoGetItemsTool" and module.endswith("todo.llm"):
-        return True
-    return False
+    return class_name == "TodoGetItemsTool" and module.endswith("todo.llm")
 
 
 def extract_tool_routing_metadata(tool: llm.Tool) -> ToolRoutingMetadata:
@@ -247,7 +248,6 @@ def compile_tools(
     return _cached_compile_tools(source_json)
 
 
-
 def build_tool_map(tools: list[llm.Tool]) -> dict[str, llm.Tool]:
     return {tool.name: tool for tool in tools}
 
@@ -339,7 +339,6 @@ def validate_tool_arguments(
     return normalized, None
 
 
-
 def compile_llm_tools(
     llm_api: llm.APIInstance | None,
 ) -> CompiledToolSchema | None:
@@ -350,5 +349,5 @@ def compile_llm_tools(
     tools = compile_tools(llm_api.tools, custom_serializer=serializer)
     return CompiledToolSchema(
         tools=tools,
-        fingerprint=schema_fingerprint(tools),
+        fingerprint=schema_fingerprint(list(tools)),
     )

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing import Any
@@ -41,8 +40,7 @@ def test_normalize_base_url_strips_trailing_slash() -> None:
 
 def test_normalize_base_url_deduplicates_v1() -> None:
     assert (
-        normalize_base_url("http://127.0.0.1:8080/v1/v1")
-        == "http://127.0.0.1:8080/v1"
+        normalize_base_url("http://127.0.0.1:8080/v1/v1") == "http://127.0.0.1:8080/v1"
     )
 
 
@@ -59,7 +57,9 @@ async def test_successful_text_response(
 ) -> None:
     configure_post(
         json_body={
-            "choices": [{"message": {"content": "The lamp is on.", "role": "assistant"}}]
+            "choices": [
+                {"message": {"content": "The lamp is on.", "role": "assistant"}}
+            ]
         }
     )
 
@@ -143,9 +143,7 @@ async def test_request_includes_bearer_and_payload(
     configure_post: Any,
 ) -> None:
     configure_post(
-        json_body={
-            "choices": [{"message": {"content": "Done.", "role": "assistant"}}]
-        }
+        json_body={"choices": [{"message": {"content": "Done.", "role": "assistant"}}]}
     )
     messages = [{"role": "user", "content": "Hello"}]
     tools = [{"type": "function", "function": {"name": "turn_on", "parameters": {}}}]
@@ -198,9 +196,7 @@ async def test_chat_completion_records_exact_payload_bytes_without_usage(
     configure_post: Any,
 ) -> None:
     configure_post(
-        json_body={
-            "choices": [{"message": {"content": "Done.", "role": "assistant"}}]
-        }
+        json_body={"choices": [{"message": {"content": "Done.", "role": "assistant"}}]}
     )
     messages = [{"role": "user", "content": "Hello"}]
     tools = [{"type": "function", "function": {"name": "turn_on", "parameters": {}}}]
@@ -230,9 +226,7 @@ async def test_no_api_key_omits_authorization_header(
 ) -> None:
     client = LlamaCppClient(mock_session, "http://127.0.0.1:8080/v1")
     configure_post(
-        json_body={
-            "choices": [{"message": {"content": "Done.", "role": "assistant"}}]
-        }
+        json_body={"choices": [{"message": {"content": "Done.", "role": "assistant"}}]}
     )
 
     await client.chat_completion([{"role": "user", "content": "Hello"}], model="m")
@@ -375,15 +369,14 @@ async def test_list_models_uses_http_get(
     context_manager.__aexit__ = AsyncMock(return_value=False)
     mock_session.get = MagicMock(return_value=context_manager)
 
-    client = LlamaCppClient(mock_session, "http://127.0.0.1:8080/v1", api_key="test-key")
+    client = LlamaCppClient(
+        mock_session, "http://127.0.0.1:8080/v1", api_key="test-key"
+    )
     models = await client.list_models()
 
     assert models == ["test-model"]
     mock_session.get.assert_called_once()
-    assert (
-        mock_session.get.call_args.args[0]
-        == "http://127.0.0.1:8080/v1/models"
-    )
+    assert mock_session.get.call_args.args[0] == "http://127.0.0.1:8080/v1/models"
 
 
 async def test_from_hass_uses_shared_session(hass: HomeAssistant) -> None:

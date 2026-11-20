@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing import Any
@@ -76,13 +75,11 @@ def test_satellite_entity_resolves_device_area(hass: HomeAssistant) -> None:
     device = MagicMock(area_id="area_office")
     area = MagicMock(id="area_office", floor_id="floor_main")
 
-    with patch(
-        "custom_components.sayso.routing.er.async_get"
-    ) as entity_registry_get, patch(
-        "custom_components.sayso.routing.dr.async_get"
-    ) as device_registry_get, patch(
-        "custom_components.sayso.routing.ar.async_get"
-    ) as area_registry_get:
+    with (
+        patch("custom_components.sayso.routing.er.async_get") as entity_registry_get,
+        patch("custom_components.sayso.routing.dr.async_get") as device_registry_get,
+        patch("custom_components.sayso.routing.ar.async_get") as area_registry_get,
+    ):
         entity_registry_get.return_value.async_get.return_value = satellite
         device_registry_get.return_value.async_get.return_value = device
         area_registry_get.return_value.async_get_area.return_value = area
@@ -97,7 +94,6 @@ def test_satellite_entity_resolves_device_area(hass: HomeAssistant) -> None:
 
 
 class TestIdentifyCommandDomain:
-
     def test_exact_entity_name_returns_domain_hint(self) -> None:
         catalog = _catalog(
             _entity("light.living_room", domain="light", name="Living Room"),
@@ -157,9 +153,7 @@ class TestIdentifyCommandDomain:
 
     def test_control_domain_wins_over_non_control_name_collision(self) -> None:
         catalog = _catalog(
-            _entity(
-                "media_player.living_room_tv", domain="media_player", name="TV"
-            ),
+            _entity("media_player.living_room_tv", domain="media_player", name="TV"),
             _entity("remote.living_room_tv", domain="remote", name="TV"),
         )
 
@@ -222,7 +216,6 @@ class TestIdentifyCommandDomain:
 
 
 class TestAreaAndFloorEvidence:
-
     def test_exact_area_narrows_when_all_exposed_entities_share_domain(self) -> None:
         catalog = _catalog(
             _entity(
@@ -523,7 +516,6 @@ class TestAreaAndFloorEvidence:
 
 
 class _RoutingTestLight(LightEntity):
-
     _attr_name = "Living Room"
     _attr_unique_id = "living_room"
     _attr_supported_color_modes = {ColorMode.ONOFF}
@@ -544,7 +536,6 @@ class _RoutingTestLight(LightEntity):
 
 
 class _RoutingTestFan(FanEntity):
-
     _attr_name = "Bedroom Fan"
     _attr_unique_id = "bedroom_fan"
 
@@ -571,7 +562,6 @@ class _RoutingTestFan(FanEntity):
 
 
 class _FakeDomainTool(llm.Tool):
-
     def __init__(
         self,
         *,
@@ -615,12 +605,12 @@ async def representative_ha_tools(hass: HomeAssistant) -> list[llm.Tool]:
 
 
 class TestSelectToolsForDomain:
-
     def test_confident_light_command_filters_incompatible_domain_tools(
         self,
         representative_ha_tools: list[llm.Tool],
     ) -> None:
-        source_tools = representative_ha_tools + [
+        source_tools = [
+            *representative_ha_tools,
             _FakeDomainTool(
                 name="light_misleading",
                 domain_validator=vol.All(cv.ensure_list, [cv.string]),
@@ -670,7 +660,8 @@ class TestSelectToolsForDomain:
         self,
         representative_ha_tools: list[llm.Tool],
     ) -> None:
-        source_tools = representative_ha_tools + [
+        source_tools = [
+            *representative_ha_tools,
             _FakeDomainTool(
                 name="climate_only",
                 domain_validator=vol.All(cv.ensure_list, [vol.In(["climate"])]),

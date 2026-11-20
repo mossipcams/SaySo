@@ -231,9 +231,7 @@ def test_history_module_has_no_homeassistant_import() -> None:
         if isinstance(node, ast.Import)
         for alias in node.names
     ] + [
-        node.module or ""
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom)
+        node.module or "" for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
     ]
 
     assert not [name for name in imported if name.startswith("homeassistant")]

@@ -242,6 +242,13 @@ are redacted from exported diagnostics. Retention is bounded by both age and
 interaction count, and pruning runs at save time, off the request path. A
 tracing or persistence failure is logged and the voice interaction continues.
 
+Trace export is an optional outbound path, off by default. When enabled, the
+integration appends each stored trace record to `sayso_traces.jsonl` in the
+Home Assistant config directory, or POSTs it as OTLP/HTTP JSON to an endpoint
+the user configures. Export reads only the stored, redacted record, so it
+carries the transcript only when the user has also enabled utterance storage.
+It runs off the request path, and drops a failed export without retrying it.
+
 ## Failure and trust boundaries
 
 - Missing required satellite resources prevent the affected satellite from

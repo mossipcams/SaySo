@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing import Any
@@ -25,14 +24,17 @@ from tests.test_config_flow import (
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    with patch.object(
-        LlamaCppClient,
-        "list_models",
-        new=AsyncMock(return_value=[MODEL_ID]),
-    ), patch.object(
-        LlamaCppClient,
-        "validate_model",
-        new=AsyncMock(return_value=None),
+    with (
+        patch.object(
+            LlamaCppClient,
+            "list_models",
+            new=AsyncMock(return_value=[MODEL_ID]),
+        ),
+        patch.object(
+            LlamaCppClient,
+            "validate_model",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         yield
 

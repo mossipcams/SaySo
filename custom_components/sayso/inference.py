@@ -1,10 +1,10 @@
-
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import os
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
@@ -95,7 +95,7 @@ def _last_user_turn_start(tokens: list[int], marker: list[int]) -> int | None:
 
 def _shared_prefix_len(left: list[int], right: list[int]) -> int:
     count = 0
-    for a, b in zip(left, right):
+    for a, b in zip(left, right, strict=False):
         if a != b:
             break
         count += 1
@@ -231,7 +231,6 @@ def entry_backend(entry: Any) -> str:
 
 
 class SaySoInferenceEngine(Protocol):
-
     @property
     def model_name(self) -> str:
         pass
@@ -246,7 +245,7 @@ class SaySoInferenceEngine(Protocol):
         self,
         messages: list[dict[str, Any]],
         *,
-        tools: list[dict[str, Any]] | None = None,
+        tools: Sequence[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         grammar: str | None = None,
@@ -255,7 +254,6 @@ class SaySoInferenceEngine(Protocol):
 
 
 class ExternalEngine:
-
     def __init__(self, client: LlamaCppClient, model: str) -> None:
         self._client = client
         self._model = model
@@ -274,7 +272,7 @@ class ExternalEngine:
         self,
         messages: list[dict[str, Any]],
         *,
-        tools: list[dict[str, Any]] | None = None,
+        tools: Sequence[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         grammar: str | None = None,
@@ -297,7 +295,6 @@ class ExternalEngine:
 
 
 class EmbeddedEngine:
-
     def __init__(
         self,
         model_path: Path,
@@ -352,16 +349,17 @@ class EmbeddedEngine:
 
     async def async_shutdown(self) -> None:
         self._llm = None
-        if self._executor is not None:
+        executor = self._executor
+        if executor is not None:
             await asyncio.get_running_loop().run_in_executor(
-                None, lambda: self._executor.shutdown(wait=True)
+                None, lambda: executor.shutdown(wait=True)
             )
             self._executor = None
 
     def _complete(
         self,
         messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None,
+        tools: Sequence[dict[str, Any]] | None,
         temperature: float,
         max_tokens: int,
         grammar: str | None,
@@ -400,7 +398,7 @@ class EmbeddedEngine:
         self,
         messages: list[dict[str, Any]],
         *,
-        tools: list[dict[str, Any]] | None = None,
+        tools: Sequence[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         grammar: str | None = None,
@@ -430,6 +428,3 @@ class EmbeddedEngine:
             raise SaySoInvalidResponseError(f"Local inference failed: {err}") from err
 
         return replace(parse_completion_result(raw), grammar_skip_reason=skipped)
-
-
-

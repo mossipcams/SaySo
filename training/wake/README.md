@@ -161,8 +161,8 @@ At threshold 0.65:
 | CPU per window (VM) | 0.08 ms | 0.25 ms |
 | CPU per 80 ms hop (Pi) | 2.1 ms | 6.0 ms |
 
-See [docs/PLAN_WAKE_TV_ENSEMBLE.md](../../docs/PLAN_WAKE_TV_ENSEMBLE.md) for the
-run-up, the open quiet-room gap, and the Pi deploy steps.
+See [ADR 0007](../../docs/adr/0007-wake-word-pipeline.md) for the
+run-up, the open quiet-room gap, and the deployment record.
 
 ## Prefix negatives
 
@@ -262,7 +262,7 @@ alone has 0.5 false wakes/h at 0.65. Ship them only inside an ensemble.
 - Rollback: point `wake_word.model` back at
   `koda-phonics-ens-10t2-10k-10l-20261104.onnx` and restart `sayso-satellite`.
 - Shift-jittered positives (v10v/v10w) and livekit-wakeword v2 (v2a/v2b) were
-  tried and lost. Full table: [PLAN_WAKE_V2_PIPER](../../docs/PLAN_WAKE_V2_PIPER.md).
+  tried and lost. Results: [ADR 0007](../../docs/adr/0007-wake-word-pipeline.md).
 
 ## livekit-wakeword v2 on local TTS (no LiveKit Cloud)
 
@@ -288,4 +288,4 @@ check and are never sent.
 - Both: `HOME=/srv/llm/data/wake/lk2/home` (bench and Piper caches). Hard
   negatives come from the recipe YAML (`--hard-yaml`, v10t2 by default).
 
-Plan and open items: [docs/PLAN_WAKE_V2_PIPER.md](../../docs/PLAN_WAKE_V2_PIPER.md).
+Decision and open items: [ADR 0007](../../docs/adr/0007-wake-word-pipeline.md).

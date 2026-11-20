@@ -52,7 +52,9 @@ def test_correction_messages_match_across_modules() -> None:
                     "type": "function",
                     "function": {
                         "name": "HassTurnOn",
-                        "arguments": json.dumps({"name": "Living Room"}, sort_keys=True),
+                        "arguments": json.dumps(
+                            {"name": "Living Room"}, sort_keys=True
+                        ),
                     },
                 }
             ],
