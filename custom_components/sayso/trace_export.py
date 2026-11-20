@@ -25,6 +25,14 @@ from .const import (
     TRACE_EXPORT_OFF,
     TRACE_EXPORT_OTLP_HTTP,
 )
+from .tracing import (
+    INTERACTION_COMPLETED,
+    INTERACTION_FAILED,
+    INTERACTION_STARTED,
+    SPEECH_ENDED,
+    SPEECH_STARTED,
+    WAKE_DETECTED,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,6 +48,18 @@ SPAN_KIND_INTERNAL = 1
 STATUS_CODE_ERROR = 2
 NANOS_PER_SECOND = 1_000_000_000
 NANOS_PER_MS = 1_000_000
+STARTED_SUFFIX = "_started"
+COMPLETED_SUFFIX = "_completed"
+NON_STAGE_EVENTS = frozenset(
+    {
+        INTERACTION_STARTED,
+        INTERACTION_COMPLETED,
+        INTERACTION_FAILED,
+        WAKE_DETECTED,
+        SPEECH_STARTED,
+        SPEECH_ENDED,
+    }
+)
 
 _JSONL_FILE_LOCK = threading.Lock()
 
@@ -115,11 +135,7 @@ def otlp_payload(record: dict[str, Any]) -> dict[str, Any]:
     summary = record["summary"]
     trace_id = _otlp_trace_id(str(summary["trace_id"]))
     root = _root_span(summary, trace_id)
-    spans = [root]
-    for event in record["events"]:
-        span = _event_span(event, trace_id, root["spanId"])
-        if span is not None:
-            spans.append(span)
+    spans = [root, *_stage_spans(record["events"], trace_id, root)]
     return {
         "resourceSpans": [
             {
@@ -150,24 +166,77 @@ def _root_span(summary: dict[str, Any], trace_id: str) -> dict[str, Any]:
     )
 
 
-def _event_span(
-    event: Mapping[str, Any], trace_id: str, parent_span_id: str
+def _stage_spans(
+    events: list[dict[str, Any]], trace_id: str, root: dict[str, Any]
+) -> list[dict[str, Any]]:
+    root_end = int(root["endTimeUnixNano"])
+    open_starts: dict[str, list[int]] = {}
+    occurrences: list[
+        tuple[int, str, Mapping[str, Any] | None, Mapping[str, Any] | None]
+    ] = []
+    for sequence, event in enumerate(events):
+        stage = str(event["stage"])
+        if stage in NON_STAGE_EVENTS:
+            continue
+        if stage.endswith(STARTED_SUFFIX):
+            name = stage.removesuffix(STARTED_SUFFIX)
+            open_starts.setdefault(name, []).append(sequence)
+        elif stage.endswith(COMPLETED_SUFFIX):
+            name = stage.removesuffix(COMPLETED_SUFFIX)
+            pending = open_starts.get(name)
+            started = events[pending.pop(0)] if pending else None
+            occurrences.append((sequence, name, started, event))
+    for name, indices in open_starts.items():
+        occurrences.extend((index, name, events[index], None) for index in indices)
+    spans = [
+        _stage_span(trace_id, str(root["spanId"]), root_end, *occurrence)
+        for occurrence in occurrences
+    ]
+    return [span for span in spans if span is not None]
+
+
+def _stage_span(
+    trace_id: str,
+    parent_span_id: str,
+    root_end: int,
+    sequence: int,
+    name: str,
+    started: Mapping[str, Any] | None,
+    completed: Mapping[str, Any] | None,
 ) -> dict[str, Any] | None:
-    end = _unix_nanos(event.get("timestamp"))
-    if end is None:
-        return None
-    duration = event.get("duration_ms")
-    start = end - duration * NANOS_PER_MS if isinstance(duration, int) else end
+    started_at = _unix_nanos(started.get("timestamp")) if started is not None else None
+    if completed is None:
+        if started_at is None:
+            return None
+        start, end, success = started_at, root_end, False
+    else:
+        completed_at = _unix_nanos(completed.get("timestamp"))
+        if completed_at is None:
+            return None
+        duration = completed.get("duration_ms")
+        derived = (
+            completed_at - duration * NANOS_PER_MS
+            if isinstance(duration, int)
+            else completed_at
+        )
+        start = started_at if started_at is not None else derived
+        end, success = completed_at, bool(completed.get("success", True))
     return _span(
         trace_id,
-        int(event["sequence"]),
-        str(event["stage"]),
+        sequence,
+        name,
         start,
         end,
-        dict(event.get("metadata") or {}),
-        success=bool(event.get("success", True)),
+        {**_metadata(started), **_metadata(completed)},
+        success=success,
         parent_span_id=parent_span_id,
     )
+
+
+def _metadata(event: Mapping[str, Any] | None) -> dict[str, Any]:
+    if event is None:
+        return {}
+    return dict(event.get("metadata") or {})
 
 
 def _span(
