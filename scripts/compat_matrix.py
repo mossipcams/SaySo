@@ -53,10 +53,17 @@ MATRIX: Final[tuple[MatrixEntry, ...]] = (
         homeassistant=CURRENT_HA_VERSION,
         python="3.14",
     ),
+    MatrixEntry(
+        id="latest",
+        label="Home Assistant latest release",
+        homeassistant="2026.11.1",
+        python="3.14",
+    ),
 )
 
 COMPONENT_REQUIREMENT_ROOTS: Final[dict[str, tuple[str, ...]]] = {
     "current": ("ai_task", "conversation", "llm", "assist_pipeline"),
+    "latest": ("ai_task", "conversation", "llm", "assist_pipeline"),
 }
 
 
