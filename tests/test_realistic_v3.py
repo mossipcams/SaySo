@@ -216,6 +216,8 @@ def test_a_perfect_run_passes_every_case_and_every_gate() -> None:
         by_prompt[json.dumps(sent)] = case
 
     def ask(messages, tools):
+        if messages[-1]["role"] == "tool":
+            return _body("Done.")
         case = by_prompt[json.dumps(messages)]
         expected = case.expected
         if expected["calls"]:
