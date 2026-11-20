@@ -4,6 +4,7 @@ import difflib
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from .vocabulary import SPEECH_EN, VOCAB_EN, Speech, Vocabulary
 
@@ -108,8 +109,8 @@ def _area_uttered(area: str, utterance: str, home: GroundingHome) -> bool:
 
 
 def drop_unspoken_area(
-    tool_name: str, args: dict, utterance: str, home: GroundingHome
-) -> dict:
+    tool_name: str, args: dict[str, Any], utterance: str, home: GroundingHome
+) -> dict[str, Any]:
     name = args.get("name")
     area = args.get("area")
     if not isinstance(name, str) or not isinstance(area, str):
@@ -128,7 +129,7 @@ def drop_unspoken_area(
     return {k: v for k, v in args.items() if k != "area"}
 
 
-def call_domain(tool_name: str, args: dict) -> str | None:
+def call_domain(tool_name: str, args: dict[str, Any]) -> str | None:
     prefix = tool_name.split("__")[0] if "__" in tool_name else "intent"
     if prefix != "intent":
         return prefix
@@ -153,7 +154,9 @@ def _matches_dom(entity: GroundingEntity, dom: str | None) -> bool:
     )
 
 
-def _pool(utterance: str, home: GroundingHome, dom: str | None, room: str | None):
+def _pool(
+    utterance: str, home: GroundingHome, dom: str | None, room: str | None
+) -> list[GroundingEntity]:
     pool = [e for e in home.entities if _matches_dom(e, dom)]
     if home.satellite_device_id is not None:
         pool = [e for e in pool if e.device_id != home.satellite_device_id]
@@ -188,9 +191,9 @@ def _score(
     entity: GroundingEntity,
     utterance: str,
     home: GroundingHome,
-    room,
+    room: str | None,
     vocab: Vocabulary,
-):
+) -> float:
     base = 0.0
     for l in labels(entity):
         s = max(
@@ -241,7 +244,7 @@ def _room_ok(
     utterance: str,
     home: GroundingHome,
     bare: str,
-    args: dict,
+    args: dict[str, Any],
 ) -> bool:
     room = mentioned_area(utterance, home)
     if room is None:
@@ -263,7 +266,9 @@ def _area_tokens(area: str | None, home: GroundingHome) -> set[str]:
     return {t for name in names for t in tokens(name)}
 
 
-def _batch_words(others: Sequence[tuple[str, dict]], home: GroundingHome) -> set[str]:
+def _batch_words(
+    others: Sequence[tuple[str, dict[str, Any]]], home: GroundingHome
+) -> set[str]:
     words: set[str] = set()
     for tool_name, args in others:
         bare = tool_name.split("__")[-1]
@@ -287,8 +292,8 @@ def _unexplained(
     utterance: str,
     home: GroundingHome,
     bare: str,
-    args: dict,
-    others: Sequence[tuple[str, dict]],
+    args: dict[str, Any],
+    others: Sequence[tuple[str, dict[str, Any]]],
     vocab: Vocabulary,
 ) -> list[str]:
     words = set(vocab.stop_words) | set(vocab.domain_words)
@@ -320,7 +325,7 @@ def _other_candidate_word(
 
 
 def _apostrophe_unaccounted(
-    utterance: str, home: GroundingHome, others: Sequence[tuple[str, dict]]
+    utterance: str, home: GroundingHome, others: Sequence[tuple[str, dict[str, Any]]]
 ) -> bool:
     if not others:
         return "'" in utterance
@@ -346,7 +351,11 @@ def _satellite_unique(
 ) -> bool:
     sat = home.satellite_area
     local = [
-        e for e in pool if e.area is not None and e.area.casefold() == sat.casefold()
+        e
+        for e in pool
+        if e.area is not None
+        and sat is not None
+        and e.area.casefold() == sat.casefold()
     ]
     if local == [entity]:
         return True
@@ -364,7 +373,7 @@ def _satellite_local(
     utterance: str,
     home: GroundingHome,
     pool: list[GroundingEntity],
-    others: Sequence[tuple[str, dict]],
+    others: Sequence[tuple[str, dict[str, Any]]],
     vocab: Vocabulary,
 ) -> bool:
     if not _in_satellite_area(entity, home):
@@ -381,7 +390,7 @@ def _misheard_room_word(
     utterance: str,
     home: GroundingHome,
     pool: list[GroundingEntity],
-    others: Sequence[tuple[str, dict]],
+    others: Sequence[tuple[str, dict[str, Any]]],
     dom: str,
     unexplained: list[str],
     vocab: Vocabulary,
@@ -425,8 +434,8 @@ def _rule_grounded(
     utterance: str,
     home: GroundingHome,
     bare: str,
-    args: dict,
-    others: Sequence[tuple[str, dict]],
+    args: dict[str, Any],
+    others: Sequence[tuple[str, dict[str, Any]]],
     vocab: Vocabulary,
 ) -> bool:
     if not _room_ok(entity, utterance, home, bare, args):
@@ -455,11 +464,11 @@ def _rule_grounded(
 
 def is_grounded(
     tool_name: str,
-    args: dict,
+    args: dict[str, Any],
     utterance: str,
     home: GroundingHome,
     *,
-    others: Sequence[tuple[str, dict]] = (),
+    others: Sequence[tuple[str, dict[str, Any]]] = (),
     vocab: Vocabulary = VOCAB_EN,
 ) -> bool:
     bare = tool_name.split("__")[-1]
@@ -515,7 +524,7 @@ def _satellite_candidate(
 
 def clarify(
     tool_name: str,
-    args: dict,
+    args: dict[str, Any],
     utterance: str,
     home: GroundingHome,
     *,

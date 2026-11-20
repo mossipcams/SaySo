@@ -155,7 +155,9 @@ class _Run:
             first=self.first,
         )
 
-    async def _complete(self, messages: list[dict[str, Any]], *, correction: bool):
+    async def _complete(
+        self, messages: list[dict[str, Any]], *, correction: bool
+    ) -> ChatCompletionResult:
         result = await self.complete(messages, correction=correction)
         if self.first is None:
             self.first = result

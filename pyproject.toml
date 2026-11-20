@@ -27,6 +27,7 @@ test = [
     "pytest-homeassistant-custom-component>=0.13",
     "hypothesis>=6.0.0",
     "import-linter>=2.0",
+    "mypy==2.4.1",
     "PyTurboJPEG==1.8.3",
 ]
 
@@ -39,6 +40,15 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests", "evals/tests", "satellite/sayso"]
 pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.12"
+explicit_package_bases = true
+follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+module = "custom_components.sayso.core.*"
+strict = true
 
 [tool.ruff]
 target-version = "py312"

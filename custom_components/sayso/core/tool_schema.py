@@ -151,9 +151,10 @@ def function_envelope(
     }
     if description:
         tool_spec["description"] = description
-    return canonicalize_schema(
+    envelope: dict[str, Any] = canonicalize_schema(
         normalize_schema({"type": "function", "function": tool_spec}, top_level=True)
     )
+    return envelope
 
 
 def build_compiled_tools_from_source(
