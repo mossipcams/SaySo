@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import threading
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -39,6 +40,8 @@ SPAN_KIND_INTERNAL = 1
 STATUS_CODE_ERROR = 2
 NANOS_PER_SECOND = 1_000_000_000
 NANOS_PER_MS = 1_000_000
+
+_JSONL_FILE_LOCK = threading.Lock()
 
 
 def is_http_url(value: str) -> bool:
@@ -101,10 +104,11 @@ class TraceExporter:
 
 
 def _append_line(path: Path, line: str) -> None:
-    if path.exists() and path.stat().st_size >= JSONL_MAX_BYTES:
-        path.replace(path.with_name(JSONL_ROTATED_FILENAME))
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(f"{line}\n")
+    with _JSONL_FILE_LOCK:
+        if path.exists() and path.stat().st_size >= JSONL_MAX_BYTES:
+            path.replace(path.with_name(JSONL_ROTATED_FILENAME))
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(f"{line}\n")
 
 
 def otlp_payload(record: dict[str, Any]) -> dict[str, Any]:
