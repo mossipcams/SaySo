@@ -69,8 +69,20 @@ which slice needs them.
 - A13: JSONL goes to `<config>/sayso_traces.jsonl`, rotated once at 10 MB. OTLP
   has no default endpoint (the user enters one). A failed export is dropped and
   logged at debug, never retried, and never delays a turn.
-- Waiting for the user: A2 (`tests/test_compat.py`), A3 (`ci.yml` matrix), A6
-  (format and lint autofix under `tests/`), and `ordinary_03`.
+- User delegated the rest ("figure it out", 2026-11-20):
+  - `ordinary_03`: stays a clarification (Option A). Grounding's clarify offers
+    the single satellite-area candidate of the spoken domain ("Did you mean the
+    Lounge Television?") and holds the call, so "yes" runs it. Today it gives
+    "Sorry, I didn't understand that." The case's expected response becomes
+    that clarification, in its source (`evals/cases/realistic_v3.jsonl` or its
+    generator, whichever owns it).
+  - A2: approved. `tests/test_compat.py` gains the 2026.11.x `latest` row; the
+    checks on the minimum stay.
+  - A3: the `ci.yml` matrix entry needs the gh `workflow` scope, which the token
+    lacks. Everything else lands, and the one-line matrix edit waits for
+    `gh auth refresh -s workflow`.
+  - A6: approved. Format and lint autofix under `tests/` with no assertion
+    changes, as their own commits.
 
 ## 2. Fix 9 steps 2-3: speech strings and per-language vocabulary
 
