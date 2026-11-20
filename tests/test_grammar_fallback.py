@@ -167,7 +167,7 @@ def _sent_payloads(session: MagicMock) -> list[dict[str, Any]]:
 
 
 class TestExternalFallback:
-    @pytest.mark.parametrize("status", [400, 404, 422])
+    @pytest.mark.parametrize("status", [400])
     async def test_rejected_grammar_is_retried_once_without_grammar(
         self, status: int
     ) -> None:
@@ -182,6 +182,44 @@ class TestExternalFallback:
         assert result.content == "ok"
         assert result.request_payload == second
         assert result.grammar_skip_reason == GRAMMAR_BACKEND_REJECTED
+
+    @pytest.mark.parametrize("status", [404, 413, 422, 429])
+    async def test_other_client_errors_with_grammar_are_raised(
+        self, status: int
+    ) -> None:
+        session = _session(_Response(status), _Response(200))
+        client = LlamaCppClient(session, "http://127.0.0.1:8080")
+
+        with pytest.raises(SaySoHttpError) as exc_info:
+            await client.chat_completion(MESSAGES, model="m", grammar=GRAMMAR)
+
+        assert exc_info.value.status == status
+        assert session.post.call_count == 1
+
+    async def test_rejection_is_remembered_by_the_client(self) -> None:
+        session = _session(_Response(400), _Response(200), _Response(200))
+        client = LlamaCppClient(session, "http://127.0.0.1:8080")
+
+        await client.chat_completion(MESSAGES, model="m", grammar=GRAMMAR)
+        result = await client.chat_completion(MESSAGES, model="m", grammar=GRAMMAR)
+
+        first, retry, later = _sent_payloads(session)
+        assert first["grammar"] == GRAMMAR
+        assert "grammar" not in retry
+        assert "grammar" not in later
+        assert session.post.call_count == 3
+        assert result.content == "ok"
+        assert result.grammar_skip_reason == GRAMMAR_BACKEND_REJECTED
+
+    async def test_accepted_grammar_keeps_being_sent_on_later_requests(self) -> None:
+        session = _session(_Response(200), _Response(200))
+        client = LlamaCppClient(session, "http://127.0.0.1:8080")
+
+        await client.chat_completion(MESSAGES, model="m", grammar=GRAMMAR)
+        result = await client.chat_completion(MESSAGES, model="m", grammar=GRAMMAR)
+
+        assert [p.get("grammar") for p in _sent_payloads(session)] == [GRAMMAR, GRAMMAR]
+        assert result.grammar_skip_reason is None
 
     async def test_failed_retry_is_raised(self) -> None:
         session = _session(_Response(400), _Response(400))

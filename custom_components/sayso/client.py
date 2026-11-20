@@ -90,7 +90,7 @@ def _raise_for_status(response: ClientResponse) -> None:
 
 
 def _rejects_grammar(status: int) -> bool:
-    return 400 <= status < 500 and status not in {401, 403}
+    return status == 400
 
 
 async def _read_json_body(response: ClientResponse) -> dict[str, Any]:
@@ -118,6 +118,7 @@ class LlamaCppClient:
         self._base_url = normalize_base_url(base_url)
         self._api_key = api_key
         self._timeout = timeout
+        self._grammar_rejected = False
 
     @classmethod
     def from_hass(
@@ -186,22 +187,24 @@ class LlamaCppClient:
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         grammar: str | None = None,
     ) -> ChatCompletionResult:
-        try:
-            return await self._post_chat_completion(
-                messages,
-                model=model,
-                tools=tools,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                grammar=grammar,
-            )
-        except SaySoHttpError as err:
-            if grammar is None or not _rejects_grammar(err.status):
-                raise
-            _LOGGER.warning(
-                "llama.cpp rejected the grammar with HTTP %s; retrying without it",
-                err.status,
-            )
+        if grammar is None or not self._grammar_rejected:
+            try:
+                return await self._post_chat_completion(
+                    messages,
+                    model=model,
+                    tools=tools,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    grammar=grammar,
+                )
+            except SaySoHttpError as err:
+                if grammar is None or not _rejects_grammar(err.status):
+                    raise
+                _LOGGER.warning(
+                    "llama.cpp rejected the grammar with HTTP %s; retrying without it",
+                    err.status,
+                )
+                self._grammar_rejected = True
         result = await self._post_chat_completion(
             messages,
             model=model,
