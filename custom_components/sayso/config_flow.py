@@ -60,6 +60,8 @@ from .const import (
     CONF_PROMPT,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
+    CONF_TRACE_EXPORT,
+    CONF_TRACE_EXPORT_ENDPOINT,
     CONF_TRACE_MAX_INTERACTIONS,
     CONF_TRACE_RETENTION_DAYS,
     CONF_TRACE_STORE_UTTERANCES,
@@ -73,15 +75,20 @@ from .const import (
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT,
+    DEFAULT_TRACE_EXPORT,
+    DEFAULT_TRACE_EXPORT_ENDPOINT,
     DEFAULT_TRACE_MAX_INTERACTIONS,
     DEFAULT_TRACE_RETENTION_DAYS,
     DEFAULT_TRACE_STORE_UTTERANCES,
     DOMAIN,
     EMBEDDED_MODELS,
     MAX_TRACE_INTERACTIONS,
+    TRACE_EXPORT_MODES,
+    TRACE_EXPORT_OTLP_HTTP,
 )
 from .inference import default_thread_count, entry_backend
 from .model_store import async_provision_model, list_local_models, models_dir
+from .trace_export import is_http_url
 from .core.exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
@@ -143,6 +150,23 @@ _ENGINE_OPTIONS: tuple[tuple[Any, str, Any, Any], ...] = (
         CONF_TRACE_STORE_UTTERANCES,
         DEFAULT_TRACE_STORE_UTTERANCES,
         BooleanSelector(),
+    ),
+    (
+        vol.Optional,
+        CONF_TRACE_EXPORT,
+        DEFAULT_TRACE_EXPORT,
+        SelectSelector(
+            SelectSelectorConfig(
+                options=TRACE_EXPORT_MODES,
+                translation_key=CONF_TRACE_EXPORT,
+            )
+        ),
+    ),
+    (
+        vol.Optional,
+        CONF_TRACE_EXPORT_ENDPOINT,
+        DEFAULT_TRACE_EXPORT_ENDPOINT,
+        TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
     ),
     (
         vol.Required,
@@ -391,6 +415,17 @@ async def _async_list_models(hass: HomeAssistant, entry: ConfigEntry) -> list[st
         return []
 
 
+def _trace_export_errors(user_input: Mapping[str, Any]) -> dict[str, str]:
+    if user_input.get(CONF_TRACE_EXPORT) != TRACE_EXPORT_OTLP_HTTP:
+        return {}
+    endpoint = str(user_input.get(CONF_TRACE_EXPORT_ENDPOINT) or "").strip()
+    if not endpoint:
+        return {CONF_TRACE_EXPORT_ENDPOINT: "trace_export_endpoint_required"}
+    if not is_http_url(endpoint):
+        return {CONF_TRACE_EXPORT_ENDPOINT: "invalid_trace_export_endpoint"}
+    return {}
+
+
 def _subentry_payload(user_input: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     data = dict(user_input)
     return data.pop(CONF_NAME), data
@@ -601,6 +636,7 @@ class SaySoOptionsFlowHandler(DownloadSteps, OptionsFlow):
         *,
         embedded: bool,
         models: list[str] | None = None,
+        errors: dict[str, str] | None = None,
     ) -> ConfigFlowResult:
         return self.async_show_form(
             step_id="init",
@@ -610,7 +646,11 @@ class SaySoOptionsFlowHandler(DownloadSteps, OptionsFlow):
                 ),
                 suggested,
             ),
+            errors=errors,
         )
+
+    async def _async_local_models(self) -> list[str]:
+        return await self.hass.async_add_executor_job(list_local_models, self.hass)
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -620,18 +660,28 @@ class SaySoOptionsFlowHandler(DownloadSteps, OptionsFlow):
         if entry_backend(entry) != BACKEND_EMBEDDED:
             if user_input is None:
                 return self._form(entry.options, embedded=False)
+            if errors := _trace_export_errors(user_input):
+                return self._form(user_input, embedded=False, errors=errors)
             return self.async_create_entry(data=user_input)
 
         if user_input is not None:
+            if errors := _trace_export_errors(user_input):
+                return self._form(
+                    user_input,
+                    embedded=True,
+                    models=await self._async_local_models(),
+                    errors=errors,
+                )
             self._pending = {**entry.options, **user_input}
             self._model = user_input[CONF_MODEL]
             if await self._async_model_absent(self._model):
                 return await self.async_step_download()
             return self.async_create_entry(data=self._pending)
-        local_models = await self.hass.async_add_executor_job(
-            list_local_models, self.hass
+        return self._form(
+            entry.options,
+            embedded=True,
+            models=await self._async_local_models(),
         )
-        return self._form(entry.options, embedded=True, models=local_models)
 
     async def async_step_finish(
         self, user_input: dict[str, Any] | None = None

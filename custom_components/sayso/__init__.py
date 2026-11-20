@@ -81,6 +81,7 @@ from .repairs import (
     async_clear_issues,
     async_raise_issue,
 )
+from .trace_export import build_trace_exporter
 from .trace_store import TraceRecorder, TraceStore
 
 if TYPE_CHECKING:
@@ -396,6 +397,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
         store_utterances=bool(
             options.get(CONF_TRACE_STORE_UTTERANCES, DEFAULT_TRACE_STORE_UTTERANCES)
         ),
+        exporter=build_trace_exporter(hass, options),
     )
     await traces.async_load()
     traces.async_prune()
