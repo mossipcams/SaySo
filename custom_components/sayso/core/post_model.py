@@ -128,7 +128,6 @@ class _Run:
     correction_used: bool = False
     tools_executed: bool = False
     iteration: int = 1
-    suppress_grounding: bool = False
     executed: list[ToolCall] = field(default_factory=list)
     clarified: bool = False
     done_shortcut: bool = False
@@ -194,7 +193,9 @@ class _Run:
     async def run(self) -> TurnOutcome:
         turn = self.turn
         if turn.calls is not None:
-            return await self.tool_loop(list(turn.calls), turn.confirmed)
+            return await self.tool_loop(
+                list(turn.calls), exempt=None, grounding_text=turn.user_text
+            )
         if (
             turn.held is not None
             and turn.home is not None
@@ -206,7 +207,9 @@ class _Run:
             if option is not None:
                 self.held_replayed = True
                 return await self.tool_loop(
-                    _replay_calls(turn.held, option), confirmed=True
+                    _replay_calls(turn.held, option),
+                    exempt=turn.held.index,
+                    grounding_text=turn.held.utterance,
                 )
         messages = turn.transcript()
         try:
@@ -214,17 +217,24 @@ class _Run:
         except SaySoError as err:
             return self.fail(_model_kind(err), error=err)
         if result.tool_calls:
-            return await self.tool_loop(result.tool_calls, confirmed=False)
+            return await self.tool_loop(
+                result.tool_calls, exempt=None, grounding_text=turn.user_text
+            )
         if not (result.content or "").strip():
             return self.fail(FailureKind.EMPTY_RESPONSE)
         return self.outcome(speech=result.content)
 
-    async def tool_loop(self, current: list[ToolCall], confirmed: bool) -> TurnOutcome:
+    async def tool_loop(
+        self,
+        current: list[ToolCall],
+        *,
+        exempt: int | None,
+        grounding_text: str,
+    ) -> TurnOutcome:
         turn = self.turn
         if not turn.tool_api:
             return self.fail(FailureKind.NO_TOOL_API)
         compiled = tools_by_name(turn.tools)
-        self.suppress_grounding = confirmed
         while True:
             parse_span = self.recorder.open(
                 Stage.TOOL_PARSE, **{"sayso.calls": len(current)}
@@ -265,16 +275,17 @@ class _Run:
                 if not corrected.tool_calls:
                     return self.fail(FailureKind.EMPTY_CORRECTION)
                 current = corrected.tool_calls
+                exempt = None
                 continue
 
-            if turn.home is not None and not self.suppress_grounding:
+            if turn.home is not None:
                 home = turn.home()
                 normalized: list[tuple[ToolCall, dict[str, Any]]] = []
-                for call, args in validated:
-                    if call.name in turn.read_only:
+                for i, (call, args) in enumerate(validated):
+                    if call.name in turn.read_only or i == exempt:
                         normalized.append((call, args))
                         continue
-                    new_args = drop_unspoken_area(call.name, args, turn.user_text, home)
+                    new_args = drop_unspoken_area(call.name, args, grounding_text, home)
                     if new_args is not args:
                         self.area_dropped = True
                         parse_span.metadata["sayso.area_dropped"] = {
@@ -285,7 +296,7 @@ class _Run:
                     normalized.append((call, new_args))
                 validated = normalized
                 for i, (call, args) in enumerate(validated):
-                    if call.name in turn.read_only:
+                    if call.name in turn.read_only or i == exempt:
                         continue
                     others = [
                         (other.name, other_args)
@@ -295,7 +306,7 @@ class _Run:
                     if not is_grounded(
                         call.name,
                         args,
-                        turn.user_text,
+                        grounding_text,
                         home,
                         others=others,
                         vocab=self.vocab,
@@ -303,7 +314,7 @@ class _Run:
                         clar = clarify(
                             call.name,
                             args,
-                            turn.user_text,
+                            grounding_text,
                             home,
                             speech=turn.speech,
                             vocab=self.vocab,
@@ -318,6 +329,7 @@ class _Run:
                                 i,
                                 clar.options,
                                 turn.now + turn.held_ttl,
+                                grounding_text,
                             )
                         return self.outcome(speech=clar.speech, held=held)
             self.recorder.close(parse_span)
@@ -337,7 +349,7 @@ class _Run:
                 )
 
             self.tools_executed = True
-            self.suppress_grounding = False
+            exempt = None
             if len(validated) == 1 and validated[0][0].name in turn.action_tools:
                 self.done_shortcut = True
                 return self.outcome(speech=turn.speech.done)

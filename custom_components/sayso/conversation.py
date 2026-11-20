@@ -10,7 +10,7 @@ from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import CONF_LLM_HASS_API, CONF_MODEL
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers import intent, llm, translation
@@ -58,7 +58,7 @@ from .core.exceptions import (
 )
 from .core.history import model_history
 from .core.grounding import GroundingEntity, GroundingHome
-from .core.held import HeldState, resolve_held_option
+from .core.held import HeldState, is_expired, resolve_held_option
 from .core.post_model import (
     ExecutionResult,
     FailureKind,
@@ -140,6 +140,7 @@ class _Turn:
     correction_used: bool = False
     area_context: AreaContext | None = None
     exposed_domains: frozenset[str] = frozenset()
+    exposed_states: tuple[State, ...] | None = None
     ducker: MediaDucker | None = None
     speech: Speech = SPEECH_EN
     vocab: Vocabulary = VOCAB_EN
@@ -356,17 +357,26 @@ def _is_voice_turn(user_input: conversation.ConversationInput) -> bool:
     return bool(getattr(user_input, "satellite_id", None) or user_input.device_id)
 
 
+def _exposed_states(hass: HomeAssistant, assistant: str) -> tuple[State, ...]:
+    return tuple(
+        state
+        for state in hass.states.async_all()
+        if async_should_expose(hass, assistant, state.entity_id)
+    )
+
+
 def _grounding_home(
     hass: HomeAssistant,
     user_input: conversation.ConversationInput,
     assistant: str,
+    exposed_states: Sequence[State] | None = None,
 ) -> GroundingHome:
     registry = er.async_get(hass)
     areas = ar.async_get(hass)
+    if exposed_states is None:
+        exposed_states = _exposed_states(hass, assistant)
     entities = []
-    for state in hass.states.async_all():
-        if not async_should_expose(hass, assistant, state.entity_id):
-            continue
+    for state in exposed_states:
         entry = registry.async_get(state.entity_id)
         area_id = area_id_for(hass, state.entity_id)
         area_entry = areas.async_get_area(area_id) if area_id else None
@@ -503,9 +513,10 @@ class SaySoConversationEntity(
                     error_type=ErrorType.SCHEMA_MISMATCH,
                 )
 
+            exposed_states = _exposed_states(self.hass, llm_context.assistant)
             domain_hint = identify_command_domain(
                 turn.user_input.text,
-                build_routing_catalog(self.hass, assistant=llm_context.assistant),
+                build_routing_catalog(self.hass, exposed_states),
                 registries=build_routing_registries(self.hass),
                 preferences=build_routing_preferences(
                     self.hass,
@@ -523,18 +534,14 @@ class SaySoConversationEntity(
                 _satellite_area_name(self.hass, turn.user_input),
                 vocab=turn.vocab,
             )
-            turn.exposed_domains = frozenset(
-                state.domain
-                for state in self.hass.states.async_all()
-                if async_should_expose(
-                    self.hass, llm_context.assistant, state.entity_id
-                )
-            )
+            turn.exposed_states = exposed_states
+            turn.exposed_domains = frozenset(state.domain for state in exposed_states)
             span.metadata["sayso.domain_hint"] = domain_hint
             span.metadata["sayso.tools"] = (
                 len(turn.active_schema.tools) if turn.active_schema is not None else 0
             )
 
+        self._evict_expired(time.monotonic())
         held = self._held.pop(chat_log.conversation_id, None)
         return await self._post_model(turn, held=held)
 
@@ -605,6 +612,7 @@ class SaySoConversationEntity(
                             self.hass,
                             turn.user_input,
                             turn.user_input.as_llm_context(DOMAIN).assistant,
+                            turn.exposed_states,
                         )
                     )
                     if _is_voice_turn(turn.user_input)
@@ -630,11 +638,17 @@ class SaySoConversationEntity(
         )
         return self._respond(turn, outcome)
 
+    def _evict_expired(self, now: float) -> None:
+        for conversation_id, held in list(self._held.items()):
+            if is_expired(held, now):
+                del self._held[conversation_id]
+
     def _respond(
         self, turn: _Turn, outcome: TurnOutcome
     ) -> conversation.ConversationResult:
         turn.correction_used = outcome.correction_used
         if outcome.held is not None:
+            self._evict_expired(time.monotonic())
             self._held[turn.chat_log.conversation_id] = outcome.held
         failure = outcome.failure
         if failure is None:
@@ -686,6 +700,7 @@ class SaySoConversationEntity(
                     turn.user_input.text,
                     speech=turn.speech,
                     vocab=turn.vocab,
+                    exposed_states=turn.exposed_states,
                 ),
             )
         if kind is FailureKind.ITERATION_LIMIT:
@@ -767,6 +782,7 @@ def execution_failure_speech(
     *,
     speech: Speech = SPEECH_EN,
     vocab: Vocabulary = VOCAB_EN,
+    exposed_states: Sequence[State] | None = None,
 ) -> str:
     if len(validated) != 1:
         return speech.action_failed
@@ -823,10 +839,15 @@ def execution_failure_speech(
     area = ar.async_get(hass).async_get_area_by_name(area_name)
     if area is None:
         return speech.action_failed
+    states = (
+        exposed_states
+        if exposed_states is not None
+        else _exposed_states(hass, assistant_id)
+    )
     if any(
         area_id_for(hass, state.entity_id) == area.id
-        and async_should_expose(hass, assistant_id, state.entity_id)
-        for state in hass.states.async_all(domain)
+        for state in states
+        if state.domain == domain
     ):
         return speech.action_failed
     return speech.area_has_no_domain.format(

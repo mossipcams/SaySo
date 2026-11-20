@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -36,7 +36,14 @@ from custom_components.sayso.trace_export import (
     otlp_payload,
 )
 from custom_components.sayso.trace_store import TraceStore
-from custom_components.sayso.tracing import INTERACTION_STARTED, TraceContext
+from custom_components.sayso.core.trace_stages import Stage
+from custom_components.sayso.tracing import (
+    INTERACTION_STARTED,
+    SPEECH_ENDED,
+    SPEECH_STARTED,
+    WAKE_DETECTED,
+    TraceContext,
+)
 from tests.test_config_flow import (
     BASE_URL,
     MODEL_ID,
@@ -51,6 +58,7 @@ ENDPOINT = "http://collector:4318"
 EXPORT_URL = f"{ENDPOINT}/v1/traces"
 UTTERANCE = "turn on the secret lamp"
 LOGGER_NAME = "custom_components.sayso.trace_export"
+STAGE_START = datetime(2026, 11, 20, 15, 0, 0, tzinfo=UTC)
 
 
 @pytest.fixture(autouse=True)
@@ -228,7 +236,7 @@ async def test_otlp_payload_has_hex_ids_and_gen_ai_attributes(
         assert span["traceId"] == root["traceId"]
         assert int(span["endTimeUnixNano"]) >= int(span["startTimeUnixNano"])
 
-    [inference] = [span for span in children if span["name"] == "inference_completed"]
+    [inference] = [span for span in children if span["name"] == "inference"]
     assert inference["parentSpanId"] == root["spanId"]
     assert int(inference["endTimeUnixNano"]) - int(inference["startTimeUnixNano"]) == (
         12 * 1_000_000
@@ -238,6 +246,161 @@ async def test_otlp_payload_has_hex_ids_and_gen_ai_attributes(
     )
     assert {"key": "gen_ai.usage.input_tokens", "value": {"intValue": "42"}} in (
         inference["attributes"]
+    )
+
+
+def _record(trace: TraceContext) -> dict[str, Any]:
+    return {"summary": trace.summary(), "events": trace.stage_records()}
+
+
+def _otlp_spans(record: dict[str, Any]) -> list[dict[str, Any]]:
+    [resource] = otlp_payload(record)["resourceSpans"]
+    return resource["scopeSpans"][0]["spans"]
+
+
+def _duration_ms(span: dict[str, Any]) -> int:
+    return (int(span["endTimeUnixNano"]) - int(span["startTimeUnixNano"])) // 1_000_000
+
+
+def _typical_trace() -> TraceContext:
+    trace = TraceContext(trace_id=TRACE_ID, started_at=STAGE_START)
+    trace.add_event(INTERACTION_STARTED, timestamp=STAGE_START)
+    trace.add_event(WAKE_DETECTED, timestamp=STAGE_START)
+    trace.add_event(SPEECH_STARTED, timestamp=STAGE_START)
+    trace.add_event(SPEECH_ENDED, timestamp=STAGE_START + timedelta(milliseconds=250))
+    trace.record_span(
+        Stage.STT,
+        duration_ms=300,
+        started_at=STAGE_START,
+        metadata={"sayso.text_length": 20},
+    )
+    trace.record_span(
+        Stage.INFERENCE,
+        duration_ms=800,
+        started_at=STAGE_START + timedelta(milliseconds=300),
+        metadata={"gen_ai.usage.input_tokens": 42},
+    )
+    trace.add_event(
+        "tts_started",
+        timestamp=STAGE_START + timedelta(milliseconds=1100),
+        metadata={"sayso.stream": True},
+    )
+    trace.add_event(
+        "tts_completed",
+        timestamp=STAGE_START + timedelta(milliseconds=1150),
+        duration_ms=50,
+        metadata={"sayso.voice": "lessac"},
+    )
+    trace.finish()
+    return trace
+
+
+def test_otlp_exports_one_span_per_stage_with_its_duration(
+    hass: HomeAssistant,
+) -> None:
+    trace = _typical_trace()
+    root, *stages = _otlp_spans(_record(trace))
+
+    assert root["name"] == "sayso.interaction"
+    assert {span["name"]: _duration_ms(span) for span in stages} == {
+        "stt": 300,
+        "inference": 800,
+        "tts": 50,
+    }
+    assert len(stages) == 3
+    for span in stages:
+        assert span["parentSpanId"] == root["spanId"]
+        assert int(span["endTimeUnixNano"]) >= int(span["startTimeUnixNano"])
+
+
+def test_otlp_exports_wake_and_speech_markers_as_root_span_events(
+    hass: HomeAssistant,
+) -> None:
+    trace = TraceContext(trace_id=TRACE_ID, started_at=STAGE_START)
+    trace.add_event(INTERACTION_STARTED, timestamp=STAGE_START)
+    trace.add_event(
+        WAKE_DETECTED, timestamp=STAGE_START, metadata={"sayso.wake_word": "koda"}
+    )
+    trace.add_event(SPEECH_STARTED, timestamp=STAGE_START + timedelta(milliseconds=120))
+    trace.add_event(SPEECH_ENDED, timestamp=STAGE_START + timedelta(milliseconds=900))
+    trace.finish()
+
+    root, *children = _otlp_spans(_record(trace))
+    start_ns = int(STAGE_START.timestamp()) * 1_000_000_000
+
+    assert root["events"] == [
+        {
+            "timeUnixNano": str(start_ns),
+            "name": "wake_detected",
+            "attributes": [
+                {"key": "sayso.wake_word", "value": {"stringValue": "koda"}}
+            ],
+        },
+        {
+            "timeUnixNano": str(start_ns + 120 * 1_000_000),
+            "name": "speech_started",
+            "attributes": [],
+        },
+        {
+            "timeUnixNano": str(start_ns + 900 * 1_000_000),
+            "name": "speech_ended",
+            "attributes": [],
+        },
+    ]
+    assert children == []
+
+
+def test_otlp_stage_span_merges_started_and_completed_attributes(
+    hass: HomeAssistant,
+) -> None:
+    trace = _typical_trace()
+    [tts] = [span for span in _otlp_spans(_record(trace)) if span["name"] == "tts"]
+
+    assert {"key": "sayso.stream", "value": {"boolValue": True}} in tts["attributes"]
+    assert {"key": "sayso.voice", "value": {"stringValue": "lessac"}} in (
+        tts["attributes"]
+    )
+    assert "status" not in tts
+
+
+def test_otlp_span_names_never_carry_started_or_completed_suffix(
+    hass: HomeAssistant,
+) -> None:
+    trace = _typical_trace()
+    with trace.stage(Stage.HA_ACTION, domain="light"):
+        pass
+    trace.finish()
+
+    names = [span["name"] for span in _otlp_spans(_record(trace))]
+    assert not [name for name in names if name.endswith(("_started", "_completed"))]
+    assert names.count("ha_action") == 1
+    assert "interaction" not in names
+
+
+def test_otlp_aborted_stage_ends_at_root_end_with_error_status(
+    hass: HomeAssistant,
+) -> None:
+    trace = TraceContext(trace_id=TRACE_ID, started_at=STAGE_START)
+    trace.add_event(INTERACTION_STARTED, timestamp=STAGE_START)
+    trace.add_event(
+        "inference_started",
+        timestamp=STAGE_START + timedelta(milliseconds=100),
+        metadata={"gen_ai.operation.name": "chat"},
+    )
+    trace.finish()
+
+    root, aborted = _otlp_spans(_record(trace))
+
+    assert aborted["name"] == "inference"
+    assert aborted["parentSpanId"] == root["spanId"]
+    assert aborted["endTimeUnixNano"] == root["endTimeUnixNano"]
+    assert (
+        int(aborted["startTimeUnixNano"]) - int(root["startTimeUnixNano"])
+        == 100 * 1_000_000
+    )
+    assert aborted["status"] == {"code": 2}
+    assert {"key": "gen_ai.operation.name", "value": {"stringValue": "chat"}} in (
+        aborted["attributes"]
     )
 
 

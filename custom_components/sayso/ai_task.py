@@ -23,6 +23,7 @@ from .const import (
     DEFAULT_TEMPERATURE,
     DOMAIN,
 )
+from .core.exceptions import SaySoError
 from .transcript import chat_log_to_messages
 
 STRUCTURE_INSTRUCTION = (
@@ -72,11 +73,19 @@ class SaySoAITaskEntity(AITaskEntity):
         messages: list[dict[str, Any]] = chat_log_to_messages(chat_log.content)
         if task.structure is not None:
             messages.append({"role": "system", "content": STRUCTURE_INSTRUCTION})
-        result = await self._entry.runtime_data.engine.async_chat_completion(
-            messages,
-            temperature=DEFAULT_TEMPERATURE,
-            max_tokens=DEFAULT_MAX_OUTPUT_TOKENS,
-        )
+        try:
+            result = await self._entry.runtime_data.engine.async_chat_completion(
+                messages,
+                temperature=DEFAULT_TEMPERATURE,
+                max_tokens=DEFAULT_MAX_OUTPUT_TOKENS,
+            )
+        except SaySoError as err:
+            raise HomeAssistantError(
+                str(err),
+                translation_domain=DOMAIN,
+                translation_key="ai_task_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
         content = result.content or ""
         if task.structure is None:
             data: Any = content

@@ -286,7 +286,7 @@ class ExternalEngine:
             max_tokens=max_tokens,
             grammar=grammar,
         )
-        if result.tool_calls or not result.content:
+        if not tools or result.tool_calls or not result.content:
             return result
         content, tool_calls = extract_tool_calls(result.content)
         if not tool_calls and content == result.content:
@@ -376,10 +376,12 @@ class EmbeddedEngine:
                     exc_info=True,
                 )
                 skipped = GRAMMAR_BACKEND_REJECTED
+        prompt = tools_before_area_messages(messages, tools)
+        if tools and prompt is messages:
+            extra["tools"] = list(tools)
+            extra["tool_choice"] = "auto"
         raw = self._llm.create_chat_completion(
-            messages=_messages_for_embedded_template(
-                tools_before_area_messages(messages, tools)
-            ),
+            messages=_messages_for_embedded_template(prompt),
             temperature=temperature,
             max_tokens=max_tokens,
             **extra,
@@ -427,4 +429,7 @@ class EmbeddedEngine:
         except Exception as err:
             raise SaySoInvalidResponseError(f"Local inference failed: {err}") from err
 
-        return replace(parse_completion_result(raw), grammar_skip_reason=skipped)
+        return replace(
+            parse_completion_result(raw, extract_content_calls=bool(tools)),
+            grammar_skip_reason=skipped,
+        )

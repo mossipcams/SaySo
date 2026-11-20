@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from homeassistant.components.conversation.const import DOMAIN as CONVERSATION_DOMAIN
-from homeassistant.components.homeassistant.exposed_entities import async_should_expose
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers import (
     area_registry as ar,
     device_registry as dr,
@@ -339,15 +337,13 @@ def select_schema_for_domain(
 @callback
 def build_routing_catalog(
     hass: HomeAssistant,
-    *,
-    assistant: str = CONVERSATION_DOMAIN,
+    exposed_states: Iterable[State],
 ) -> RoutingCatalog:
+    states_by_id = {state.entity_id: state for state in exposed_states}
     entity_reg = er.async_get(hass)
     entities: list[RoutingEntity] = []
     for entity_id, entry in entity_reg.entities.items():
-        if not async_should_expose(hass, assistant, entity_id):
-            continue
-        state = hass.states.get(entity_id)
+        state = states_by_id.get(entity_id)
         if state is None:
             continue
         entities.append(
