@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
@@ -437,8 +437,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bo
         entry, PLATFORMS
     ):
         return False
-    if entry.runtime_data is not None:
-        entry.runtime_data.tracer.async_shutdown()
-        await entry.runtime_data.engine.async_shutdown()
-    entry.runtime_data = cast(SaySoRuntimeData, None)
+    runtime = getattr(entry, "runtime_data", None)
+    if runtime is not None:
+        runtime.tracer.async_shutdown()
+        await runtime.engine.async_shutdown()
     return True

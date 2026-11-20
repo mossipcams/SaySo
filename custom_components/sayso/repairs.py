@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import cast
-
-from homeassistant.components.repairs import ConfirmRepairFlow, RepairsFlow
+from homeassistant.components.repairs import (
+    ConfirmRepairFlow,
+    RepairsFlow,
+    RepairsFlowResult,
+)
 from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.data_entry_flow import FlowContext
 from homeassistant.helpers import issue_registry as ir
 
 from .config_flow import DownloadSteps
@@ -60,18 +62,22 @@ def async_clear_issues(hass: HomeAssistant, entry_id: str) -> None:
         ir.async_delete_issue(hass, DOMAIN, _issue_id(key, entry_id))
 
 
-class ModelRepairFlow(DownloadSteps, RepairsFlow):
+class ModelRepairFlow(DownloadSteps[FlowContext, RepairsFlowResult], RepairsFlow):
     def __init__(self, entry_id: str, model: str, *, replace: bool) -> None:
         self._entry_id = entry_id
         self._model = model
         self._replace = replace
 
-    async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
-        return cast(FlowResult, await self.async_step_download())
+    async def async_step_init(
+        self, user_input: dict | None = None
+    ) -> RepairsFlowResult:
+        return await self.async_step_download()
 
-    async def async_step_finish(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_finish(
+        self, user_input: dict | None = None
+    ) -> RepairsFlowResult:
         self.hass.config_entries.async_schedule_reload(self._entry_id)
-        return cast(FlowResult, self.async_create_entry(data={}))
+        return self.async_create_entry(data={})
 
 
 async def async_create_fix_flow(

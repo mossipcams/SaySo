@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields, replace
-from typing import TYPE_CHECKING, Any, cast, override
+from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
@@ -234,7 +234,7 @@ class _Turn:
         self,
         messages: list[dict[str, Any]],
         *,
-        tools: tuple[dict[str, Any], ...] | list[dict[str, Any]] | None,
+        tools: Sequence[dict[str, Any]] | None,
         correction: bool = False,
     ) -> ChatCompletionResult:
         trace, runtime = self.trace, self.runtime
@@ -250,7 +250,7 @@ class _Turn:
         try:
             result = await runtime.engine.async_chat_completion(
                 messages,
-                tools=cast("list[dict[str, Any]] | None", tools),
+                tools=tools,
                 temperature=runtime.temperature,
                 max_tokens=runtime.max_output_tokens,
                 grammar=grammar,
@@ -642,8 +642,11 @@ class SaySoConversationEntity(
         kind = failure.kind
         phase = BoundaryPhase(failure.phase.value)
         if kind in (FailureKind.TIMEOUT, FailureKind.MODEL_FAILED):
+            error = failure.error
+            if error is None:
+                raise TypeError("model failure without an error")
             return turn.model_failure(
-                cast(BaseException, failure.error),
+                error,
                 phase,
                 log_label=_MODEL_LOG_LABELS[failure.phase],
             )
@@ -696,7 +699,7 @@ class SaySoConversationEntity(
 
 def _turn_grammar(
     runtime: SaySoRuntimeData,
-    tools: tuple[dict[str, Any], ...] | list[dict[str, Any]] | None,
+    tools: Sequence[dict[str, Any]] | None,
     metadata: dict[str, Any],
 ) -> str | None:
     if not tools or not getattr(runtime, "grammar_decoding", False):

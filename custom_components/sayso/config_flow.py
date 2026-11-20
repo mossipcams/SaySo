@@ -27,7 +27,7 @@ from homeassistant.const import (
     CONF_URL,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowHandler
+from homeassistant.data_entry_flow import FlowContext, FlowHandler, FlowResult
 
 from homeassistant.helpers import config_validation as cv, llm
 from homeassistant.helpers.llm import LLM_API_ASSIST
@@ -262,7 +262,9 @@ def _select(values: list[str], *, custom: bool = False) -> SelectSelector:
     )
 
 
-class DownloadSteps(FlowHandler[ConfigFlowContext, ConfigFlowResult, str]):
+class DownloadSteps[ContextT: FlowContext, ResultT: FlowResult[Any, Any]](
+    FlowHandler[ContextT, ResultT, str]
+):
     hass: HomeAssistant
     _model: str
     _replace: bool = False
@@ -271,7 +273,7 @@ class DownloadSteps(FlowHandler[ConfigFlowContext, ConfigFlowResult, str]):
 
     async def async_step_download(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    ) -> ResultT:
         if self._download_task is None:
             self._download_task = self.hass.async_create_task(
                 async_provision_model(self.hass, self._model, replace=self._replace)
@@ -294,7 +296,7 @@ class DownloadSteps(FlowHandler[ConfigFlowContext, ConfigFlowResult, str]):
 
     async def async_step_download_failed(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    ) -> ResultT:
         if user_input is None:
             return self.async_show_form(
                 step_id="download_failed",
@@ -431,7 +433,9 @@ def _subentry_payload(user_input: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     return data.pop(CONF_NAME), data
 
 
-class SaySoConfigFlow(DownloadSteps, ConfigFlow, domain=DOMAIN):
+class SaySoConfigFlow(
+    DownloadSteps[ConfigFlowContext, ConfigFlowResult], ConfigFlow, domain=DOMAIN
+):
     VERSION = 2
     MINOR_VERSION = 1
 
@@ -627,7 +631,9 @@ class SaySoAITaskSubentryFlow(ConfigSubentryFlow):
         )
 
 
-class SaySoOptionsFlowHandler(DownloadSteps, OptionsFlow):
+class SaySoOptionsFlowHandler(
+    DownloadSteps[ConfigFlowContext, ConfigFlowResult], OptionsFlow
+):
     _pending: dict[str, Any]
 
     def _form(

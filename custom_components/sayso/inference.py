@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
@@ -244,7 +245,7 @@ class SaySoInferenceEngine(Protocol):
         self,
         messages: list[dict[str, Any]],
         *,
-        tools: list[dict[str, Any]] | None = None,
+        tools: Sequence[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         grammar: str | None = None,
@@ -271,7 +272,7 @@ class ExternalEngine:
         self,
         messages: list[dict[str, Any]],
         *,
-        tools: list[dict[str, Any]] | None = None,
+        tools: Sequence[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         grammar: str | None = None,
@@ -358,7 +359,7 @@ class EmbeddedEngine:
     def _complete(
         self,
         messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None,
+        tools: Sequence[dict[str, Any]] | None,
         temperature: float,
         max_tokens: int,
         grammar: str | None,
@@ -397,7 +398,7 @@ class EmbeddedEngine:
         self,
         messages: list[dict[str, Any]],
         *,
-        tools: list[dict[str, Any]] | None = None,
+        tools: Sequence[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         grammar: str | None = None,

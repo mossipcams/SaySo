@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from collections.abc import Callable, Iterable
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import voluptuous as vol
 from homeassistant.helpers import intent, llm
@@ -13,11 +13,12 @@ try:
 except ImportError:
     _to_openapi = None
 
+convert: Callable[..., Any] | None
 try:
     from voluptuous_openapi import UNSUPPORTED, convert
 except ImportError:
     UNSUPPORTED = object()
-    convert = cast(Any, None)
+    convert = None
 
 from .core.exceptions import SaySoInvalidToolEnvelopeError
 from .core.tool_schema import (
@@ -88,7 +89,9 @@ def _vol_in_allowed_values(validator: Any) -> frozenset[str] | None:
         container = validator.container
         if isinstance(container, dict):
             return frozenset(str(key) for key in container)
-        return frozenset(str(value) for value in cast(Iterable[Any], container))
+        if isinstance(container, Iterable):
+            return frozenset(str(value) for value in container)
+        raise TypeError(f"vol.In container is not iterable: {container!r}")
 
     if isinstance(validator, vol.All):
         for sub_validator in validator.validators:

@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -131,7 +131,7 @@ def cache_trace_of(raw: dict[str, Any]) -> tuple[str | None, int | None]:
 
 
 def prefix_hash(
-    messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None
+    messages: list[dict[str, Any]], tools: Sequence[dict[str, Any]] | None
 ) -> str:
     system = ""
     if messages and messages[0].get("role") == "system":
