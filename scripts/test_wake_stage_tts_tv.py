@@ -14,9 +14,9 @@ def test_voice_level_is_absolute_and_tv_keeps_its_shape():
     voice = np.zeros(32000, np.float32)
     voice[24000:32000] = 0.5 * np.sin(2 * np.pi * 200 * np.arange(8000) / 16000)
     tv = np.zeros(32000, np.float32)
-    tv[:16000] = 0.01  # TV gated to zero under the word
+    tv[:16000] = 0.01
     y = mix_at(voice, tv, -20.0, 6.0)
-    assert abs(active_db(y[24000:]) + 20) < 1e-3  # voice not shrunk to the silent TV under it
+    assert abs(active_db(y[24000:]) + 20) < 1e-3
     assert np.allclose(y[:16000], 0.01 * 10 ** (6 / 20))
 
 

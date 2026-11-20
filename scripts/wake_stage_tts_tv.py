@@ -25,14 +25,12 @@ example (VM layout): positives and the paired near-miss negatives over the same 
 
 
 def active_db(w: np.ndarray, floor_db: float = 30.0) -> float:
-    """Mean power (dBFS) of 20 ms frames within floor_db of the loudest frame."""
     n = len(w) // 320
     db = 10 * np.log10((w[: n * 320].reshape(n, 320) ** 2).mean(1) + 1e-12)
     return float(10 * np.log10(np.mean(10 ** (db[db >= db.max() - floor_db] / 10))))
 
 
 def ltas_db(clips: list[np.ndarray]) -> np.ndarray:
-    """Mean normalised Welch spectrum (dB, 257 bins) over each clip's active frames."""
     from scipy.signal import welch
 
     acc = np.zeros(257)
@@ -47,7 +45,6 @@ def ltas_db(clips: list[np.ndarray]) -> np.ndarray:
 
 
 def match_fir(target: list[np.ndarray], source: list[np.ndarray], taps: int = 257) -> np.ndarray:
-    """Linear-phase FIR that moves source's average spectrum onto target's (0 dB at 400-800 Hz)."""
     from scipy.signal import firwin2
 
     f = np.linspace(0, SR / 2, 257)
@@ -57,11 +54,6 @@ def match_fir(target: list[np.ndarray], source: list[np.ndarray], taps: int = 25
 
 
 def mix_at(voice: np.ndarray, tv: np.ndarray, voice_dbfs: float, tv_gain_db: float) -> np.ndarray:
-    """Voice at an absolute active level plus the TV as recorded with a gain.
-
-    Levels are independent: a speaker doesn't get quieter when the TV does, and
-    scaling the voice to the TV's local power makes it vanish in the eMeet's gated gaps.
-    """
     y = voice * 10 ** ((voice_dbfs - active_db(voice)) / 20) + tv * 10 ** (tv_gain_db / 20)
     pk = np.abs(y).max()
     return (y * (0.99 / pk) if pk > 0.99 else y).astype(np.float32)
@@ -83,7 +75,7 @@ def stage(
     from livekit.wakeword.data.augment import AudioAugmentor, align_clip_to_end
     from livekit.wakeword.eval import stream as S
 
-    random.seed(seed)  # LiveKit's augmentor draws from the stdlib RNG
+    random.seed(seed)
     rng = np.random.default_rng(seed)
     clips = sorted(glob.glob(str(clip_dir / "clip_[0-9][0-9][0-9][0-9][0-9][0-9].wav")))
     tvs = sorted(p for d in tv_dirs for p in glob.glob(str(d / "*.wav")))
@@ -95,20 +87,23 @@ def stage(
     score = {k: S.build_onnx_scorer(p) for k, p in scorers.items()}
     (out / "examples").mkdir(parents=True, exist_ok=True)
     fir = None
-    if match_dir is not None:  # the eMeet's average colouring (incl. its ~6.5 kHz band limit), not its gate
+    if match_dir is not None:
         real = [sf.read(p, dtype="float32")[0] for p in sorted(glob.glob(str(match_dir / "*.wav")))]
         tts = [sf.read(clips[k], dtype="float32")[0] for k in rng.choice(len(clips), 2000, replace=True)]
         fir = match_fir(real, tts)
         np.save(out / "match_fir.npy", fir)
 
+    def is_audible(s: np.ndarray) -> bool:
+        return 20 * np.log10(np.sqrt((s**2).mean()) + 1e-9) > -60
+
     def tv_slice() -> tuple[np.ndarray, str, int]:
-        while True:  # skip the eMeet's gated near-silence between programmes
+        while True:
             h = files[tvs[rng.integers(len(tvs))]]
             off = int(rng.integers(0, h.frames - WIN))
             h.seek(off)
             s = h.read(WIN, dtype="float32")
             s = s[:, 0] if s.ndim > 1 else s
-            if 20 * np.log10(np.sqrt((s**2).mean()) + 1e-9) > -60:
+            if is_audible(s):
                 return s, Path(h.name).name, off
 
     rows, man = [], []
@@ -117,12 +112,11 @@ def stage(
         assert sr == SR, (clips[j], sr)
         if fir is not None:
             w = np.convolve(w, fir, mode="same").astype(np.float32)
-        # Voice gets its own room; the TV hours were recorded through the room and the eMeet already.
-        v = align_clip_to_end(aug.apply_rir(aug.augment_clip(w)), WIN)
+        voice_in_room = align_clip_to_end(aug.apply_rir(aug.augment_clip(w)), WIN)
         t, name, off = tv_slice()
         lv, tg = float(rng.uniform(*voice_dbfs)), float(rng.uniform(*tv_gain_db))
-        y = mix_at(v, t, lv, tg)
-        snr = lv - 20 * np.log10(np.sqrt((t**2).mean()) + 1e-9) - tg  # voice active vs 2 s TV RMS
+        y = mix_at(voice_in_room, t, lv, tg)
+        snr = lv - 20 * np.log10(np.sqrt((t**2).mean()) + 1e-9) - tg
         f = S.window_features(mel, emb, y)
         rows.append(f)
         man.append(
@@ -159,10 +153,14 @@ def main() -> int:
     ap.add_argument("--tv", type=Path, action="append", required=True, help="dir of Pi-recorded TV WAVs (train split only)")
     ap.add_argument("--n", type=int, default=25000)
     ap.add_argument("--seed", type=int, default=31)
-    # ponytail: measured 2026-11-04. Room Kodas -20..-12 dBFS active; train TV hours -27 dBFS median vs -22 in the
-    # real TV-on captures, so the gain centres the TV there. Re-measure if the room, TV volume or mic changes.
     ap.add_argument("--voice-dbfs", type=float, nargs=2, default=(-21.0, -11.0))
-    ap.add_argument("--tv-gain-db", type=float, nargs=2, default=(-3.0, 9.0))
+    ap.add_argument(
+        "--tv-gain-db",
+        type=float,
+        nargs=2,
+        default=(-3.0, 9.0),
+        help="TV gain range in dB. Measured 2026-11-04: room Kodas -20..-12 dBFS active; train TV hours -27 dBFS median vs -22 in real TV-on captures, so this centres the TV there. Re-measure if the room, TV volume or mic changes",
+    )
     ap.add_argument("--scorer", action="append", default=[], metavar="NAME=MODEL.onnx")
     ap.add_argument("--match", type=Path, help="dir of real eMeet Koda WAVs: EQ the TTS onto their average spectrum")
     args = ap.parse_args()

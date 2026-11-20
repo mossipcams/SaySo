@@ -33,7 +33,6 @@ def edit(a: tuple[str, ...], b: tuple[str, ...]) -> int:
 
 
 def near_koda(phones: list[str], max_edit: int = 2) -> bool:
-    """True if any 3-5 phone span is within max_edit edits of K OW D AH."""
     return any(
         edit(tuple(phones[i : i + n]), KODA) <= max_edit
         for n in (3, 4, 5)

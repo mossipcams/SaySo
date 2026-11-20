@@ -1,5 +1,12 @@
-"""Export the DMA-KWS Stage II (QbyT) matcher to a fixed-shape ONNX file for the satellite.
+from __future__ import annotations
 
+import argparse
+import hashlib
+import sys
+import types
+from pathlib import Path
+
+EXAMPLES = """\
 Source: https://github.com/aizhiqi-work/DMA-KWS (commit below), checkpoint
 ckpts/stage2/155k-v2-ft.ckpt. Dev-machine tool: needs torch, onnx and a clone of that repo.
 The repo has no LICENSE file, so neither the checkpoint nor the exported model is
@@ -11,21 +18,27 @@ committed here; copy the .onnx to the satellite (see satellite/models/README.md)
 Shapes are baked in: a 78-frame (0.8 s) feature crop and a 4-phoneme keyword. Variable
 keyword length does not export (attention reshapes are traced as constants).
 """
-from __future__ import annotations
 
-import argparse
-import hashlib
-import sys
-import types
-from pathlib import Path
-
-CKPT_SHA256 = "1135cd36a479c0db449499ba4c076b2a81c2dcdc99203e91db790696c85d2c48"  # 155k-v2-ft.ckpt
+CKPT_SHA256 = "1135cd36a479c0db449499ba4c076b2a81c2dcdc99203e91db790696c85d2c48"
 FRAMES = 78
 ANCHOR_LEN = 4
+KODA_PHONE_IDS = [44, 50, 23, 9]
+
+
+def stub_whisper_language_table() -> None:
+    whisper = types.ModuleType("whisper")
+    tokenizer = types.ModuleType("whisper.tokenizer")
+    tokenizer.LANGUAGES = {}
+    whisper.tokenizer = tokenizer
+    sys.modules.update({"whisper": whisper, "whisper.tokenizer": tokenizer})
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(
+        description="Export the DMA-KWS Stage II (QbyT) matcher to a fixed-shape ONNX file for the satellite.",
+        epilog=EXAMPLES,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     ap.add_argument("--repo", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
@@ -35,12 +48,7 @@ def main() -> None:
     if digest != CKPT_SHA256:
         raise SystemExit(f"checkpoint SHA-256 mismatch: {digest}")
 
-    # wenet utils import openai-whisper only for a language table; stub it.
-    whisper = types.ModuleType("whisper")
-    tokenizer = types.ModuleType("whisper.tokenizer")
-    tokenizer.LANGUAGES = {}
-    whisper.tokenizer = tokenizer
-    sys.modules.update({"whisper": whisper, "whisper.tokenizer": tokenizer})
+    stub_whisper_language_table()
     sys.path.insert(0, str(args.repo / "decode"))
 
     import torch
@@ -54,7 +62,7 @@ def main() -> None:
         selfattention_layer_type="rel_selfattn", cnn_module_kernel=3,
     )
     qbyt = QbyT(encoder_output_size=144, num_embeds=73, embed_dim=128, post_num_layers=2)
-    state = torch.load(ckpt, map_location="cpu", weights_only=True)  # plain tensors only
+    state = torch.load(ckpt, map_location="cpu", weights_only=True)
     state = state.get("state_dict", state)
     enc.load_state_dict({k[8:]: v for k, v in state.items() if k.startswith("encoder.")})
     qbyt.load_state_dict({k[5:]: v for k, v in state.items() if k.startswith("qbyt.")})
@@ -72,7 +80,7 @@ def main() -> None:
 
     net = Net().eval()
     feats = torch.randn(1, FRAMES, 80)
-    anchor = torch.tensor([[44, 50, 23, 9]])  # K OW1 D AH0
+    anchor = torch.tensor([KODA_PHONE_IDS])
     torch.onnx.export(net, (feats, anchor), str(args.out), input_names=["feats", "anchor"],
                       output_names=["score"], opset_version=17, dynamo=False)
     print(f"wrote {args.out} sha256={hashlib.sha256(args.out.read_bytes()).hexdigest()}")

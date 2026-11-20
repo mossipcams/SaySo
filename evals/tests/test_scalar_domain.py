@@ -18,7 +18,6 @@ def _classify(domain) -> Outcome:
 
 
 def test_scalar_domain_matches_single_item_list() -> None:
-    # The schema accepts domain as a string or a list for GetLiveContext.
     assert _classify("media_player") == Outcome.VALID_TOOL_CALL
     assert _classify(["media_player"]) == Outcome.VALID_TOOL_CALL
 

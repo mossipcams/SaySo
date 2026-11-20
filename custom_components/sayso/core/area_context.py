@@ -135,8 +135,6 @@ def _ordered(node: dict[str, Any], order: tuple[str, ...]) -> dict[str, Any]:
 
 
 def _training_key_order(tool: dict[str, Any]) -> dict[str, Any]:
-    # Compiled tools arrive with sorted keys; the model trained on the chat
-    # template's order (type, then function name, description, parameters).
     function = tool.get("function")
     if not isinstance(function, dict):
         return tool
