@@ -226,7 +226,9 @@ class _Run:
         compiled = tools_by_name(turn.tools)
         self.suppress_grounding = confirmed
         while True:
-            parse_span = self.recorder.open(Stage.TOOL_PARSE, calls=len(current))
+            parse_span = self.recorder.open(
+                Stage.TOOL_PARSE, **{"sayso.calls": len(current)}
+            )
 
             if not is_well_formed_batch(current):
                 return self.fail(FailureKind.INVALID_ARGUMENTS)
@@ -275,7 +277,7 @@ class _Run:
                     new_args = drop_unspoken_area(call.name, args, turn.user_text, home)
                     if new_args is not args:
                         self.area_dropped = True
-                        parse_span.metadata["area_dropped"] = {
+                        parse_span.metadata["sayso.area_dropped"] = {
                             "tool": call.name,
                             "name": args.get("name"),
                             "area": args.get("area"),
@@ -306,7 +308,7 @@ class _Run:
                             speech=turn.speech,
                             vocab=self.vocab,
                         )
-                        parse_span.metadata["clarify"] = clar.speech
+                        parse_span.metadata["sayso.clarify"] = clar.speech
                         self.recorder.close(parse_span, success=False)
                         self.clarified = True
                         held = None

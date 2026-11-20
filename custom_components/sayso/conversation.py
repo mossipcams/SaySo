@@ -172,7 +172,7 @@ class _Turn:
             self.chat_log.async_add_assistant_content_without_tools(
                 conversation.AssistantContent(agent_id=self.agent_id, content=content)
             )
-            span.metadata["text_length"] = len(content or "")
+            span.metadata["sayso.text_length"] = len(content or "")
             return conversation.async_get_result_from_chat_log(
                 self.user_input, self.chat_log
             )
@@ -240,8 +240,11 @@ class _Turn:
         trace, runtime = self.trace, self.runtime
         span = trace.open(
             Stage.INFERENCE,
-            model=runtime.model,
-            **({"correction": True} if correction else {}),
+            **{
+                "gen_ai.operation.name": "chat",
+                "gen_ai.request.model": runtime.model,
+            },
+            **({"sayso.correction": True} if correction else {}),
         )
         grammar = _turn_grammar(runtime, tools, span.metadata)
         try:
@@ -257,18 +260,18 @@ class _Turn:
             trace.close(span, success=False)
             trace.fail(Stage.INFERENCE, inference_error_type(err), str(err))
             raise
-        span.metadata["tool_calls"] = len(result.tool_calls)
+        span.metadata["sayso.tool_calls"] = len(result.tool_calls)
         if result.prompt_tokens is not None:
-            span.metadata["prompt_tokens"] = result.prompt_tokens
+            span.metadata["gen_ai.usage.input_tokens"] = result.prompt_tokens
         if result.prefix_hash is not None:
             span.metadata["prefix_hash"] = result.prefix_hash
         if result.reused_tokens is not None:
-            span.metadata["reused_tokens"] = result.reused_tokens
+            span.metadata["sayso.reused_tokens"] = result.reused_tokens
         if result.finish_reason is not None:
             span.metadata["finish_reason"] = result.finish_reason
         if result.grammar_skip_reason is not None:
-            span.metadata["grammar"] = "skipped"
-            span.metadata["grammar_skip_reason"] = result.grammar_skip_reason
+            span.metadata["sayso.grammar"] = "skipped"
+            span.metadata["sayso.grammar_skip_reason"] = result.grammar_skip_reason
         trace.close(span)
         return result
 
@@ -310,7 +313,7 @@ class _Turn:
             elif resolved_target is None:
                 resolved_target = first_target(data)
         if resolved_target is not None:
-            span.metadata["target"] = resolved_target
+            span.metadata["sayso.target"] = resolved_target
         return batch_failed, ha_error, ha_error_text
 
 
@@ -570,7 +573,9 @@ class SaySoConversationEntity(
             validated: list[tuple[ToolCall, dict[str, Any]]],
         ) -> ExecutionResult:
             action_span = trace.open(
-                Stage.HA_ACTION, **action_metadata(validated, tool_map)
+                Stage.HA_ACTION,
+                **{"gen_ai.operation.name": "execute_tool"},
+                **action_metadata(validated, tool_map),
             )
             batch_failed, ha_error, ha_error_text = await turn.execute(
                 validated, tool_map, action_span
@@ -704,10 +709,10 @@ def _turn_grammar(
         _LOGGER.exception("Grammar build failed; sending without a grammar")
         reason = "builder_error"
     else:
-        metadata["grammar"] = "on"
+        metadata["sayso.grammar"] = "on"
         return grammar
-    metadata["grammar"] = "skipped"
-    metadata["grammar_skip_reason"] = reason
+    metadata["sayso.grammar"] = "skipped"
+    metadata["sayso.grammar_skip_reason"] = reason
     return None
 
 

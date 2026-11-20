@@ -16,6 +16,7 @@ from .core.trace_stages import ErrorType, Stage
 _LOGGER = logging.getLogger(__name__)
 
 KEY_ASSIST_PIPELINE = "assist_pipeline"
+TRACE_SCHEMA = 2
 
 
 INTERACTION_STARTED = "interaction_started"
@@ -239,6 +240,7 @@ class TraceContext:
     def summary(self) -> dict[str, Any]:
         return {
             "trace_id": self.trace_id,
+            "trace_schema": TRACE_SCHEMA,
             "started_at": self.started_at.isoformat(),
             "completed_at": (
                 self.completed_at.isoformat() if self.completed_at else None
@@ -383,14 +385,14 @@ def replay_pipeline_events(trace: TraceContext, events: list[Any]) -> None:
 
     metadata: dict[str, Any] = {}
     if vad_end is None:
-        metadata["vad"] = False
+        metadata["sayso.vad"] = False
     text = ""
     data = stt_end[1]
     if isinstance(data, dict):
         output = data.get("stt_output")
         if isinstance(output, dict) and isinstance(output.get("text"), str):
             text = output["text"]
-    metadata["text_length"] = len(text)
+    metadata["sayso.text_length"] = len(text)
     trace.utterance = text or trace.utterance
 
     trace.record_span(
@@ -434,7 +436,7 @@ def observe_pipeline_completion(
             started = tts_started.pop("at", timestamp)
             metadata: dict[str, Any] = {}
             if isinstance(data, dict) and isinstance(data.get("tts_output"), dict):
-                metadata["stream"] = True
+                metadata["sayso.stream"] = True
             trace.record_span(
                 Stage.TTS,
                 duration_ms=max(_ms((timestamp - started).total_seconds()), 0),

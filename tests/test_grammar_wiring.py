@@ -66,8 +66,8 @@ async def test_grammar_is_off_by_default(
     assert kwargs["tools"]
     assert kwargs["grammar"] is None
     metadata = _inference_metadata(entry)
-    assert metadata["model"] == MODEL_ID
-    assert "grammar" not in metadata
+    assert metadata["gen_ai.request.model"] == MODEL_ID
+    assert "sayso.grammar" not in metadata
 
 
 async def test_enabled_option_sends_a_tool_call_grammar(
@@ -84,7 +84,7 @@ async def test_enabled_option_sends_a_tool_call_grammar(
     grammar = chat.call_args.kwargs["grammar"]
     assert grammar.startswith("root ::= block | text")
     assert "<|tool_call_start|>" in grammar
-    assert _inference_metadata(entry)["grammar"] == "on"
+    assert _inference_metadata(entry)["sayso.grammar"] == "on"
 
 
 async def test_grammar_is_not_built_without_tools(
@@ -103,7 +103,7 @@ async def test_grammar_is_not_built_without_tools(
 
     build.assert_not_called()
     assert chat.call_args.kwargs["grammar"] is None
-    assert "grammar" not in _inference_metadata(entry)
+    assert "sayso.grammar" not in _inference_metadata(entry)
 
 
 @pytest.mark.parametrize(
@@ -133,8 +133,8 @@ async def test_builder_failure_falls_back_and_records_the_reason(
     assert chat.call_args.kwargs["grammar"] is None
     assert result.response.speech["plain"]["speech"] == "Done."
     metadata = _inference_metadata(entry)
-    assert metadata["grammar"] == "skipped"
-    assert metadata["grammar_skip_reason"] == reason
+    assert metadata["sayso.grammar"] == "skipped"
+    assert metadata["sayso.grammar_skip_reason"] == reason
 
 
 async def test_finish_reason_is_recorded_on_the_inference_span(

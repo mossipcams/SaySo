@@ -275,5 +275,5 @@ async def test_backend_rejection_is_traced_as_a_skipped_grammar(
         await _converse(hass, entry, "What time is it?")
 
     metadata = _inference_metadata(entry)
-    assert metadata["grammar"] == "skipped"
-    assert metadata["grammar_skip_reason"] == GRAMMAR_BACKEND_REJECTED
+    assert metadata["sayso.grammar"] == "skipped"
+    assert metadata["sayso.grammar_skip_reason"] == GRAMMAR_BACKEND_REJECTED
