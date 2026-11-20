@@ -38,12 +38,9 @@ def _read_readme() -> str:
     return (ROOT / "README.md").read_text(encoding="utf-8")
 
 
-def test_matrix_has_current_and_latest_entries() -> None:
-    assert {entry.id for entry in MATRIX} == {"current", "latest"}
+def test_matrix_has_single_current_entry() -> None:
+    assert len(MATRIX) == 1
     assert get_entry("current").homeassistant == CURRENT_HA_VERSION
-    latest = tuple(int(part) for part in get_entry("latest").homeassistant.split("."))
-    current = tuple(int(part) for part in CURRENT_HA_VERSION.split("."))
-    assert latest >= current
     assert CURRENT_HA_VERSION == "2026.8.3"
     assert CURRENT_HA_VERSION == DECLARED_MINIMUM_HA_VERSION
 

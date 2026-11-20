@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import argparse
@@ -39,7 +38,6 @@ COMPAT_TEST_CATEGORIES: Final[dict[str, str]] = {
 
 @dataclass(frozen=True, slots=True)
 class MatrixEntry:
-
     id: str
     label: str
     homeassistant: str
@@ -53,17 +51,10 @@ MATRIX: Final[tuple[MatrixEntry, ...]] = (
         homeassistant=CURRENT_HA_VERSION,
         python="3.14",
     ),
-    MatrixEntry(
-        id="latest",
-        label="Home Assistant latest release",
-        homeassistant="2026.11.1",
-        python="3.14",
-    ),
 )
 
 COMPONENT_REQUIREMENT_ROOTS: Final[dict[str, tuple[str, ...]]] = {
     "current": ("ai_task", "conversation", "llm", "assist_pipeline"),
-    "latest": ("ai_task", "conversation", "llm", "assist_pipeline"),
 }
 
 
@@ -148,7 +139,9 @@ def install_component_requirements(entry: MatrixEntry, venv_dir: Path) -> None:
         run_command([str(pip), "install", *component_requirements])
 
 
-def pytest_command(venv_dir: Path, test_paths: Sequence[str] | None = None) -> list[str]:
+def pytest_command(
+    venv_dir: Path, test_paths: Sequence[str] | None = None
+) -> list[str]:
     paths = list(test_paths or COMPAT_TEST_PATHS)
     return [str(venv_dir / "bin" / "pytest"), *paths]
 
