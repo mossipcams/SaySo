@@ -71,9 +71,8 @@ Defer if they threaten the voice path:
 - Generated promotion cases (`evals/cases/realistic_generated.jsonl`)
   come from `evals/generate_realistic.py`. Change the generator and regenerate
   instead of editing the file; `python -m evals.generate_realistic --check` must pass.
-- Python throughout. Extend the existing test suite: `tests/`, `evals/tests/`,
-  and colocated `custom_components/sayso/test_*.py`. Do not add another top-level
-  `tests/` tree or a new test framework.
+- Python throughout. Extend the existing test suite: `tests/` and `evals/tests/`.
+  Do not add another top-level `tests/` tree or a new test framework.
 - Do not commit `context.json`.
 - Give user-facing times in 12-hour US Central time (e.g. "5:30 PM CT"), not
   UTC or 24-hour. Convert UTC log/server timestamps (CST = UTC-6, CDT = UTC-5);

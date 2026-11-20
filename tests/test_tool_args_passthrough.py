@@ -3,10 +3,10 @@ from __future__ import annotations
 import voluptuous as vol
 from homeassistant.helpers import intent, llm
 
-from .boundary import validate_arguments
-from .client import ToolCall
-from .schema import validate_tool_arguments
-from .tracing import TraceContext
+from custom_components.sayso.boundary import validate_arguments
+from custom_components.sayso.client import ToolCall
+from custom_components.sayso.schema import validate_tool_arguments
+from custom_components.sayso.tracing import TraceContext
 
 
 class _SetVolumeRelativeHandler(intent.IntentHandler):

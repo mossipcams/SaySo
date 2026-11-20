@@ -15,6 +15,7 @@ from homeassistant.util import ulid as ulid_util
 from .const import (
     DEFAULT_TRACE_MAX_INTERACTIONS,
     DEFAULT_TRACE_RETENTION_DAYS,
+    DEFAULT_TRACE_STORE_UTTERANCES,
     DOMAIN,
 )
 from .tracing import (
@@ -43,7 +44,7 @@ class TraceStore:
         *,
         retention_days: int = DEFAULT_TRACE_RETENTION_DAYS,
         max_interactions: int = DEFAULT_TRACE_MAX_INTERACTIONS,
-        store_utterances: bool = True,
+        store_utterances: bool = DEFAULT_TRACE_STORE_UTTERANCES,
     ) -> None:
         self.hass = hass
         self.retention_days = retention_days

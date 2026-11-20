@@ -20,7 +20,7 @@ CONF_N_THREADS = "n_threads"
 CONF_N_CTX = "n_ctx"
 
 LLAMA_CPP_PACKAGE = "llama-cpp-python"
-LLAMA_CPP_MIN_VERSION = "0.3.33"
+LLAMA_CPP_VERSION = "0.3.33"
 LLAMA_CPP_WHEEL_INDEX = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 
 DEFAULT_MODEL_URL = (
@@ -73,7 +73,7 @@ CONF_TRACE_STORE_UTTERANCES = "trace_store_utterances"
 DEFAULT_TRACE_RETENTION_DAYS = 30
 DEFAULT_TRACE_MAX_INTERACTIONS = 500
 MAX_TRACE_INTERACTIONS = 5000
-DEFAULT_TRACE_STORE_UTTERANCES = True
+DEFAULT_TRACE_STORE_UTTERANCES = False
 
 DEFAULT_SYSTEM_PROMPT = """You are SaySo, a local Home Assistant voice agent.
 Use the available tools for home state queries and actions. Only claim an action succeeded when its tool result confirms success. Use names, areas, and context supplied by Home Assistant. If a request is ambiguous, ask one short question. Keep spoken responses brief. Do not describe tool calls."""

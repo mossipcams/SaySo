@@ -18,7 +18,7 @@ from custom_components.sayso.client import (
     LlamaCppClient,
     ToolCall,
 )
-from custom_components.sayso.const import DOMAIN
+from custom_components.sayso.const import CONF_TRACE_STORE_UTTERANCES, DOMAIN
 from custom_components.sayso.diagnostics import async_get_config_entry_diagnostics
 from custom_components.sayso.exceptions import (
     SaySoConnectionError,
@@ -734,6 +734,10 @@ async def test_concurrent_interactions_keep_independent_trace_state(
     mock_llama_client: None,
 ) -> None:
     entry = await _create_entry(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_TRACE_STORE_UTTERANCES: True}
+    )
+    entry.runtime_data.traces.store_utterances = True
     first_context = Context()
     second_context = Context()
     _install_pipeline_run(hass, first_context, run_id="01FIRSTRUN")
@@ -938,6 +942,10 @@ async def test_diagnostics_redacts_utterances(
     mock_llama_client: None,
 ) -> None:
     entry = await _create_entry(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_TRACE_STORE_UTTERANCES: True}
+    )
+    entry.runtime_data.traces.store_utterances = True
     with patch.object(
         LlamaCppClient,
         "chat_completion",

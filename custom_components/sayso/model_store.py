@@ -1,21 +1,23 @@
-
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import logging
 import os
+import site
+import subprocess
 import sys
 from pathlib import Path
 
 import aiohttp
+import homeassistant
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import package as pkg_util
 
 from .const import (
-    LLAMA_CPP_MIN_VERSION,
     LLAMA_CPP_PACKAGE,
+    LLAMA_CPP_VERSION,
     LLAMA_CPP_WHEEL_INDEX,
     MODEL_STORAGE_SUBDIR,
 )
@@ -39,22 +41,42 @@ def list_local_models(hass: HomeAssistant) -> list[str]:
 
 
 def is_llama_cpp_installed() -> bool:
-    return pkg_util.is_installed(f"{LLAMA_CPP_PACKAGE}>={LLAMA_CPP_MIN_VERSION}")
+    return pkg_util.is_installed(f"{LLAMA_CPP_PACKAGE}=={LLAMA_CPP_VERSION}")
 
 
 def _install_llama_cpp() -> bool:
-    previous = os.environ.get("UV_EXTRA_INDEX_URL")
-    merged = f"{previous} {LLAMA_CPP_WHEEL_INDEX}" if previous else LLAMA_CPP_WHEEL_INDEX
-    os.environ["UV_EXTRA_INDEX_URL"] = merged
-    try:
-        for requirement in ("diskcache", f"{LLAMA_CPP_PACKAGE}>={LLAMA_CPP_MIN_VERSION}"):
-            if not pkg_util.install_package(requirement, upgrade=False):
-                return False
-    finally:
-        if previous is None:
-            os.environ.pop("UV_EXTRA_INDEX_URL", None)
-        else:
-            os.environ["UV_EXTRA_INDEX_URL"] = previous
+    env = os.environ.copy()
+    extra_index = env.get("UV_EXTRA_INDEX_URL")
+    env["UV_EXTRA_INDEX_URL"] = (
+        f"{extra_index} {LLAMA_CPP_WHEEL_INDEX}"
+        if extra_index
+        else LLAMA_CPP_WHEEL_INDEX
+    )
+    constraints = os.path.join(
+        os.path.dirname(homeassistant.__file__), "package_constraints.txt"
+    )
+    for requirement in ("diskcache", f"{LLAMA_CPP_PACKAGE}=={LLAMA_CPP_VERSION}"):
+        args = [sys.executable, "-m", "uv", "pip", "install", "--quiet"]
+        args += [requirement, "--index-strategy", "unsafe-first-match"]
+        args += ["--constraint", constraints]
+        if (
+            not pkg_util.is_virtual_env()
+            and not any(
+                var in os.environ for var in ("UV_SYSTEM_PYTHON", "UV_PYTHON")
+            )
+            and (user_site := site.getusersitepackages())
+        ):
+            args += ["--python", sys.executable, "--target", user_site]
+        result = subprocess.run(
+            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
+        )
+        if result.returncode != 0:
+            _LOGGER.error(
+                "Failed to install %s: %s",
+                requirement,
+                result.stderr.decode("utf-8", "replace").strip(),
+            )
+            return False
     return True
 
 

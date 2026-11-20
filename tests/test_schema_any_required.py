@@ -1,7 +1,7 @@
 from homeassistant.components.intent.timers import StartTimerIntentHandler
 from homeassistant.helpers import llm
 
-from .schema import ToolArgumentFailureCode, validate_tool_arguments
+from custom_components.sayso.schema import ToolArgumentFailureCode, validate_tool_arguments
 
 
 def _timer_tool() -> llm.IntentTool:

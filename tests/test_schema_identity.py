@@ -72,7 +72,7 @@ class _BedroomFan(FanEntity):
         return self._percentage
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 CUSTOM_COMPONENTS_PATH = str(REPO_ROOT / "custom_components")
 
 
