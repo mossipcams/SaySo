@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import difflib
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from .vocabulary import (
@@ -349,12 +350,32 @@ def _area_tokens(area: str | None, home: GroundingHome) -> set[str]:
     return {t for name in names for t in tokens(name)}
 
 
+def _batch_words(others: Sequence[tuple[str, dict]], home: GroundingHome) -> set[str]:
+    words: set[str] = set()
+    for tool_name, args in others:
+        bare = tool_name.split("__")[-1]
+        name = args.get("name")
+        if isinstance(name, str):
+            needle = name.casefold().strip()
+            matches = [e for e in home.entities if needle in labels(e)]
+            if matches:
+                target = matches[0]
+                words |= {t for label in labels(target) for t in tokens(label)}
+                words |= _area_tokens(target.area, home)
+        if "CleanArea" in bare:
+            area = args.get("area")
+            if isinstance(area, str):
+                words |= set(tokens(area))
+    return words
+
+
 def _fully_explained(
     entity: GroundingEntity,
     utterance: str,
     home: GroundingHome,
     bare: str,
     args: dict,
+    others: Sequence[tuple[str, dict]],
 ) -> bool:
     words = set(STOP_WORDS) | set(DOMAIN_WORDS)
     words |= {t for label in labels(entity) for t in tokens(label)}
@@ -364,6 +385,7 @@ def _fully_explained(
         area = args.get("area")
         if isinstance(area, str):
             words |= set(tokens(area))
+    words |= _batch_words(others, home)
     return all(t in words or t.isdigit() for t in tokens(utterance))
 
 
@@ -379,16 +401,28 @@ def _other_candidate_word(
     )
 
 
+def _apostrophe_unaccounted(
+    utterance: str, home: GroundingHome, others: Sequence[tuple[str, dict]]
+) -> bool:
+    if not others:
+        return "'" in utterance
+    batch = _batch_words(others, home)
+    return any("'" in t and t not in batch for t in tokens(utterance))
+
+
 def _satellite_local(
     entity: GroundingEntity,
     utterance: str,
     home: GroundingHome,
     pool: list[GroundingEntity],
+    others: Sequence[tuple[str, dict]],
 ) -> bool:
     sat = home.satellite_area
     if sat is None or entity.area is None or entity.area.casefold() != sat.casefold():
         return False
-    if "'" in utterance or _other_candidate_word(entity, utterance, pool):
+    if _apostrophe_unaccounted(utterance, home, others) or _other_candidate_word(
+        entity, utterance, pool
+    ):
         return False
     local = [
         e for e in pool if e.area is not None and e.area.casefold() == sat.casefold()
@@ -424,10 +458,11 @@ def _rule_grounded(
     home: GroundingHome,
     bare: str,
     args: dict,
+    others: Sequence[tuple[str, dict]],
 ) -> bool:
     if not _room_ok(entity, utterance, home, bare, args):
         return False
-    if not _fully_explained(entity, utterance, home, bare, args):
+    if not _fully_explained(entity, utterance, home, bare, args, others):
         return False
     for dom in {DOMAIN_WORDS[t] for t in tokens(utterance) if t in DOMAIN_WORDS}:
         if not _matches_dom(entity, dom):
@@ -435,7 +470,7 @@ def _rule_grounded(
         pool = _pool(utterance, home, dom, None)
         if pool == [entity]:
             return True
-        if _satellite_local(entity, utterance, home, pool):
+        if _satellite_local(entity, utterance, home, pool, others):
             return True
         if _partial_name(entity, utterance, pool):
             return True
@@ -443,7 +478,12 @@ def _rule_grounded(
 
 
 def is_grounded(
-    tool_name: str, args: dict, utterance: str, home: GroundingHome
+    tool_name: str,
+    args: dict,
+    utterance: str,
+    home: GroundingHome,
+    *,
+    others: Sequence[tuple[str, dict]] = (),
 ) -> bool:
     bare = tool_name.split("__")[-1]
     if bare in _ALWAYS_GROUNDED or "Timer" in bare:
@@ -458,7 +498,7 @@ def is_grounded(
                 return True
             if _area_noun_match(first, utterance, home):
                 return True
-            return _rule_grounded(first, utterance, home, bare, args)
+            return _rule_grounded(first, utterance, home, bare, args, others)
         for area_name, aliases in home.areas.items():
             names = {
                 area_name.casefold().strip(),

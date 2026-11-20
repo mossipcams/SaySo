@@ -277,7 +277,14 @@ class _Run:
                 for i, (call, args) in enumerate(validated):
                     if call.name in turn.read_only:
                         continue
-                    if not is_grounded(call.name, args, turn.user_text, home):
+                    others = [
+                        (other.name, other_args)
+                        for j, (other, other_args) in enumerate(validated)
+                        if j != i
+                    ]
+                    if not is_grounded(
+                        call.name, args, turn.user_text, home, others=others
+                    ):
                         clar = clarify(call.name, args, turn.user_text, home)
                         parse_span.metadata["clarify"] = clar.speech
                         self.recorder.close(parse_span, success=False)
