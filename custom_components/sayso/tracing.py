@@ -32,7 +32,7 @@ def _now() -> datetime:
 
 
 def _ms(seconds: float) -> int:
-    return int(round(seconds * 1000.0))
+    return round(seconds * 1000.0)
 
 
 @dataclass(slots=True)

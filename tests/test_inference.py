@@ -598,7 +598,7 @@ class TestEmbeddedPrefixCheckpointDecision:
         assert _last_user_turn_start([1, 2, 3], marker) is None
         assert _last_user_turn_start([9, 4], marker) == 0
 
-        assert _shared_prefix_len(prompt[:boundary] + [0], prompt) == boundary
+        assert _shared_prefix_len([*prompt[:boundary], 0], prompt) == boundary
         assert _shared_prefix_len([1, 3], prompt) == 1
 
         checkpoints = [prompt[:2], prompt[:8], [1, 3], prompt[:5]]

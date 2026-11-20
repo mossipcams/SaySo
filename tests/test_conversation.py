@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -65,7 +65,7 @@ class _TestLight(LightEntity):
 
     _attr_name = "Living Room"
     _attr_unique_id = "living_room"
-    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.ONOFF}
     _attr_color_mode = ColorMode.ONOFF
 
     def __init__(self) -> None:
@@ -88,7 +88,7 @@ class _KitchenLight(LightEntity):
 
     _attr_name = "Kitchen Light"
     _attr_unique_id = "kitchen_light"
-    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.ONOFF}
     _attr_color_mode = ColorMode.ONOFF
 
     def __init__(self) -> None:
@@ -137,7 +137,7 @@ class _MultiKitchenLight(LightEntity):
 
     _attr_name = "Kitchen Light"
     _attr_unique_id = "multi_kitchen_light"
-    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.ONOFF}
     _attr_color_mode = ColorMode.ONOFF
 
     def __init__(self) -> None:
@@ -160,7 +160,7 @@ class _MultiPorchLight(LightEntity):
 
     _attr_name = "Porch Light"
     _attr_unique_id = "multi_porch_light"
-    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.ONOFF}
     _attr_color_mode = ColorMode.ONOFF
 
     def __init__(self) -> None:

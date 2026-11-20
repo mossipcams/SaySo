@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock, patch
 
 import custom_components
@@ -42,7 +42,7 @@ from tests.test_config_flow import (
 class _TestLight(LightEntity):
     _attr_name = "Living Room"
     _attr_unique_id = "living_room"
-    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.ONOFF}
     _attr_color_mode = ColorMode.ONOFF
 
     def __init__(self) -> None:

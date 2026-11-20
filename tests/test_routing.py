@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -526,7 +526,7 @@ class _RoutingTestLight(LightEntity):
 
     _attr_name = "Living Room"
     _attr_unique_id = "living_room"
-    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.ONOFF}
     _attr_color_mode = ColorMode.ONOFF
 
     def __init__(self) -> None:
@@ -620,7 +620,8 @@ class TestSelectToolsForDomain:
         self,
         representative_ha_tools: list[llm.Tool],
     ) -> None:
-        source_tools = representative_ha_tools + [
+        source_tools = [
+            *representative_ha_tools,
             _FakeDomainTool(
                 name="light_misleading",
                 domain_validator=vol.All(cv.ensure_list, [cv.string]),
@@ -670,7 +671,8 @@ class TestSelectToolsForDomain:
         self,
         representative_ha_tools: list[llm.Tool],
     ) -> None:
-        source_tools = representative_ha_tools + [
+        source_tools = [
+            *representative_ha_tools,
             _FakeDomainTool(
                 name="climate_only",
                 domain_validator=vol.All(cv.ensure_list, [vol.In(["climate"])]),

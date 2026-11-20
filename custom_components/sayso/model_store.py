@@ -72,9 +72,7 @@ def _install_llama_cpp() -> bool:
             and (user_site := site.getusersitepackages())
         ):
             args += ["--python", sys.executable, "--target", user_site]
-        result = subprocess.run(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
-        )
+        result = subprocess.run(args, capture_output=True, env=env)
         if result.returncode != 0:
             _LOGGER.error(
                 "Failed to install %s: %s",

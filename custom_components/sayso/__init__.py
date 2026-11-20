@@ -430,9 +430,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bool:
-    if PLATFORMS:
-        if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-            return False
+    if PLATFORMS and not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
     if entry.runtime_data is not None:
         entry.runtime_data.tracer.async_shutdown()
         await entry.runtime_data.engine.async_shutdown()

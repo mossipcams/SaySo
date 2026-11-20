@@ -92,13 +92,12 @@ async def test_grammar_is_not_built_without_tools(
     entry = await _create_entry(hass)
     await _set_grammar_option(hass, entry, True)
 
-    with patch(
-        "custom_components.sayso.conversation.build_grammar"
-    ) as build, patch.object(LlamaCppClient, "chat_completion", new=_done()) as chat:
-        with patch(
-            "custom_components.sayso.conversation._tools_of", return_value=None
-        ):
-            await _converse(hass, entry, "What time is it?")
+    with (
+        patch("custom_components.sayso.conversation.build_grammar") as build,
+        patch.object(LlamaCppClient, "chat_completion", new=_done()) as chat,
+        patch("custom_components.sayso.conversation._tools_of", return_value=None),
+    ):
+        await _converse(hass, entry, "What time is it?")
 
     build.assert_not_called()
     assert chat.call_args.kwargs["grammar"] is None

@@ -130,9 +130,7 @@ def _is_query_tool(tool: llm.Tool) -> bool:
         return True
     if class_name == "GetDateTimeTool" and module.endswith("llm.llm"):
         return True
-    if class_name == "TodoGetItemsTool" and module.endswith("todo.llm"):
-        return True
-    return False
+    return class_name == "TodoGetItemsTool" and module.endswith("todo.llm")
 
 
 def extract_tool_routing_metadata(tool: llm.Tool) -> ToolRoutingMetadata:

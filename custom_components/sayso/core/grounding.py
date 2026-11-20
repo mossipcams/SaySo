@@ -93,10 +93,7 @@ def _phrase_in_utterance(phrase: str, ut_tokens: list[str]) -> bool:
     if not ws:
         return False
     n = len(ws)
-    for i in range(len(ut_tokens) - n + 1):
-        if ut_tokens[i : i + n] == ws:
-            return True
-    return False
+    return any(ut_tokens[i : i + n] == ws for i in range(len(ut_tokens) - n + 1))
 
 
 def _area_uttered(area: str, utterance: str, home: GroundingHome) -> bool:

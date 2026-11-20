@@ -66,7 +66,7 @@ def test_latency_is_none_without_requests() -> None:
 def test_existing_summary_fields_are_kept() -> None:
     summary: dict[str, Any] = summarize([_result([5.0])])
 
-    assert LEGACY_SUMMARY_KEYS <= set(summary)
+    assert set(summary) >= LEGACY_SUMMARY_KEYS
 
 
 class _Timed:

@@ -30,7 +30,7 @@ from tests.test_config_flow import (
     _complete_user_step,
     _start_user_step,
 )
-from tests.test_init import mock_llama_client  # noqa: F401  (fixture re-export)
+from tests.test_init import mock_llama_client
 
 SELECT_ENTITY_ID = f"select.{DOMAIN}_vad_sensitivity"
 

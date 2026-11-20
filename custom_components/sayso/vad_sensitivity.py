@@ -48,7 +48,7 @@ def async_watch_satellites(hass: HomeAssistant, select_entity_id: str) -> Callab
             return
         try:
             patched = patch_satellite_entities(hass, select_entity_id)
-        except Exception:  # noqa: BLE001 - a patch failure must not break the bus
+        except Exception:
             _LOGGER.exception("Failed to patch satellite VAD sensitivity")
             return
         if patched:

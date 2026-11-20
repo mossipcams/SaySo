@@ -49,10 +49,15 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E9", "F63", "F7", "F82", "B", "ASYNC"]
+select = ["E9", "F63", "F7", "F82", "B", "ASYNC", "UP", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "custom_components/sayso/ducking.py" = ["ASYNC109"]
+"custom_components/sayso/core/history.py" = ["RUF001"]
+"evals/cases.py" = ["RUF001"]
+"evals/scorer.py" = ["RUF001"]
+"tests/test_history_question_gate.py" = ["RUF001"]
+"tests/test_realistic_v3.py" = ["RUF001"]
 
 [tool.ruff.format]
 exclude = [

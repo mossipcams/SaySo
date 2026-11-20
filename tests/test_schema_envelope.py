@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock, patch
 
 import custom_components
@@ -165,7 +165,7 @@ class _RoutingTestLight(LightEntity):
     _attr_name = "Kitchen Light"
     _attr_unique_id = "kitchen-light"
     _attr_color_mode = ColorMode.BRIGHTNESS
-    _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+    _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.BRIGHTNESS}
     _attr_brightness = 128
 
 
