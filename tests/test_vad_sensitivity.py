@@ -43,7 +43,9 @@ async def _create_entry(hass: HomeAssistant) -> Any:
     return hass.config_entries.async_entries(DOMAIN)[0]
 
 
-def _add_mock_satellite(hass: HomeAssistant, entity_id: str, with_attr: bool = True) -> Any:
+def _add_mock_satellite(
+    hass: HomeAssistant, entity_id: str, with_attr: bool = True
+) -> Any:
     platform = EntityPlatform(
         hass=hass,
         logger=logging.getLogger(__name__),
@@ -122,7 +124,9 @@ async def test_patch_noop_when_attribute_missing(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.usefixtures("mock_llama_client")
-async def test_patch_idempotent_on_repeated_registry_events(hass: HomeAssistant) -> None:
+async def test_patch_idempotent_on_repeated_registry_events(
+    hass: HomeAssistant,
+) -> None:
     await _create_entry(hass)
     await hass.async_block_till_done()
 
@@ -147,7 +151,9 @@ async def test_no_satellites_is_a_noop(hass: HomeAssistant) -> None:
     assert hass.states.get(SELECT_ENTITY_ID).state == VAD_SENSITIVITY_DEFAULT
 
 
-async def test_setup_unload_entry_removes_select(hass: HomeAssistant, mock_llama_client: None) -> None:
+async def test_setup_unload_entry_removes_select(
+    hass: HomeAssistant, mock_llama_client: None
+) -> None:
     entry = await _create_entry(hass)
     await hass.async_block_till_done()
     assert hass.states.get(SELECT_ENTITY_ID) is not None
@@ -179,7 +185,9 @@ async def test_selected_option_restored_after_reload(hass: HomeAssistant) -> Non
 
 
 @pytest.mark.usefixtures("mock_llama_client")
-async def test_invalid_restored_option_falls_back_to_default(hass: HomeAssistant) -> None:
+async def test_invalid_restored_option_falls_back_to_default(
+    hass: HomeAssistant,
+) -> None:
     restore_store = async_get_restore_state(hass)
     restore_store.last_states[SELECT_ENTITY_ID] = StoredState(
         State(SELECT_ENTITY_ID, "bogus"),

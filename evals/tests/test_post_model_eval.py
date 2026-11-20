@@ -33,7 +33,9 @@ class _Stub:
         self.first = first
         self.requests: list[list[dict[str, Any]]] = []
 
-    def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Any:
+    def complete(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> Any:
         self.requests.append(messages)
         index = len(self.requests) - 1
         if index == 0:
@@ -53,12 +55,46 @@ def _single(case_id: str):
 def test_correction_recovers_invalid_arguments() -> None:
     case = _single("realistic_eval_20260908_ordinary_01")
     expected = case[0].expected["calls"][0]
-    bad = {"choices": [{"message": {"role": "assistant", "content": None, "tool_calls": [
-        {"id": "bad1", "type": "function", "function": {"name": expected["name"], "arguments": '{"name": "Kitchen Counter Lights", "bogus": 1}'}}
-    ]}}]}
-    good = {"choices": [{"message": {"role": "assistant", "content": None, "tool_calls": [
-        {"id": "good1", "type": "function", "function": {"name": expected["name"], "arguments": '{"name": "Kitchen Counter Lights"}'}}
-    ]}}]}
+    bad = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "bad1",
+                            "type": "function",
+                            "function": {
+                                "name": expected["name"],
+                                "arguments": '{"name": "Kitchen Counter Lights", "bogus": 1}',
+                            },
+                        }
+                    ],
+                }
+            }
+        ]
+    }
+    good = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "good1",
+                            "type": "function",
+                            "function": {
+                                "name": expected["name"],
+                                "arguments": '{"name": "Kitchen Counter Lights"}',
+                            },
+                        }
+                    ],
+                }
+            }
+        ]
+    }
     replies = [bad, good, _reply("Done.")]
 
     class _Scripted(_Stub):
@@ -74,7 +110,9 @@ def test_correction_recovers_invalid_arguments() -> None:
     assert "correction_used" in result.info_flags
     assert "done_shortcut" in result.info_flags
     assert result.turn.raw == bad
-    assert [call["arguments"] for call in result.turn.calls] == [{"name": "Kitchen Counter Lights"}]
+    assert [call["arguments"] for call in result.turn.calls] == [
+        {"name": "Kitchen Counter Lights"}
+    ]
 
 
 def test_area_drop_removes_unspoken_area_and_is_reported() -> None:
@@ -83,13 +121,19 @@ def test_area_drop_removes_unspoken_area_and_is_reported() -> None:
     result = evaluate(case, _expected_then_done(case[0].id))[0]
     assert "area_dropped" in result.info_flags
     assert result.turn.calls == [
-        {"name": case[0].expected["calls"][0]["name"], "arguments": {"name": "Kitchen Robot Vacuum"}}
+        {
+            "name": case[0].expected["calls"][0]["name"],
+            "arguments": {"name": "Kitchen Robot Vacuum"},
+        }
     ]
     assert result.first_pass == Outcome.VALID_TOOL_CALL
 
 
 def test_grounding_clarify_is_reported_and_executes_nothing() -> None:
-    case = [dataclasses.replace(c, utterance="Resume the telly.") for c in _single("realistic_eval_20260908_media_01")]
+    case = [
+        dataclasses.replace(c, utterance="Resume the telly.")
+        for c in _single("realistic_eval_20260908_media_01")
+    ]
     result = evaluate(case, _expected_then_done(case[0].id))[0]
     assert "grounding_clarify" in result.info_flags
     assert result.turn.calls == []
@@ -116,7 +160,9 @@ def test_status_query_is_followed_by_a_model_request() -> None:
     assert stub.requests[1][-1]["role"] == "tool"
     assert result.turn.text == "Done."
     assert "done_shortcut" not in result.info_flags
-    assert [call["name"] for call in result.turn.calls] == ["homeassistant__GetLiveContext"]
+    assert [call["name"] for call in result.turn.calls] == [
+        "homeassistant__GetLiveContext"
+    ]
     assert result.passed is True
 
 
@@ -134,7 +180,14 @@ def test_transport_error_sets_flag_and_fails_run() -> None:
 
 def test_parse_error_is_still_malformed_output() -> None:
     case = _single("realistic_eval_20260908_ordinary_01")
-    result = evaluate(case, _Stub(lambda messages: {"choices": [{"message": {"role": "assistant", "content": None}}]}))[0]
+    result = evaluate(
+        case,
+        _Stub(
+            lambda messages: {
+                "choices": [{"message": {"role": "assistant", "content": None}}]
+            }
+        ),
+    )[0]
     assert result.outcome == Outcome.MALFORMED_OUTPUT
     assert result.first_pass == Outcome.MALFORMED_OUTPUT
     assert result.turn.parse_error is not None

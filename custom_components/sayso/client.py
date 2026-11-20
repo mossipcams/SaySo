@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -107,7 +106,6 @@ async def _read_json_body(response: ClientResponse) -> dict[str, Any]:
 
 
 class LlamaCppClient:
-
     def __init__(
         self,
         session: aiohttp.ClientSession,

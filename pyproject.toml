@@ -62,14 +62,10 @@ ignore = ["RUF012"]
 
 [tool.ruff.format]
 exclude = [
-    "custom_components/**",
     "docs/**",
-    "evals/**",
     "satellite/**",
     "scripts/**",
-    "tests/**",
     "training/**",
-    "sayso_contract.py",
 ]
 
 [tool.importlinter]

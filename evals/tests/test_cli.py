@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from evals.cli import main
@@ -13,4 +12,6 @@ def test_cli_rejects_in_memory_adapter() -> None:
 
 
 def test_cli_requires_a_filter() -> None:
-    assert main(["run", "--adapter", "endpoint", "--server", "http://127.0.0.1:8080"]) == 2
+    assert (
+        main(["run", "--adapter", "endpoint", "--server", "http://127.0.0.1:8080"]) == 2
+    )

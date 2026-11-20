@@ -17,10 +17,13 @@ from tests.test_conversation import _converse, _create_entry
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    with patch.object(
-        LlamaCppClient, "list_models", new=AsyncMock(return_value=[MODEL_ID])
-    ), patch.object(
-        LlamaCppClient, "validate_model", new=AsyncMock(return_value=None)
+    with (
+        patch.object(
+            LlamaCppClient, "list_models", new=AsyncMock(return_value=[MODEL_ID])
+        ),
+        patch.object(
+            LlamaCppClient, "validate_model", new=AsyncMock(return_value=None)
+        ),
     ):
         yield
 
@@ -39,15 +42,14 @@ def _inference_metadata(entry: Any) -> dict[str, Any]:
     completed = [
         event
         for event in trace["events"]
-        if event["stage"].startswith("inference") and event["stage"].endswith("completed")
+        if event["stage"].startswith("inference")
+        and event["stage"].endswith("completed")
     ]
     return dict(completed[-1].get("metadata") or {})
 
 
 def _done() -> AsyncMock:
-    return AsyncMock(
-        return_value=ChatCompletionResult(content="Done.", tool_calls=[])
-    )
+    return AsyncMock(return_value=ChatCompletionResult(content="Done.", tool_calls=[]))
 
 
 async def test_grammar_is_off_by_default(
@@ -120,9 +122,12 @@ async def test_builder_failure_falls_back_and_records_the_reason(
     entry = await _create_entry(hass)
     await _set_grammar_option(hass, entry, True)
 
-    with patch(
-        "custom_components.sayso.conversation.build_grammar", side_effect=failure
-    ), patch.object(LlamaCppClient, "chat_completion", new=_done()) as chat:
+    with (
+        patch(
+            "custom_components.sayso.conversation.build_grammar", side_effect=failure
+        ),
+        patch.object(LlamaCppClient, "chat_completion", new=_done()) as chat,
+    ):
         result = await _converse(hass, entry, "What time is it?")
 
     assert chat.call_args.kwargs["grammar"] is None

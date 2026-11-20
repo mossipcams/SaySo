@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import asyncio
@@ -235,7 +234,6 @@ def _select(values: list[str], *, custom: bool = False) -> SelectSelector:
 
 
 class DownloadSteps:
-
     hass: HomeAssistant
     _model: str
     _replace: bool = False

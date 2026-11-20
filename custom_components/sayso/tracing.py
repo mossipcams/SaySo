@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -37,7 +36,6 @@ def _ms(seconds: float) -> int:
 
 @dataclass(slots=True)
 class StageEvent:
-
     stage: str
     timestamp: str
     elapsed_ms: int
@@ -62,7 +60,6 @@ class StageEvent:
 
 @dataclass
 class StageSpan:
-
     stage: str
     started: float
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -71,7 +68,6 @@ class StageSpan:
 
 @dataclass
 class TraceContext:
-
     trace_id: str
     started_monotonic: float = field(default_factory=time.monotonic)
     started_at: datetime = field(default_factory=_now)
@@ -150,9 +146,7 @@ class TraceContext:
         self.add_event(
             f"{name}_completed",
             elapsed_ms=(
-                None
-                if started_elapsed_ms is None
-                else started_elapsed_ms + duration_ms
+                None if started_elapsed_ms is None else started_elapsed_ms + duration_ms
             ),
             timestamp=completed_at,
             duration_ms=duration_ms,
@@ -341,7 +335,10 @@ def replay_pipeline_events(trace: TraceContext, events: list[Any]) -> None:
         timestamp = _parse_ts(getattr(event, "timestamp", None))
         if timestamp is None:
             continue
-        seen[str(getattr(event, "type", ""))] = (timestamp, getattr(event, "data", None))
+        seen[str(getattr(event, "type", ""))] = (
+            timestamp,
+            getattr(event, "data", None),
+        )
 
     run_start = seen.get("run-start")
     if run_start is not None:
@@ -398,9 +395,7 @@ def replay_pipeline_events(trace: TraceContext, events: list[Any]) -> None:
 
     trace.record_span(
         Stage.STT,
-        duration_ms=max(
-            _ms((stt_end[0] - transcription_start[0]).total_seconds()), 0
-        ),
+        duration_ms=max(_ms((stt_end[0] - transcription_start[0]).total_seconds()), 0),
         started_at=transcription_start[0],
         started_elapsed_ms=elapsed(transcription_start[0]),
         success=bool(text.strip()),

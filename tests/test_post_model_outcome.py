@@ -174,7 +174,9 @@ async def test_correction_used_when_first_pass_fails_contract() -> None:
 
 
 async def test_area_dropped_when_model_invents_unspoken_area() -> None:
-    model = _Model(_reply(_call("intent__HassTurnOn", {"name": "Desk Lamp", "area": "Kitchen"})))
+    model = _Model(
+        _reply(_call("intent__HassTurnOn", {"name": "Desk Lamp", "area": "Kitchen"}))
+    )
     turn = _turn(home=lambda: _home(DESK_LAMP))
     outcome, _ = await _run(turn, model)
     assert outcome.area_dropped is True
@@ -184,7 +186,9 @@ async def test_area_dropped_when_model_invents_unspoken_area() -> None:
 
 async def test_clarified_turn_executes_nothing() -> None:
     model = _Model(_reply(_call("intent__HassTurnOn", {"name": "Bedside Lamp"})))
-    turn = _turn(user_text="turn on the bedside lamp", home=lambda: _home(DESK_LAMP, FLOOR_LAMP))
+    turn = _turn(
+        user_text="turn on the bedside lamp", home=lambda: _home(DESK_LAMP, FLOOR_LAMP)
+    )
     outcome, executed = await _run(turn, model)
     assert outcome.clarified is True
     assert isinstance(outcome.speech, str) and outcome.speech
@@ -214,7 +218,9 @@ async def test_held_option_replay_sets_flag() -> None:
 
 async def test_supplied_calls_have_no_first_completion() -> None:
     model = _Model()
-    turn = _turn(calls=(_call("intent__HassTurnOn", {"name": "Desk Lamp"}),), confirmed=True)
+    turn = _turn(
+        calls=(_call("intent__HassTurnOn", {"name": "Desk Lamp"}),), confirmed=True
+    )
     outcome, _ = await _run(turn, model)
     assert outcome.first is None
     assert outcome.done_shortcut is True

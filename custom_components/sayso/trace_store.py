@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -37,7 +36,6 @@ PIPELINE_FINALIZE_TIMEOUT = 120
 
 
 class TraceStore:
-
     def __init__(
         self,
         hass: HomeAssistant,
@@ -88,9 +86,7 @@ class TraceStore:
             summary = trace.summary()
             if not self.store_utterances:
                 summary["utterance"] = None
-            self._records.append(
-                {"summary": summary, "events": trace.stage_records()}
-            )
+            self._records.append({"summary": summary, "events": trace.stage_records()})
             self._store.async_delay_save(self._data_to_save, SAVE_DELAY)
         except Exception:
             _LOGGER.warning(
@@ -109,9 +105,7 @@ class TraceStore:
             self._records = deque(kept, maxlen=self._records.maxlen)
         return {
             "interactions": [record["summary"] for record in self._records],
-            "events": [
-                event for record in self._records for event in record["events"]
-            ],
+            "events": [event for record in self._records for event in record["events"]],
         }
 
     @callback
@@ -170,7 +164,6 @@ def _started_at(record: dict[str, Any]) -> datetime | None:
 
 
 class TraceRecorder:
-
     def __init__(self, hass: HomeAssistant, store: TraceStore) -> None:
         self.hass = hass
         self.store = store

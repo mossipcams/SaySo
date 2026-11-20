@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -18,7 +17,11 @@ from homeassistant.helpers import intent, llm
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
 
-from custom_components.sayso.client import ChatCompletionResult, LlamaCppClient, ToolCall
+from custom_components.sayso.client import (
+    ChatCompletionResult,
+    LlamaCppClient,
+    ToolCall,
+)
 from custom_components.sayso.core.area_context import (
     apply_area_context,
     build_area_context,
@@ -62,7 +65,6 @@ from tests.test_config_flow import (
 
 
 class _TestLight(LightEntity):
-
     _attr_name = "Living Room"
     _attr_unique_id = "living_room"
     _attr_supported_color_modes = {ColorMode.ONOFF}
@@ -85,7 +87,6 @@ class _TestLight(LightEntity):
 
 
 class _KitchenLight(LightEntity):
-
     _attr_name = "Kitchen Light"
     _attr_unique_id = "kitchen_light"
     _attr_supported_color_modes = {ColorMode.ONOFF}
@@ -108,7 +109,6 @@ class _KitchenLight(LightEntity):
 
 
 class _KitchenFan(FanEntity):
-
     _attr_name = "Kitchen Fan"
     _attr_unique_id = "kitchen_fan"
 
@@ -134,7 +134,6 @@ class _KitchenFan(FanEntity):
 
 
 class _MultiKitchenLight(LightEntity):
-
     _attr_name = "Kitchen Light"
     _attr_unique_id = "multi_kitchen_light"
     _attr_supported_color_modes = {ColorMode.ONOFF}
@@ -157,7 +156,6 @@ class _MultiKitchenLight(LightEntity):
 
 
 class _MultiPorchLight(LightEntity):
-
     _attr_name = "Porch Light"
     _attr_unique_id = "multi_porch_light"
     _attr_supported_color_modes = {ColorMode.ONOFF}
@@ -180,7 +178,6 @@ class _MultiPorchLight(LightEntity):
 
 
 class _BedroomFan(FanEntity):
-
     _attr_name = "Bedroom Fan"
     _attr_unique_id = "bedroom_fan"
 
@@ -214,14 +211,17 @@ def _reset_schema_compile_cache() -> None:
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    with patch.object(
-        LlamaCppClient,
-        "list_models",
-        new=AsyncMock(return_value=[MODEL_ID]),
-    ), patch.object(
-        LlamaCppClient,
-        "validate_model",
-        new=AsyncMock(return_value=None),
+    with (
+        patch.object(
+            LlamaCppClient,
+            "list_models",
+            new=AsyncMock(return_value=[MODEL_ID]),
+        ),
+        patch.object(
+            LlamaCppClient,
+            "validate_model",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         yield
 
@@ -256,7 +256,9 @@ async def assist_ambiguous_kitchen(hass: HomeAssistant) -> None:
 
 @pytest.fixture
 async def assist_kitchen_and_lock(hass: HomeAssistant) -> None:
-    setup_test_component_platform(hass, "light", [_MultiKitchenLight(), _MultiPorchLight()])
+    setup_test_component_platform(
+        hass, "light", [_MultiKitchenLight(), _MultiPorchLight()]
+    )
     assert await async_setup_component(hass, "light", {"light": {"platform": "test"}})
     assert await async_setup_component(hass, "intent", {})
     await hass.async_block_till_done()
@@ -358,13 +360,15 @@ def test_satellite_area_context_uses_entity_registry(hass: HomeAssistant) -> Non
     device = SimpleNamespace(area_id="area_office")
     area = SimpleNamespace(name="Office")
 
-    with patch(
-        "custom_components.sayso.conversation.er.async_get"
-    ) as entity_registry_get, patch(
-        "custom_components.sayso.conversation.dr.async_get"
-    ) as device_registry_get, patch(
-        "custom_components.sayso.conversation.ar.async_get"
-    ) as area_registry_get:
+    with (
+        patch(
+            "custom_components.sayso.conversation.er.async_get"
+        ) as entity_registry_get,
+        patch(
+            "custom_components.sayso.conversation.dr.async_get"
+        ) as device_registry_get,
+        patch("custom_components.sayso.conversation.ar.async_get") as area_registry_get,
+    ):
         entity_registry_get.return_value.async_get.return_value = satellite
         device_registry_get.return_value.async_get.return_value = device
         area_registry_get.return_value.async_get_area.return_value = area
@@ -404,11 +408,16 @@ async def test_model_prompt_replaces_ha_area_sentence_with_shared_area_block(
         seen.append((messages, context))
         return apply_area_context(messages, context)
 
-    with patch.object(sayso_conversation, "apply_area_context", side_effect=spy), patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(return_value=ChatCompletionResult(content="Which light?", tool_calls=[])),
-    ) as mock_chat:
+    with (
+        patch.object(sayso_conversation, "apply_area_context", side_effect=spy),
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                return_value=ChatCompletionResult(content="Which light?", tool_calls=[])
+            ),
+        ) as mock_chat,
+    ):
         await conversation.async_converse(
             hass,
             "turn on the light in the study",
@@ -420,7 +429,9 @@ async def test_model_prompt_replaces_ha_area_sentence_with_shared_area_block(
 
     ha_prompt = seen[0][0][0]["content"]
     assert "You are in area Office" in ha_prompt
-    context = build_area_context("turn on the light in the study", {"Office": ["study"]}, "Office")
+    context = build_area_context(
+        "turn on the light in the study", {"Office": ["study"]}, "Office"
+    )
     assert seen[0][1] == context
     sent = mock_chat.await_args.args[0][0]["content"]
     assert sent == render_system_prompt(ha_prompt, context)
@@ -547,7 +558,9 @@ def test_chat_log_serializes_multi_tool_kitchen_and_lock() -> None:
         for message in messages
         if message.get("role") == "assistant" and message.get("tool_calls")
     )
-    tool_ids = [message["tool_call_id"] for message in messages if message.get("role") == "tool"]
+    tool_ids = [
+        message["tool_call_id"] for message in messages if message.get("role") == "tool"
+    ]
     assert tool_ids == ["call_lights", "call_lock"]
 
 
@@ -618,7 +631,9 @@ def test_chat_log_serializes_batched_tool_calls_deterministically() -> None:
     ]
 
 
-def _assistant_tool_batches(messages: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+def _assistant_tool_batches(
+    messages: list[dict[str, Any]],
+) -> list[list[dict[str, Any]]]:
     return [
         message["tool_calls"]
         for message in messages
@@ -759,13 +774,16 @@ async def test_batched_tool_calls_transcript_and_follow_up(
         "call_b": False,
     }
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(side_effect=side_effect),
-    ) as mock_chat, patch(
-        "custom_components.sayso.conversation._error_result",
-        side_effect=_capture_error,
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(side_effect=side_effect),
+        ) as mock_chat,
+        patch(
+            "custom_components.sayso.conversation._error_result",
+            side_effect=_capture_error,
+        ),
     ):
         result = await _converse(hass, entry, "Run the batched tool calls")
 
@@ -781,8 +799,7 @@ async def test_batched_tool_calls_transcript_and_follow_up(
         transcript,
         expected_call_ids=expected_call_ids,
         expected_errors={
-            call_id: expected_errors[call_id]
-            for call_id in expected_call_ids
+            call_id: expected_errors[call_id] for call_id in expected_call_ids
         },
     )
 
@@ -791,7 +808,11 @@ async def test_batched_tool_calls_transcript_and_follow_up(
         assert _speech(result) == follow_up.content
     else:
         assert result.response.response_type == intent.IntentResponseType.ERROR
-        assert _speech(result) == ("Sorry, I didn't understand that." if len(tool_calls) == 1 else ERROR_ACTION_FAILED)
+        assert _speech(result) == (
+            "Sorry, I didn't understand that."
+            if len(tool_calls) == 1
+            else ERROR_ACTION_FAILED
+        )
 
 
 async def test_multi_tool_follow_up_inference_payload(
@@ -878,28 +899,31 @@ async def test_successful_light_tool_call_with_namespaced_ha_tools(
 ) -> None:
     entry = await _create_entry(hass)
 
-    with patch.object(
-        conversation.ChatLog,
-        "async_provide_llm_data",
-        new=_wrap_assist_tools_with_intent_namespace,
-    ), patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            side_effect=[
-                ChatCompletionResult(
-                    content=None,
-                    tool_calls=[
-                        ToolCall(
-                            id="call_1",
-                            name="intent__HassTurnOn",
-                            arguments={"name": "Living Room"},
-                        )
-                    ],
-                ),
-            ]
+    with (
+        patch.object(
+            conversation.ChatLog,
+            "async_provide_llm_data",
+            new=_wrap_assist_tools_with_intent_namespace,
         ),
-    ) as mock_chat:
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                side_effect=[
+                    ChatCompletionResult(
+                        content=None,
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                name="intent__HassTurnOn",
+                                arguments={"name": "Living Room"},
+                            )
+                        ],
+                    ),
+                ]
+            ),
+        ) as mock_chat,
+    ):
         result = await _converse(hass, entry, "Turn on the living room light")
 
     initial_tools = mock_chat.await_args_list[0].kwargs["tools"]
@@ -920,24 +944,27 @@ async def test_bare_legacy_tool_name_is_rejected_when_ha_namespaces_tools(
 ) -> None:
     entry = await _create_entry(hass)
 
-    with patch.object(
-        conversation.ChatLog,
-        "async_provide_llm_data",
-        new=_wrap_assist_tools_with_intent_namespace,
-    ), patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            return_value=ChatCompletionResult(
-                content=None,
-                tool_calls=[
-                    ToolCall(
-                        id="call_1",
-                        name="HassTurnOn",
-                        arguments={"name": "Living Room"},
-                    )
-                ],
-            )
+    with (
+        patch.object(
+            conversation.ChatLog,
+            "async_provide_llm_data",
+            new=_wrap_assist_tools_with_intent_namespace,
+        ),
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                return_value=ChatCompletionResult(
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            name="HassTurnOn",
+                            arguments={"name": "Living Room"},
+                        )
+                    ],
+                )
+            ),
         ),
     ):
         result = await _converse(hass, entry, "Turn on the living room light")
@@ -1097,7 +1124,9 @@ async def test_tool_result_returned_to_llama_cpp(
     tool_result_message = next(
         message for message in follow_up_messages if message.get("role") == "tool"
     )
-    assert assistant_tool_message["tool_calls"][0]["function"]["name"] == "GetLiveContext"
+    assert (
+        assistant_tool_message["tool_calls"][0]["function"]["name"] == "GetLiveContext"
+    )
     assert tool_result_message["tool_call_id"] == "call_1"
     assert "error" not in tool_result_message["content"]
 
@@ -1110,28 +1139,31 @@ async def test_home_assistant_context_preservation(
     entry = await _create_entry(hass)
     request_context = Context(id="sayso-context-test")
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            side_effect=[
-                ChatCompletionResult(
-                    content=None,
-                    tool_calls=[
-                        ToolCall(
-                            id="call_1",
-                            name="HassTurnOn",
-                            arguments={"name": "Living Room"},
-                        )
-                    ],
-                ),
-            ]
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                side_effect=[
+                    ChatCompletionResult(
+                        content=None,
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                name="HassTurnOn",
+                                arguments={"name": "Living Room"},
+                            )
+                        ],
+                    ),
+                ]
+            ),
         ),
-    ), patch.object(
-        intent,
-        "async_handle",
-        wraps=intent.async_handle,
-    ) as mock_handle:
+        patch.object(
+            intent,
+            "async_handle",
+            wraps=intent.async_handle,
+        ) as mock_handle,
+    ):
         await _converse(
             hass,
             entry,
@@ -1227,36 +1259,39 @@ async def test_model_turn_compiled_schema_and_fingerprint(
         compile_calls.append(compiled)
         return compiled
 
-    with patch(
-        "custom_components.sayso.conversation.compile_llm_tools",
-        side_effect=_spy_compile,
-    ), patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            side_effect=[
-                ChatCompletionResult(
-                    content=None,
-                    tool_calls=[
-                        ToolCall(
-                            id="call_1",
-                            name="HassTurnOn",
-                            arguments={"name": "Living Room"},
-                        ),
-                        ToolCall(
-                            id="call_2",
-                            name="HassTurnOff",
-                            arguments={"name": "Living Room"},
-                        ),
-                    ],
-                ),
-                ChatCompletionResult(
-                    content="The living room light is off.",
-                    tool_calls=[],
-                ),
-            ]
+    with (
+        patch(
+            "custom_components.sayso.conversation.compile_llm_tools",
+            side_effect=_spy_compile,
         ),
-    ) as mock_chat:
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                side_effect=[
+                    ChatCompletionResult(
+                        content=None,
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                name="HassTurnOn",
+                                arguments={"name": "Living Room"},
+                            ),
+                            ToolCall(
+                                id="call_2",
+                                name="HassTurnOff",
+                                arguments={"name": "Living Room"},
+                            ),
+                        ],
+                    ),
+                    ChatCompletionResult(
+                        content="The living room light is off.",
+                        tool_calls=[],
+                    ),
+                ]
+            ),
+        ) as mock_chat,
+    ):
         await _converse(hass, entry, "Toggle the living room light")
 
     assert len(compile_calls) == 1
@@ -1286,43 +1321,44 @@ async def test_tool_follow_up_reuses_compiled_schema_without_reconversion(
         build_calls += 1
         return _build_compiled_tools_from_source(source_json)
 
-    with patch(
-        "custom_components.sayso.schema._build_compiled_tools_from_source",
-        side_effect=counting_build,
-    ), patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            side_effect=[
-                ChatCompletionResult(
-                    content=None,
-                    tool_calls=[
-                        ToolCall(
-                            id="call_1",
-                            name="HassTurnOn",
-                            arguments={"name": "Living Room"},
-                        ),
-                        ToolCall(
-                            id="call_2",
-                            name="HassTurnOff",
-                            arguments={"name": "Living Room"},
-                        ),
-                    ],
-                ),
-                ChatCompletionResult(
-                    content="The living room light is off.",
-                    tool_calls=[],
-                ),
-            ]
+    with (
+        patch(
+            "custom_components.sayso.schema._build_compiled_tools_from_source",
+            side_effect=counting_build,
         ),
-    ) as mock_chat:
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                side_effect=[
+                    ChatCompletionResult(
+                        content=None,
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                name="HassTurnOn",
+                                arguments={"name": "Living Room"},
+                            ),
+                            ToolCall(
+                                id="call_2",
+                                name="HassTurnOff",
+                                arguments={"name": "Living Room"},
+                            ),
+                        ],
+                    ),
+                    ChatCompletionResult(
+                        content="The living room light is off.",
+                        tool_calls=[],
+                    ),
+                ]
+            ),
+        ) as mock_chat,
+    ):
         await _converse(hass, entry, "Toggle the living room light")
 
     assert build_calls == 1
     assert mock_chat.await_count == 2
-    tools_payloads = [
-        call.kwargs.get("tools") for call in mock_chat.await_args_list
-    ]
+    tools_payloads = [call.kwargs.get("tools") for call in mock_chat.await_args_list]
     assert tools_payloads[0] is not None
     assert all(tools is tools_payloads[0] for tools in tools_payloads)
 
@@ -1429,17 +1465,20 @@ async def test_invalid_batch_prevalidation_executes_no_tools(
         second_call,
     ]
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            return_value=ChatCompletionResult(content=None, tool_calls=tool_calls)
-        ),
-    ) as mock_chat, patch.object(
-        intent,
-        "async_handle",
-        wraps=intent.async_handle,
-    ) as mock_handle:
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                return_value=ChatCompletionResult(content=None, tool_calls=tool_calls)
+            ),
+        ) as mock_chat,
+        patch.object(
+            intent,
+            "async_handle",
+            wraps=intent.async_handle,
+        ) as mock_handle,
+    ):
         result = await _converse(hass, entry, "Run the batched tool calls")
 
     mock_chat.assert_awaited_once()
@@ -1535,23 +1574,27 @@ async def test_pre_execution_correction_repairs_invalid_call(
         arguments={"name": "Living Room"},
     )
 
-    with patch(
-        "custom_components.sayso.conversation.compile_llm_tools",
-        side_effect=_capture_compile,
-    ), patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            side_effect=[
-                ChatCompletionResult(content=None, tool_calls=[invalid_call]),
-                ChatCompletionResult(content=None, tool_calls=[corrected_call]),
-            ]
+    with (
+        patch(
+            "custom_components.sayso.conversation.compile_llm_tools",
+            side_effect=_capture_compile,
         ),
-    ) as mock_chat, patch.object(
-        intent,
-        "async_handle",
-        wraps=intent.async_handle,
-    ) as mock_handle:
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                side_effect=[
+                    ChatCompletionResult(content=None, tool_calls=[invalid_call]),
+                    ChatCompletionResult(content=None, tool_calls=[corrected_call]),
+                ]
+            ),
+        ) as mock_chat,
+        patch.object(
+            intent,
+            "async_handle",
+            wraps=intent.async_handle,
+        ) as mock_handle,
+    ):
         result = await _converse(hass, entry, "Turn on the living room light")
 
     assert mock_chat.await_count == 2
@@ -1588,6 +1631,7 @@ async def test_pre_execution_correction_repairs_invalid_call(
     assert "HassTurnOn" in synthetic_error["allowed_tools"]
     assert synthetic_error["schema_fingerprint"] == compiled.fingerprint
 
+
 async def test_tool_validation_failure_fails_closed(
     hass: HomeAssistant,
     mock_llama_client: None,
@@ -1595,26 +1639,29 @@ async def test_tool_validation_failure_fails_closed(
 ) -> None:
     entry = await _create_entry(hass)
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            return_value=ChatCompletionResult(
-                content=None,
-                tool_calls=[
-                    ToolCall(
-                        id="call_1",
-                        name="HassTurnOn",
-                        arguments={"name": ["Living Room"]},
-                    )
-                ],
-            )
-        ),
-    ) as mock_chat, patch.object(
-        intent,
-        "async_handle",
-        wraps=intent.async_handle,
-    ) as mock_handle:
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                return_value=ChatCompletionResult(
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            name="HassTurnOn",
+                            arguments={"name": ["Living Room"]},
+                        )
+                    ],
+                )
+            ),
+        ) as mock_chat,
+        patch.object(
+            intent,
+            "async_handle",
+            wraps=intent.async_handle,
+        ) as mock_handle,
+    ):
         result = await _converse(hass, entry, "Turn on the living room light")
 
     assert mock_chat.await_count == 2
@@ -1631,29 +1678,32 @@ async def test_tool_schema_mismatch_fails_closed_before_execution(
 ) -> None:
     entry = await _create_entry(hass)
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            return_value=ChatCompletionResult(
-                content=None,
-                tool_calls=[
-                    ToolCall(
-                        id="call_1",
-                        name="HassTurnOn",
-                        arguments={
-                            "name": "Living Room",
-                            "unexpected": True,
-                        },
-                    )
-                ],
-            )
-        ),
-    ) as mock_chat, patch.object(
-        intent,
-        "async_handle",
-        wraps=intent.async_handle,
-    ) as mock_handle:
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                return_value=ChatCompletionResult(
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            name="HassTurnOn",
+                            arguments={
+                                "name": "Living Room",
+                                "unexpected": True,
+                            },
+                        )
+                    ],
+                )
+            ),
+        ) as mock_chat,
+        patch.object(
+            intent,
+            "async_handle",
+            wraps=intent.async_handle,
+        ) as mock_handle,
+    ):
         result = await _converse(hass, entry, "Turn on the living room light")
 
     assert mock_chat.await_count == 2
@@ -1743,20 +1793,23 @@ async def test_second_invalid_response_fails_after_one_correction(
         arguments={"name": "Living Room", "unexpected": True},
     )
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            side_effect=[
-                ChatCompletionResult(content=None, tool_calls=[invalid_call]),
-                ChatCompletionResult(content=None, tool_calls=[invalid_call]),
-            ]
-        ),
-    ) as mock_chat, patch.object(
-        intent,
-        "async_handle",
-        wraps=intent.async_handle,
-    ) as mock_handle:
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                side_effect=[
+                    ChatCompletionResult(content=None, tool_calls=[invalid_call]),
+                    ChatCompletionResult(content=None, tool_calls=[invalid_call]),
+                ]
+            ),
+        ) as mock_chat,
+        patch.object(
+            intent,
+            "async_handle",
+            wraps=intent.async_handle,
+        ) as mock_handle,
+    ):
         result = await _converse(hass, entry, "Turn on the living room light")
 
     assert mock_chat.await_count == 2
@@ -1778,20 +1831,23 @@ async def test_correction_timeout_never_retries(
         arguments={"name": "Living Room", "unexpected": True},
     )
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            side_effect=[
-                ChatCompletionResult(content=None, tool_calls=[invalid_call]),
-                SaySoTimeoutError("llama.cpp request timed out"),
-            ]
-        ),
-    ) as mock_chat, patch.object(
-        intent,
-        "async_handle",
-        wraps=intent.async_handle,
-    ) as mock_handle:
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                side_effect=[
+                    ChatCompletionResult(content=None, tool_calls=[invalid_call]),
+                    SaySoTimeoutError("llama.cpp request timed out"),
+                ]
+            ),
+        ) as mock_chat,
+        patch.object(
+            intent,
+            "async_handle",
+            wraps=intent.async_handle,
+        ) as mock_handle,
+    ):
         result = await _converse(hass, entry, "Turn on the living room light")
 
     assert mock_chat.await_count == 2
@@ -1826,34 +1882,37 @@ async def test_follow_up_timeout_never_retries_after_tool_execution(
 ) -> None:
     entry = await _create_entry(hass)
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            side_effect=[
-                ChatCompletionResult(
-                    content=None,
-                    tool_calls=[
-                        ToolCall(
-                            id="call_1",
-                            name="HassTurnOn",
-                            arguments={"name": "Living Room"},
-                        ),
-                        ToolCall(
-                            id="call_2",
-                            name="HassTurnOn",
-                            arguments={"name": "Living Room"},
-                        ),
-                    ],
-                ),
-                SaySoTimeoutError("llama.cpp request timed out"),
-            ]
-        ),
-    ) as mock_chat, patch.object(
-        intent,
-        "async_handle",
-        wraps=intent.async_handle,
-    ) as mock_handle:
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                side_effect=[
+                    ChatCompletionResult(
+                        content=None,
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                name="HassTurnOn",
+                                arguments={"name": "Living Room"},
+                            ),
+                            ToolCall(
+                                id="call_2",
+                                name="HassTurnOn",
+                                arguments={"name": "Living Room"},
+                            ),
+                        ],
+                    ),
+                    SaySoTimeoutError("llama.cpp request timed out"),
+                ]
+            ),
+        ) as mock_chat,
+        patch.object(
+            intent,
+            "async_handle",
+            wraps=intent.async_handle,
+        ) as mock_handle,
+    ):
         result = await _converse(hass, entry, "Turn on the living room light")
 
     assert mock_chat.await_count == 2
@@ -1875,37 +1934,40 @@ async def test_invalid_follow_up_after_tool_execution_never_retries(
         arguments={"name": "Living Room", "unexpected": True},
     )
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            side_effect=[
-                ChatCompletionResult(
-                    content=None,
-                    tool_calls=[
-                        ToolCall(
-                            id="call_1",
-                            name="HassTurnOn",
-                            arguments={"name": "Living Room"},
-                        ),
-                        ToolCall(
-                            id="call_2",
-                            name="HassTurnOn",
-                            arguments={"name": "Living Room"},
-                        ),
-                    ],
-                ),
-                ChatCompletionResult(
-                    content=None,
-                    tool_calls=[invalid_follow_up],
-                ),
-            ]
-        ),
-    ) as mock_chat, patch.object(
-        intent,
-        "async_handle",
-        wraps=intent.async_handle,
-    ) as mock_handle:
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                side_effect=[
+                    ChatCompletionResult(
+                        content=None,
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                name="HassTurnOn",
+                                arguments={"name": "Living Room"},
+                            ),
+                            ToolCall(
+                                id="call_2",
+                                name="HassTurnOn",
+                                arguments={"name": "Living Room"},
+                            ),
+                        ],
+                    ),
+                    ChatCompletionResult(
+                        content=None,
+                        tool_calls=[invalid_follow_up],
+                    ),
+                ]
+            ),
+        ) as mock_chat,
+        patch.object(
+            intent,
+            "async_handle",
+            wraps=intent.async_handle,
+        ) as mock_handle,
+    ):
         result = await _converse(hass, entry, "Turn on the living room light")
 
     assert mock_chat.await_count == 2
@@ -1923,7 +1985,6 @@ def _reset_boundary_diagnostics() -> None:
 
 
 class TestCompleteSchemaOffer:
-
     async def test_complete_schema_offered_when_domain_hint_found(
         self,
         hass: HomeAssistant,
@@ -1947,9 +2008,7 @@ class TestCompleteSchemaOffer:
 
         offered_tools = mock_chat.await_args_list[0].kwargs["tools"]
         assert offered_tools == complete_tools
-        assert "HassFanSetSpeed" in {
-            tool["function"]["name"] for tool in offered_tools
-        }
+        assert "HassFanSetSpeed" in {tool["function"]["name"] for tool in offered_tools}
 
     async def test_unavailable_tool_reports_boundary_without_execution(
         self,
@@ -1959,26 +2018,29 @@ class TestCompleteSchemaOffer:
     ) -> None:
         entry = await _create_entry(hass)
 
-        with patch.object(
-            LlamaCppClient,
-            "chat_completion",
-            new=AsyncMock(
-                return_value=ChatCompletionResult(
-                    content=None,
-                    tool_calls=[
-                        ToolCall(
-                            id="call_1",
-                            name="NotARealTool",
-                            arguments={},
-                        )
-                    ],
-                )
-            ),
-        ) as mock_chat, patch.object(
-            intent,
-            "async_handle",
-            wraps=intent.async_handle,
-        ) as mock_handle:
+        with (
+            patch.object(
+                LlamaCppClient,
+                "chat_completion",
+                new=AsyncMock(
+                    return_value=ChatCompletionResult(
+                        content=None,
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                name="NotARealTool",
+                                arguments={},
+                            )
+                        ],
+                    )
+                ),
+            ) as mock_chat,
+            patch.object(
+                intent,
+                "async_handle",
+                wraps=intent.async_handle,
+            ) as mock_handle,
+        ):
             result = await _converse(
                 hass,
                 entry,

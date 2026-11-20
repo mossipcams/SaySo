@@ -14,7 +14,7 @@ from custom_components.sayso.client import (
 )
 from custom_components.sayso.inference import EmbeddedEngine, ExternalEngine
 
-GRAMMAR = 'root ::= block | text\ntext ::= [^ \\t\\r\\n\\[<] [^<]*\n'
+GRAMMAR = "root ::= block | text\ntext ::= [^ \\t\\r\\n\\[<] [^<]*\n"
 MESSAGES = [{"role": "user", "content": "turn on the lamp"}]
 TOOLS = [
     {
@@ -35,7 +35,6 @@ def _completion(content: str) -> dict[str, Any]:
 
 
 class _Response:
-
     status = 200
 
     async def json(self, content_type: Any = None) -> dict[str, Any]:
@@ -43,7 +42,6 @@ class _Response:
 
 
 class _Request:
-
     def __init__(self, response: _Response) -> None:
         self._response = response
 
@@ -61,7 +59,6 @@ def _session() -> MagicMock:
 
 
 class TestPayload:
-
     def test_payload_omits_grammar_when_unset(self) -> None:
         payload = build_chat_completions_payload(MESSAGES, model="m")
 
@@ -92,7 +89,6 @@ class TestPayload:
 
 
 class TestExternalEngine:
-
     async def test_grammar_reaches_the_client(self) -> None:
         client = MagicMock()
         client.chat_completion = AsyncMock(
@@ -133,7 +129,6 @@ async def _embedded_create_kwargs(
 
 
 class TestEmbeddedEngine:
-
     async def test_grammar_is_compiled_through_the_seam(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

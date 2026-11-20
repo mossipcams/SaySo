@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -39,7 +38,6 @@ def _completion(message: dict[str, Any], **extra: Any) -> dict[str, Any]:
 
 
 class TestExtractToolCalls:
-
     def test_marker_wrapped_call(self) -> None:
         text, calls = extract_tool_calls(
             "<|tool_call_start|>[HassTurnOn(name='kitchen lights')]<|tool_call_end|>"
@@ -72,7 +70,7 @@ class TestExtractToolCalls:
 
     def test_mixed_quoting_and_literals(self) -> None:
         _text, calls = extract_tool_calls(
-            '[HassSetPosition(name="blind", area=\'hall\', open=True, extra=None)]'
+            "[HassSetPosition(name=\"blind\", area='hall', open=True, extra=None)]"
         )
         assert calls[0].arguments == {
             "name": "blind",
@@ -114,7 +112,6 @@ class TestExtractToolCalls:
 
 
 class TestParseEmbeddedResult:
-
     def test_text_response(self) -> None:
         result = _parse_embedded_result(
             _completion({"role": "assistant", "content": "Done."})
@@ -212,7 +209,6 @@ class TestParseEmbeddedResult:
 
 
 class TestEmbeddedEngine:
-
     async def test_completion_before_start_raises(self) -> None:
         engine = EmbeddedEngine(Path("/nonexistent.gguf"))
         with pytest.raises(SaySoModelLoadError):
@@ -425,7 +421,6 @@ class TestEmbeddedEngine:
 
 
 class TestMessagesForEmbeddedTemplate:
-
     def test_json_string_arguments_become_dicts(self) -> None:
         messages = [
             {
@@ -473,7 +468,6 @@ class TestMessagesForEmbeddedTemplate:
 
 
 class TestExternalEngine:
-
     async def test_delegates_to_client(self) -> None:
         client = MagicMock()
         expected = ChatCompletionResult(content="hi", tool_calls=[])
@@ -482,7 +476,10 @@ class TestExternalEngine:
 
         await engine.async_start()
         result = await engine.async_chat_completion(
-            [{"role": "user", "content": "hi"}], tools=None, temperature=0, max_tokens=10
+            [{"role": "user", "content": "hi"}],
+            tools=None,
+            temperature=0,
+            max_tokens=10,
         )
         await engine.async_shutdown()
 
@@ -522,7 +519,6 @@ class TestExternalEngine:
 
 
 class TestModelStore:
-
     async def test_existing_file_with_matching_checksum_is_reused(
         self, hass: Any
     ) -> None:
@@ -539,9 +535,7 @@ class TestModelStore:
         )
         assert path == model
 
-    async def test_corrupt_existing_file_is_removed_and_raises(
-        self, hass: Any
-    ) -> None:
+    async def test_corrupt_existing_file_is_removed_and_raises(self, hass: Any) -> None:
         from custom_components.sayso.model_store import async_ensure_model, models_dir
 
         directory = models_dir(hass)
@@ -572,7 +566,6 @@ class TestModelStore:
 
 
 class TestEntryBackend:
-
     def test_explicit_embedded(self) -> None:
         entry = SimpleNamespace(data={"backend": BACKEND_EMBEDDED})
         assert entry_backend(entry) == BACKEND_EMBEDDED
@@ -621,9 +614,10 @@ class TestEmbeddedPrefixCheckpointDecision:
         changed_area = [1, 2, 3, 6, 9, 4, 8]
         boundaries = _checkpoint_boundaries(changed_area, area_marker, marker)
         shared = _shared_prefix_len(area_prompt, changed_area)
-        assert _longest_checkpoint(
-            checkpoints, changed_area, min(shared, boundaries[-1])
-        ) == 0
+        assert (
+            _longest_checkpoint(checkpoints, changed_area, min(shared, boundaries[-1]))
+            == 0
+        )
         assert _longest_checkpoint(checkpoints, area_prompt, boundaries[-1]) == 1
 
 
@@ -652,7 +646,6 @@ _AREA_BLOCK = "\n".join(
 
 
 class TestToolsBeforeArea:
-
     def test_tool_list_moves_before_area_block(self) -> None:
         messages = [
             {"role": "system", "content": f"You are SaySo.\n{_AREA_BLOCK}"},
@@ -709,7 +702,6 @@ class TestToolsBeforeArea:
 
 
 class TestEmbeddedToolListLayout:
-
     async def test_tools_rendered_in_system_prompt_not_passed_to_llama(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -736,7 +728,6 @@ class TestEmbeddedToolListLayout:
 
 
 class _FakeLlama:
-
     def __init__(self, prompt_tokens: int, prefill_evaluated: int) -> None:
         self.prompt_tokens = prompt_tokens
         self.prefill_evaluated = prefill_evaluated
@@ -748,7 +739,6 @@ class _FakeLlama:
 
 
 class TestPrefixHash:
-
     def test_stable_when_area_block_or_user_message_changes(self) -> None:
         tools = [_TURN_ON_TOOL]
         before = [
@@ -777,7 +767,6 @@ class TestPrefixHash:
 
 
 class TestEmbeddedCacheTrace:
-
     async def test_reused_tokens_are_prompt_minus_prefill(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -790,9 +779,7 @@ class TestEmbeddedCacheTrace:
             {"role": "user", "content": "turn on the lamp"},
         ]
         try:
-            result = await engine.async_chat_completion(
-                messages, tools=[_TURN_ON_TOOL]
-            )
+            result = await engine.async_chat_completion(messages, tools=[_TURN_ON_TOOL])
         finally:
             await engine.async_shutdown()
 
@@ -802,7 +789,6 @@ class TestEmbeddedCacheTrace:
 
 
 class TestCheckpointingLlamaPrefill:
-
     def test_counts_prompt_evals_but_not_decode(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

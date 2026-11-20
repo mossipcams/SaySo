@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing import Any
@@ -88,9 +87,7 @@ async def _complete_model_step(
     *,
     model: str = MODEL_ID,
 ) -> dict[str, Any]:
-    return await hass.config_entries.flow.async_configure(
-        flow_id, {CONF_MODEL: model}
-    )
+    return await hass.config_entries.flow.async_configure(flow_id, {CONF_MODEL: model})
 
 
 async def test_successful_config_flow(
@@ -215,9 +212,7 @@ async def test_api_key_redacted_from_logged_errors(
     with patch.object(
         LlamaCppClient,
         "list_models",
-        new=AsyncMock(
-            side_effect=SaySoAuthError(f"Bearer {secret} rejected")
-        ),
+        new=AsyncMock(side_effect=SaySoAuthError(f"Bearer {secret} rejected")),
     ):
         result = await _start_user_step(hass)
         await _complete_user_step(hass, result["flow_id"], api_key=secret)

@@ -25,12 +25,15 @@ from custom_components.sayso.conversation import (
     _Held,
 )
 from custom_components.sayso.core.grounding import clarify
-from custom_components.sayso.schema import CompiledToolSchema, compile_tools, schema_fingerprint
+from custom_components.sayso.schema import (
+    CompiledToolSchema,
+    compile_tools,
+    schema_fingerprint,
+)
 from custom_components.sayso.tracing import TraceContext
 
 
 class _HassTurnOn(llm.IntentTool):
-
     def __init__(self) -> None:
         self.name = "HassTurnOn"
         self.description = "Turn on"
@@ -81,7 +84,9 @@ async def _setup_home(hass: HomeAssistant) -> tuple[str, str]:
     ):
         entry = registry.async_get_or_create(domain, "test", unique)
         registry.async_update_entity(entry.entity_id, area_id=area_id, name=name)
-        hass.states.async_set(entry.entity_id, "off", attributes={"friendly_name": name})
+        hass.states.async_set(
+            entry.entity_id, "off", attributes={"friendly_name": name}
+        )
         async_expose_entity(hass, conversation.DOMAIN, entry.entity_id, True)
 
     return satellite.id, living.id
@@ -99,7 +104,9 @@ async def grounding_flow(hass: HomeAssistant):
         tools=[turn_on],
         async_call_tool=AsyncMock(return_value={"success": True}),
     )
-    agent = SaySoConversationEntity(MockConfigEntry(domain="sayso", entry_id="grounding-flow"))
+    agent = SaySoConversationEntity(
+        MockConfigEntry(domain="sayso", entry_id="grounding-flow")
+    )
     agent.hass = hass
     engine = AsyncMock()
 
@@ -149,7 +156,9 @@ async def grounding_flow(hass: HomeAssistant):
         engine.reset_mock()
         engine.async_chat_completion = AsyncMock(return_value=model)
         with (
-            patch.object(conversation.ChatLog, "async_provide_llm_data", new=AsyncMock()),
+            patch.object(
+                conversation.ChatLog, "async_provide_llm_data", new=AsyncMock()
+            ),
             patch(
                 "custom_components.sayso.conversation.compile_llm_tools",
                 return_value=schema,

@@ -42,4 +42,3 @@ def chat_log_to_messages(
                 }
             )
     return messages
-

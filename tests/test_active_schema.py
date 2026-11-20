@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -17,7 +16,6 @@ from custom_components.sayso.schema import (
 
 
 class _FakeDomainTool(llm.Tool):
-
     def __init__(
         self,
         *,

@@ -110,6 +110,4 @@ def test_script_tools_use_object_id_name() -> None:
 def test_removed_tools_still_work() -> None:
     home = {"entities": [entity("light", "Lamp")]}
     catalog = production_catalog(home, removed_tools=["intent__HassTurnOn"])
-    assert "intent__HassTurnOn" not in {
-        tool["function"]["name"] for tool in catalog
-    }
+    assert "intent__HassTurnOn" not in {tool["function"]["name"] for tool in catalog}

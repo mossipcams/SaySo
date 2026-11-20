@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -14,7 +13,6 @@ _FUNCTION_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 @dataclass(frozen=True, slots=True)
 class CompiledToolSchema:
-
     tools: tuple[dict[str, Any], ...]
     fingerprint: str
 

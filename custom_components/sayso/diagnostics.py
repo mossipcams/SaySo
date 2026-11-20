@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -20,7 +19,6 @@ TO_REDACT_TRACE = {"utterance"}
 
 
 class BoundaryFailureCode(StrEnum):
-
     SCHEMA_MISMATCH = "schema_mismatch"
     INVALID_ARGUMENTS = "invalid_arguments"
     UNAVAILABLE_TOOL = "unavailable_tool"
@@ -30,7 +28,6 @@ class BoundaryFailureCode(StrEnum):
 
 
 class BoundaryPhase(StrEnum):
-
     INITIAL = "initial"
     CORRECTION = "correction"
     FOLLOW_UP = "follow_up"
@@ -48,7 +45,6 @@ class _LastBoundaryFailure:
 
 @dataclass
 class BoundaryDiagnosticsState:
-
     counts: dict[str, int] = field(default_factory=dict)
     last: _LastBoundaryFailure | None = None
 

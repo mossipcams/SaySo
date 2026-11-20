@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import asyncio
@@ -231,7 +230,6 @@ def entry_backend(entry: Any) -> str:
 
 
 class SaySoInferenceEngine(Protocol):
-
     @property
     def model_name(self) -> str:
         pass
@@ -255,7 +253,6 @@ class SaySoInferenceEngine(Protocol):
 
 
 class ExternalEngine:
-
     def __init__(self, client: LlamaCppClient, model: str) -> None:
         self._client = client
         self._model = model
@@ -297,7 +294,6 @@ class ExternalEngine:
 
 
 class EmbeddedEngine:
-
     def __init__(
         self,
         model_path: Path,
@@ -430,6 +426,3 @@ class EmbeddedEngine:
             raise SaySoInvalidResponseError(f"Local inference failed: {err}") from err
 
         return replace(parse_completion_result(raw), grammar_skip_reason=skipped)
-
-
-

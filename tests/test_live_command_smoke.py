@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from scripts.live_command_smoke import (
@@ -29,7 +28,9 @@ def _response(speech: str = "Done.", response_type: str = "action_done") -> dict
     }
 
 
-def _trace(tool: str | None = "HassTurnOn", *, success=True, target="light.kitchen") -> dict:
+def _trace(
+    tool: str | None = "HassTurnOn", *, success=True, target="light.kitchen"
+) -> dict:
     summary: dict = {"success": success, "trace_id": "t1"}
     if tool:
         summary["tool"] = tool
@@ -100,7 +101,11 @@ def test_targets_by_domain_ranks_user_facing_before_diagnostics() -> None:
         _state("light.kitchen_light", "off", "Kitchen light"),
         _state("light.nightstand", "off", "Nightstand"),
     ]
-    assert targets_by_domain(states)["light"] == ["Nightstand", "Kitchen light", "Apollo MSR-2 RGB Light"]
+    assert targets_by_domain(states)["light"] == [
+        "Nightstand",
+        "Kitchen light",
+        "Apollo MSR-2 RGB Light",
+    ]
 
 
 def test_build_utterance_fills_target_and_area() -> None:
@@ -108,12 +113,16 @@ def test_build_utterance_fills_target_and_area() -> None:
     command = Command("HassTurnOn", "Turn on {target}", target_domains=("light",))
     assert build_utterance(command, targets, []) == "Turn on Kitchen Light"
 
-    area_command = Command("HassVacuumCleanArea", "Vacuum the {area}", needs_area=True, requires="vacuum")
+    area_command = Command(
+        "HassVacuumCleanArea", "Vacuum the {area}", needs_area=True, requires="vacuum"
+    )
     assert build_utterance(area_command, targets, ["Kitchen"]) == "Vacuum the Kitchen"
 
 
 def test_build_utterance_skips_when_domain_missing() -> None:
-    command = Command("HassTurnOn", "Turn on {target}", target_domains=("light",), requires="light")
+    command = Command(
+        "HassTurnOn", "Turn on {target}", target_domains=("light",), requires="light"
+    )
     assert build_utterance(command, {"fan": ["Fan"]}, []) is None
 
 
@@ -147,7 +156,9 @@ def test_classify_fails_when_trace_reports_failure() -> None:
 
 def test_classify_fails_action_without_tool_call() -> None:
     command = Command("HassTurnOn", "Turn on {target}")
-    status, detail = classify(command, response=_response(), trace=_trace(None, target=None))
+    status, detail = classify(
+        command, response=_response(), trace=_trace(None, target=None)
+    )
     assert status == "FAIL"
     assert "no tool call" in detail
 
@@ -160,7 +171,9 @@ def test_classify_allows_query_without_tool() -> None:
     assert status == "FAIL"
     assert "no tool call" in detail
     ok, _ = classify(
-        command, response=_response("It is noon."), trace=_trace("GetDateTime", target=None)
+        command,
+        response=_response("It is noon."),
+        trace=_trace("GetDateTime", target=None),
     )
     assert ok == "PASS"
 
@@ -177,7 +190,9 @@ def test_classify_fails_when_action_tool_resolves_no_entity() -> None:
 def test_classify_allows_timer_without_entity_target() -> None:
     command = Command("HassStartTimer", "Set a 5 minute timer")
     status, _ = classify(
-        command, response=_response("Timer started."), trace=_trace("HassStartTimer", target=None)
+        command,
+        response=_response("Timer started."),
+        trace=_trace("HassStartTimer", target=None),
     )
     assert status == "PASS"
 
@@ -201,8 +216,6 @@ def test_base_tool_name_strips_namespace() -> None:
 
 def test_classify_rejects_wrong_tool_by_default() -> None:
     command = Command("HassTurnOff", "Turn off {target}")
-    status, detail = classify(
-        command, response=_response(), trace=_trace("HassTurnOn")
-    )
+    status, detail = classify(command, response=_response(), trace=_trace("HassTurnOn"))
     assert status == "FAIL"
     assert "expected HassTurnOff" in detail

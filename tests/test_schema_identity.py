@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,7 +15,11 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
 
-from custom_components.sayso.client import ChatCompletionResult, LlamaCppClient, ToolCall
+from custom_components.sayso.client import (
+    ChatCompletionResult,
+    LlamaCppClient,
+    ToolCall,
+)
 from custom_components.sayso.const import DOMAIN
 from custom_components.sayso.diagnostics import (
     async_get_config_entry_diagnostics,
@@ -105,14 +108,17 @@ def _reset_schema_state() -> None:
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    with patch.object(
-        LlamaCppClient,
-        "list_models",
-        new=AsyncMock(return_value=[MODEL_ID]),
-    ), patch.object(
-        LlamaCppClient,
-        "validate_model",
-        new=AsyncMock(return_value=None),
+    with (
+        patch.object(
+            LlamaCppClient,
+            "list_models",
+            new=AsyncMock(return_value=[MODEL_ID]),
+        ),
+        patch.object(
+            LlamaCppClient,
+            "validate_model",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         yield
 
@@ -148,7 +154,9 @@ def _agent_id(hass: HomeAssistant, entry: Any) -> str:
     return entity_id
 
 
-async def _converse(hass: HomeAssistant, entry: Any, text: str) -> conversation.ConversationResult:
+async def _converse(
+    hass: HomeAssistant, entry: Any, text: str
+) -> conversation.ConversationResult:
     return await conversation.async_converse(
         hass,
         text,

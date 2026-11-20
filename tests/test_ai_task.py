@@ -178,7 +178,9 @@ async def test_schema_failure_raises_home_assistant_error(
     entity_id = _ai_task_entity_id(hass, _task_subentry_ids(hass, entry_id)[0])
     _reply(mock_chat_completion, '{"answer": 3}')
 
-    with pytest.raises(HomeAssistantError, match="does not match the requested structure"):
+    with pytest.raises(
+        HomeAssistantError, match="does not match the requested structure"
+    ):
         await ai_task.async_generate_data(
             hass,
             task_name="answer",

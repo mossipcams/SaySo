@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 
@@ -27,7 +26,6 @@ class SaySoInvalidToolCallsError(SaySoInvalidResponseError):
 
 
 class SaySoHttpError(SaySoError):
-
     def __init__(self, status: int, message: str | None = None) -> None:
         self.status = status
         super().__init__(message or f"HTTP {status}")

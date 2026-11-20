@@ -12,7 +12,6 @@ from custom_components.sayso.core.lfm_parse import (
 
 
 class TestBareMinusIsParseError:
-
     @pytest.mark.parametrize(
         "text",
         [
@@ -44,7 +43,6 @@ class TestBareMinusIsParseError:
 
 
 class TestAcceptedIntegersUnchanged:
-
     @pytest.mark.parametrize(
         ("text", "value"),
         [

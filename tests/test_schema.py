@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -35,7 +34,6 @@ def _reset_schema_compile_cache() -> None:
 
 
 class _FakeTool(llm.Tool):
-
     def __init__(
         self,
         *,
@@ -77,9 +75,7 @@ def _rich_parameters_schema() -> vol.Schema:
                 vol.Required("nested_id"): vol.Match(r"^[a-z]+$"),
                 vol.Optional("note", description="Nested note"): str,
             },
-            vol.Optional("started_at"): vol.All(
-                str, vol.Match(r"^\d{4}-\d{2}-\d{2}$")
-            ),
+            vol.Optional("started_at"): vol.All(str, vol.Match(r"^\d{4}-\d{2}-\d{2}$")),
         }
     )
 
@@ -310,9 +306,7 @@ def test_compile_tool_matches_llama_cpp_function_shape() -> None:
 def _schema_with_reordered_keys() -> vol.Schema:
     return vol.Schema(
         {
-            vol.Optional("started_at"): vol.All(
-                str, vol.Match(r"^\d{4}-\d{2}-\d{2}$")
-            ),
+            vol.Optional("started_at"): vol.All(str, vol.Match(r"^\d{4}-\d{2}-\d{2}$")),
             vol.Required("mode"): vol.In(["auto", "manual", "off"]),
             vol.Optional("config"): {
                 vol.Optional("note", description="Nested note"): str,
@@ -374,9 +368,9 @@ def test_canonical_schema_is_order_independent() -> None:
                 name="AlphaTool",
                 parameters=vol.Schema(
                     {
-                        vol.Required("name", description="Human-readable device name"): vol.All(
-                            str, vol.Length(min=1, max=64)
-                        ),
+                        vol.Required(
+                            "name", description="Human-readable device name"
+                        ): vol.All(str, vol.Length(min=1, max=64)),
                         vol.Required("mode"): vol.In(["auto", "manual", "off"]),
                         vol.Optional("brightness", default=50): vol.All(
                             vol.Coerce(int), vol.Range(min=0, max=100)
@@ -639,9 +633,9 @@ def test_compile_tools_rebuilds_when_constraint_changes(monkeypatch: Any) -> Non
             _FakeTool(
                 parameters=vol.Schema(
                     {
-                        vol.Required("name", description="Human-readable device name"): vol.All(
-                            str, vol.Length(min=1, max=64)
-                        ),
+                        vol.Required(
+                            "name", description="Human-readable device name"
+                        ): vol.All(str, vol.Length(min=1, max=64)),
                         vol.Required("mode"): vol.In(["auto", "manual", "off"]),
                         vol.Optional("level"): vol.All(
                             vol.Coerce(int), vol.Range(min=0, max=10)

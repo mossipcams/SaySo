@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import asyncio
@@ -47,16 +46,18 @@ PIPELINE_ID = "pipeline-1"
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    with patch.object(
-        LlamaCppClient, "list_models", new=AsyncMock(return_value=[MODEL_ID])
-    ), patch.object(
-        LlamaCppClient, "validate_model", new=AsyncMock(return_value=None)
+    with (
+        patch.object(
+            LlamaCppClient, "list_models", new=AsyncMock(return_value=[MODEL_ID])
+        ),
+        patch.object(
+            LlamaCppClient, "validate_model", new=AsyncMock(return_value=None)
+        ),
     ):
         yield
 
 
 class _TracedLight(LightEntity):
-
     _attr_name = "Kitchen"
     _attr_unique_id = "traced_kitchen"
     _attr_supported_color_modes = {ColorMode.ONOFF}
@@ -143,8 +144,6 @@ def _stored_stages(record: dict[str, Any]) -> list[str]:
     return [event["stage"] for event in record["events"]]
 
 
-
-
 async def test_home_assistant_adopts_the_pipeline_run_id(hass: HomeAssistant) -> None:
     context = Context()
     _install_pipeline_run(hass, context, run_id="01PIPELINERUN")
@@ -228,8 +227,6 @@ async def test_missing_pipeline_component_degrades_quietly(
     assert async_find_pipeline_run(hass, Context()) is None
 
 
-
-
 async def test_stt_timing_separates_transport_from_transcription() -> None:
     base = datetime(2026, 9, 10, 13, 15, 41, tzinfo=UTC)
     trace = TraceContext(trace_id="t")
@@ -260,12 +257,14 @@ async def test_replayed_stages_keep_home_assistant_timestamps() -> None:
     replay_pipeline_events(trace, _voice_events(base))
 
     by_stage = {event.stage: event for event in trace.events}
-    assert by_stage[f"{Stage.STT}_started"].timestamp == (
-        base + timedelta(milliseconds=900)
-    ).isoformat()
-    assert by_stage[f"{Stage.STT}_completed"].timestamp == (
-        base + timedelta(milliseconds=1138)
-    ).isoformat()
+    assert (
+        by_stage[f"{Stage.STT}_started"].timestamp
+        == (base + timedelta(milliseconds=900)).isoformat()
+    )
+    assert (
+        by_stage[f"{Stage.STT}_completed"].timestamp
+        == (base + timedelta(milliseconds=1138)).isoformat()
+    )
     assert by_stage[f"{Stage.STT}_completed"].elapsed_ms == 1138
 
 
@@ -395,8 +394,6 @@ async def test_pipeline_run_that_never_ends_is_persisted(hass: HomeAssistant) ->
     assert store.get(trace.trace_id) is not None
 
 
-
-
 async def test_one_trace_id_through_the_whole_home_assistant_request(
     hass: HomeAssistant,
     mock_llama_client: None,
@@ -427,7 +424,9 @@ async def test_one_trace_id_through_the_whole_home_assistant_request(
                         )
                     ],
                 ),
-                ChatCompletionResult(content="Turned on the kitchen light.", tool_calls=[]),
+                ChatCompletionResult(
+                    content="Turned on the kitchen light.", tool_calls=[]
+                ),
             ]
         ),
     ):
@@ -516,8 +515,16 @@ async def test_integration_trace_is_chronological(
     assert summary["tool"] == "HassTurnOn"
     assert summary["domain"] == "light"
     assert summary["target"] == "light.kitchen"
-    for measured in ("stt_ms", "context_ms", "model_ms", "tool_parse_ms", "ha_ms",
-                     "response_ms", "tts_ms", "total_ms"):
+    for measured in (
+        "stt_ms",
+        "context_ms",
+        "model_ms",
+        "tool_parse_ms",
+        "ha_ms",
+        "response_ms",
+        "tts_ms",
+        "total_ms",
+    ):
         assert summary[measured] is not None, measured
     assert summary["service"] is None
     assert summary["playback_ms"] is None
@@ -658,21 +665,24 @@ async def test_home_assistant_action_failure_records_the_action_stage(
     async def _boom(*args: Any, **kwargs: Any) -> None:
         raise HomeAssistantError("device offline")
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            return_value=ChatCompletionResult(
-                content=None,
-                tool_calls=[
-                    ToolCall(
-                        id="call-1", name="HassTurnOn", arguments={"name": "Kitchen"}
-                    )
-                ],
-            )
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                return_value=ChatCompletionResult(
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call-1",
+                            name="HassTurnOn",
+                            arguments={"name": "Kitchen"},
+                        )
+                    ],
+                )
+            ),
         ),
-    ), patch(
-        "homeassistant.helpers.intent.async_handle", side_effect=_boom
+        patch("homeassistant.helpers.intent.async_handle", side_effect=_boom),
     ):
         await _converse(hass, entry, "Turn on the kitchen light")
 
@@ -689,17 +699,22 @@ async def test_tracing_failure_does_not_break_the_request(
 ) -> None:
     entry = await _create_entry(hass)
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            return_value=ChatCompletionResult(content="All good.", tool_calls=[])
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                return_value=ChatCompletionResult(content="All good.", tool_calls=[])
+            ),
         ),
-    ), patch.object(
-        entry.runtime_data.traces,
-        "_store",
-        SimpleNamespace(
-            async_delay_save=lambda *a, **k: (_ for _ in ()).throw(OSError("disk full"))
+        patch.object(
+            entry.runtime_data.traces,
+            "_store",
+            SimpleNamespace(
+                async_delay_save=lambda *a, **k: (_ for _ in ()).throw(
+                    OSError("disk full")
+                )
+            ),
         ),
     ):
         result = await _converse(hass, entry, "Hello")
@@ -713,15 +728,18 @@ async def test_trace_start_failure_does_not_break_the_request(
 ) -> None:
     entry = await _create_entry(hass)
 
-    with patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(
-            return_value=ChatCompletionResult(content="Still fine.", tool_calls=[])
+    with (
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(
+                return_value=ChatCompletionResult(content="Still fine.", tool_calls=[])
+            ),
         ),
-    ), patch(
-        "custom_components.sayso.tracing.async_find_pipeline_run",
-        side_effect=RuntimeError("boom"),
+        patch(
+            "custom_components.sayso.tracing.async_find_pipeline_run",
+            side_effect=RuntimeError("boom"),
+        ),
     ):
         result = await _converse(hass, entry, "Hello")
 
@@ -764,9 +782,7 @@ async def test_concurrent_interactions_keep_independent_trace_state(
         run = hass.data[KEY_ASSIST_PIPELINE].pipeline_runs._pipeline_runs[PIPELINE_ID][
             run_id
         ]
-        run.event_callback(
-            _event("run-end", 0, datetime.now(tz=UTC))
-        )
+        run.event_callback(_event("run-end", 0, datetime.now(tz=UTC)))
 
     traces = entry.runtime_data.traces
     first_record = traces.get("01FIRSTRUN")
@@ -778,9 +794,9 @@ async def test_concurrent_interactions_keep_independent_trace_state(
     assert {event["trace_id"] for event in second_record["events"]} == {"01SECONDRUN"}
 
 
-
-
-def _finished_trace(trace_id: str, *, started_at: datetime, success: bool = True) -> TraceContext:
+def _finished_trace(
+    trace_id: str, *, started_at: datetime, success: bool = True
+) -> TraceContext:
     trace = TraceContext(trace_id=trace_id, started_at=started_at)
     trace.utterance = "turn on the kitchen light"
     trace.add_event(INTERACTION_STARTED)
@@ -815,9 +831,7 @@ async def test_retention_caps_the_interaction_count(hass: HomeAssistant) -> None
 
 async def test_utterance_persistence_can_be_disabled(hass: HomeAssistant) -> None:
     store = TraceStore(hass, store_utterances=False)
-    trace = _finished_trace(
-        "private", started_at=datetime.now(tz=UTC), success=False
-    )
+    trace = _finished_trace("private", started_at=datetime.now(tz=UTC), success=False)
     trace.tool = "HassTurnOn"
     trace.domain = "light"
     trace.target = "light.kitchen"
@@ -838,24 +852,20 @@ async def test_utterance_persistence_can_be_disabled(hass: HomeAssistant) -> Non
 async def test_query_filters_failures_and_time_range(hass: HomeAssistant) -> None:
     store = TraceStore(hass)
     now = datetime.now(tz=UTC)
-    store.async_record(
-        _finished_trace("ok", started_at=now - timedelta(hours=2))
-    )
+    store.async_record(_finished_trace("ok", started_at=now - timedelta(hours=2)))
     store.async_record(
         _finished_trace("bad", started_at=now - timedelta(minutes=5), success=False)
     )
 
     assert [s["trace_id"] for s in store.query(limit=10)] == ["bad", "ok"]
     assert [s["trace_id"] for s in store.query(only_failures=True)] == ["bad"]
-    assert [
-        s["trace_id"] for s in store.query(error_stage=Stage.HA_ACTION)
-    ] == ["bad"]
+    assert [s["trace_id"] for s in store.query(error_stage=Stage.HA_ACTION)] == ["bad"]
     assert [
         s["trace_id"] for s in store.query(start_time=now - timedelta(hours=1))
     ] == ["bad"]
-    assert [
-        s["trace_id"] for s in store.query(end_time=now - timedelta(hours=1))
-    ] == ["ok"]
+    assert [s["trace_id"] for s in store.query(end_time=now - timedelta(hours=1))] == [
+        "ok"
+    ]
 
 
 async def test_stored_traces_survive_a_reload(hass: HomeAssistant) -> None:
@@ -880,8 +890,6 @@ async def test_store_load_failure_starts_empty(hass: HomeAssistant) -> None:
         await store.async_load()
 
     assert len(store) == 0
-
-
 
 
 async def test_trace_retrieval_services(
@@ -958,8 +966,6 @@ async def test_diagnostics_redacts_utterances(
     recent = diagnostics["traces"]["recent"]
     assert recent and recent[0]["utterance"] == "**REDACTED**"
     assert diagnostics["traces"]["stored"] == 1
-
-
 
 
 async def test_first_failure_wins() -> None:

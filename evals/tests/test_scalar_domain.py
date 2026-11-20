@@ -3,12 +3,17 @@ from __future__ import annotations
 from evals.outcomes import Expectation, Outcome, ResponseType, Turn
 from evals.scorer import classify
 
-WANT = {"name": "GetLiveContext", "arguments": {"name": "TV", "domain": ["media_player"]}}
+WANT = {
+    "name": "GetLiveContext",
+    "arguments": {"name": "TV", "domain": ["media_player"]},
+}
 
 
 def _classify(domain) -> Outcome:
     call = {"name": "GetLiveContext", "arguments": {"name": "TV", "domain": domain}}
-    expectation = Expectation(category="status", response_type=ResponseType.STATUS, calls=(WANT,))
+    expectation = Expectation(
+        category="status", response_type=ResponseType.STATUS, calls=(WANT,)
+    )
     return classify(expectation, Turn(raw={"calls": [call]}, calls=[call]))
 
 

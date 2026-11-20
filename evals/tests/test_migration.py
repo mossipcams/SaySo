@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -19,7 +18,9 @@ from evals.cases import (
 from evals.runner import render_case
 from sayso_contract import tool_contract
 
-MAP = json.loads((Path(__file__).resolve().parent / "migration_map.json").read_text(encoding="utf-8"))
+MAP = json.loads(
+    (Path(__file__).resolve().parent / "migration_map.json").read_text(encoding="utf-8")
+)
 V1_SOURCE_IDS = [
     "sayso-eval-v1-core-turn-on-light",
     "sayso-eval-v1-failure-wrong-tool",
@@ -68,7 +69,9 @@ def test_smoke_covers_required_behaviors() -> None:
         "ambiguity",
         "unavailable",
     } <= categories
-    sources = {render_case(case)["area_context"]["target_area_source"] for case in cases}
+    sources = {
+        render_case(case)["area_context"]["target_area_source"] for case in cases
+    }
     assert {"explicit", "satellite"} <= sources
     held_out_smoke = [
         case.id
@@ -106,12 +109,19 @@ def test_promotion_composition() -> None:
 
 def test_useful_migrated_cases_retain_expected_behavior() -> None:
     index = {case.id: case for case in load_all_cases()}
-    retained = [row for row in MAP if row["status"] == "retained" and row["canonical_id"]]
+    retained = [
+        row for row in MAP if row["status"] == "retained" and row["canonical_id"]
+    ]
     assert len(retained) == 272
     for row in retained:
         case = index[row["canonical_id"]]
         assert case.utterance
-        assert case.expected["response_type"] in {"action", "status", "clarification", "refusal"}
+        assert case.expected["response_type"] in {
+            "action",
+            "status",
+            "clarification",
+            "refusal",
+        }
         if case.expected["response_type"] in {"action", "status"}:
             assert case.expected["calls"]
 
@@ -120,9 +130,9 @@ def test_v1_and_adversarial_coverage_is_recorded() -> None:
     by_source = {(row["source"], row["source_id"]): row for row in MAP}
     for source_id in V1_SOURCE_IDS:
         assert by_source[("evals/cases/v1.json", source_id)]["canonical_id"]
-    assert by_source[("training/evals/adversarial.jsonl", "adversarial.jsonl")]["status"] == (
-        "equivalent_toy_prompts"
-    )
+    assert by_source[("training/evals/adversarial.jsonl", "adversarial.jsonl")][
+        "status"
+    ] == ("equivalent_toy_prompts")
 
 
 def test_case_labels_validate_against_production_schemas() -> None:

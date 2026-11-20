@@ -245,7 +245,6 @@ def compile_tools(
     return _cached_compile_tools(source_json)
 
 
-
 def build_tool_map(tools: list[llm.Tool]) -> dict[str, llm.Tool]:
     return {tool.name: tool for tool in tools}
 
@@ -335,7 +334,6 @@ def validate_tool_arguments(
         )
 
     return normalized, None
-
 
 
 def compile_llm_tools(

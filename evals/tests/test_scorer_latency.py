@@ -70,7 +70,6 @@ def test_existing_summary_fields_are_kept() -> None:
 
 
 class _Timed:
-
     name = "timed"
 
     def __init__(self) -> None:
@@ -84,7 +83,9 @@ class _Timed:
 def test_evaluate_records_one_latency_per_request() -> None:
     adapter = _Timed()
 
-    results = evaluate(select_cases(case_id="realistic_eval_20260908_ordinary_01"), adapter)
+    results = evaluate(
+        select_cases(case_id="realistic_eval_20260908_ordinary_01"), adapter
+    )
 
     latencies = results[0].request_latencies_ms
     assert len(latencies) == adapter.calls >= 1

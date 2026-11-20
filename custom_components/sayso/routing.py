@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import re
@@ -27,25 +26,61 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 _CONTROL_VERBS = frozenset(
     {
-        "activate", "arm", "brighten", "close", "decrease", "dim", "disable",
-        "disarm", "enable", "flip", "increase", "lock", "lower", "off", "on",
-        "open", "pause", "play", "raise", "set", "start", "stop", "switch",
-        "toggle", "turn", "unlock",
+        "activate",
+        "arm",
+        "brighten",
+        "close",
+        "decrease",
+        "dim",
+        "disable",
+        "disarm",
+        "enable",
+        "flip",
+        "increase",
+        "lock",
+        "lower",
+        "off",
+        "on",
+        "open",
+        "pause",
+        "play",
+        "raise",
+        "set",
+        "start",
+        "stop",
+        "switch",
+        "toggle",
+        "turn",
+        "unlock",
     }
 )
 
 _CONTROL_DOMAINS = frozenset(
     {
-        "alarm_control_panel", "button", "climate", "cover", "fan", "humidifier",
-        "lawn_mower", "light", "lock", "media_player", "scene", "script", "siren",
-        "switch", "todo", "vacuum", "valve", "water_heater",
+        "alarm_control_panel",
+        "button",
+        "climate",
+        "cover",
+        "fan",
+        "humidifier",
+        "lawn_mower",
+        "light",
+        "lock",
+        "media_player",
+        "scene",
+        "script",
+        "siren",
+        "switch",
+        "todo",
+        "vacuum",
+        "valve",
+        "water_heater",
     }
 )
 
 
 @dataclass(frozen=True, slots=True)
 class RoutingArea:
-
     area_id: str
     name: str
     floor_id: str | None = None
@@ -53,21 +88,18 @@ class RoutingArea:
 
 @dataclass(frozen=True, slots=True)
 class RoutingFloor:
-
     floor_id: str
     name: str
 
 
 @dataclass(frozen=True, slots=True)
 class RoutingDevice:
-
     device_id: str
     area_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class RoutingEntity:
-
     entity_id: str
     domain: str
     name: str
@@ -78,7 +110,6 @@ class RoutingEntity:
 
 @dataclass(frozen=True, slots=True)
 class RoutingCatalog:
-
     entities: tuple[RoutingEntity, ...]
 
     @property
@@ -88,7 +119,6 @@ class RoutingCatalog:
 
 @dataclass(frozen=True, slots=True)
 class RoutingRegistries:
-
     areas: tuple[RoutingArea, ...] = ()
     floors: tuple[RoutingFloor, ...] = ()
     devices: tuple[RoutingDevice, ...] = ()
@@ -96,7 +126,6 @@ class RoutingRegistries:
 
 @dataclass(frozen=True, slots=True)
 class RoutingPreferences:
-
     area: str | None = None
     floor: str | None = None
 
@@ -235,9 +264,7 @@ def _identify_from_area_and_floor_evidence(
     area_ids = {area.area_id for area in matched_areas}
     for floor in matched_floors:
         area_ids |= {
-            area.area_id
-            for area in registries.areas
-            if area.floor_id == floor.floor_id
+            area.area_id for area in registries.areas if area.floor_id == floor.floor_id
         }
     if not area_ids:
         return None

@@ -36,7 +36,9 @@ def patch_satellite_entities(hass: HomeAssistant, select_entity_id: str) -> int:
 
 
 @callback
-def async_watch_satellites(hass: HomeAssistant, select_entity_id: str) -> Callable[[], None]:
+def async_watch_satellites(
+    hass: HomeAssistant, select_entity_id: str
+) -> Callable[[], None]:
     @callback
     def _async_handle_registry_event(event: Event) -> None:
         data = event.data
@@ -52,7 +54,9 @@ def async_watch_satellites(hass: HomeAssistant, select_entity_id: str) -> Callab
             _LOGGER.exception("Failed to patch satellite VAD sensitivity")
             return
         if patched:
-            _LOGGER.debug("Patched %d satellite entit%s", patched, "y" if patched == 1 else "ies")
+            _LOGGER.debug(
+                "Patched %d satellite entit%s", patched, "y" if patched == 1 else "ies"
+            )
 
     unsubs = [
         hass.bus.async_listen(event, _async_handle_registry_event)

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -50,7 +49,6 @@ class ResponseType(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Expectation:
-
     category: str
     response_type: ResponseType
     calls: tuple[dict[str, Any], ...] = ()
@@ -62,7 +60,6 @@ class Expectation:
 
 @dataclass(slots=True)
 class Turn:
-
     raw: Any
     text: str | None = None
     calls: list[dict[str, Any]] = field(default_factory=list)
@@ -116,7 +113,9 @@ def read_completion(
         turn.parse_error = str(err)
         return turn
     turn.text = result.content
-    turn.calls = [{"name": call.name, "arguments": call.arguments} for call in result.tool_calls]
+    turn.calls = [
+        {"name": call.name, "arguments": call.arguments} for call in result.tool_calls
+    ]
     turn.violations = contract_violations(
         [(call["name"], call["arguments"]) for call in turn.calls],
         tools,

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -19,7 +18,11 @@ from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
 
 from custom_components.sayso.client import LlamaCppClient
-from custom_components.sayso.const import DOMAIN, ERROR_ACTION_FAILED, ERROR_MODEL_UNAVAILABLE
+from custom_components.sayso.const import (
+    DOMAIN,
+    ERROR_ACTION_FAILED,
+    ERROR_MODEL_UNAVAILABLE,
+)
 from custom_components.sayso.core.exceptions import SaySoInvalidToolEnvelopeError
 from custom_components.sayso.schema import (
     clear_compile_cache,
@@ -76,14 +79,17 @@ def _reset_compile_cache() -> None:
 
 @pytest.fixture
 def mock_llama_client() -> Any:
-    with patch.object(
-        LlamaCppClient,
-        "list_models",
-        new=AsyncMock(return_value=[MODEL_ID]),
-    ), patch.object(
-        LlamaCppClient,
-        "validate_model",
-        new=AsyncMock(return_value=None),
+    with (
+        patch.object(
+            LlamaCppClient,
+            "list_models",
+            new=AsyncMock(return_value=[MODEL_ID]),
+        ),
+        patch.object(
+            LlamaCppClient,
+            "validate_model",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         yield
 
@@ -142,7 +148,10 @@ def test_validate_rejects_non_object_parameter_roots(parameters: Any) -> None:
     "tool",
     [
         {"function": {"name": "AlphaTool", "parameters": {"type": "object"}}},
-        {"type": "tool", "function": {"name": "AlphaTool", "parameters": {"type": "object"}}},
+        {
+            "type": "tool",
+            "function": {"name": "AlphaTool", "parameters": {"type": "object"}},
+        },
         {"type": "function", "function": "not-a-mapping"},
         {"type": "function", "function": {"parameters": {"type": "object"}}},
         {"type": "function", "function": {"name": "AlphaTool"}},
@@ -232,14 +241,17 @@ async def test_invalid_tool_envelope_returns_action_failed(
 ) -> None:
     entry = await _create_entry(hass)
 
-    with patch(
-        "custom_components.sayso.conversation.compile_llm_tools",
-        side_effect=SaySoInvalidToolEnvelopeError("invalid compiled tool envelope"),
-    ), patch.object(
-        LlamaCppClient,
-        "chat_completion",
-        new=AsyncMock(),
-    ) as mock_chat:
+    with (
+        patch(
+            "custom_components.sayso.conversation.compile_llm_tools",
+            side_effect=SaySoInvalidToolEnvelopeError("invalid compiled tool envelope"),
+        ),
+        patch.object(
+            LlamaCppClient,
+            "chat_completion",
+            new=AsyncMock(),
+        ) as mock_chat,
+    ):
         result = await conversation.async_converse(
             hass,
             "Turn on the living room light",
