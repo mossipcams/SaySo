@@ -5,115 +5,13 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from .vocabulary import (
-    DOMAIN_PLURALS,
-    ERROR_AREA_HAS_NO_DOMAIN,
-    ERROR_CHOOSE,
-    ERROR_DID_YOU_MEAN,
-    ERROR_NOT_UNDERSTOOD,
-)
+from .vocabulary import SPEECH_EN, VOCAB_EN, Speech, Vocabulary
 
 _TOKEN_RE = re.compile(r"[a-z0-9']+")
 
-GENERIC = {
-    "the",
-    "tv",
-    "light",
-    "lights",
-    "lamp",
-    "switch",
-    "plug",
-    "fan",
-    "speaker",
-    "volume",
-}
-
-NOUN = {
-    "light": "light",
-    "lights": "light",
-    "lamp": "light",
-    "lamps": "light",
-    "tv": "media_player",
-    "fan": "fan",
-    "volume": "media_player",
-}
-
 _ALWAYS_GROUNDED = {"GetLiveContext", "GetDateTime"}
 
-DOMAIN_WORDS = {
-    **NOUN,
-    "television": "media_player",
-    "vacuum": "vacuum",
-    "vacuums": "vacuum",
-}
-
 PARTIAL_FLOOR = 1 / 3
-
-STOP_WORDS = frozenset(
-    {
-        "the",
-        "a",
-        "an",
-        "my",
-        "our",
-        "your",
-        "this",
-        "that",
-        "its",
-        "on",
-        "off",
-        "up",
-        "down",
-        "to",
-        "in",
-        "at",
-        "of",
-        "for",
-        "and",
-        "bit",
-        "little",
-        "back",
-        "is",
-        "it",
-        "can",
-        "you",
-        "please",
-        "turn",
-        "switch",
-        "set",
-        "dim",
-        "mute",
-        "pause",
-        "unpause",
-        "resume",
-        "start",
-        "send",
-        "dock",
-        "have",
-        "run",
-        "clean",
-        "brighten",
-        "make",
-        "lower",
-        "raise",
-        "open",
-        "close",
-        "lock",
-        "unlock",
-        "play",
-        "stop",
-        "go",
-        "return",
-        "put",
-        "change",
-        "volume",
-        "percent",
-        "degrees",
-        "some",
-        "all",
-        "any",
-    }
-)
 
 
 @dataclass(frozen=True)
@@ -153,10 +51,16 @@ def word_ratio(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def support(label: str, utterance: str, generic_only: float = 1.0) -> float:
+def support(
+    label: str,
+    utterance: str,
+    generic_only: float = 1.0,
+    *,
+    vocab: Vocabulary = VOCAB_EN,
+) -> float:
     ut = tokens(utterance)
-    d = [t for t in tokens(label) if t not in GENERIC]
-    u = [t for t in ut if t not in GENERIC and t not in NOUN] or [""]
+    d = [t for t in tokens(label) if t not in vocab.generic]
+    u = [t for t in ut if t not in vocab.generic and t not in vocab.noun] or [""]
     if not d:
         return generic_only if any(t in ut for t in tokens(label)) else 0.0
     scores = []
@@ -262,15 +166,15 @@ def _pool(utterance: str, home: GroundingHome, dom: str | None, room: str | None
     return pool
 
 
-def _phrase_score(label: str, utterance: str) -> float:
+def _phrase_score(label: str, utterance: str, vocab: Vocabulary) -> float:
     ut = tokens(utterance)
-    d = " ".join(t for t in tokens(label) if t not in GENERIC)
+    d = " ".join(t for t in tokens(label) if t not in vocab.generic)
     if not d:
         return 0.0
     n = len(d.split())
     best = 0.0
     for i, tok in enumerate(ut):
-        if tok not in NOUN:
+        if tok not in vocab.noun:
             continue
         for k in (n, n + 1):
             if i - k < 0:
@@ -283,10 +187,19 @@ def _phrase_score(label: str, utterance: str) -> float:
     return best
 
 
-def _score(entity: GroundingEntity, utterance: str, home: GroundingHome, room):
+def _score(
+    entity: GroundingEntity,
+    utterance: str,
+    home: GroundingHome,
+    room,
+    vocab: Vocabulary,
+):
     base = 0.0
     for l in labels(entity):
-        s = max(support(l, utterance, generic_only=0.3), _phrase_score(l, utterance))
+        s = max(
+            support(l, utterance, generic_only=0.3, vocab=vocab),
+            _phrase_score(l, utterance, vocab),
+        )
         base = max(base, s)
     if (
         room is None
@@ -298,14 +211,17 @@ def _score(entity: GroundingEntity, utterance: str, home: GroundingHome, room):
 
 
 def _area_noun_match(
-    entity: GroundingEntity, utterance: str, home: GroundingHome
+    entity: GroundingEntity,
+    utterance: str,
+    home: GroundingHome,
+    vocab: Vocabulary = VOCAB_EN,
 ) -> bool:
     if entity.area is None:
         return False
     room = mentioned_area(utterance, home)
     if room is None or room.casefold() != entity.area.casefold():
         return False
-    nouns = [NOUN[t] for t in tokens(utterance) if t in NOUN]
+    nouns = [vocab.noun[t] for t in tokens(utterance) if t in vocab.noun]
     name_cf = entity.name.casefold()
     for nd in nouns:
         if nd == entity.domain:
@@ -376,8 +292,9 @@ def _fully_explained(
     bare: str,
     args: dict,
     others: Sequence[tuple[str, dict]],
+    vocab: Vocabulary,
 ) -> bool:
-    words = set(STOP_WORDS) | set(DOMAIN_WORDS)
+    words = set(vocab.stop_words) | set(vocab.domain_words)
     words |= {t for label in labels(entity) for t in tokens(label)}
     words |= _area_tokens(entity.area, home)
     words |= _area_tokens(home.satellite_area, home)
@@ -390,14 +307,18 @@ def _fully_explained(
 
 
 def _other_candidate_word(
-    entity: GroundingEntity, utterance: str, pool: list[GroundingEntity]
+    entity: GroundingEntity,
+    utterance: str,
+    pool: list[GroundingEntity],
+    vocab: Vocabulary,
 ) -> bool:
     own = {t for label in labels(entity) for t in tokens(label)}
     other = {
         t for e in pool if e != entity for label in labels(e) for t in tokens(label)
     }
     return any(
-        t in other and t not in own and t not in STOP_WORDS for t in tokens(utterance)
+        t in other and t not in own and t not in vocab.stop_words
+        for t in tokens(utterance)
     )
 
 
@@ -416,12 +337,13 @@ def _satellite_local(
     home: GroundingHome,
     pool: list[GroundingEntity],
     others: Sequence[tuple[str, dict]],
+    vocab: Vocabulary,
 ) -> bool:
     sat = home.satellite_area
     if sat is None or entity.area is None or entity.area.casefold() != sat.casefold():
         return False
     if _apostrophe_unaccounted(utterance, home, others) or _other_candidate_word(
-        entity, utterance, pool
+        entity, utterance, pool, vocab
     ):
         return False
     local = [
@@ -429,7 +351,7 @@ def _satellite_local(
     ]
     if local == [entity]:
         return True
-    spoken = [t for t in tokens(utterance) if t in DOMAIN_WORDS]
+    spoken = [t for t in tokens(utterance) if t in vocab.domain_words]
     narrowed = [
         e
         for e in local
@@ -439,14 +361,17 @@ def _satellite_local(
 
 
 def _partial_name(
-    entity: GroundingEntity, utterance: str, pool: list[GroundingEntity]
+    entity: GroundingEntity,
+    utterance: str,
+    pool: list[GroundingEntity],
+    vocab: Vocabulary,
 ) -> bool:
     if entity not in pool:
         return False
-    if max(support(l, utterance) for l in labels(entity)) < PARTIAL_FLOOR:
+    if max(support(l, utterance, vocab=vocab) for l in labels(entity)) < PARTIAL_FLOOR:
         return False
     return all(
-        max(support(l, utterance) for l in labels(other)) < PARTIAL_FLOOR
+        max(support(l, utterance, vocab=vocab) for l in labels(other)) < PARTIAL_FLOOR
         for other in pool
         if other != entity
     )
@@ -459,20 +384,23 @@ def _rule_grounded(
     bare: str,
     args: dict,
     others: Sequence[tuple[str, dict]],
+    vocab: Vocabulary,
 ) -> bool:
     if not _room_ok(entity, utterance, home, bare, args):
         return False
-    if not _fully_explained(entity, utterance, home, bare, args, others):
+    if not _fully_explained(entity, utterance, home, bare, args, others, vocab):
         return False
-    for dom in {DOMAIN_WORDS[t] for t in tokens(utterance) if t in DOMAIN_WORDS}:
+    for dom in {
+        vocab.domain_words[t] for t in tokens(utterance) if t in vocab.domain_words
+    }:
         if not _matches_dom(entity, dom):
             continue
         pool = _pool(utterance, home, dom, None)
         if pool == [entity]:
             return True
-        if _satellite_local(entity, utterance, home, pool, others):
+        if _satellite_local(entity, utterance, home, pool, others, vocab):
             return True
-        if _partial_name(entity, utterance, pool):
+        if _partial_name(entity, utterance, pool, vocab):
             return True
     return False
 
@@ -484,6 +412,7 @@ def is_grounded(
     home: GroundingHome,
     *,
     others: Sequence[tuple[str, dict]] = (),
+    vocab: Vocabulary = VOCAB_EN,
 ) -> bool:
     bare = tool_name.split("__")[-1]
     if bare in _ALWAYS_GROUNDED or "Timer" in bare:
@@ -494,11 +423,11 @@ def is_grounded(
         matches = [e for e in home.entities if needle in labels(e)]
         if matches:
             first = matches[0]
-            if max(support(l, utterance) for l in labels(first)) >= 0.5:
+            if max(support(l, utterance, vocab=vocab) for l in labels(first)) >= 0.5:
                 return True
-            if _area_noun_match(first, utterance, home):
+            if _area_noun_match(first, utterance, home, vocab):
                 return True
-            return _rule_grounded(first, utterance, home, bare, args, others)
+            return _rule_grounded(first, utterance, home, bare, args, others, vocab)
         for area_name, aliases in home.areas.items():
             names = {
                 area_name.casefold().strip(),
@@ -514,9 +443,15 @@ def is_grounded(
 
 
 def clarify(
-    tool_name: str, args: dict, utterance: str, home: GroundingHome
+    tool_name: str,
+    args: dict,
+    utterance: str,
+    home: GroundingHome,
+    *,
+    speech: Speech = SPEECH_EN,
+    vocab: Vocabulary = VOCAB_EN,
 ) -> Clarification:
-    nouns = [NOUN[t] for t in tokens(utterance) if t in NOUN]
+    nouns = [vocab.noun[t] for t in tokens(utterance) if t in vocab.noun]
     dom = nouns[-1] if nouns else call_domain(tool_name, args)
     room = mentioned_area(utterance, home)
     pool = _pool(utterance, home, dom, room)
@@ -524,26 +459,30 @@ def clarify(
         if dom is None:
             plural = "devices"
         else:
-            plural = DOMAIN_PLURALS.get(dom, f"{dom.replace('_', ' ')}s")
-        speech = ERROR_AREA_HAS_NO_DOMAIN.format(
-            area=room.casefold() if room else "home", domains=plural
+            plural = vocab.domain_plurals.get(dom, f"{dom.replace('_', ' ')}s")
+        return Clarification(
+            speech=speech.area_has_no_domain.format(
+                area=room.casefold() if room else "home", domains=plural
+            ),
+            options=(),
         )
-        return Clarification(speech=speech, options=())
     pool.sort(key=lambda e: e.name.casefold())
-    scored = [(_score(e, utterance, home, room), e) for e in pool]
+    scored = [(_score(e, utterance, home, room, vocab), e) for e in pool]
     scored.sort(key=lambda se: -se[0])
     if len(scored) == 1:
         return Clarification(
-            speech=ERROR_DID_YOU_MEAN.format(name=scored[0][1].name),
+            speech=speech.did_you_mean.format(name=scored[0][1].name),
             options=(scored[0][1],),
         )
     s1, e1 = scored[0]
     s2, e2 = scored[1]
     if s1 >= 0.5 and s1 - s2 >= 0.1:
         return Clarification(
-            speech=ERROR_DID_YOU_MEAN.format(name=e1.name), options=(e1,)
+            speech=speech.did_you_mean.format(name=e1.name), options=(e1,)
         )
     if s1 >= 0.5 and s2 >= 0.5:
-        speech = ERROR_CHOOSE.format(first=e1.name, second=e2.name)
-        return Clarification(speech=speech, options=(e1, e2))
-    return Clarification(speech=ERROR_NOT_UNDERSTOOD, options=())
+        return Clarification(
+            speech=speech.choose.format(first=e1.name, second=e2.name),
+            options=(e1, e2),
+        )
+    return Clarification(speech=speech.not_understood, options=())

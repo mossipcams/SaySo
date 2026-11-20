@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from custom_components.sayso.core.grounding import (
-    DOMAIN_WORDS,
     _area_noun_match,
     _matches_dom,
     is_grounded,
@@ -11,6 +10,7 @@ from custom_components.sayso.core.grounding import (
     support,
     tokens,
 )
+from custom_components.sayso.core.vocabulary import DOMAIN_WORDS
 from evals.cases import case_index, load_home
 from evals.runner import _grounding_home
 

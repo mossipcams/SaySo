@@ -256,5 +256,23 @@
     "ai_task_invalid": {
       "message": "AI Task response does not match the requested structure: {reason}"
     }
+  },
+  "speech": {
+    "not_understood": "Sorry, I didn't understand that.",
+    "did_you_mean": "Did you mean the {name}?",
+    "choose": "The {first} or the {second}?",
+    "area_has_no_domain": "The {area} has no {domains} available.",
+    "model_unavailable": "The local model is unavailable.",
+    "model_not_loaded": "The local model is not loaded.",
+    "request_timeout": "That request took too long.",
+    "empty_response": "I didn't get a response from the local model.",
+    "action_failed": "I couldn't complete that action.",
+    "no_timers": "There are no timers running.",
+    "name_not_found": "I couldn't find {name}.",
+    "media_not_playing": "The {name} isn't playing.",
+    "media_not_paused": "The {name} isn't paused.",
+    "tool_iteration_limit": "I couldn't complete that action.",
+    "cancelled": "Okay.",
+    "done": "Done."
   }
 }

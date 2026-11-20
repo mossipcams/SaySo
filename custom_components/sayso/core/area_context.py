@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -6,6 +5,8 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
+
+from .vocabulary import VOCAB_EN, Vocabulary
 
 AreaSource = Literal["explicit", "multiple", "satellite", "none"]
 
@@ -27,7 +28,6 @@ _LEGACY_AREA_LINES = (
 
 @dataclass(frozen=True, slots=True)
 class AreaContext:
-
     satellite_area: str | None
     target_area: str | None
     target_area_source: AreaSource
@@ -40,18 +40,22 @@ class AreaContext:
         }
 
 
-def _tokens(text: str) -> list[str]:
-    return _TOKEN_RE.findall(text.casefold().replace("'s", ""))
+def _tokens(text: str, vocab: Vocabulary) -> list[str]:
+    return _TOKEN_RE.findall(text.casefold().replace(vocab.possessive, ""))
 
 
-def named_areas(utterance: str, areas: Mapping[str, Iterable[str]]) -> list[str]:
-    words = _tokens(utterance)
+def named_areas(
+    utterance: str,
+    areas: Mapping[str, Iterable[str]],
+    vocab: Vocabulary = VOCAB_EN,
+) -> list[str]:
+    words = _tokens(utterance, vocab)
     phrases = sorted(
         (
-            (tuple(_tokens(phrase)), area)
+            (tuple(_tokens(phrase, vocab)), area)
             for area, aliases in areas.items()
             for phrase in {area, *aliases}
-            if _tokens(phrase)
+            if _tokens(phrase, vocab)
         ),
         key=lambda item: -len(item[0]),
     )
@@ -75,8 +79,10 @@ def build_area_context(
     utterance: str,
     areas: Mapping[str, Iterable[str]],
     satellite_area: str | None,
+    *,
+    vocab: Vocabulary = VOCAB_EN,
 ) -> AreaContext:
-    named = named_areas(utterance, areas)
+    named = named_areas(utterance, areas, vocab)
     if len(named) == 1:
         return AreaContext(satellite_area, named[0], "explicit")
     if named:

@@ -4,19 +4,7 @@ from dataclasses import dataclass
 
 from .completion import ToolCall
 from .grounding import GroundingEntity, support, tokens
-
-YES_ANSWER = {"yes", "yeah", "yep", "yup", "sure", "correct", "ok", "okay"}
-NO_ANSWER = {
-    "no",
-    "nope",
-    "nah",
-    "cancel",
-    "neither",
-    "never",
-    "mind",
-    "stop",
-}
-FILLER = {"the", "it", "that", "one", "please", "do", "thanks", "thank", "you"}
+from .vocabulary import VOCAB_EN, Vocabulary
 
 
 @dataclass(frozen=True)
@@ -27,13 +15,13 @@ class HeldState:
     expires: float
 
 
-def is_cancel(text: str) -> bool:
+def is_cancel(text: str, vocab: Vocabulary = VOCAB_EN) -> bool:
     words = tokens(text)
     return (
         bool(words)
-        and all(word in YES_ANSWER | NO_ANSWER | FILLER for word in words)
-        and any(word in NO_ANSWER for word in words)
-        and not any(word in YES_ANSWER for word in words)
+        and all(word in vocab.yes | vocab.no | vocab.filler for word in words)
+        and any(word in vocab.no for word in words)
+        and not any(word in vocab.yes for word in words)
     )
 
 
@@ -41,18 +29,20 @@ def is_expired(held: HeldState, now: float) -> bool:
     return not now < held.expires
 
 
-def resolve_held_option(held: HeldState, text: str) -> GroundingEntity | None:
+def resolve_held_option(
+    held: HeldState, text: str, vocab: Vocabulary = VOCAB_EN
+) -> GroundingEntity | None:
     words = tokens(text)
     if (
         len(held.options) == 1
-        and any(word in YES_ANSWER for word in words)
-        and all(word in YES_ANSWER | FILLER for word in words)
+        and any(word in vocab.yes for word in words)
+        and all(word in vocab.yes | vocab.filler for word in words)
     ):
         return held.options[0]
     scored = [
         (
             max(
-                support(label.casefold(), text)
+                support(label.casefold(), text, vocab=vocab)
                 for label in (option.name, *option.aliases)
             ),
             option,
