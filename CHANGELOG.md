@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.21.0](https://github.com/mossipcams/SaySo/compare/1.20.4...1.21.0) (2026-11-20)
+
+
+### Features
+
+* **evals:** add regression eval suite ([5ef9301](https://github.com/mossipcams/SaySo/commit/5ef930108d73aedfdae3ff8eed18d4c8dbc5e051))
+* **integration:** ask instead of guessing on voice commands ([c0b98cb](https://github.com/mossipcams/SaySo/commit/c0b98cb674d6f46dcaf96284d20dabd714223520))
+
+
+### Bug Fixes
+
+* declare English as the only supported language ([0ad5f46](https://github.com/mossipcams/SaySo/commit/0ad5f463102208938baee473a2ba98d8d830602d))
+* **evals:** correct expected tool calls and fixtures ([2f9276c](https://github.com/mossipcams/SaySo/commit/2f9276ca9b8e71dbf5f311f2dbea663ad0771513))
+* **evals:** offer the HA 2026.11.1 Assist tool list per home ([7446648](https://github.com/mossipcams/SaySo/commit/744664838194b6c8be4ef2d1e6fff88b3447526e))
+* **grounding:** drop unspoken areas from named-device calls ([71efc71](https://github.com/mossipcams/SaySo/commit/71efc71f5740c2c9f1c92fce9e201cfba57f3455))
+* **integration:** read tool results without the deprecated attribute ([81854f6](https://github.com/mossipcams/SaySo/commit/81854f65dd0d92b251f4dcf9e888bce0029e155f))
+* migrate the legacy model_path option once via async_migrate_entry ([51c7c6b](https://github.com/mossipcams/SaySo/commit/51c7c6bfc500eae78b22e4d937d66b50d0d925be))
+* pin llama-cpp-python and keep its index out of the process env ([f1137f2](https://github.com/mossipcams/SaySo/commit/f1137f24943097ba7ccf615c527d3302a4a82f91))
+* point the manifest at mossipcams/SaySo ([34d8fd9](https://github.com/mossipcams/SaySo/commit/34d8fd9a97ddd70add1b47bf2409380ca9c00be1))
+* stop storing utterances in traces by default ([e8fa667](https://github.com/mossipcams/SaySo/commit/e8fa667fc39606174ea8953fff27b3582f469dc0))
+* treat ToolResult.error as a failed action ([aac9c82](https://github.com/mossipcams/SaySo/commit/aac9c824184213b7580d429e15cf7824cc320320))
+
+
+### Documentation
+
+* **agents:** describe the 530-case promotion suite ([d5bceeb](https://github.com/mossipcams/SaySo/commit/d5bceeb2951d3514802ee1459d9febcc9acd04ee))
+* **agents:** report times in 12-hour US Central ([096be1b](https://github.com/mossipcams/SaySo/commit/096be1b36518e3f11defc07b7b3c683eca087f30))
+* drop plans and handoffs that sayso-training carries verbatim ([5b7626f](https://github.com/mossipcams/SaySo/commit/5b7626f52333a98e7f825b971e92156ffe71b64d))
+* plan the Nov 2026 architecture review fixes ([c6fb0af](https://github.com/mossipcams/SaySo/commit/c6fb0af0098452ff16f92634a87551ba029dedbd))
+
 ## [1.20.4](https://github.com/mossipcams/SaySo/compare/1.20.3...1.20.4) (2026-11-16)
 
 
