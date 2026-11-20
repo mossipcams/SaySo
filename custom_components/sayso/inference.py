@@ -16,9 +16,14 @@ from .core.area_context import tools_before_area_messages
 from .client import ChatCompletionResult, LlamaCppClient
 from .core.completion import (
     GRAMMAR_BACKEND_REJECTED,
+    call_id,
+    cache_trace_of,
     extract_tool_calls,
+    finish_reason_of,
+    parse_choice_message,
     parse_completion_result,
     parse_completion_result as _parse_embedded_result,
+    parse_tool_calls,
     prefix_hash,
     prompt_tokens_of,
 )
@@ -223,6 +228,31 @@ def _llama_grammar(text: str) -> Any:
     return LlamaGrammar.from_string(text)
 
 
+def _embedded_result(
+    raw: Any, tools: Sequence[dict[str, Any]] | None
+) -> ChatCompletionResult:
+    if tools:
+        return parse_completion_result(raw)
+    content, message = parse_choice_message(raw, "Local inference")
+    tool_calls = parse_tool_calls(
+        message.get("tool_calls"), subject="Local inference", mint_id=call_id
+    )
+    text = content or None
+    if text is None and not tool_calls:
+        raise SaySoInvalidResponseError(
+            "Local inference returned neither content nor tool calls"
+        )
+    prefix, reused = cache_trace_of(raw)
+    return ChatCompletionResult(
+        content=text,
+        tool_calls=tool_calls,
+        prompt_tokens=prompt_tokens_of(raw),
+        prefix_hash=prefix,
+        reused_tokens=reused,
+        finish_reason=finish_reason_of(raw),
+    )
+
+
 def entry_backend(entry: Any) -> str:
     backend = entry.data.get(CONF_BACKEND)
     if backend in (BACKEND_EMBEDDED, BACKEND_EXTERNAL):
@@ -286,7 +316,7 @@ class ExternalEngine:
             max_tokens=max_tokens,
             grammar=grammar,
         )
-        if result.tool_calls or not result.content:
+        if not tools or result.tool_calls or not result.content:
             return result
         content, tool_calls = extract_tool_calls(result.content)
         if not tool_calls and content == result.content:
@@ -427,4 +457,4 @@ class EmbeddedEngine:
         except Exception as err:
             raise SaySoInvalidResponseError(f"Local inference failed: {err}") from err
 
-        return replace(parse_completion_result(raw), grammar_skip_reason=skipped)
+        return replace(_embedded_result(raw, tools), grammar_skip_reason=skipped)

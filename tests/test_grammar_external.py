@@ -15,9 +15,19 @@ def _engine_returning(result: ChatCompletionResult) -> ExternalEngine:
     return ExternalEngine(client, "test-model")
 
 
-async def _complete(engine: ExternalEngine) -> ChatCompletionResult:
+_TOOLS = [
+    {
+        "type": "function",
+        "function": {"name": "HassTurnOn", "parameters": {"type": "object"}},
+    }
+]
+
+
+async def _complete(
+    engine: ExternalEngine, tools: list[dict[str, object]] | None = None
+) -> ChatCompletionResult:
     return await engine.async_chat_completion(
-        [{"role": "user", "content": "turn off the lamp"}]
+        [{"role": "user", "content": "turn off the lamp"}], tools=tools
     )
 
 
@@ -30,7 +40,7 @@ class TestExternalContentToolCalls:
             )
         )
 
-        result = await _complete(engine)
+        result = await _complete(engine, _TOOLS)
 
         assert result.content is None
         assert [(call.name, call.arguments) for call in result.tool_calls] == [
@@ -42,7 +52,7 @@ class TestExternalContentToolCalls:
             ChatCompletionResult(content="[HassTurnOff(name='fan')]", tool_calls=[])
         )
 
-        result = await _complete(engine)
+        result = await _complete(engine, _TOOLS)
 
         assert result.content is None
         assert [call.name for call in result.tool_calls] == ["HassTurnOff"]
@@ -56,7 +66,7 @@ class TestExternalContentToolCalls:
             )
         )
 
-        result = await _complete(engine)
+        result = await _complete(engine, _TOOLS)
 
         assert [call.name for call in result.tool_calls] == ["HassTurnOn", "SetTemp"]
         assert result.tool_calls[1].arguments == {"level": 21}
@@ -69,7 +79,7 @@ class TestExternalContentToolCalls:
             )
         )
 
-        result = await _complete(engine)
+        result = await _complete(engine, _TOOLS)
 
         assert result.content == "Sure."
         assert [call.name for call in result.tool_calls] == ["HassTurnOn"]
@@ -109,4 +119,4 @@ class TestExternalContentToolCalls:
         )
 
         with pytest.raises(SaySoInvalidToolCallsError):
-            await _complete(engine)
+            await _complete(engine, _TOOLS)
