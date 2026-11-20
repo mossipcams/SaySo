@@ -13,6 +13,7 @@ class HeldState:
     index: int
     options: tuple[GroundingEntity, ...]
     expires: float
+    utterance: str = ""
 
 
 def is_cancel(text: str, vocab: Vocabulary = VOCAB_EN) -> bool:
