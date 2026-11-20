@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -526,7 +526,7 @@ class _RoutingTestLight(LightEntity):
 
     _attr_name = "Living Room"
     _attr_unique_id = "living_room"
-    _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.ONOFF}
+    _attr_supported_color_modes = {ColorMode.ONOFF}
     _attr_color_mode = ColorMode.ONOFF
 
     def __init__(self) -> None:

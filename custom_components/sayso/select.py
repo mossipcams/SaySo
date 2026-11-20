@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import ClassVar
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant, callback
@@ -36,7 +35,7 @@ class SaySoVadSensitivitySelect(SelectEntity, RestoreEntity):
     _attr_entity_category = EntityCategory.CONFIG
     _attr_name = "SaySo VAD sensitivity"
     _attr_should_poll = False
-    _attr_options: ClassVar[list[str]] = list(VAD_SENSITIVITY_OPTIONS)
+    _attr_options = list(VAD_SENSITIVITY_OPTIONS)
     _attr_current_option = VAD_SENSITIVITY_DEFAULT
 
     def __init__(self, entry: SaySoConfigEntry) -> None:

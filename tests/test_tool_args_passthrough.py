@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any
 
 import voluptuous as vol
 from homeassistant.helpers import intent, llm
@@ -15,7 +15,7 @@ class _SetVolumeRelativeHandler(intent.IntentHandler):
     name = "HassSetVolumeRelative"
     platform = "media_player"
     intent_type = "HassSetVolumeRelative"
-    slot_schema: ClassVar[dict[str, Any]] = {
+    slot_schema = {
         vol.Required("name"): str,
         vol.Required("volume_step"): vol.All(
             vol.Coerce(int),
@@ -29,7 +29,7 @@ class _SetVolumeHandler(intent.IntentHandler):
     name = "HassSetVolume"
     platform = "media_player"
     intent_type = "HassSetVolume"
-    slot_schema: ClassVar[dict[str, Any]] = {
+    slot_schema = {
         vol.Required("name"): str,
         vol.Required("volume_level"): vol.All(
             vol.Coerce(int),
