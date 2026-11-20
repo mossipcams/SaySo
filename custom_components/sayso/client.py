@@ -204,7 +204,6 @@ class LlamaCppClient:
                     "llama.cpp rejected the grammar with HTTP %s; retrying without it",
                     err.status,
                 )
-                self._grammar_rejected = True
         result = await self._post_chat_completion(
             messages,
             model=model,
@@ -212,6 +211,7 @@ class LlamaCppClient:
             temperature=temperature,
             max_tokens=max_tokens,
         )
+        self._grammar_rejected = True
         return replace(result, grammar_skip_reason=GRAMMAR_BACKEND_REJECTED)
 
     async def _post_chat_completion(

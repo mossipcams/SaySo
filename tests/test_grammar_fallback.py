@@ -211,6 +211,21 @@ class TestExternalFallback:
         assert result.content == "ok"
         assert result.grammar_skip_reason == GRAMMAR_BACKEND_REJECTED
 
+    async def test_failed_retry_does_not_remember_the_rejection(self) -> None:
+        session = _session(_Response(400), _Response(400), _Response(200))
+        client = LlamaCppClient(session, "http://127.0.0.1:8080")
+
+        with pytest.raises(SaySoHttpError):
+            await client.chat_completion(MESSAGES, model="m", grammar=GRAMMAR)
+        result = await client.chat_completion(MESSAGES, model="m", grammar=GRAMMAR)
+
+        first, retry, later = _sent_payloads(session)
+        assert first["grammar"] == GRAMMAR
+        assert "grammar" not in retry
+        assert later["grammar"] == GRAMMAR
+        assert session.post.call_count == 3
+        assert result.grammar_skip_reason is None
+
     async def test_accepted_grammar_keeps_being_sent_on_later_requests(self) -> None:
         session = _session(_Response(200), _Response(200))
         client = LlamaCppClient(session, "http://127.0.0.1:8080")
