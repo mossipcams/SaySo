@@ -26,6 +26,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--model", default="sayso")
     run.add_argument("--timeout", type=float, default=120.0)
+    run.add_argument(
+        "--grammar",
+        choices=("markers", "bare"),
+        help="Constrain decoding with the tool-call grammar (absent = off)",
+    )
     return parser
 
 
@@ -60,8 +65,15 @@ def main(argv: list[str] | None = None) -> int:
         timeout=args.timeout,
         api_key=os.environ.get("LLAMA_API_KEY", ""),
     )
-    results = evaluate(cases, adapter)
-    dest = write_run(cases=cases, results=results, adapter=adapter, suite=args.suite)
+    grammar_markers = None if args.grammar is None else args.grammar == "markers"
+    results = evaluate(cases, adapter, grammar_markers=grammar_markers)
+    dest = write_run(
+        cases=cases,
+        results=results,
+        adapter=adapter,
+        suite=args.suite,
+        extra_metadata={"grammar": args.grammar or "off"},
+    )
     summary = summarize(results)
     gates = load_gates(args.suite) if args.suite else None
     failures = check_gates(summary, gates, expected_count=len(cases)) if gates else []

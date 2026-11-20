@@ -32,6 +32,7 @@ from .const import (
     BACKEND_EMBEDDED,
     BACKEND_EXTERNAL,
     CONF_DUCK_VOLUME,
+    CONF_GRAMMAR_DECODING,
     CONF_MAX_OUTPUT_TOKENS,
     CONF_MAX_TOOL_ITERATIONS,
     CONF_MODEL_PATH,
@@ -44,6 +45,7 @@ from .const import (
     CONF_TRACE_RETENTION_DAYS,
     CONF_TRACE_STORE_UTTERANCES,
     DEFAULT_DUCK_VOLUME,
+    DEFAULT_GRAMMAR_DECODING,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_TOOL_ITERATIONS,
     DEFAULT_MODEL_FILENAME,
@@ -106,6 +108,7 @@ class SaySoRuntimeData:
     traces: TraceStore
     tracer: TraceRecorder
     vad: VadSensitivitySetup | None = None
+    grammar_decoding: bool = False
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -318,6 +321,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
         traces=traces,
         tracer=TraceRecorder(hass, traces),
         vad=vad,
+        grammar_decoding=bool(
+            options.get(CONF_GRAMMAR_DECODING, DEFAULT_GRAMMAR_DECODING)
+        ),
     )
 
     _async_register_trace_services(hass)

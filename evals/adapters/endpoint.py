@@ -29,7 +29,12 @@ class EndpointAdapter:
         self.api_key = api_key
         self.max_tokens = max_tokens
 
-    def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Any:
+    def complete(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        grammar: str | None = None,
+    ) -> Any:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -38,6 +43,8 @@ class EndpointAdapter:
         }
         if tools:
             payload["tools"] = tools
+        if grammar is not None:
+            payload["grammar"] = grammar
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"

@@ -39,6 +39,7 @@ from evals.outcomes import (
 )
 from evals.scorer import check_gates, score, summarize
 from sayso_contract import area_context as _area_context
+from sayso_contract import grammar as _grammar
 from sayso_contract import completion, correction, exceptions, grounding, post_model
 from sayso_contract import tool_contract, tool_schema
 
@@ -49,6 +50,9 @@ V2_SCHEMA_PATH = ROOT / "schemas" / "ha-2026.11.1-tools.json"
 AreaContext = _area_context.AreaContext
 build_area_context = _area_context.build_area_context
 render_system_prompt = _area_context.render_system_prompt
+
+GrammarUnsupported = _grammar.GrammarUnsupported
+build_grammar = _grammar.build_grammar
 
 SAYSO_SYSTEM_PROMPT = """You are SaySo, a local Home Assistant voice agent.
 Use the available tools for home state queries and actions. Only claim an action succeeded when its tool result confirms success. Use names, areas, and context supplied by Home Assistant. If a request is ambiguous, ask one short question. Keep spoken responses brief. Do not describe tool calls."""
@@ -95,7 +99,10 @@ class ModelAdapter(Protocol):
     name: str
 
     def complete(
-        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        grammar: str | None = None,
     ) -> Any: ...
 
 
@@ -109,6 +116,7 @@ class _Trace:
     parse_error: str | None = None
     transport_error: str | None = None
     violations: list[dict[str, str]] = field(default_factory=list)
+    latencies_ms: list[float] = field(default_factory=list)
 
 
 class _NullSpan:
@@ -396,11 +404,23 @@ def _info_flags(outcome: post_model.TurnOutcome) -> list[str]:
     return [name for name, active in checks if active]
 
 
+def _case_grammar(
+    tools: list[dict[str, Any]], markers: bool | None
+) -> tuple[str | None, str | None]:
+    if markers is None:
+        return None, None
+    try:
+        return build_grammar(tools, markers=markers), None
+    except GrammarUnsupported as err:
+        return None, err.reason
+
+
 def _run_case_turn(
     case: Case,
     rendered: dict[str, Any],
     adapter: ModelAdapter,
     schema_fingerprint: str,
+    grammar: str | None = None,
 ) -> tuple[post_model.TurnOutcome, _Trace]:
     tools = rendered["tools"]
     exposed = rendered["exposed_domains"]
@@ -412,10 +432,12 @@ def _run_case_turn(
     trace = _Trace()
     names = {tool["function"]["name"] for tool in tools}
     grounding_home = _grounding_home(load_home(case.household))
+    request_options = {} if grammar is None else {"grammar": grammar}
 
     async def complete(messages: list[dict[str, Any]], *, correction: bool):
+        started = time.perf_counter()
         try:
-            raw = adapter.complete(messages, sent_tools)
+            raw = adapter.complete(messages, sent_tools, **request_options)
         except _TRANSPORT_ERRORS as err:
             trace.raws.append({"transport_error": str(err)})
             trace.transport_error = str(err)
@@ -423,6 +445,8 @@ def _run_case_turn(
             if isinstance(err, TimeoutError):
                 raise exceptions.SaySoTimeoutError(str(err)) from err
             raise exceptions.SaySoConnectionError(str(err)) from err
+        finally:
+            trace.latencies_ms.append((time.perf_counter() - started) * 1000.0)
         trace.raws.append(raw)
         try:
             result = completion.parse_completion_result(raw)
@@ -489,13 +513,21 @@ def _run_case_turn(
     return outcome, trace
 
 
-def evaluate(cases: list[Case], adapter: ModelAdapter) -> list[CaseResult]:
+def evaluate(
+    cases: list[Case],
+    adapter: ModelAdapter,
+    *,
+    grammar_markers: bool | None = None,
+) -> list[CaseResult]:
     schema_fingerprint = production_contract_fingerprint()
     results: list[CaseResult] = []
     for case in cases:
         rendered = render_case(case)
         home = load_home(case.household)
-        outcome, trace = _run_case_turn(case, rendered, adapter, schema_fingerprint)
+        grammar, skip_reason = _case_grammar(rendered["tools"], grammar_markers)
+        outcome, trace = _run_case_turn(
+            case, rendered, adapter, schema_fingerprint, grammar
+        )
         first_turn = read_completion(
             trace.raws[0], rendered["tools"], rendered["exposed_domains"]
         )
@@ -514,6 +546,8 @@ def evaluate(cases: list[Case], adapter: ModelAdapter) -> list[CaseResult]:
             case.id, rendered["expectation"], first_turn, home=home
         ).outcome
         result.info_flags = _info_flags(outcome)
+        result.grammar_skip_reason = skip_reason
+        result.request_latencies_ms = trace.latencies_ms
         if trace.transport_error:
             result.flags.append("transport_error")
         results.append(result)

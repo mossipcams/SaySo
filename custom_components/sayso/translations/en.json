@@ -59,10 +59,12 @@
           "trace_retention_days": "Trace retention (days)",
           "trace_max_interactions": "Maximum stored interactions",
           "trace_store_utterances": "Store transcribed utterances in traces",
+          "grammar_decoding": "Grammar-constrained tool calls",
           "duck_volume": "Duck volume"
         },
         "data_description": {
           "model": "Choose a published SaySo model (downloaded and checksum-verified) or a .gguf file in /config/sayso/models; you can also type a path.",
+          "grammar_decoding": "Constrains model output to the tool-call syntax SaySo parses, so malformed calls are not generated. Applies only when Home Assistant tools are sent. Experimental; off by default.",
           "duck_volume": "Media players in the satellite's area are lowered to this volume while it listens. Players without a volume level are paused if playing, otherwise muted."
         }
       }

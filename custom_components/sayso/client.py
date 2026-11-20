@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Any
 
 import aiohttp
@@ -18,8 +20,10 @@ from .const import (
     MODELS_PATH,
 )
 from .core.completion import (
+    GRAMMAR_BACKEND_REJECTED,
     ChatCompletionResult,
     ToolCall,
+    finish_reason_of,
     parse_choice_message,
     parse_tool_calls,
     prompt_tokens_of,
@@ -32,6 +36,8 @@ from .core.exceptions import (
     SaySoModelNotFoundError,
     SaySoTimeoutError,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def normalize_base_url(base_url: str) -> str:
@@ -54,6 +60,7 @@ def build_chat_completions_payload(
     tools: list[dict[str, Any]] | None = None,
     temperature: float = DEFAULT_TEMPERATURE,
     max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+    grammar: str | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "model": model,
@@ -63,6 +70,8 @@ def build_chat_completions_payload(
     }
     if tools is not None:
         payload["tools"] = tools
+    if grammar is not None:
+        payload["grammar"] = grammar
     return payload
 
 
@@ -79,6 +88,10 @@ def _raise_for_status(response: ClientResponse) -> None:
         raise SaySoAuthError("llama.cpp rejected the API key")
     if response.status >= 400:
         raise SaySoHttpError(response.status)
+
+
+def _rejects_grammar(status: int) -> bool:
+    return 400 <= status < 500 and status not in {401, 403}
 
 
 async def _read_json_body(response: ClientResponse) -> dict[str, Any]:
@@ -173,6 +186,42 @@ class LlamaCppClient:
         tools: list[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        grammar: str | None = None,
+    ) -> ChatCompletionResult:
+        try:
+            return await self._post_chat_completion(
+                messages,
+                model=model,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                grammar=grammar,
+            )
+        except SaySoHttpError as err:
+            if grammar is None or not _rejects_grammar(err.status):
+                raise
+            _LOGGER.warning(
+                "llama.cpp rejected the grammar with HTTP %s; retrying without it",
+                err.status,
+            )
+        result = await self._post_chat_completion(
+            messages,
+            model=model,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return replace(result, grammar_skip_reason=GRAMMAR_BACKEND_REJECTED)
+
+    async def _post_chat_completion(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str,
+        tools: list[dict[str, Any]] | None,
+        temperature: float,
+        max_tokens: int,
+        grammar: str | None = None,
     ) -> ChatCompletionResult:
         payload = build_chat_completions_payload(
             messages,
@@ -180,6 +229,7 @@ class LlamaCppClient:
             tools=tools,
             temperature=temperature,
             max_tokens=max_tokens,
+            grammar=grammar,
         )
         request_bytes = len(serialize_chat_completions_payload(payload))
 
@@ -199,6 +249,7 @@ class LlamaCppClient:
                 request_payload=payload,
                 request_bytes=request_bytes,
                 prompt_tokens=prompt_tokens_of(body),
+                finish_reason=finish_reason_of(body),
             )
 
         return await self._send(

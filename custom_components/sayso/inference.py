@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -14,6 +15,7 @@ from homeassistant.const import CONF_URL
 from .core.area_context import tools_before_area_messages
 from .client import ChatCompletionResult, LlamaCppClient
 from .core.completion import (
+    GRAMMAR_BACKEND_REJECTED,
     extract_tool_calls,
     parse_completion_result,
     parse_completion_result as _parse_embedded_result,
@@ -215,6 +217,12 @@ def _checkpointing_llama_class() -> type:
     return CheckpointingLlama
 
 
+def _llama_grammar(text: str) -> Any:
+    from llama_cpp import LlamaGrammar
+
+    return LlamaGrammar.from_string(text)
+
+
 def entry_backend(entry: Any) -> str:
     backend = entry.data.get(CONF_BACKEND)
     if backend in (BACKEND_EMBEDDED, BACKEND_EXTERNAL):
@@ -241,6 +249,7 @@ class SaySoInferenceEngine(Protocol):
         tools: list[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        grammar: str | None = None,
     ) -> ChatCompletionResult:
         pass
 
@@ -268,14 +277,22 @@ class ExternalEngine:
         tools: list[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        grammar: str | None = None,
     ) -> ChatCompletionResult:
-        return await self._client.chat_completion(
+        result = await self._client.chat_completion(
             messages,
             model=self._model,
             tools=tools,
             temperature=temperature,
             max_tokens=max_tokens,
+            grammar=grammar,
         )
+        if result.tool_calls or not result.content:
+            return result
+        content, tool_calls = extract_tool_calls(result.content)
+        if not tool_calls and content == result.content:
+            return result
+        return replace(result, content=content, tool_calls=tool_calls)
 
 
 class EmbeddedEngine:
@@ -346,14 +363,27 @@ class EmbeddedEngine:
         tools: list[dict[str, Any]] | None,
         temperature: float,
         max_tokens: int,
-    ) -> dict[str, Any]:
+        grammar: str | None,
+    ) -> tuple[dict[str, Any], str | None]:
         assert self._llm is not None
+        extra: dict[str, Any] = {}
+        skipped: str | None = None
+        if grammar is not None:
+            try:
+                extra["grammar"] = _llama_grammar(grammar)
+            except Exception:
+                _LOGGER.warning(
+                    "llama.cpp rejected the grammar; completing without it",
+                    exc_info=True,
+                )
+                skipped = GRAMMAR_BACKEND_REJECTED
         raw = self._llm.create_chat_completion(
             messages=_messages_for_embedded_template(
                 tools_before_area_messages(messages, tools)
             ),
             temperature=temperature,
             max_tokens=max_tokens,
+            **extra,
         )
         prompt_tokens = prompt_tokens_of(raw)
         reused = None
@@ -363,7 +393,7 @@ class EmbeddedEngine:
             "prefix_hash": prefix_hash(messages, tools),
             "reused_tokens": reused,
         }
-        return raw
+        return raw, skipped
 
     async def async_chat_completion(
         self,
@@ -372,13 +402,14 @@ class EmbeddedEngine:
         tools: list[dict[str, Any]] | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        grammar: str | None = None,
     ) -> ChatCompletionResult:
         if self._llm is None or self._executor is None:
             raise SaySoModelLoadError("The embedded model is not loaded")
 
         loop = asyncio.get_running_loop()
         try:
-            raw = await asyncio.wait_for(
+            raw, skipped = await asyncio.wait_for(
                 loop.run_in_executor(
                     self._executor,
                     self._complete,
@@ -386,6 +417,7 @@ class EmbeddedEngine:
                     tools,
                     temperature,
                     max_tokens,
+                    grammar,
                 ),
                 timeout=self._timeout,
             )
@@ -396,7 +428,7 @@ class EmbeddedEngine:
         except Exception as err:
             raise SaySoInvalidResponseError(f"Local inference failed: {err}") from err
 
-        return parse_completion_result(raw)
+        return replace(parse_completion_result(raw), grammar_skip_reason=skipped)
 
 
 

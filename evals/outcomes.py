@@ -81,6 +81,8 @@ class CaseResult:
     expected: dict[str, Any]
     first_pass: Outcome | None = None
     info_flags: list[str] = field(default_factory=list)
+    grammar_skip_reason: str | None = None
+    request_latencies_ms: list[float] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -97,6 +99,8 @@ class CaseResult:
             "parse_error": self.turn.parse_error,
             "violations": self.turn.violations,
             "expected": self.expected,
+            "grammar_skip_reason": self.grammar_skip_reason,
+            "request_latencies_ms": self.request_latencies_ms,
         }
 
 

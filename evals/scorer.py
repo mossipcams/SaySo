@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections import Counter, defaultdict
 from typing import Any
@@ -454,6 +455,14 @@ def _rate(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 4) if denominator else 0.0
 
 
+def _percentile(values: list[float], percent: int) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    rank = math.ceil(percent * len(ordered) / 100)
+    return round(ordered[rank - 1], 1)
+
+
 def summarize(results: list[CaseResult]) -> dict[str, Any]:
     by_category: dict[str, list[CaseResult]] = defaultdict(list)
     for result in results:
@@ -471,6 +480,7 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
         r.passed and r.outcome == Outcome.MALFORMED_OUTPUT for r in results
     )
     total = len(results)
+    latencies = [ms for r in results for ms in r.request_latencies_ms]
     return {
         "total": total,
         "passed": sum(r.passed for r in results),
@@ -488,6 +498,8 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
         "malformed_output_rate": _rate(outcomes[Outcome.MALFORMED_OUTPUT], total),
         "unknown_tool_rate": _rate(outcomes[Outcome.UNKNOWN_TOOL], total),
         "invalid_argument_rate": _rate(outcomes[Outcome.INVALID_ARGUMENTS], total),
+        "latency_p50_ms": _percentile(latencies, 50),
+        "latency_p95_ms": _percentile(latencies, 95),
         "outcomes": dict(sorted(outcomes.items())),
         "flags": dict(sorted(flags.items())),
     }

@@ -13,6 +13,8 @@ from .area_context import _AREA_BLOCK_MARKER
 from .exceptions import SaySoInvalidResponseError, SaySoInvalidToolCallsError
 from .lfm_parse import LfmPythonParseError, parse_lfm_python_tool_calls
 
+GRAMMAR_BACKEND_REJECTED = "backend_rejected"
+
 @dataclass(frozen=True, slots=True)
 class ToolCall:
 
@@ -31,6 +33,8 @@ class ChatCompletionResult:
     prompt_tokens: int | None = None
     prefix_hash: str | None = None
     reused_tokens: int | None = None
+    finish_reason: str | None = None
+    grammar_skip_reason: str | None = None
 
 
 def parse_tool_calls(
@@ -105,6 +109,13 @@ def prompt_tokens_of(raw: Any) -> int | None:
     usage = raw.get("usage") if isinstance(raw, dict) else None
     tokens = usage.get("prompt_tokens") if isinstance(usage, dict) else None
     return tokens if isinstance(tokens, int) else None
+
+
+def finish_reason_of(raw: Any) -> str | None:
+    choices = raw.get("choices") if isinstance(raw, dict) else None
+    choice = choices[0] if isinstance(choices, list) and choices else None
+    reason = choice.get("finish_reason") if isinstance(choice, dict) else None
+    return reason if isinstance(reason, str) else None
 
 
 def cache_trace_of(raw: dict[str, Any]) -> tuple[str | None, int | None]:
@@ -204,4 +215,5 @@ def parse_completion_result(raw: Any) -> ChatCompletionResult:
         prompt_tokens=prompt_tokens_of(raw),
         prefix_hash=prefix,
         reused_tokens=reused,
+        finish_reason=finish_reason_of(raw),
     )

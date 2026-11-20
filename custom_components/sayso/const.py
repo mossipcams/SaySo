@@ -94,6 +94,9 @@ DEFAULT_TRACE_MAX_INTERACTIONS = 500
 MAX_TRACE_INTERACTIONS = 5000
 DEFAULT_TRACE_STORE_UTTERANCES = False
 
+CONF_GRAMMAR_DECODING = "grammar_decoding"
+DEFAULT_GRAMMAR_DECODING = False
+
 DEFAULT_SYSTEM_PROMPT = """You are SaySo, a local Home Assistant voice agent.
 Use the available tools for home state queries and actions. Only claim an action succeeded when its tool result confirms success. Use names, areas, and context supplied by Home Assistant. If a request is ambiguous, ask one short question. Keep spoken responses brief. Do not describe tool calls."""
 
@@ -122,6 +125,7 @@ OPTION_KEYS = (
     CONF_TRACE_RETENTION_DAYS,
     CONF_TRACE_MAX_INTERACTIONS,
     CONF_TRACE_STORE_UTTERANCES,
+    CONF_GRAMMAR_DECODING,
     CONF_DUCK_VOLUME,
 )
 

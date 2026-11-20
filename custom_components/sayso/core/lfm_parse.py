@@ -73,7 +73,10 @@ def _parse_value(text: str, index: int) -> tuple[Any, int]:
         end = index
         while end < len(text) and text[end] in "-0123456789":
             end += 1
-        return int(text[index:end]), end
+        try:
+            return int(text[index:end]), end
+        except ValueError as err:
+            raise LfmPythonParseError("invalid integer literal") from err
     for literal, value in _LITERALS.items():
         if text.startswith(literal, index):
             return value, index + len(literal)
