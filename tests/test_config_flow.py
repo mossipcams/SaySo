@@ -16,6 +16,7 @@ from custom_components.sayso.const import (
     CONF_MAX_TOOL_ITERATIONS,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
+    CONVERSATION_SUBENTRY_TYPE,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_TOOL_ITERATIONS,
     DEFAULT_SYSTEM_PROMPT,
@@ -106,15 +107,18 @@ async def test_successful_config_flow(
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["title"] == f"{MODEL_ID} @ 127.0.0.1:8080"
     assert result["data"] == {CONF_URL: BASE_URL}
-    assert result["options"][CONF_MODEL] == MODEL_ID
     assert result["options"][CONF_TIMEOUT] == DEFAULT_TIMEOUT
-    assert result["options"][CONF_TEMPERATURE] == DEFAULT_TEMPERATURE
-    assert result["options"][CONF_MAX_OUTPUT_TOKENS] == DEFAULT_MAX_OUTPUT_TOKENS
-    assert result["options"][CONF_MAX_TOOL_ITERATIONS] == DEFAULT_MAX_TOOL_ITERATIONS
-    assert result["options"]["prompt"] == DEFAULT_SYSTEM_PROMPT
+    assert CONF_MODEL not in result["options"]
 
     entry = hass.config_entries.async_entries(DOMAIN)[0]
-    assert entry.unique_id == f"{BASE_URL}|{MODEL_ID}"
+    assert entry.unique_id == BASE_URL
+    [subentry] = entry.subentries.values()
+    assert subentry.subentry_type == CONVERSATION_SUBENTRY_TYPE
+    assert subentry.data[CONF_MODEL] == MODEL_ID
+    assert subentry.data[CONF_TEMPERATURE] == DEFAULT_TEMPERATURE
+    assert subentry.data[CONF_MAX_OUTPUT_TOKENS] == DEFAULT_MAX_OUTPUT_TOKENS
+    assert subentry.data[CONF_MAX_TOOL_ITERATIONS] == DEFAULT_MAX_TOOL_ITERATIONS
+    assert subentry.data["prompt"] == DEFAULT_SYSTEM_PROMPT
     mock_list_models.assert_awaited()
     mock_validate_model.assert_awaited()
 
@@ -243,7 +247,6 @@ async def test_options_flow_updates_and_reloads(
 
     new_options = dict(entry.options)
     new_options[CONF_TIMEOUT] = 45
-    new_options[CONF_TEMPERATURE] = 0.5
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], new_options
@@ -254,4 +257,5 @@ async def test_options_flow_updates_and_reloads(
     assert entry.state.value == "loaded"
     assert entry.options[CONF_TIMEOUT] == 45
     assert entry.runtime_data.client._timeout == 45
-    assert entry.runtime_data.temperature == 0.5
+    [subentry] = entry.subentries.values()
+    assert subentry.data[CONF_TEMPERATURE] == DEFAULT_TEMPERATURE

@@ -12,6 +12,7 @@ from homeassistant.components.light import ColorMode, LightEntity
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import intent
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
@@ -136,13 +137,25 @@ async def test_diagnostics_without_api_key(
     assert diagnostics["entry"]["data"][CONF_URL] == BASE_URL
 
 
+def _subentry(entry: Any) -> Any:
+    return next(iter(entry.subentries.values()))
+
+
+def _agent_id(hass: HomeAssistant, entry: Any) -> str:
+    entity_id = er.async_get(hass).async_get_entity_id(
+        conversation.DOMAIN, DOMAIN, _subentry(entry).subentry_id
+    )
+    assert entity_id is not None
+    return entity_id
+
+
 async def _converse(hass: HomeAssistant, entry: Any, text: str) -> conversation.ConversationResult:
     return await conversation.async_converse(
         hass,
         text,
         None,
         Context(),
-        agent_id=entry.entry_id,
+        agent_id=_agent_id(hass, entry),
     )
 
 
@@ -281,9 +294,11 @@ async def test_boundary_diagnostics_record_iteration_limit(
     assist_light: None,
 ) -> None:
     entry = await _create_entry_with_api_key(hass, "super-secret-api-key")
-    hass.config_entries.async_update_entry(
+    subentry = _subentry(entry)
+    hass.config_entries.async_update_subentry(
         entry,
-        options={**dict(entry.options), CONF_MAX_TOOL_ITERATIONS: 1},
+        subentry,
+        data={**subentry.data, CONF_MAX_TOOL_ITERATIONS: 1},
     )
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()

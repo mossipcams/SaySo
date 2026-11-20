@@ -5,7 +5,6 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -75,8 +74,6 @@ async def test_options_reload_updates_runtime_data(
     result = await hass.config_entries.options.async_init(entry.entry_id)
     new_options = dict(entry.options)
     new_options[CONF_TIMEOUT] = 60
-    new_options[CONF_TEMPERATURE] = 0.25
-    new_options[CONF_MODEL] = MODEL_ID
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], new_options
@@ -86,4 +83,11 @@ async def test_options_reload_updates_runtime_data(
     await hass.async_block_till_done()
     assert entry.state.value == "loaded"
     assert entry.runtime_data.client._timeout == 60
-    assert entry.runtime_data.temperature == 0.25
+
+    subentry = next(iter(entry.subentries.values()))
+    hass.config_entries.async_update_subentry(
+        entry, subentry, data={**subentry.data, CONF_TEMPERATURE: 0.25}
+    )
+    await hass.async_block_till_done()
+    assert entry.state.value == "loaded"
+    assert entry.subentries[subentry.subentry_id].data[CONF_TEMPERATURE] == 0.25

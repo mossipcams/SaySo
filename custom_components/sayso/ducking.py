@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -40,14 +40,13 @@ from homeassistant.helpers.event import (
 )
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, DUCK_TIMEOUT
+from .const import DOMAIN as SAYSO_DOMAIN, DUCK_TIMEOUT
 from .conversation import area_id_for
 from .vad_sensitivity import SATELLITE_DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-DUCKER_KEY = "ducker"
-ENTRY_COUNT_KEY = "ducker_entries"
+ACTIVE_DUCKERS_KEY = "active_duckers"
 SATELLITE_LISTENING = "listening"
 RESTORE_WAIT_TIMEOUT = 2.0
 RESTORE_CALL_TIMEOUT = 10.0
@@ -80,6 +79,7 @@ class MediaDucker:
         self._duck_volume = duck_volume
 
     def start(self) -> None:
+        _active_duckers(self._hass).add(self)
         self._stop_unsub = self._hass.bus.async_listen_once(
             EVENT_HOMEASSISTANT_STOP, self._async_stop
         )
@@ -107,7 +107,9 @@ class MediaDucker:
             task = self._hass.async_create_task(self._async_send([call], blocking=True))
             self._restore_tasks[call[0]] = task
             task.add_done_callback(
-                lambda finished, entity_id=call[0]: self._forget_restore(entity_id, finished)
+                lambda finished, entity_id=call[0]: self._forget_restore(
+                    entity_id, finished
+                )
             )
 
     def _forget_restore(self, entity_id: str, finished: asyncio.Task[None]) -> None:
@@ -128,6 +130,7 @@ class MediaDucker:
         await asyncio.wait(list(self._restore_tasks.values()), timeout=timeout)
 
     async def async_teardown(self) -> None:
+        _active_duckers(self._hass).discard(self)
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -298,42 +301,15 @@ class MediaDucker:
 
 
 async def async_setup_ducking(hass: HomeAssistant, duck_volume: float) -> MediaDucker:
-    data = hass.data.setdefault(DOMAIN, {})
-    ducker = data.get(DUCKER_KEY)
-    if ducker is None:
-        ducker = MediaDucker(hass, duck_volume)
-        ducker.start()
-        data[DUCKER_KEY] = ducker
-    else:
-        ducker.set_duck_volume(duck_volume)
-    data[ENTRY_COUNT_KEY] = data.get(ENTRY_COUNT_KEY, 0) + 1
+    ducker = MediaDucker(hass, duck_volume)
+    ducker.start()
     return ducker
 
 
-async def async_wait_for_restores(hass: HomeAssistant) -> None:
-    data = hass.data.get(DOMAIN)
-    if not isinstance(data, dict):
-        return
-    ducker = data.get(DUCKER_KEY)
-    if ducker is not None:
+def _active_duckers(hass: HomeAssistant) -> set[MediaDucker]:
+    return hass.data.setdefault(SAYSO_DOMAIN, {}).setdefault(ACTIVE_DUCKERS_KEY, set())
+
+
+async def async_wait_all_restores(hass: HomeAssistant) -> None:
+    for ducker in list(_active_duckers(hass)):
         await ducker.async_wait_restores()
-
-
-def async_release_ducking(
-    hass: HomeAssistant,
-) -> Callable[[], Coroutine[Any, Any, None]]:
-    async def _async_release() -> None:
-        data = hass.data.get(DOMAIN)
-        if not data:
-            return
-        ducker: MediaDucker | None = data.get(DUCKER_KEY)
-        count = data.get(ENTRY_COUNT_KEY, 0) - 1
-        if count > 0:
-            data[ENTRY_COUNT_KEY] = count
-            return
-        data.pop(DUCKER_KEY, None)
-        data.pop(ENTRY_COUNT_KEY, None)
-        if ducker is not None:
-            await ducker.async_teardown()
-
-    return _async_release

@@ -56,7 +56,7 @@ MATRIX: Final[tuple[MatrixEntry, ...]] = (
 )
 
 COMPONENT_REQUIREMENT_ROOTS: Final[dict[str, tuple[str, ...]]] = {
-    "current": ("conversation", "llm", "assist_pipeline"),
+    "current": ("ai_task", "conversation", "llm", "assist_pipeline"),
 }
 
 

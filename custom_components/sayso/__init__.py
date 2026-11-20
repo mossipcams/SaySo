@@ -1,18 +1,17 @@
-
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_API_KEY,
-    CONF_LLM_HASS_API,
     CONF_MODEL,
     CONF_URL,
     Platform,
@@ -25,6 +24,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.llm import LLM_API_ASSIST
 
 from .client import LlamaCppClient
@@ -33,17 +33,14 @@ from .const import (
     BACKEND_EXTERNAL,
     CONF_DUCK_VOLUME,
     CONF_GRAMMAR_DECODING,
-    CONF_MAX_OUTPUT_TOKENS,
-    CONF_MAX_TOOL_ITERATIONS,
     CONF_MODEL_PATH,
     CONF_N_CTX,
     CONF_N_THREADS,
-    CONF_PROMPT,
-    CONF_TEMPERATURE,
     CONF_TIMEOUT,
     CONF_TRACE_MAX_INTERACTIONS,
     CONF_TRACE_RETENTION_DAYS,
     CONF_TRACE_STORE_UTTERANCES,
+    CONVERSATION_SUBENTRY_TYPE,
     DEFAULT_DUCK_VOLUME,
     DEFAULT_GRAMMAR_DECODING,
     DEFAULT_MAX_OUTPUT_TOKENS,
@@ -60,24 +57,42 @@ from .const import (
     EMBEDDED_MODELS,
     SERVICE_GET_TRACE,
     SERVICE_LIST_TRACES,
+    VAD_SENSITIVITY_UNIQUE_ID,
 )
-from .core.exceptions import SaySoError, SaySoModelLoadError
+from .core.exceptions import SaySoDependencyError, SaySoError, SaySoModelLoadError
 from .inference import (
     EmbeddedEngine,
     ExternalEngine,
     SaySoInferenceEngine,
     entry_backend,
 )
-from .model_store import async_ensure_llama_cpp, async_ensure_model, models_dir
-from .trace_store import TraceRecorder, TraceStore
-from .vad_sensitivity import (
-    VadSensitivitySetup,
-    async_setup_vad_sensitivity,
-    async_teardown_vad_sensitivity,
+from .migration import async_merge_v1_entry, async_snapshot_v1_entries
+from .model_store import (
+    SaySoModelMissingError,
+    async_ensure_llama_cpp,
+    async_verify_model,
+    models_dir,
 )
+from .repairs import (
+    ISSUE_LLAMA_CPP_MISSING,
+    ISSUE_MODEL_CORRUPT,
+    ISSUE_MODEL_MISSING,
+    ISSUE_MODEL_PATH_MISSING,
+    async_clear_issues,
+    async_raise_issue,
+)
+from .trace_store import TraceRecorder, TraceStore
+
+if TYPE_CHECKING:
+    from .ducking import MediaDucker
+
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.CONVERSATION]
+PLATFORMS: list[Platform | str] = [
+    Platform.CONVERSATION,
+    Platform.SELECT,
+    "ai_task",
+]
 
 type SaySoConfigEntry = ConfigEntry[SaySoRuntimeData]
 
@@ -96,19 +111,18 @@ LIST_TRACES_SCHEMA = vol.Schema(
 
 @dataclass
 class SaySoRuntimeData:
-
     engine: SaySoInferenceEngine
     client: LlamaCppClient | None
     model: str
-    llm_api: str
-    system_prompt: str
-    temperature: float
-    max_output_tokens: int
-    max_tool_iterations: int
     traces: TraceStore
     tracer: TraceRecorder
-    vad: VadSensitivitySetup | None = None
+    ducker: MediaDucker
     grammar_decoding: bool = False
+    llm_api: str = LLM_API_ASSIST
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT
+    temperature: float = DEFAULT_TEMPERATURE
+    max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS
+    max_tool_iterations: int = DEFAULT_MAX_TOOL_ITERATIONS
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -194,12 +208,32 @@ def _synced_embedded_options(entry: SaySoConfigEntry) -> dict[str, Any] | None:
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bool:
-    if entry.version > 1:
+    if entry.version > 2:
         return False
-    if entry.minor_version < 2:
-        options = _migrated_embedded_options(hass, entry) or dict(entry.options)
-        hass.config_entries.async_update_entry(entry, options=options, minor_version=2)
+    if entry.version == 1:
+        if hass.config_entries.async_get_entry(entry.entry_id) is None:
+            return False
+        await async_snapshot_v1_entries(hass)
+        options = dict(entry.options)
+        if entry.minor_version < 2:
+            options = _migrated_embedded_options(hass, entry) or options
+        _async_rekey_vad_select(hass, entry)
+        return await async_merge_v1_entry(hass, entry, options)
     return True
+
+
+def _async_rekey_vad_select(hass: HomeAssistant, entry: SaySoConfigEntry) -> None:
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        Platform.SELECT, DOMAIN, VAD_SENSITIVITY_UNIQUE_ID
+    )
+    if entity_id is None:
+        return
+    registry.async_update_entity(
+        entity_id,
+        new_unique_id=f"{entry.entry_id}-vad-sensitivity",
+        config_entry_id=entry.entry_id,
+    )
 
 
 def _migrated_embedded_options(
@@ -217,9 +251,88 @@ def _migrated_embedded_options(
     return {**options, CONF_MODEL: model, CONF_MODEL_PATH: ""}
 
 
+def _readable_file(path: Path) -> bool:
+    return path.is_file() and os.access(path, os.R_OK)
+
+
+def _async_fail(
+    hass: HomeAssistant,
+    entry: SaySoConfigEntry,
+    key: str,
+    message: str,
+    *,
+    fixable: bool,
+    discard_model: bool = False,
+    placeholders: dict[str, str] | None = None,
+) -> None:
+    _LOGGER.error("SaySo setup failed: %s", message)
+    async_raise_issue(
+        hass,
+        entry.entry_id,
+        key,
+        fixable=fixable,
+        discard_model=discard_model,
+        placeholders=placeholders,
+    )
+
+
+async def _async_embedded_engine(
+    hass: HomeAssistant, entry: SaySoConfigEntry
+) -> EmbeddedEngine | None:
+    options = entry.options
+    try:
+        await async_ensure_llama_cpp(hass)
+    except SaySoDependencyError as err:
+        _async_fail(hass, entry, ISSUE_LLAMA_CPP_MISSING, str(err), fixable=True)
+        return None
+
+    model = options[CONF_MODEL]
+    if model in EMBEDDED_MODELS:
+        try:
+            model_path = await async_verify_model(
+                hass, filename=model, sha256=EMBEDDED_MODELS[model].sha256
+            )
+        except SaySoModelMissingError as err:
+            _async_fail(hass, entry, ISSUE_MODEL_MISSING, str(err), fixable=True)
+            return None
+        except SaySoModelLoadError as err:
+            _async_fail(hass, entry, ISSUE_MODEL_CORRUPT, str(err), fixable=True)
+            return None
+    else:
+        model_path = Path(model)
+        if not await hass.async_add_executor_job(_readable_file, model_path):
+            _async_fail(
+                hass,
+                entry,
+                ISSUE_MODEL_PATH_MISSING,
+                f"Model file not found or unreadable: {model_path}",
+                fixable=False,
+                placeholders={"path": str(model_path)},
+            )
+            return None
+
+    return EmbeddedEngine(
+        model_path,
+        n_ctx=int(options.get(CONF_N_CTX, DEFAULT_N_CTX)),
+        n_threads=int(options.get(CONF_N_THREADS) or 0) or None,
+        timeout=options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
+    )
+
+
+def _default_conversation_model(entry: SaySoConfigEntry) -> str:
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type == CONVERSATION_SUBENTRY_TYPE:
+            return subentry.data.get(CONF_MODEL, "")
+    return ""
+
+
+async def _async_reload_on_update(hass: HomeAssistant, entry: SaySoConfigEntry) -> None:
+    hass.config_entries.async_schedule_reload(entry.entry_id)
+
+
 async def _async_build_engine(
     hass: HomeAssistant, entry: SaySoConfigEntry
-) -> tuple[SaySoInferenceEngine, LlamaCppClient | None]:
+) -> tuple[SaySoInferenceEngine, LlamaCppClient | None] | None:
     options = entry.options
     timeout = options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
     client: LlamaCppClient | None = None
@@ -231,39 +344,28 @@ async def _async_build_engine(
             api_key=entry.data.get(CONF_API_KEY),
             timeout=timeout,
         )
-        try:
-            await client.validate_model(options[CONF_MODEL])
-        except SaySoError:
-            pass
-        engine: SaySoInferenceEngine = ExternalEngine(client, options[CONF_MODEL])
-    else:
-        try:
-            await async_ensure_llama_cpp(hass)
-            model = options[CONF_MODEL]
-            if model in EMBEDDED_MODELS:
-                catalog = EMBEDDED_MODELS[model]
-                model_path = await async_ensure_model(
-                    hass,
-                    url=catalog.url,
-                    filename=model,
-                    sha256=catalog.sha256,
-                )
-            else:
-                model_path = Path(model)
-                if not await hass.async_add_executor_job(model_path.is_file):
-                    raise SaySoModelLoadError(f"Model file not found: {model_path}")
-        except SaySoError as err:
-            raise ConfigEntryNotReady(str(err)) from err
-
-        engine = EmbeddedEngine(
-            model_path,
-            n_ctx=int(options.get(CONF_N_CTX, DEFAULT_N_CTX)),
-            n_threads=int(options.get(CONF_N_THREADS) or 0) or None,
-            timeout=timeout,
+        engine: SaySoInferenceEngine = ExternalEngine(
+            client, _default_conversation_model(entry)
         )
+    else:
+        embedded = await _async_embedded_engine(hass, entry)
+        if embedded is None:
+            return None
+        engine = embedded
 
     try:
         await engine.async_start()
+    except SaySoModelLoadError as err:
+        await engine.async_shutdown()
+        _async_fail(
+            hass,
+            entry,
+            ISSUE_MODEL_CORRUPT,
+            str(err),
+            fixable=True,
+            discard_model=True,
+        )
+        return None
     except SaySoError as err:
         await engine.async_shutdown()
         raise ConfigEntryNotReady(str(err)) from err
@@ -274,8 +376,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     synced_options = _synced_embedded_options(entry)
     if synced_options is not None:
         hass.config_entries.async_update_entry(entry, options=synced_options)
+    entry.async_on_unload(entry.add_update_listener(_async_reload_on_update))
     options = entry.options
-    engine, client = await _async_build_engine(hass, entry)
+    built = await _async_build_engine(hass, entry)
+    if built is None:
+        return False
+    engine, client = built
+    async_clear_issues(hass, entry.entry_id)
 
     traces = TraceStore(
         hass,
@@ -292,35 +399,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> boo
     await traces.async_load()
     traces.async_prune()
 
-    try:
-        vad = await async_setup_vad_sensitivity(hass)
-    except Exception:
-        await engine.async_shutdown()
-        raise
+    from .ducking import async_setup_ducking
 
-    from .ducking import async_release_ducking, async_setup_ducking
-
-    await async_setup_ducking(
+    ducker = await async_setup_ducking(
         hass, float(options.get(CONF_DUCK_VOLUME, DEFAULT_DUCK_VOLUME))
     )
-    entry.async_on_unload(async_release_ducking(hass))
+    entry.async_on_unload(ducker.async_teardown)
 
     entry.runtime_data = SaySoRuntimeData(
         engine=engine,
         client=client,
         model=engine.model_name,
-        llm_api=options.get(CONF_LLM_HASS_API, LLM_API_ASSIST),
-        system_prompt=options.get(CONF_PROMPT, DEFAULT_SYSTEM_PROMPT),
-        temperature=options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
-        max_output_tokens=int(
-            options.get(CONF_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
-        ),
-        max_tool_iterations=int(
-            options.get(CONF_MAX_TOOL_ITERATIONS, DEFAULT_MAX_TOOL_ITERATIONS)
-        ),
         traces=traces,
         tracer=TraceRecorder(hass, traces),
-        vad=vad,
+        ducker=ducker,
         grammar_decoding=bool(
             options.get(CONF_GRAMMAR_DECODING, DEFAULT_GRAMMAR_DECODING)
         ),
@@ -344,7 +436,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bo
     if entry.runtime_data is not None:
         entry.runtime_data.tracer.async_shutdown()
         await entry.runtime_data.engine.async_shutdown()
-        if entry.runtime_data.vad is not None:
-            await async_teardown_vad_sensitivity(hass, entry.runtime_data.vad)
     entry.runtime_data = None
     return True

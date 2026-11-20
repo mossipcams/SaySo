@@ -3,23 +3,7 @@
     "step": {
       "user": {
         "title": "Set up SaySo",
-        "description": "Choose how SaySo runs its language model.",
-        "menu_options": {
-          "local": "On this device (recommended)",
-          "external": "External llama.cpp server (advanced)"
-        }
-      },
-      "local": {
-        "title": "Run on this device",
-        "description": "SaySo will download its model and run it on the CPU here. Nothing to configure. The first setup downloads a few hundred megabytes and may take a few minutes."
-      },
-      "external": {
-        "title": "Connect to llama.cpp",
-        "description": "Enter the OpenAI-compatible llama.cpp base URL and optional API key.",
-        "data": {
-          "url": "Base URL",
-          "api_key": "API key (optional)"
-        }
+        "description": "Choose how SaySo runs its language model."
       },
       "model": {
         "title": "Select model",
@@ -27,6 +11,10 @@
         "data": {
           "model": "Model"
         }
+      },
+      "download_failed": {
+        "title": "Setup did not finish",
+        "description": "Check the network connection and the Home Assistant log, then select Submit to try again."
       }
     },
     "error": {
@@ -35,27 +23,27 @@
       "invalid_response": "llama.cpp returned an invalid response.",
       "invalid_url": "Enter a valid URL.",
       "model_not_found": "The selected model is not available on llama.cpp.",
-      "unknown": "Unexpected error."
+      "unknown": "Unexpected error.",
+      "download_failed": "Could not download or verify SaySo's model. Try again.",
+      "install_failed": "Could not install the llama.cpp runtime for this platform."
     },
     "abort": {
-      "already_configured": "This llama.cpp endpoint and model combination is already configured."
+      "already_configured": "This llama.cpp endpoint is already configured. Add more models as conversation agents from its subentries."
+    },
+    "progress": {
+      "download": "Installing the llama.cpp runtime and downloading SaySo's model. The first setup can take a few minutes."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "SaySo options",
-        "description": "Adjust model, timeout, Home Assistant LLM API, generation settings, and interaction trace retention.",
+        "description": "Adjust the engine: model, timeout, CPU and context settings, interaction trace retention, grammar-constrained tool calls, and duck volume. Conversation agents are configured separately.",
         "data": {
           "model": "Model",
           "n_threads": "CPU threads for inference",
           "n_ctx": "Context window (tokens)",
           "timeout": "Request timeout (seconds)",
-          "llm_hass_api": "Home Assistant LLM API",
-          "prompt": "System prompt",
-          "temperature": "Temperature",
-          "max_output_tokens": "Maximum output tokens",
-          "max_tool_iterations": "Maximum tool iterations",
           "trace_retention_days": "Trace retention (days)",
           "trace_max_interactions": "Maximum stored interactions",
           "trace_store_utterances": "Store transcribed utterances in traces",
@@ -67,6 +55,10 @@
           "grammar_decoding": "Constrains model output to the tool-call syntax SaySo parses, so malformed calls are not generated. Applies only when Home Assistant tools are sent. Experimental; off by default.",
           "duck_volume": "Media players in the satellite's area are lowered to this volume while it listens. Players without a volume level are paused if playing, otherwise muted."
         }
+      },
+      "download_failed": {
+        "title": "Setup did not finish",
+        "description": "Check the network connection and the Home Assistant log, then select Submit to try again."
       }
     },
     "error": {
@@ -74,7 +66,86 @@
       "invalid_auth": "Authentication failed. Check the API key.",
       "invalid_response": "llama.cpp returned an invalid response.",
       "model_not_found": "The selected model is not available on llama.cpp.",
-      "unknown": "Unexpected error."
+      "unknown": "Unexpected error.",
+      "download_failed": "Could not download or verify SaySo's model. Try again.",
+      "install_failed": "Could not install the llama.cpp runtime for this platform."
+    },
+    "progress": {
+      "download": "Installing the llama.cpp runtime and downloading SaySo's model. The first setup can take a few minutes."
+    }
+  },
+  "config_subentries": {
+    "conversation": {
+      "entry_type": "Conversation agent",
+      "initiate_flow": {
+        "user": "Add conversation agent",
+        "reconfigure": "Reconfigure conversation agent"
+      },
+      "step": {
+        "user": {
+          "title": "Add conversation agent",
+          "description": "Set the model, Home Assistant LLM API, and generation settings for this conversation agent.",
+          "data": {
+            "name": "Name",
+            "model": "Model",
+            "llm_hass_api": "Home Assistant LLM API",
+            "prompt": "System prompt",
+            "temperature": "Temperature",
+            "max_output_tokens": "Maximum output tokens",
+            "max_tool_iterations": "Maximum tool iterations"
+          },
+          "data_description": {
+            "model": "Choose the model this conversation agent sends to llama.cpp. Each conversation agent can use a different model.",
+            "llm_hass_api": "Home Assistant APIs whose entities and tools this conversation agent can use."
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure conversation agent",
+          "description": "Change the model, Home Assistant LLM API, and generation settings for this conversation agent.",
+          "data": {
+            "name": "Name",
+            "model": "Model",
+            "llm_hass_api": "Home Assistant LLM API",
+            "prompt": "System prompt",
+            "temperature": "Temperature",
+            "max_output_tokens": "Maximum output tokens",
+            "max_tool_iterations": "Maximum tool iterations"
+          },
+          "data_description": {
+            "model": "Choose the model this conversation agent sends to llama.cpp. Each conversation agent can use a different model.",
+            "llm_hass_api": "Home Assistant APIs whose entities and tools this conversation agent can use."
+          }
+        }
+      },
+      "abort": {
+        "reconfigure_successful": "Conversation agent updated."
+      }
+    },
+    "ai_task_data": {
+      "entry_type": "AI task",
+      "initiate_flow": {
+        "user": "Add AI task",
+        "reconfigure": "Reconfigure AI task"
+      },
+      "step": {
+        "user": {
+          "title": "Add AI task",
+          "description": "Name this AI task. Text generation is configured by the SaySo engine.",
+          "data": {
+            "name": "Name"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure AI task",
+          "description": "Change the name of this AI task.",
+          "data": {
+            "name": "Name"
+          }
+        }
+      },
+      "abort": {
+        "reconfigure_successful": "AI task updated."
+      }
     }
   },
   "services": {
@@ -113,6 +184,77 @@
           "description": "Latest interaction start time to include."
         }
       }
+    }
+  },
+  "issues": {
+    "llama_cpp_missing": {
+      "title": "The llama.cpp runtime is not installed",
+      "description": "SaySo could not install the llama.cpp runtime for this platform. Select Fix to try the installation and model download again.",
+      "fix_flow": {
+        "step": {
+          "download_failed": {
+            "title": "Setup did not finish",
+            "description": "Check the network connection and the Home Assistant log, then select Submit to try again."
+          }
+        },
+        "progress": {
+          "download": "Installing the llama.cpp runtime and downloading SaySo's model. The first setup can take a few minutes."
+        },
+        "error": {
+          "download_failed": "Could not download or verify SaySo's model. Try again.",
+          "install_failed": "Could not install the llama.cpp runtime for this platform."
+        }
+      }
+    },
+    "model_missing": {
+      "title": "SaySo's model file is missing",
+      "description": "The SaySo model file is not in the Home Assistant models folder. Select Fix to download it again.",
+      "fix_flow": {
+        "step": {
+          "download_failed": {
+            "title": "Setup did not finish",
+            "description": "Check the network connection and the Home Assistant log, then select Submit to try again."
+          }
+        },
+        "progress": {
+          "download": "Installing the llama.cpp runtime and downloading SaySo's model. The first setup can take a few minutes."
+        },
+        "error": {
+          "download_failed": "Could not download or verify SaySo's model. Try again.",
+          "install_failed": "Could not install the llama.cpp runtime for this platform."
+        }
+      }
+    },
+    "model_corrupt": {
+      "title": "SaySo's model file is corrupt",
+      "description": "The SaySo model file failed its checksum or could not be loaded. Select Fix to download it again.",
+      "fix_flow": {
+        "step": {
+          "download_failed": {
+            "title": "Setup did not finish",
+            "description": "Check the network connection and the Home Assistant log, then select Submit to try again."
+          }
+        },
+        "progress": {
+          "download": "Installing the llama.cpp runtime and downloading SaySo's model. The first setup can take a few minutes."
+        },
+        "error": {
+          "download_failed": "Could not download or verify SaySo's model. Try again.",
+          "install_failed": "Could not install the llama.cpp runtime for this platform."
+        }
+      }
+    },
+    "model_path_missing": {
+      "title": "SaySo's custom model file is missing",
+      "description": "The custom model file {path} is missing or cannot be read. Choose another model in the SaySo options."
+    }
+  },
+  "exceptions": {
+    "ai_task_attachments": {
+      "message": "AI Task attachments are not supported."
+    },
+    "ai_task_invalid": {
+      "message": "AI Task response does not match the requested structure: {reason}"
     }
   }
 }

@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -12,9 +13,18 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
-    OptionsFlowWithReload,
+    ConfigSubentryData,
+    ConfigSubentryFlow,
+    OptionsFlow,
+    SubentryFlowResult,
 )
-from homeassistant.const import CONF_API_KEY, CONF_LLM_HASS_API, CONF_MODEL, CONF_URL
+from homeassistant.const import (
+    CONF_API_KEY,
+    CONF_LLM_HASS_API,
+    CONF_MODEL,
+    CONF_NAME,
+    CONF_URL,
+)
 from homeassistant.core import HomeAssistant, callback
 
 from homeassistant.helpers import config_validation as cv, llm
@@ -35,7 +45,9 @@ from homeassistant.helpers.selector import (
 
 from .client import LlamaCppClient, normalize_base_url
 from .const import (
+    AI_TASK_SUBENTRY_TYPE,
     BACKEND_EMBEDDED,
+    BACKEND_EXTERNAL,
     CONF_BACKEND,
     CONF_DUCK_VOLUME,
     CONF_GRAMMAR_DECODING,
@@ -49,6 +61,7 @@ from .const import (
     CONF_TRACE_MAX_INTERACTIONS,
     CONF_TRACE_RETENTION_DAYS,
     CONF_TRACE_STORE_UTTERANCES,
+    CONVERSATION_SUBENTRY_TYPE,
     DEFAULT_DUCK_VOLUME,
     DEFAULT_GRAMMAR_DECODING,
     DEFAULT_MAX_OUTPUT_TOKENS,
@@ -66,10 +79,11 @@ from .const import (
     MAX_TRACE_INTERACTIONS,
 )
 from .inference import default_thread_count, entry_backend
-from .model_store import list_local_models
+from .model_store import async_provision_model, list_local_models, models_dir
 from .core.exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
+    SaySoDependencyError,
     SaySoError,
     SaySoInvalidResponseError,
     SaySoModelNotFoundError,
@@ -108,18 +122,8 @@ def _number(minimum: float, maximum: float, step: float = 1) -> NumberSelector:
     )
 
 
-_OPTIONS: tuple[tuple[Any, str, Any, Any], ...] = (
+_ENGINE_OPTIONS: tuple[tuple[Any, str, Any, Any], ...] = (
     (vol.Required, CONF_TIMEOUT, DEFAULT_TIMEOUT, _number(1, 300)),
-    (vol.Required, CONF_LLM_HASS_API, LLM_API_ASSIST, None),
-    (vol.Optional, CONF_PROMPT, DEFAULT_SYSTEM_PROMPT, TemplateSelector()),
-    (vol.Required, CONF_TEMPERATURE, DEFAULT_TEMPERATURE, _number(0, 2, 0.1)),
-    (
-        vol.Required,
-        CONF_MAX_OUTPUT_TOKENS,
-        DEFAULT_MAX_OUTPUT_TOKENS,
-        _number(1, 4096),
-    ),
-    (vol.Required, CONF_MAX_TOOL_ITERATIONS, DEFAULT_MAX_TOOL_ITERATIONS, _number(0, 10)),
     (
         vol.Required,
         CONF_TRACE_RETENTION_DAYS,
@@ -147,7 +151,30 @@ _OPTIONS: tuple[tuple[Any, str, Any, Any], ...] = (
     (vol.Required, CONF_DUCK_VOLUME, DEFAULT_DUCK_VOLUME, _number(0, 1, 0.01)),
 )
 
-_OPTION_DEFAULTS: dict[str, Any] = {key: default for _m, key, default, _s in _OPTIONS}
+_CONVERSATION_OPTIONS: tuple[tuple[Any, str, Any, Any], ...] = (
+    (vol.Required, CONF_LLM_HASS_API, LLM_API_ASSIST, None),
+    (vol.Optional, CONF_PROMPT, DEFAULT_SYSTEM_PROMPT, TemplateSelector()),
+    (vol.Required, CONF_TEMPERATURE, DEFAULT_TEMPERATURE, _number(0, 2, 0.1)),
+    (
+        vol.Required,
+        CONF_MAX_OUTPUT_TOKENS,
+        DEFAULT_MAX_OUTPUT_TOKENS,
+        _number(1, 4096),
+    ),
+    (
+        vol.Required,
+        CONF_MAX_TOOL_ITERATIONS,
+        DEFAULT_MAX_TOOL_ITERATIONS,
+        _number(0, 10),
+    ),
+)
+
+_ENGINE_DEFAULTS: dict[str, Any] = {
+    key: default for _m, key, default, _s in _ENGINE_OPTIONS
+}
+_CONVERSATION_DEFAULTS: dict[str, Any] = {
+    key: default for _m, key, default, _s in _CONVERSATION_OPTIONS
+}
 
 _CONNECTION_ERROR_KEYS: tuple[tuple[type[SaySoError], str], ...] = (
     (SaySoAuthError, "invalid_auth"),
@@ -163,12 +190,22 @@ def _default_embedded_options() -> dict[str, Any]:
         CONF_MODEL: DEFAULT_MODEL_FILENAME,
         CONF_N_CTX: DEFAULT_N_CTX,
         CONF_N_THREADS: default_thread_count(),
-        **_OPTION_DEFAULTS,
+        **_ENGINE_DEFAULTS,
     }
 
 
-def _default_options(model: str) -> dict[str, Any]:
-    return {CONF_MODEL: model, **_OPTION_DEFAULTS}
+def _default_conversation_subentry(
+    title: str, model: str | None = None
+) -> ConfigSubentryData:
+    data: dict[str, Any] = dict(_CONVERSATION_DEFAULTS)
+    if model is not None:
+        data[CONF_MODEL] = model
+    return ConfigSubentryData(
+        data=data,
+        subentry_type=CONVERSATION_SUBENTRY_TYPE,
+        title=title,
+        unique_id=None,
+    )
 
 
 def _connection_error_key(error: SaySoError) -> str:
@@ -197,6 +234,50 @@ def _select(values: list[str], *, custom: bool = False) -> SelectSelector:
     )
 
 
+class DownloadSteps:
+
+    hass: HomeAssistant
+    _model: str
+    _replace: bool = False
+    _download_task: asyncio.Task[None] | None = None
+    _download_error: str = ""
+
+    async def async_step_download(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if self._download_task is None:
+            self._download_task = self.hass.async_create_task(
+                async_provision_model(self.hass, self._model, replace=self._replace)
+            )
+        if not self._download_task.done():
+            return self.async_show_progress(
+                step_id="download",
+                progress_action="download",
+                progress_task=self._download_task,
+            )
+        try:
+            await self._download_task
+        except SaySoDependencyError:
+            self._download_error = "install_failed"
+        except SaySoError:
+            self._download_error = "download_failed"
+        else:
+            return self.async_show_progress_done(next_step_id="finish")
+        return self.async_show_progress_done(next_step_id="download_failed")
+
+    async def async_step_download_failed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is None:
+            return self.async_show_form(
+                step_id="download_failed",
+                data_schema=vol.Schema({}),
+                errors={"base": self._download_error},
+            )
+        self._download_task = None
+        return await self.async_step_download()
+
+
 def _model_fields(
     options: dict[str, Any], models: list[str], *, embedded: bool
 ) -> dict[Any, Any]:
@@ -206,9 +287,9 @@ def _model_fields(
         if isinstance(current, str) and current and current not in choices:
             choices.insert(0, current)
         return {
-            vol.Required(CONF_MODEL, description=_suggest(options, CONF_MODEL)): _select(
-                choices, custom=True
-            )
+            vol.Required(
+                CONF_MODEL, description=_suggest(options, CONF_MODEL)
+            ): _select(choices, custom=True)
         }
 
     local_models = [path for path in models if Path(path).name not in EMBEDDED_MODELS]
@@ -241,12 +322,34 @@ def _model_fields(
     }
 
 
-def _options_schema(
-    hass: HomeAssistant,
+def _fields(
     options: dict[str, Any],
+    spec: tuple[tuple[Any, str, Any, Any], ...],
+    llm_apis: SelectSelector | None = None,
+) -> dict[Any, Any]:
+    return {
+        marker(key, description=_suggest(options, key, default)): (selector or llm_apis)
+        for marker, key, default, selector in spec
+    }
+
+
+def _engine_schema(
+    options: dict[str, Any], models: list[str], *, embedded: bool
+) -> vol.Schema:
+    return vol.Schema(
+        {
+            **(_model_fields(options, models, embedded=True) if embedded else {}),
+            **_fields(options, _ENGINE_OPTIONS),
+        }
+    )
+
+
+def _conversation_schema(
+    hass: HomeAssistant,
+    suggested: dict[str, Any],
     models: list[str],
     *,
-    embedded: bool = False,
+    external: bool,
 ) -> vol.Schema:
     llm_apis = SelectSelector(
         SelectSelectorConfig(
@@ -259,21 +362,40 @@ def _options_schema(
     )
     return vol.Schema(
         {
-            **_model_fields(options, models, embedded=embedded),
-            **{
-                marker(key, description=_suggest(options, key, default)): (
-                    selector or llm_apis
-                )
-                for marker, key, default, selector in _OPTIONS
-            },
+            vol.Required(CONF_NAME, description=_suggest(suggested, CONF_NAME)): (
+                TextSelector()
+            ),
+            **(_model_fields(suggested, models, embedded=False) if external else {}),
+            **_fields(suggested, _CONVERSATION_OPTIONS, llm_apis),
         }
     )
 
 
-class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
+async def _async_list_models(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
+    client = LlamaCppClient.from_hass(
+        hass,
+        entry.data[CONF_URL],
+        api_key=entry.data.get(CONF_API_KEY),
+        timeout=entry.options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
+    )
+    try:
+        return await client.list_models()
+    except SaySoError as err:
+        _LOGGER.debug(
+            "SaySo could not list models: %s",
+            redact_api_key(str(err), entry.data.get(CONF_API_KEY)),
+        )
+        return []
 
-    VERSION = 1
-    MINOR_VERSION = 2
+
+def _subentry_payload(user_input: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    data = dict(user_input)
+    return data.pop(CONF_NAME), data
+
+
+class SaySoConfigFlow(DownloadSteps, ConfigFlow, domain=DOMAIN):
+    VERSION = 2
+    MINOR_VERSION = 1
 
     def __init__(self) -> None:
         self._base_url: str | None = None
@@ -321,11 +443,8 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
         if not base_url:
             await self.async_set_unique_id(f"{DOMAIN}_embedded")
             self._abort_if_unique_id_configured()
-            return self.async_create_entry(
-                title="SaySo (local)",
-                data={CONF_BACKEND: BACKEND_EMBEDDED},
-                options=_default_embedded_options(),
-            )
+            self._model = DEFAULT_MODEL_FILENAME
+            return await self.async_step_download()
 
         try:
             cv.url(base_url)
@@ -362,15 +481,28 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
                 "model", schema, user_input, {"base": _connection_error_key(err)}
             )
 
-        await self.async_set_unique_id(f"{self._base_url}|{model}")
+        await self.async_set_unique_id(self._base_url)
         self._abort_if_unique_id_configured()
         data: dict[str, Any] = {CONF_URL: self._base_url}
         if self._api_key:
             data[CONF_API_KEY] = self._api_key
+        title = _entry_title(self._base_url, model)
         return self.async_create_entry(
-            title=_entry_title(self._base_url, model),
+            title=title,
             data=data,
-            options=_default_options(model),
+            options=dict(_ENGINE_DEFAULTS),
+            subentries=[_default_conversation_subentry(title, model)],
+        )
+
+    async def async_step_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        title = "SaySo (local)"
+        return self.async_create_entry(
+            title=title,
+            data={CONF_BACKEND: BACKEND_EMBEDDED},
+            options=_default_embedded_options(),
+            subentries=[_default_conversation_subentry(title)],
         )
 
     @staticmethod
@@ -378,44 +510,103 @@ class SaySoConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: ConfigEntry) -> SaySoOptionsFlowHandler:
         return SaySoOptionsFlowHandler()
 
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        return {
+            CONVERSATION_SUBENTRY_TYPE: SaySoConversationSubentryFlow,
+            AI_TASK_SUBENTRY_TYPE: SaySoAITaskSubentryFlow,
+        }
+
 
 def _model_step_schema(models: list[str]) -> vol.Schema:
     return vol.Schema({vol.Required(CONF_MODEL): _select(models, custom=True)})
 
 
-class SaySoOptionsFlowHandler(OptionsFlowWithReload):
+_AI_TASK_SCHEMA = vol.Schema({vol.Required(CONF_NAME): TextSelector()})
 
-    def _client(self, timeout: float) -> LlamaCppClient:
-        entry = self.config_entry
-        return LlamaCppClient.from_hass(
-            self.hass,
-            entry.data[CONF_URL],
-            api_key=entry.data.get(CONF_API_KEY),
-            timeout=timeout,
+
+class SaySoConversationSubentryFlow(ConfigSubentryFlow):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        entry = self._get_entry()
+        if user_input is None:
+            return await self._async_show_form(
+                "user", entry, dict(_CONVERSATION_DEFAULTS)
+            )
+        title, data = _subentry_payload(user_input)
+        return self.async_create_entry(title=title, data=data)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        entry = self._get_entry()
+        subentry = self._get_reconfigure_subentry()
+        if user_input is None:
+            return await self._async_show_form(
+                "reconfigure", entry, {CONF_NAME: subentry.title, **subentry.data}
+            )
+        title, data = _subentry_payload(user_input)
+        return self.async_update_and_abort(entry, subentry, title=title, data=data)
+
+    async def _async_show_form(
+        self, step_id: str, entry: ConfigEntry, suggested: dict[str, Any]
+    ) -> SubentryFlowResult:
+        external = entry_backend(entry) == BACKEND_EXTERNAL
+        models = await _async_list_models(self.hass, entry) if external else []
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=_conversation_schema(
+                self.hass, suggested, models, external=external
+            ),
         )
 
-    def _log(self, what: str, err: SaySoError) -> None:
-        _LOGGER.debug(
-            "SaySo options flow %s: %s",
-            what,
-            redact_api_key(str(err), self.config_entry.data.get(CONF_API_KEY)),
+
+class SaySoAITaskSubentryFlow(ConfigSubentryFlow):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        if user_input is None:
+            return self.async_show_form(step_id="user", data_schema=_AI_TASK_SCHEMA)
+        return self.async_create_entry(title=user_input[CONF_NAME], data={})
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        subentry = self._get_reconfigure_subentry()
+        if user_input is None:
+            return self.async_show_form(
+                step_id="reconfigure",
+                data_schema=self.add_suggested_values_to_schema(
+                    _AI_TASK_SCHEMA, {CONF_NAME: subentry.title}
+                ),
+            )
+        return self.async_update_and_abort(
+            self._get_entry(), subentry, title=user_input[CONF_NAME]
         )
+
+
+class SaySoOptionsFlowHandler(DownloadSteps, OptionsFlow):
+    _pending: dict[str, Any]
 
     def _form(
         self,
-        options: dict[str, Any],
-        models: list[str],
+        suggested: dict[str, Any],
         *,
-        embedded: bool = False,
-        errors: dict[str, str] | None = None,
+        embedded: bool,
+        models: list[str] | None = None,
     ) -> ConfigFlowResult:
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
-                _options_schema(self.hass, self.config_entry.options, models, embedded=embedded),
-                options,
+                _engine_schema(
+                    self.config_entry.options, models or [], embedded=embedded
+                ),
+                suggested,
             ),
-            errors=errors,
         )
 
     async def async_step_init(
@@ -423,33 +614,29 @@ class SaySoOptionsFlowHandler(OptionsFlowWithReload):
     ) -> ConfigFlowResult:
         entry = self.config_entry
 
-        if entry_backend(entry) == BACKEND_EMBEDDED:
-            if user_input is not None:
-                return self.async_create_entry(data={**entry.options, **user_input})
-            local_models = await self.hass.async_add_executor_job(
-                list_local_models, self.hass
-            )
-            return self._form(entry.options, local_models, embedded=True)
+        if entry_backend(entry) != BACKEND_EMBEDDED:
+            if user_input is None:
+                return self._form(entry.options, embedded=False)
+            return self.async_create_entry(data=user_input)
 
-        models: list[str] = []
-        try:
-            models = await self._client(
-                entry.options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
-            ).list_models()
-        except SaySoError as err:
-            self._log("could not fetch models", err)
+        if user_input is not None:
+            self._pending = {**entry.options, **user_input}
+            self._model = user_input[CONF_MODEL]
+            if await self._async_model_absent(self._model):
+                return await self.async_step_download()
+            return self.async_create_entry(data=self._pending)
+        local_models = await self.hass.async_add_executor_job(
+            list_local_models, self.hass
+        )
+        return self._form(entry.options, embedded=True, models=local_models)
 
-        if user_input is None:
-            return self._form(entry.options, models)
+    async def async_step_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        return self.async_create_entry(data=self._pending)
 
-        try:
-            await self._client(
-                user_input.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
-            ).validate_model(user_input[CONF_MODEL].strip())
-        except SaySoError as err:
-            self._log("validation failed", err)
-            return self._form(
-                user_input, models, errors={"base": _connection_error_key(err)}
-            )
-
-        return self.async_create_entry(data=user_input)
+    async def _async_model_absent(self, model: str) -> bool:
+        if model not in EMBEDDED_MODELS:
+            return False
+        path = models_dir(self.hass) / model
+        return not await self.hass.async_add_executor_job(path.is_file)
