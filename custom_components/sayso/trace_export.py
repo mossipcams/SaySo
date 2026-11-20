@@ -50,15 +50,9 @@ NANOS_PER_SECOND = 1_000_000_000
 NANOS_PER_MS = 1_000_000
 STARTED_SUFFIX = "_started"
 COMPLETED_SUFFIX = "_completed"
+POINT_EVENTS = frozenset({WAKE_DETECTED, SPEECH_STARTED, SPEECH_ENDED})
 NON_STAGE_EVENTS = frozenset(
-    {
-        INTERACTION_STARTED,
-        INTERACTION_COMPLETED,
-        INTERACTION_FAILED,
-        WAKE_DETECTED,
-        SPEECH_STARTED,
-        SPEECH_ENDED,
-    }
+    {INTERACTION_STARTED, INTERACTION_COMPLETED, INTERACTION_FAILED, *POINT_EVENTS}
 )
 
 _JSONL_FILE_LOCK = threading.Lock()
@@ -134,7 +128,7 @@ def _append_line(path: Path, line: str) -> None:
 def otlp_payload(record: dict[str, Any]) -> dict[str, Any]:
     summary = record["summary"]
     trace_id = _otlp_trace_id(str(summary["trace_id"]))
-    root = _root_span(summary, trace_id)
+    root = _root_span(summary, trace_id, _point_events(record["events"]))
     spans = [root, *_stage_spans(record["events"], trace_id, root)]
     return {
         "resourceSpans": [
@@ -150,7 +144,9 @@ def otlp_payload(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _root_span(summary: dict[str, Any], trace_id: str) -> dict[str, Any]:
+def _root_span(
+    summary: dict[str, Any], trace_id: str, events: list[dict[str, Any]]
+) -> dict[str, Any]:
     start = _unix_nanos(summary.get("started_at")) or 0
     end = _unix_nanos(summary.get("completed_at"))
     if end is None:
@@ -163,7 +159,24 @@ def _root_span(summary: dict[str, Any], trace_id: str) -> dict[str, Any]:
         end,
         {key: value for key, value in summary.items() if key != "trace_id"},
         success=summary.get("success") is not False,
+        events=events,
     )
+
+
+def _point_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    point_events = []
+    for event in events:
+        timestamp = _unix_nanos(event.get("timestamp"))
+        if event["stage"] not in POINT_EVENTS or timestamp is None:
+            continue
+        point_events.append(
+            {
+                "timeUnixNano": str(timestamp),
+                "name": event["stage"],
+                "attributes": _attributes(_metadata(event)),
+            }
+        )
+    return point_events
 
 
 def _stage_spans(
@@ -249,6 +262,7 @@ def _span(
     *,
     success: bool,
     parent_span_id: str | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     span: dict[str, Any] = {
         "traceId": trace_id,
@@ -257,17 +271,23 @@ def _span(
         "kind": SPAN_KIND_INTERNAL,
         "startTimeUnixNano": str(start),
         "endTimeUnixNano": str(end),
-        "attributes": [
-            {"key": key, "value": _any_value(value)}
-            for key, value in attributes.items()
-            if value is not None
-        ],
+        "attributes": _attributes(attributes),
     }
     if parent_span_id is not None:
         span["parentSpanId"] = parent_span_id
+    if events is not None:
+        span["events"] = events
     if not success:
         span["status"] = {"code": STATUS_CODE_ERROR}
     return span
+
+
+def _attributes(attributes: Mapping[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {"key": key, "value": _any_value(value)}
+        for key, value in attributes.items()
+        if value is not None
+    ]
 
 
 def _otlp_trace_id(trace_id: str) -> str:

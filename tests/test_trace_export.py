@@ -313,6 +313,43 @@ def test_otlp_exports_one_span_per_stage_with_its_duration(
         assert int(span["endTimeUnixNano"]) >= int(span["startTimeUnixNano"])
 
 
+def test_otlp_exports_wake_and_speech_markers_as_root_span_events(
+    hass: HomeAssistant,
+) -> None:
+    trace = TraceContext(trace_id=TRACE_ID, started_at=STAGE_START)
+    trace.add_event(INTERACTION_STARTED, timestamp=STAGE_START)
+    trace.add_event(
+        WAKE_DETECTED, timestamp=STAGE_START, metadata={"sayso.wake_word": "koda"}
+    )
+    trace.add_event(SPEECH_STARTED, timestamp=STAGE_START + timedelta(milliseconds=120))
+    trace.add_event(SPEECH_ENDED, timestamp=STAGE_START + timedelta(milliseconds=900))
+    trace.finish()
+
+    root, *children = _otlp_spans(_record(trace))
+    start_ns = int(STAGE_START.timestamp()) * 1_000_000_000
+
+    assert root["events"] == [
+        {
+            "timeUnixNano": str(start_ns),
+            "name": "wake_detected",
+            "attributes": [
+                {"key": "sayso.wake_word", "value": {"stringValue": "koda"}}
+            ],
+        },
+        {
+            "timeUnixNano": str(start_ns + 120 * 1_000_000),
+            "name": "speech_started",
+            "attributes": [],
+        },
+        {
+            "timeUnixNano": str(start_ns + 900 * 1_000_000),
+            "name": "speech_ended",
+            "attributes": [],
+        },
+    ]
+    assert children == []
+
+
 def test_otlp_stage_span_merges_started_and_completed_attributes(
     hass: HomeAssistant,
 ) -> None:
