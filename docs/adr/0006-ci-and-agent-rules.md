@@ -25,7 +25,7 @@ Rejected:
 ## Consequences
 
 - CI checks syntax and undefined names only. Style is not enforced by the lint step, but format is checked.
-- Open: the comment rule is not held. Later commits reintroduced 67 `#` comments, including `# noqa`, and 19 docstrings in `custom_components/sayso`, `evals`, and `satellite/sayso`. A cleanup is needed.
+- Comments and docstrings that later commits reintroduced (60 comments, 5 `noqa` or `type: ignore` directives, and 19 docstrings) were removed in `f66c02f` and `8070e56`. `tests/test_no_comments.py` (`f659bcb`) now enforces the rule for tracked `.py` and `.sh` files.
 - GitNexus is not referenced anywhere in this repository. Its removal from the workspace skills is recorded outside this repository.
 
 ## Shipped in
@@ -37,3 +37,6 @@ Rejected:
 - `dcf213f` docs(agents): always save an md plan before implementing
 - `6c30d14` chore(agent): remove all code comments and docstrings; mandate model-router delegation and no-comments rule in AGENTS.md
 - `9f91300` docs(agents): local agent runs the full delegation loop
+- `f66c02f` style: remove comments from the integration, evals, tests and scripts
+- `8070e56` style: remove comments from the satellite
+- `f659bcb` test: forbid comments and docstrings in tracked sources
