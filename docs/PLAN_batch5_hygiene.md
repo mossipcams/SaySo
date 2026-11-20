@@ -80,11 +80,11 @@ which slice needs them.
     (`PLACE_WORDS`), and isn't another candidate's name. The case data doesn't
     change. Clarify still offers the single satellite-area candidate when a
     call stays ungrounded.
-  - A2: approved. `tests/test_compat.py` gains the 2026.11.x `latest` row; the
-    checks on the minimum stay.
-  - A3: the `ci.yml` matrix entry needs the gh `workflow` scope, which the token
-    lacks. Everything else lands, and the one-line matrix edit waits for
-    `gh auth refresh -s workflow`.
+  - A2: declined by the user (2026-11-20). The `latest` row was added in
+    134a0a3 and reverted; `tests/test_compat.py` keeps its original
+    single-entry assertions. See 4.4.
+  - A3: declined by the user (2026-11-20). No `latest` row, so `ci.yml` is not
+    changed and the gh `workflow` scope is not needed.
   - A6: approved. Format and lint autofix under `tests/` with no assertion
     changes, as their own commits.
 
@@ -381,6 +381,8 @@ to `docs/adr/`; `docs/PLAN_*.md` is only for active work. The rest of the Workfl
 section (review the plan before implementing) stays.
 
 ### 4.4 Compat latest row
+
+Declined by the user on 2026-11-20; not implemented.
 
 - Current: `scripts/compat_matrix.py:15` `CURRENT_HA_VERSION = "2026.8.3"`; `:17`
   `DECLARED_MINIMUM_HA_VERSION`; `MATRIX` at `:49-56` has one entry;
