@@ -463,7 +463,6 @@ class TestNegativeCalls:
             "[intent__HassTurnOn(name=)]",
             "[intent__HassTurnOn(name=-)]",
             "[climate__HassClimateSetTemperature(temperature=-)]",
-            "[climate__HassClimateSetTemperature(temperature=21.5)]",
             "[NoSuchTool(name='lamp')]",
             "[intent__HassTurnOn(bogus='lamp')]",
             "[intent__HassTurnOn(name='lamp')] [intent__HassTurnOff(name='fan')]",
@@ -480,7 +479,6 @@ class TestNegativeCalls:
         [
             f"{MARKER_START}[intent__HassTurnOn(name=)]{MARKER_END}",
             f"{MARKER_START}[climate__HassClimateSetTemperature(temperature=-)]{MARKER_END}",
-            f"{MARKER_START}[climate__HassClimateSetTemperature(temperature=21.5)]{MARKER_END}",
             f"{MARKER_START}[NoSuchTool(name='lamp')]{MARKER_END}",
             f"{MARKER_START}[intent__HassTurnOn(bogus='lamp')]{MARKER_END}",
             f"{MARKER_START}[intent__HassTurnOn(name='lamp')]{MARKER_END}{MARKER_START}[intent__HassTurnOff(name='fan')]{MARKER_END}",
@@ -488,6 +486,14 @@ class TestNegativeCalls:
     )
     def test_outside_full_language_markers(self, ha_markers: str, text: str) -> None:
         assert not _accepts(ha_markers, text)
+
+    def test_decimal_climate_call_is_in_full_language(
+        self, ha_bare: str, ha_markers: str
+    ) -> None:
+        call = "[climate__HassClimateSetTemperature(temperature=21.5)]"
+
+        assert _accepts(ha_bare, call)
+        assert _accepts(ha_markers, f"{MARKER_START}{call}{MARKER_END}")
 
     def test_malformed_call_is_outside_whole_language(self, ha_bare: str) -> None:
         assert not _accepts(ha_bare, "[HassTurnOn(name=)]")
@@ -500,12 +506,20 @@ class TestNegativeCalls:
         assert _accepts(grammar, "[SetTemp(level=-5)]")
         assert _accepts(grammar, "[SetTemp(level=21)]")
 
-    def test_float_for_number_is_not_in_language(self) -> None:
+    def test_float_for_number_is_in_language(self) -> None:
         tools = [_tool("SetTemp", _object({"level": {"type": "number"}}))]
         grammar = build_grammar(tools, markers=False)
 
-        assert not _accepts(grammar, "[SetTemp(level=21.5)]")
+        assert _accepts(grammar, "[SetTemp(level=21.5)]")
         assert _accepts(grammar, "[SetTemp(level=21)]")
+        assert not _accepts(grammar, "[SetTemp(level=21.)]")
+        assert not _accepts(grammar, "[SetTemp(level=.5)]")
+
+    def test_number_property_uses_v_num_rule(self) -> None:
+        tools = [_tool("SetTemp", _object({"level": {"type": "number"}}))]
+        grammar = build_grammar(tools, markers=False)
+
+        assert 'arg-0-0 ::= "level=" v-num' in grammar.splitlines()
 
 
 class TestTextBranch:

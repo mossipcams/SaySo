@@ -17,6 +17,7 @@ ws ::= [ \t\r\n]*
 v-body ::= ( [^'()] | "'" [^,)\]}'()] )*
 v-str ::= "'" v-body "'"
 v-int ::= "-"? [0-9]+
+v-num ::= "-"? [0-9]+ ("." [0-9]+)?
 v-bool ::= "True" | "False"
 text ::= [^ \t\r\n\[<] [^<]*
 """.strip().splitlines()
@@ -52,8 +53,10 @@ class _Rules:
             return self._enum(node, kind)
         if kind == "string":
             return "v-str"
-        if kind in ("integer", "number"):
+        if kind == "integer":
             return "v-int"
+        if kind == "number":
+            return "v-num"
         if kind == "boolean":
             return "v-bool"
         if kind == "array":

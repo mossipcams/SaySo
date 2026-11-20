@@ -9,6 +9,7 @@ class LfmPythonParseError(ValueError):
 
 
 _CLOSER_AFTER_QUOTE = frozenset({",", ")", "]", "}"})
+_NUMBER_LITERAL = re.compile(r"-?[0-9]+(?:\.[0-9]+)?")
 
 
 def _parse_single_quoted_string(text: str, start: int) -> tuple[str, int]:
@@ -69,13 +70,12 @@ def _parse_value(text: str, index: int) -> tuple[Any, int]:
     if text[index] == "[":
         return _parse_list(text, index)
     if text[index] in "-0123456789":
-        end = index
-        while end < len(text) and text[end] in "-0123456789":
-            end += 1
-        try:
-            return int(text[index:end]), end
-        except ValueError as err:
-            raise LfmPythonParseError("invalid integer literal") from err
+        match = _NUMBER_LITERAL.match(text, index)
+        if not match:
+            raise LfmPythonParseError("invalid number literal")
+        token = match.group()
+        number: int | float = float(token) if "." in token else int(token)
+        return number, match.end()
     for literal, value in _LITERALS.items():
         if text.startswith(literal, index):
             return value, index + len(literal)
