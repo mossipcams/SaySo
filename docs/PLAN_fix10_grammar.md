@@ -336,6 +336,8 @@ on the VM. The user must run the status check:
 
 ### Real measurement (requires user approval and the VM)
 
+Declined by the user on 2026-11-20. Grammar stays an off-by-default option; no adoption change is planned.
+
 Adapter changes (Slice 5): `EndpointAdapter` gets an optional grammar
 per request and records wall time per request, and `evals/cli.py` gets a
 `--grammar` flag. The grammar is built per case from `rendered["tools"]`,
@@ -413,7 +415,7 @@ measurement harness today. Ask the user before building one.
    the call branch.
 5. **Slice 7 (VM measurement) runs only after the user approves.** The llm VM
    GPU and server are shared with production HA. Slices 0-6 ship with the
-   option off by default.
+   option off by default. Declined on 2026-11-20.
 6. Latency thresholds (p50 at most 1.10x, p95 at most 1.25x) stay a proposal
    until the adoption change.
 
