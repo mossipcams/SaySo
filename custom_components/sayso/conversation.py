@@ -58,7 +58,7 @@ from .core.exceptions import (
 )
 from .core.history import model_history
 from .core.grounding import GroundingEntity, GroundingHome
-from .core.held import HeldState, resolve_held_option
+from .core.held import HeldState, is_expired, resolve_held_option
 from .core.post_model import (
     ExecutionResult,
     FailureKind,
@@ -535,6 +535,7 @@ class SaySoConversationEntity(
                 len(turn.active_schema.tools) if turn.active_schema is not None else 0
             )
 
+        self._evict_expired(time.monotonic())
         held = self._held.pop(chat_log.conversation_id, None)
         return await self._post_model(turn, held=held)
 
@@ -630,11 +631,17 @@ class SaySoConversationEntity(
         )
         return self._respond(turn, outcome)
 
+    def _evict_expired(self, now: float) -> None:
+        for conversation_id, held in list(self._held.items()):
+            if is_expired(held, now):
+                del self._held[conversation_id]
+
     def _respond(
         self, turn: _Turn, outcome: TurnOutcome
     ) -> conversation.ConversationResult:
         turn.correction_used = outcome.correction_used
         if outcome.held is not None:
+            self._evict_expired(time.monotonic())
             self._held[turn.chat_log.conversation_id] = outcome.held
         failure = outcome.failure
         if failure is None:
