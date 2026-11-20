@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
 from functools import lru_cache
 from collections.abc import Callable
 from typing import Any, Literal
@@ -20,8 +19,8 @@ except ImportError:
     UNSUPPORTED = object()
     convert = None
 
-from .exceptions import SaySoInvalidToolEnvelopeError
-from .tool_schema import (
+from .core.exceptions import SaySoInvalidToolEnvelopeError
+from .core.tool_schema import (
     CompiledToolSchema,
     build_compiled_tools_from_source as _build_compiled_tools_from_source,
     canonicalize_compiled_tools,
@@ -32,6 +31,11 @@ from .tool_schema import (
     schema_fingerprint,
     tool_source_json,
     validate_compiled_tool_envelope,
+)
+from .core.tool_contract import (
+    ToolArgumentFailureCode,
+    ToolArgumentValidationError,
+    format_synthetic_validation_error,
 )
 
 COMPILE_CACHE_MAXSIZE = 32
@@ -243,17 +247,6 @@ def compile_tools(
     return _cached_compile_tools(source_json)
 
 
-class ToolArgumentFailureCode(StrEnum):
-    SCHEMA_MISMATCH = "schema_mismatch"
-    INVALID_ARGUMENTS = "invalid_arguments"
-
-
-@dataclass(frozen=True, slots=True)
-class ToolArgumentValidationError:
-    code: ToolArgumentFailureCode
-    message: str
-    tool_name: str
-
 
 def build_tool_map(tools: list[llm.Tool]) -> dict[str, llm.Tool]:
     return {tool.name: tool for tool in tools}
@@ -345,21 +338,6 @@ def validate_tool_arguments(
 
     return normalized, None
 
-
-def format_synthetic_validation_error(
-    error: ToolArgumentValidationError,
-    *,
-    allowed_tools: list[str],
-    fingerprint: str,
-) -> dict[str, Any]:
-    return {
-        "error": {
-            "code": error.code,
-            "message": error.message,
-            "allowed_tools": allowed_tools,
-            "schema_fingerprint": fingerprint,
-        }
-    }
 
 
 def compile_llm_tools(

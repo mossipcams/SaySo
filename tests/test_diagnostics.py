@@ -22,7 +22,7 @@ from custom_components.sayso.diagnostics import (
     async_get_config_entry_diagnostics,
     clear_boundary_diagnostics,
 )
-from custom_components.sayso.exceptions import SaySoTimeoutError
+from custom_components.sayso.core.exceptions import SaySoTimeoutError
 from tests.test_config_flow import (
     BASE_URL,
     MODEL_ID,

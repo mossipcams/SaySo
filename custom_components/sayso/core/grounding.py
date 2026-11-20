@@ -4,7 +4,7 @@ import difflib
 import re
 from dataclasses import dataclass
 
-from .const import (
+from .vocabulary import (
     DOMAIN_PLURALS,
     ERROR_AREA_HAS_NO_DOMAIN,
     ERROR_CHOOSE,
@@ -38,6 +38,81 @@ NOUN = {
 }
 
 _ALWAYS_GROUNDED = {"GetLiveContext", "GetDateTime"}
+
+DOMAIN_WORDS = {
+    **NOUN,
+    "television": "media_player",
+    "vacuum": "vacuum",
+    "vacuums": "vacuum",
+}
+
+PARTIAL_FLOOR = 1 / 3
+
+STOP_WORDS = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "my",
+        "our",
+        "your",
+        "this",
+        "that",
+        "its",
+        "on",
+        "off",
+        "up",
+        "down",
+        "to",
+        "in",
+        "at",
+        "of",
+        "for",
+        "and",
+        "bit",
+        "little",
+        "back",
+        "is",
+        "it",
+        "can",
+        "you",
+        "please",
+        "turn",
+        "switch",
+        "set",
+        "dim",
+        "mute",
+        "pause",
+        "unpause",
+        "resume",
+        "start",
+        "send",
+        "dock",
+        "have",
+        "run",
+        "clean",
+        "brighten",
+        "make",
+        "lower",
+        "raise",
+        "open",
+        "close",
+        "lock",
+        "unlock",
+        "play",
+        "stop",
+        "go",
+        "return",
+        "put",
+        "change",
+        "volume",
+        "percent",
+        "degrees",
+        "some",
+        "all",
+        "any",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -243,6 +318,130 @@ def _area_noun_match(
     return False
 
 
+def _same_domain_word(word: str, other: str) -> bool:
+    return word.removesuffix("s") == other.removesuffix("s")
+
+
+def _room_ok(
+    entity: GroundingEntity,
+    utterance: str,
+    home: GroundingHome,
+    bare: str,
+    args: dict,
+) -> bool:
+    room = mentioned_area(utterance, home)
+    if room is None:
+        return True
+    area = args.get("area")
+    if (
+        "CleanArea" in bare
+        and isinstance(area, str)
+        and area.casefold() == room.casefold()
+    ):
+        return True
+    return entity.area is not None and entity.area.casefold() == room.casefold()
+
+
+def _area_tokens(area: str | None, home: GroundingHome) -> set[str]:
+    if area is None:
+        return set()
+    names = [area, *home.areas.get(area, ())]
+    return {t for name in names for t in tokens(name)}
+
+
+def _fully_explained(
+    entity: GroundingEntity,
+    utterance: str,
+    home: GroundingHome,
+    bare: str,
+    args: dict,
+) -> bool:
+    words = set(STOP_WORDS) | set(DOMAIN_WORDS)
+    words |= {t for label in labels(entity) for t in tokens(label)}
+    words |= _area_tokens(entity.area, home)
+    words |= _area_tokens(home.satellite_area, home)
+    if "CleanArea" in bare:
+        area = args.get("area")
+        if isinstance(area, str):
+            words |= set(tokens(area))
+    return all(t in words or t.isdigit() for t in tokens(utterance))
+
+
+def _other_candidate_word(
+    entity: GroundingEntity, utterance: str, pool: list[GroundingEntity]
+) -> bool:
+    own = {t for label in labels(entity) for t in tokens(label)}
+    other = {
+        t for e in pool if e != entity for label in labels(e) for t in tokens(label)
+    }
+    return any(
+        t in other and t not in own and t not in STOP_WORDS for t in tokens(utterance)
+    )
+
+
+def _satellite_local(
+    entity: GroundingEntity,
+    utterance: str,
+    home: GroundingHome,
+    pool: list[GroundingEntity],
+) -> bool:
+    sat = home.satellite_area
+    if sat is None or entity.area is None or entity.area.casefold() != sat.casefold():
+        return False
+    if "'" in utterance or _other_candidate_word(entity, utterance, pool):
+        return False
+    local = [
+        e for e in pool if e.area is not None and e.area.casefold() == sat.casefold()
+    ]
+    if local == [entity]:
+        return True
+    spoken = [t for t in tokens(utterance) if t in DOMAIN_WORDS]
+    narrowed = [
+        e
+        for e in local
+        if any(_same_domain_word(w, t) for w in spoken for t in tokens(e.name))
+    ]
+    return narrowed == [entity]
+
+
+def _partial_name(
+    entity: GroundingEntity, utterance: str, pool: list[GroundingEntity]
+) -> bool:
+    if entity not in pool:
+        return False
+    if max(support(l, utterance) for l in labels(entity)) < PARTIAL_FLOOR:
+        return False
+    return all(
+        max(support(l, utterance) for l in labels(other)) < PARTIAL_FLOOR
+        for other in pool
+        if other != entity
+    )
+
+
+def _rule_grounded(
+    entity: GroundingEntity,
+    utterance: str,
+    home: GroundingHome,
+    bare: str,
+    args: dict,
+) -> bool:
+    if not _room_ok(entity, utterance, home, bare, args):
+        return False
+    if not _fully_explained(entity, utterance, home, bare, args):
+        return False
+    for dom in {DOMAIN_WORDS[t] for t in tokens(utterance) if t in DOMAIN_WORDS}:
+        if not _matches_dom(entity, dom):
+            continue
+        pool = _pool(utterance, home, dom, None)
+        if pool == [entity]:
+            return True
+        if _satellite_local(entity, utterance, home, pool):
+            return True
+        if _partial_name(entity, utterance, pool):
+            return True
+    return False
+
+
 def is_grounded(
     tool_name: str, args: dict, utterance: str, home: GroundingHome
 ) -> bool:
@@ -257,7 +456,9 @@ def is_grounded(
             first = matches[0]
             if max(support(l, utterance) for l in labels(first)) >= 0.5:
                 return True
-            return _area_noun_match(first, utterance, home)
+            if _area_noun_match(first, utterance, home):
+                return True
+            return _rule_grounded(first, utterance, home, bare, args)
         for area_name, aliases in home.areas.items():
             names = {
                 area_name.casefold().strip(),

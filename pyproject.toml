@@ -26,6 +26,7 @@ test = [
     "pytest-asyncio>=0.24",
     "pytest-homeassistant-custom-component>=0.13",
     "hypothesis>=6.0.0",
+    "import-linter>=2.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -59,3 +60,19 @@ exclude = [
     "training/**",
     "sayso_contract.py",
 ]
+
+[tool.importlinter]
+root_packages = ["custom_components", "satellite"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "core must not import Home Assistant"
+type = "forbidden"
+source_modules = ["custom_components.sayso.core"]
+forbidden_modules = ["homeassistant"]
+
+[[tool.importlinter.contracts]]
+name = "satellite must not import custom_components"
+type = "forbidden"
+source_modules = ["satellite"]
+forbidden_modules = ["custom_components"]

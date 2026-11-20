@@ -11,17 +11,17 @@ from .diagnostics import (
     BoundaryPhase,
     record_boundary_failure,
 )
-from .exceptions import (
+from .core.exceptions import (
     SaySoError,
     SaySoInvalidResponseError,
     SaySoTimeoutError,
 )
-from .schema import (
-    CompiledToolSchema,
+from .core.tool_contract import (
     ToolArgumentFailureCode,
     ToolArgumentValidationError,
-    validate_tool_arguments,
+    is_well_formed_batch,
 )
+from .schema import CompiledToolSchema, validate_tool_arguments
 from .tracing import ErrorType, Stage, TraceContext
 
 _LOGGER = logging.getLogger(__name__)
@@ -115,13 +115,8 @@ def validation_failure_code(
     return BoundaryFailureCode.INVALID_ARGUMENTS
 
 
-def is_well_formed_batch(tool_calls: list[ToolCall]) -> bool:
-    ids = [call.id for call in tool_calls]
-    return (
-        all(call.id and call.name for call in tool_calls)
-        and len(set(ids)) == len(ids)
-        and all(isinstance(call.arguments, dict) for call in tool_calls)
-    )
+def tool_is_read_only(tool: llm.Tool) -> bool | None:
+    return getattr(getattr(tool, "annotations", None), "read_only", None)
 
 
 def validate_arguments(

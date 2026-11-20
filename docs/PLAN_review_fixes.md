@@ -264,13 +264,34 @@ fakes a `_sayso_pure` package in `sys.modules`. Seven modules are
 transitively HA-free (`area_context`, `completion`, `exceptions`,
 `history`, `lfm_parse`, `tool_contract`, `tool_schema`). `grounding.py`
 is held back only by `const.py:3` importing `homeassistant.const`.
-Import-linter isn't configured. Solution:
-1. Move the seven modules (and `grounding.py`, once its three `CONF_*`
-   imports come from a plain module) into `custom_components/sayso/core/`.
-2. Point the integration and `sayso_contract.py` at it, then delete the
-   shim.
-3. Add an import-linter forbidden contract (`core` must not import
-   `homeassistant`), plus a CI step.
+Import-linter isn't configured.
+
+Constraint found while planning Batch 2: any import of
+`custom_components.sayso.<x>` runs `custom_components/sayso/__init__.py`,
+which imports Home Assistant. HACS ships only `custom_components/sayso`, so
+the HA-free code can't live outside it. A path trick therefore stays; the fix
+makes it small, real and enforced. Solution:
+1. Create `custom_components/sayso/core/` (with an empty `__init__.py`).
+   Move the seven modules into it with `git mv`, and move `grounding.py`
+   too. Its constants that come from `.const` move into `core/` (for
+   example `core/vocabulary.py`), and `const.py` re-exports any that the
+   rest of the integration uses. Inside `core/`, imports stay relative.
+2. Rewrite every importer to use the new paths: the integration
+   (`from .core.area_context import ...`), `tests/` and `evals/`. Use
+   ast-grep for the rewrite.
+3. Replace the `sys.modules` fake package in `sayso_contract.py` with an
+   importlib loader. It loads only `core/` as the package `_sayso_core`
+   (no `sys.path` change, so integration modules such as a future `select.py`
+   can't shadow stdlib names in eval processes), then binds the same public
+   names. Evals keep importing through `sayso_contract`, so call sites don't
+   change.
+4. Add import-linter to the `test` extra in `pyproject.toml`, with these
+   contracts in `[tool.importlinter]`:
+   - `core` must not import `homeassistant`.
+   - `satellite` must not import `custom_components`.
+   Add `tests/test_import_contracts.py`, which runs `lint-imports` and
+   asserts it succeeds. CI enforces it through the existing pytest step,
+   so `.github/workflows/` doesn't change (D4).
 
 Use ast-grep for the import rewrite. This lands before Fix 13.
 
@@ -287,6 +308,14 @@ resolver, but `volume_step.py:41-55` already calls
 
 Measure the change through the Fix 13 evals before and after. It needs
 HA at runtime, so it stays outside `core/`.
+
+Revised after Fix 13 (see `docs/PLAN_fix11_grounding.md`): the measured
+defect is over-clarification of correct calls (29 of 530), not entity
+lookup, and `GroundingHome` is already built from HA's registries. The
+rules go into HA-free `core/grounding.py` so production and the evals run
+the same code: a spoken domain word grounds when the home has exactly one
+such exposed entity, or the satellite area has exactly one, or a partial
+name is unique, behind room, modifier and possessive guards.
 
 **Fix 10: grammar-constrained decoding.** Verified: no grammar on either
 path (`inference.py:351-357`, `client.py:50-66`), and the fingerprint
@@ -314,9 +343,9 @@ Solution:
    `getattr(getattr(tool, "annotations", None), "read_only", None)`. On
    `None` (HA older than 2026.11), fall back to a read-only set in
    `tool_contract.py` that mirrors HA's `_READ_ONLY` intents
-   (`HassGetState`, `GetLiveContext`, `HassGetCurrentDate`,
-   `HassGetCurrentTime`, `HassGetWeather`, and the list/timer status
-   intents).
+   (on 2026.11.1: `HassTimerStatus`, `todo__get_items`,
+   `GetLiveContext` and `GetDateTime`; `HassGetState` and the date, time
+   and weather intents are not marked read-only).
 2. In the Fix 11 grounding path, skip grounding and held-call clarify for
    read-only tools.
 3. Don't use `destructive` to require confirmation. HA marks every control

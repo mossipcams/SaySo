@@ -17,13 +17,13 @@ from custom_components.sayso.client import (
     ToolCall,
     _read_json_body,
 )
-from custom_components.sayso.completion import extract_tool_calls, parse_tool_calls
+from custom_components.sayso.core.completion import extract_tool_calls, parse_tool_calls
 from custom_components.sayso.conversation import (
     SaySoConversationEntity,
     _Turn,
     execution_failure_speech,
 )
-from custom_components.sayso.exceptions import (
+from custom_components.sayso.core.exceptions import (
     SaySoConnectionError,
     SaySoInvalidResponseError,
     SaySoInvalidToolCallsError,

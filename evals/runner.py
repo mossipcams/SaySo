@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import subprocess
+import time
 import urllib.error
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -21,16 +24,23 @@ from evals.cases import (
     select_cases,
 )
 from evals.outcomes import (
+    PRODUCTION_HELD_TTL_SECONDS,
     PRODUCTION_MAX_OUTPUT_TOKENS,
+    PRODUCTION_MAX_TOOL_ITERATIONS,
     PRODUCTION_TEMPERATURE,
+    QUERY_TOOLS,
+    TODO_GET_ITEMS_TOOL,
     CaseResult,
     Expectation,
     ResponseType,
+    Turn,
+    contract_violations,
     read_completion,
 )
 from evals.scorer import check_gates, score, summarize
 from sayso_contract import area_context as _area_context
-from sayso_contract import tool_schema
+from sayso_contract import completion, correction, exceptions, grounding, post_model
+from sayso_contract import tool_contract, tool_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
@@ -87,6 +97,33 @@ class ModelAdapter(Protocol):
     def complete(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> Any: ...
+
+
+_TRANSPORT_ERRORS = (urllib.error.URLError, TimeoutError, OSError, ConnectionError)
+_FAKE_RESULT = {"success": []}
+
+
+@dataclass
+class _Trace:
+    raws: list[Any] = field(default_factory=list)
+    parse_error: str | None = None
+    transport_error: str | None = None
+    violations: list[dict[str, str]] = field(default_factory=list)
+
+
+class _NullSpan:
+    def __init__(self) -> None:
+        self.metadata: dict[str, Any] = {}
+
+
+class _NullRecorder:
+    def open(self, stage: Any, **metadata: Any) -> _NullSpan:
+        span = _NullSpan()
+        span.metadata.update(metadata)
+        return span
+
+    def close(self, span: Any, *, success: bool = True) -> None:
+        return None
 
 
 @lru_cache(maxsize=1)
@@ -321,28 +358,163 @@ def fingerprint_inputs(cases: list[Case]) -> str:
     return digest.hexdigest()
 
 
+def _grounding_home(home: dict[str, Any]) -> grounding.GroundingHome:
+    entities = tuple(
+        grounding.GroundingEntity(
+            entity_id=entity.get("entity_id", ""),
+            name=entity["name"],
+            aliases=tuple(entity.get("aliases") or ()),
+            domain=entity["domain"],
+            area=entity.get("area"),
+            device_id=None,
+        )
+        for entity in home.get("entities", [])
+    )
+    return grounding.GroundingHome(
+        entities=entities,
+        areas={area: tuple(aliases) for area, aliases in home_areas(home).items()},
+        satellite_area=home.get("satellite_area"),
+        satellite_device_id=None,
+    )
+
+
+def _action_tools(names: set[str]) -> frozenset[str]:
+    return frozenset(
+        name
+        for name in names
+        if name not in QUERY_TOOLS and name != TODO_GET_ITEMS_TOOL
+    )
+
+
+def _info_flags(outcome: post_model.TurnOutcome) -> list[str]:
+    checks = (
+        ("correction_used", outcome.correction_used),
+        ("area_dropped", outcome.area_dropped),
+        ("grounding_clarify", outcome.clarified),
+        ("done_shortcut", outcome.done_shortcut),
+    )
+    return [name for name, active in checks if active]
+
+
+def _run_case_turn(
+    case: Case,
+    rendered: dict[str, Any],
+    adapter: ModelAdapter,
+    schema_fingerprint: str,
+) -> tuple[post_model.TurnOutcome, _Trace]:
+    tools = rendered["tools"]
+    exposed = rendered["exposed_domains"]
+    prompt_messages = _area_context.tools_before_area_messages(
+        rendered["messages"], tools
+    )
+    sent_tools = tools if prompt_messages is rendered["messages"] else []
+    transcript = list(prompt_messages)
+    trace = _Trace()
+    names = {tool["function"]["name"] for tool in tools}
+    grounding_home = _grounding_home(load_home(case.household))
+
+    async def complete(messages: list[dict[str, Any]], *, correction: bool):
+        try:
+            raw = adapter.complete(messages, sent_tools)
+        except _TRANSPORT_ERRORS as err:
+            trace.raws.append({"transport_error": str(err)})
+            trace.transport_error = str(err)
+            trace.parse_error = str(err)
+            if isinstance(err, TimeoutError):
+                raise exceptions.SaySoTimeoutError(str(err)) from err
+            raise exceptions.SaySoConnectionError(str(err)) from err
+        trace.raws.append(raw)
+        try:
+            result = completion.parse_completion_result(raw)
+        except exceptions.SaySoInvalidResponseError as err:
+            trace.parse_error = str(err)
+            raise
+        trace.violations = contract_violations(
+            [(call.name, call.arguments) for call in result.tool_calls],
+            tools,
+            exposed,
+        )
+        return result
+
+    def validate(tool_calls):
+        return post_model.ValidationResult(
+            [(call, call.arguments) for call in tool_calls], []
+        )
+
+    async def execute(validated):
+        transcript.append(
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    correction._tool_call_message(call.id, call.name, args)
+                    for call, args in validated
+                ],
+            }
+        )
+        transcript.extend(
+            {
+                "role": "tool",
+                "tool_call_id": call.id,
+                "content": json.dumps(_FAKE_RESULT),
+            }
+            for call, _ in validated
+        )
+        return post_model.ExecutionResult(failed=False)
+
+    turn = post_model.TurnInput(
+        user_text=case.utterance,
+        transcript=lambda: transcript,
+        tools=tuple(tools),
+        schema_fingerprint=schema_fingerprint,
+        available_names=names,
+        action_tools=_action_tools(names),
+        exposed_domains=exposed,
+        home=lambda: grounding_home,
+        tool_api=True,
+        iteration_limit=lambda: PRODUCTION_MAX_TOOL_ITERATIONS,
+        now=time.monotonic(),
+        held_ttl=PRODUCTION_HELD_TTL_SECONDS,
+        read_only=frozenset(names & tool_contract.READ_ONLY_FALLBACK),
+    )
+    outcome = asyncio.run(
+        post_model.run_turn(
+            turn,
+            complete=complete,
+            validate=validate,
+            execute=execute,
+            recorder=_NullRecorder(),
+        )
+    )
+    return outcome, trace
+
+
 def evaluate(cases: list[Case], adapter: ModelAdapter) -> list[CaseResult]:
+    schema_fingerprint = production_contract_fingerprint()
     results: list[CaseResult] = []
     for case in cases:
         rendered = render_case(case)
-        prompt_messages = _area_context.tools_before_area_messages(
-            rendered["messages"], rendered["tools"]
+        home = load_home(case.household)
+        outcome, trace = _run_case_turn(case, rendered, adapter, schema_fingerprint)
+        first_turn = read_completion(
+            trace.raws[0], rendered["tools"], rendered["exposed_domains"]
         )
-        if prompt_messages is rendered["messages"]:
-            sent_tools: list[dict[str, Any]] = rendered["tools"]
-        else:
-            sent_tools = []
-        try:
-            raw = adapter.complete(prompt_messages, sent_tools)
-            transport_error = None
-        except (urllib.error.URLError, TimeoutError, OSError, ConnectionError) as err:
-            raw = {"transport_error": str(err)}
-            transport_error = str(err)
-        turn = read_completion(raw, rendered["tools"], rendered["exposed_domains"])
-        result = score(
-            case.id, rendered["expectation"], turn, home=load_home(case.household)
+        final_turn = Turn(
+            raw=trace.raws[0],
+            text=outcome.speech,
+            calls=[
+                {"name": call.name, "arguments": call.arguments}
+                for call in outcome.executed
+            ],
+            parse_error=trace.parse_error,
+            violations=trace.violations,
         )
-        if transport_error:
+        result = score(case.id, rendered["expectation"], final_turn, home=home)
+        result.first_pass = score(
+            case.id, rendered["expectation"], first_turn, home=home
+        ).outcome
+        result.info_flags = _info_flags(outcome)
+        if trace.transport_error:
             result.flags.append("transport_error")
         results.append(result)
     return results

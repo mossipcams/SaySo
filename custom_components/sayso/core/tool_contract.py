@@ -3,7 +3,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Literal
+
+from .completion import ToolCall
 
 ViolationCode = Literal["unknown_tool", "schema_mismatch", "invalid_arguments"]
 
@@ -15,6 +18,15 @@ _JSON_TYPES: dict[str, tuple[type, ...]] = {
     "array": (list,),
     "object": (dict,),
 }
+
+READ_ONLY_FALLBACK = frozenset(
+    {
+        "intent__HassTimerStatus",
+        "todo__get_items",
+        "homeassistant__GetLiveContext",
+        "llm__GetDateTime",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,3 +132,66 @@ def check_tool_calls(
         for name, arguments in calls
         if (violation := check_tool_call(name, arguments, tools, domains)) is not None
     ]
+
+
+class ToolArgumentFailureCode(StrEnum):
+    SCHEMA_MISMATCH = "schema_mismatch"
+    INVALID_ARGUMENTS = "invalid_arguments"
+
+
+@dataclass(frozen=True, slots=True)
+class ToolArgumentValidationError:
+    code: ToolArgumentFailureCode
+    message: str
+    tool_name: str
+
+
+def format_synthetic_validation_error(
+    error: ToolArgumentValidationError,
+    *,
+    allowed_tools: list[str],
+    fingerprint: str,
+) -> dict[str, Any]:
+    return {
+        "error": {
+            "code": error.code,
+            "message": error.message,
+            "allowed_tools": allowed_tools,
+            "schema_fingerprint": fingerprint,
+        }
+    }
+
+
+def is_well_formed_batch(tool_calls: list[ToolCall]) -> bool:
+    ids = [call.id for call in tool_calls]
+    return (
+        all(call.id and call.name for call in tool_calls)
+        and len(set(ids)) == len(ids)
+        and all(isinstance(call.arguments, dict) for call in tool_calls)
+    )
+
+
+def contract_failures(
+    tool_calls: list[ToolCall],
+    compiled_tools: Mapping[str, Any],
+    exposed_domains: frozenset[str],
+) -> list[tuple[ToolCall, ToolArgumentValidationError]]:
+    if not compiled_tools:
+        return []
+    failures = []
+    for call in tool_calls:
+        violation = check_tool_call(
+            call.name, call.arguments, compiled_tools, exposed_domains or None
+        )
+        if violation is not None:
+            failures.append(
+                (
+                    call,
+                    ToolArgumentValidationError(
+                        code=ToolArgumentFailureCode(violation.code),
+                        message=violation.message,
+                        tool_name=call.name,
+                    ),
+                )
+            )
+    return failures

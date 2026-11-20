@@ -20,7 +20,7 @@ from custom_components.sayso.client import (
 )
 from custom_components.sayso.const import CONF_TRACE_STORE_UTTERANCES, DOMAIN
 from custom_components.sayso.diagnostics import async_get_config_entry_diagnostics
-from custom_components.sayso.exceptions import (
+from custom_components.sayso.core.exceptions import (
     SaySoConnectionError,
     SaySoTimeoutError,
 )

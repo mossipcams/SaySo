@@ -65,7 +65,7 @@ from .const import (
 )
 from .inference import default_thread_count, entry_backend
 from .model_store import list_local_models
-from .exceptions import (
+from .core.exceptions import (
     SaySoAuthError,
     SaySoConnectionError,
     SaySoError,

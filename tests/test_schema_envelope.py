@@ -20,7 +20,7 @@ from pytest_homeassistant_custom_component.common import setup_test_component_pl
 
 from custom_components.sayso.client import LlamaCppClient
 from custom_components.sayso.const import DOMAIN, ERROR_ACTION_FAILED, ERROR_MODEL_UNAVAILABLE
-from custom_components.sayso.exceptions import SaySoInvalidToolEnvelopeError
+from custom_components.sayso.core.exceptions import SaySoInvalidToolEnvelopeError
 from custom_components.sayso.schema import (
     clear_compile_cache,
     compile_llm_tools,
