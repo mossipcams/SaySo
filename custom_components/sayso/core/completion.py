@@ -189,7 +189,9 @@ def extract_tool_calls(content: str) -> tuple[str | None, list[ToolCall]]:
     return (leftover or None), calls
 
 
-def parse_completion_result(raw: Any) -> ChatCompletionResult:
+def parse_completion_result(
+    raw: Any, *, extract_content_calls: bool = True
+) -> ChatCompletionResult:
     if not isinstance(raw, dict):
         raise SaySoInvalidResponseError("Local inference returned no result")
 
@@ -198,8 +200,10 @@ def parse_completion_result(raw: Any) -> ChatCompletionResult:
     tool_calls = parse_tool_calls(
         message.get("tool_calls"), subject=_SUBJECT, mint_id=call_id
     )
-    if tool_calls:
-        text: str | None = content
+    if not extract_content_calls:
+        text: str | None = content or None
+    elif tool_calls:
+        text = content
     else:
         text, tool_calls = extract_tool_calls(content or "")
 
