@@ -35,7 +35,7 @@ Rejected:
 - Schema identity can be checked. Envelope errors fail before llama.cpp is called. Argument failures are classified as schema mismatch, invalid arguments, or unavailable tool in redacted diagnostics.
 - The full catalog is sent on every embedded request, so prompt size is set by the HA catalog, not by the command.
 - Open: `docs/SCHEMA_LOCK_PLAN.md` Task 6 has not run. The plan still reads "proposed", so v1 is a reference artifact but is not declared locked. Its physical-device gate and human review are outstanding.
-- `docs/CODE_IMPROVEMENT_PLAN.md` tasks 14–17 (routing and filtered-miss recovery) were superseded by the decision above. Tasks 20–22 (live TTFT measurement and the baseline comparison) are not in the repo.
+- The removed `docs/CODE_IMPROVEMENT_PLAN.md` tasks 14–17 (routing and filtered-miss recovery) were superseded by the decision above. Tasks 20–22 (live TTFT measurement and the baseline comparison) are not in the repo.
 
 ## Shipped in
 
