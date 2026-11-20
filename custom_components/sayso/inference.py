@@ -376,10 +376,12 @@ class EmbeddedEngine:
                     exc_info=True,
                 )
                 skipped = GRAMMAR_BACKEND_REJECTED
+        prompt = tools_before_area_messages(messages, tools)
+        if tools and prompt is messages:
+            extra["tools"] = list(tools)
+            extra["tool_choice"] = "auto"
         raw = self._llm.create_chat_completion(
-            messages=_messages_for_embedded_template(
-                tools_before_area_messages(messages, tools)
-            ),
+            messages=_messages_for_embedded_template(prompt),
             temperature=temperature,
             max_tokens=max_tokens,
             **extra,

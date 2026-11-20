@@ -121,8 +121,12 @@ async def _embedded_create_kwargs(
     llm.create_chat_completion.return_value = _completion("ok")
     monkeypatch.setattr(engine, "_load", MagicMock(return_value=llm))
     await engine.async_start()
+    messages = [
+        {"role": "system", "content": "You are SaySo.\nArea context:\nKitchen"},
+        *MESSAGES,
+    ]
     try:
-        await engine.async_chat_completion(MESSAGES, **request)
+        await engine.async_chat_completion(messages, **request)
     finally:
         await engine.async_shutdown()
     return llm.create_chat_completion.call_args.kwargs
