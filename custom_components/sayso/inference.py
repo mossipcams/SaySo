@@ -95,7 +95,7 @@ def _last_user_turn_start(tokens: list[int], marker: list[int]) -> int | None:
 
 def _shared_prefix_len(left: list[int], right: list[int]) -> int:
     count = 0
-    for a, b in zip(left, right):
+    for a, b in zip(left, right, strict=False):
         if a != b:
             break
         count += 1

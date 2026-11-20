@@ -28,7 +28,7 @@ def patch_satellite_entities(hass: HomeAssistant, select_entity_id: str) -> int:
         for entity in platform.entities.values():
             if not hasattr(entity, "_attr_vad_sensitivity_entity_id"):
                 continue
-            if getattr(entity, "_attr_vad_sensitivity_entity_id") == select_entity_id:
+            if entity._attr_vad_sensitivity_entity_id == select_entity_id:
                 continue
             entity._attr_vad_sensitivity_entity_id = select_entity_id
             patched += 1

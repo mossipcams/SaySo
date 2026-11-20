@@ -82,7 +82,7 @@ def mentioned_area(utterance: str, home: GroundingHome) -> str | None:
             if not ws:
                 continue
             n = len(ws)
-            for i, tok in enumerate(ut):
+            for i in range(len(ut)):
                 if ut[i : i + n] == ws and (best is None or n > best[0]):
                     best = (n, area)
     return best[1] if best else None

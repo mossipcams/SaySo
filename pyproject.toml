@@ -41,6 +41,7 @@ testpaths = ["tests", "evals/tests", "satellite/sayso"]
 pythonpath = ["."]
 
 [tool.ruff]
+target-version = "py312"
 extend-exclude = [
     "satellite",
     "training",
@@ -48,7 +49,10 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E9", "F63", "F7", "F82"]
+select = ["E9", "F63", "F7", "F82", "B", "ASYNC"]
+
+[tool.ruff.lint.per-file-ignores]
+"custom_components/sayso/ducking.py" = ["ASYNC109"]
 
 [tool.ruff.format]
 exclude = [
