@@ -48,7 +48,26 @@ follow_imports = "silent"
 
 [[tool.mypy.overrides]]
 module = "custom_components.sayso.core.*"
-strict = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_unused_ignores = true
+warn_return_any = true
+implicit_reexport = false
+strict_equality = true
+extra_checks = true
+
+[[tool.mypy.overrides]]
+module = ["llama_cpp", "probatio"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "voluptuous_openapi"
+follow_untyped_imports = true
 
 [tool.ruff]
 target-version = "py312"

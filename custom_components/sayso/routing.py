@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from homeassistant.components.conversation.const import DOMAIN as CONVERSATION_DOMAIN
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
@@ -204,7 +204,12 @@ def _identify_from_entity_and_domain_terms(
     return _resolve_domain_hint(matched)
 
 
-def _named_matches[T](
+class _Named(Protocol):
+    @property
+    def name(self) -> str: ...
+
+
+def _named_matches[T: _Named](
     entries: Sequence[T],
     id_of: Callable[[T], str],
     command_tokens: list[str],

@@ -99,7 +99,7 @@ class TraceStore:
         kept = [
             record
             for record in self._records
-            if _started_at(record) is None or _started_at(record) >= cutoff
+            if (started_at := _started_at(record)) is None or started_at >= cutoff
         ]
         if len(kept) != len(self._records):
             self._records = deque(kept, maxlen=self._records.maxlen)

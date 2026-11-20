@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import voluptuous as vol
 
@@ -179,7 +179,8 @@ def _async_register_trace_services(hass: HomeAssistant) -> None:
                 )
             )
         traces.sort(key=lambda summary: summary.get("started_at") or "", reverse=True)
-        return {"traces": traces[:limit]}
+        response: dict[str, Any] = {"traces": traces[:limit]}
+        return response
 
     hass.services.async_register(
         DOMAIN,
@@ -437,5 +438,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: SaySoConfigEntry) -> bo
     if entry.runtime_data is not None:
         entry.runtime_data.tracer.async_shutdown()
         await entry.runtime_data.engine.async_shutdown()
-    entry.runtime_data = None
+    entry.runtime_data = cast(SaySoRuntimeData, None)
     return True

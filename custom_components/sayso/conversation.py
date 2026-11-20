@@ -4,7 +4,7 @@ import logging
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, replace
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, cast, override
 
 from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
@@ -247,7 +247,7 @@ class _Turn:
         try:
             result = await runtime.engine.async_chat_completion(
                 messages,
-                tools=tools,
+                tools=cast("list[dict[str, Any]] | None", tools),
                 temperature=runtime.temperature,
                 max_tokens=runtime.max_output_tokens,
                 grammar=grammar,
@@ -638,7 +638,9 @@ class SaySoConversationEntity(
         phase = BoundaryPhase(failure.phase.value)
         if kind in (FailureKind.TIMEOUT, FailureKind.MODEL_FAILED):
             return turn.model_failure(
-                failure.error, phase, log_label=_MODEL_LOG_LABELS[failure.phase]
+                cast(BaseException, failure.error),
+                phase,
+                log_label=_MODEL_LOG_LABELS[failure.phase],
             )
         if kind is FailureKind.EMPTY_RESPONSE:
             return turn.error(

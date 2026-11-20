@@ -348,9 +348,10 @@ class EmbeddedEngine:
 
     async def async_shutdown(self) -> None:
         self._llm = None
-        if self._executor is not None:
+        executor = self._executor
+        if executor is not None:
             await asyncio.get_running_loop().run_in_executor(
-                None, lambda: self._executor.shutdown(wait=True)
+                None, lambda: executor.shutdown(wait=True)
             )
             self._executor = None
 

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from collections.abc import Callable
-from typing import Any, Literal
+from collections.abc import Callable, Iterable
+from typing import Any, Literal, cast
 
 import voluptuous as vol
 from homeassistant.helpers import intent, llm
@@ -17,7 +17,7 @@ try:
     from voluptuous_openapi import UNSUPPORTED, convert
 except ImportError:
     UNSUPPORTED = object()
-    convert = None
+    convert = cast(Any, None)
 
 from .core.exceptions import SaySoInvalidToolEnvelopeError
 from .core.tool_schema import (
@@ -88,7 +88,7 @@ def _vol_in_allowed_values(validator: Any) -> frozenset[str] | None:
         container = validator.container
         if isinstance(container, dict):
             return frozenset(str(key) for key in container)
-        return frozenset(str(value) for value in container)
+        return frozenset(str(value) for value in cast(Iterable[Any], container))
 
     if isinstance(validator, vol.All):
         for sub_validator in validator.validators:
@@ -346,5 +346,5 @@ def compile_llm_tools(
     tools = compile_tools(llm_api.tools, custom_serializer=serializer)
     return CompiledToolSchema(
         tools=tools,
-        fingerprint=schema_fingerprint(tools),
+        fingerprint=schema_fingerprint(list(tools)),
     )

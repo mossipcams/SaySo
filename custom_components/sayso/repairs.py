@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from homeassistant.components.repairs import ConfirmRepairFlow, RepairsFlow
 from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant, callback
@@ -65,11 +67,11 @@ class ModelRepairFlow(DownloadSteps, RepairsFlow):
         self._replace = replace
 
     async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
-        return await self.async_step_download()
+        return cast(FlowResult, await self.async_step_download())
 
     async def async_step_finish(self, user_input: dict | None = None) -> FlowResult:
         self.hass.config_entries.async_schedule_reload(self._entry_id)
-        return self.async_create_entry(data={})
+        return cast(FlowResult, self.async_create_entry(data={}))
 
 
 async def async_create_fix_flow(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -11,6 +12,7 @@ import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
+    ConfigFlowContext,
     ConfigFlowResult,
     ConfigSubentryData,
     ConfigSubentryFlow,
@@ -25,6 +27,7 @@ from homeassistant.const import (
     CONF_URL,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import FlowHandler
 
 from homeassistant.helpers import config_validation as cv, llm
 from homeassistant.helpers.llm import LLM_API_ASSIST
@@ -220,7 +223,9 @@ def _entry_title(base_url: str, model: str) -> str:
     return f"{model} @ {host}"
 
 
-def _suggest(options: dict[str, Any], key: str, default: Any = None) -> dict[str, Any]:
+def _suggest(
+    options: Mapping[str, Any], key: str, default: Any = None
+) -> dict[str, Any]:
     return {"suggested_value": options.get(key, default)}
 
 
@@ -233,7 +238,7 @@ def _select(values: list[str], *, custom: bool = False) -> SelectSelector:
     )
 
 
-class DownloadSteps:
+class DownloadSteps(FlowHandler[ConfigFlowContext, ConfigFlowResult, str]):
     hass: HomeAssistant
     _model: str
     _replace: bool = False
@@ -277,7 +282,7 @@ class DownloadSteps:
 
 
 def _model_fields(
-    options: dict[str, Any], models: list[str], *, embedded: bool
+    options: Mapping[str, Any], models: list[str], *, embedded: bool
 ) -> dict[Any, Any]:
     if not embedded:
         current = options.get(CONF_MODEL)
@@ -321,7 +326,7 @@ def _model_fields(
 
 
 def _fields(
-    options: dict[str, Any],
+    options: Mapping[str, Any],
     spec: tuple[tuple[Any, str, Any, Any], ...],
     llm_apis: SelectSelector | None = None,
 ) -> dict[Any, Any]:
@@ -332,7 +337,7 @@ def _fields(
 
 
 def _engine_schema(
-    options: dict[str, Any], models: list[str], *, embedded: bool
+    options: Mapping[str, Any], models: list[str], *, embedded: bool
 ) -> vol.Schema:
     return vol.Schema(
         {
@@ -344,7 +349,7 @@ def _engine_schema(
 
 def _conversation_schema(
     hass: HomeAssistant,
-    suggested: dict[str, Any],
+    suggested: Mapping[str, Any],
     models: list[str],
     *,
     external: bool,
@@ -551,7 +556,7 @@ class SaySoConversationSubentryFlow(ConfigSubentryFlow):
         return self.async_update_and_abort(entry, subentry, title=title, data=data)
 
     async def _async_show_form(
-        self, step_id: str, entry: ConfigEntry, suggested: dict[str, Any]
+        self, step_id: str, entry: ConfigEntry, suggested: Mapping[str, Any]
     ) -> SubentryFlowResult:
         external = entry_backend(entry) == BACKEND_EXTERNAL
         models = await _async_list_models(self.hass, entry) if external else []
@@ -592,7 +597,7 @@ class SaySoOptionsFlowHandler(DownloadSteps, OptionsFlow):
 
     def _form(
         self,
-        suggested: dict[str, Any],
+        suggested: Mapping[str, Any],
         *,
         embedded: bool,
         models: list[str] | None = None,
